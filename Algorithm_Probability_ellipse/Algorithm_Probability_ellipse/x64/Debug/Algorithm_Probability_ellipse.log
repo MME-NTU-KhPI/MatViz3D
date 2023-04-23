@@ -1,0 +1,10 @@
+﻿  Algorithm_Probability_ellipse.cpp
+D:\Project\Algorithm_Probability_ellipse\Algorithm_Probability_ellipse\Algorithm_Probability_ellipse.cpp(17,15): warning C4244: аргумент: преобразование "time_t" в "unsigned int", возможна потеря данных
+D:\Project\Algorithm_Probability_ellipse\Algorithm_Probability_ellipse\Algorithm_Probability_ellipse.cpp(21,27): warning C4838: Преобразование из "int" в "SHORT" требует сужающего преобразования.
+D:\Project\Algorithm_Probability_ellipse\Algorithm_Probability_ellipse\Algorithm_Probability_ellipse.cpp(21,32): warning C4838: Преобразование из "int" в "SHORT" требует сужающего преобразования.
+D:\Project\Algorithm_Probability_ellipse\Algorithm_Probability_ellipse\Algorithm_Probability_ellipse.cpp(50,25): warning C4838: Преобразование из "int" в "SHORT" требует сужающего преобразования.
+D:\Project\Algorithm_Probability_ellipse\Algorithm_Probability_ellipse\Algorithm_Probability_ellipse.cpp(50,30): warning C4838: Преобразование из "int" в "SHORT" требует сужающего преобразования.
+D:\Project\Algorithm_Probability_ellipse\Algorithm_Probability_ellipse\Algorithm_Probability_ellipse.cpp(94,27): warning C4838: Преобразование из "int" в "SHORT" требует сужающего преобразования.
+D:\Project\Algorithm_Probability_ellipse\Algorithm_Probability_ellipse\Algorithm_Probability_ellipse.cpp(94,34): warning C4838: Преобразование из "int" в "SHORT" требует сужающего преобразования.
+D:\Project\Algorithm_Probability_ellipse\Algorithm_Probability_ellipse\Algorithm_Probability_ellipse.cpp(100,12): warning C4244: аргумент: преобразование "time_t" в "unsigned int", возможна потеря данных
+  Algorithm_Probability_ellipse.vcxproj -> D:\Project\Algorithm_Probability_ellipse\x64\Debug\Algorithm_Probability_ellipse.exe

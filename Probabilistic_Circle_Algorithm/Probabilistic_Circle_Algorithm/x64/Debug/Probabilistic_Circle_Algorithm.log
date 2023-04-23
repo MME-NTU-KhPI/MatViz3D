@@ -1,0 +1,10 @@
+﻿  Probabilistic_Circle_Algorithm.cpp
+D:\Project\Probabilistic_Circle_Algorithm\Probabilistic_Circle_Algorithm\Probabilistic_Circle_Algorithm.cpp(17,15): warning C4244: аргумент: преобразование "time_t" в "unsigned int", возможна потеря данных
+D:\Project\Probabilistic_Circle_Algorithm\Probabilistic_Circle_Algorithm\Probabilistic_Circle_Algorithm.cpp(21,27): warning C4838: Преобразование из "int" в "SHORT" требует сужающего преобразования.
+D:\Project\Probabilistic_Circle_Algorithm\Probabilistic_Circle_Algorithm\Probabilistic_Circle_Algorithm.cpp(21,32): warning C4838: Преобразование из "int" в "SHORT" требует сужающего преобразования.
+D:\Project\Probabilistic_Circle_Algorithm\Probabilistic_Circle_Algorithm\Probabilistic_Circle_Algorithm.cpp(50,25): warning C4838: Преобразование из "int" в "SHORT" требует сужающего преобразования.
+D:\Project\Probabilistic_Circle_Algorithm\Probabilistic_Circle_Algorithm\Probabilistic_Circle_Algorithm.cpp(50,30): warning C4838: Преобразование из "int" в "SHORT" требует сужающего преобразования.
+D:\Project\Probabilistic_Circle_Algorithm\Probabilistic_Circle_Algorithm\Probabilistic_Circle_Algorithm.cpp(94,27): warning C4838: Преобразование из "int" в "SHORT" требует сужающего преобразования.
+D:\Project\Probabilistic_Circle_Algorithm\Probabilistic_Circle_Algorithm\Probabilistic_Circle_Algorithm.cpp(94,34): warning C4838: Преобразование из "int" в "SHORT" требует сужающего преобразования.
+D:\Project\Probabilistic_Circle_Algorithm\Probabilistic_Circle_Algorithm\Probabilistic_Circle_Algorithm.cpp(100,12): warning C4244: аргумент: преобразование "time_t" в "unsigned int", возможна потеря данных
+  Probabilistic_Circle_Algorithm.vcxproj -> D:\Project\Probabilistic_Circle_Algorithm\x64\Debug\Probabilistic_Circle_Algorithm.exe

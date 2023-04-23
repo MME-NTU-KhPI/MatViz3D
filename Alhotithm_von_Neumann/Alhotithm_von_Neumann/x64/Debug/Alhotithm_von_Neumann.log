@@ -1,0 +1,9 @@
+﻿  Alhotithm_von_Neumann.cpp
+D:\Project\Alhotithm_von_Neumann\Alhotithm_von_Neumann\Alhotithm_von_Neumann.cpp(18,25): warning C4838: Преобразование из "int" в "SHORT" требует сужающего преобразования.
+D:\Project\Alhotithm_von_Neumann\Alhotithm_von_Neumann\Alhotithm_von_Neumann.cpp(18,30): warning C4838: Преобразование из "int" в "SHORT" требует сужающего преобразования.
+D:\Project\Alhotithm_von_Neumann\Alhotithm_von_Neumann\Alhotithm_von_Neumann.cpp(62,26): warning C4838: Преобразование из "int" в "SHORT" требует сужающего преобразования.
+D:\Project\Alhotithm_von_Neumann\Alhotithm_von_Neumann\Alhotithm_von_Neumann.cpp(62,31): warning C4838: Преобразование из "int" в "SHORT" требует сужающего преобразования.
+D:\Project\Alhotithm_von_Neumann\Alhotithm_von_Neumann\Alhotithm_von_Neumann.cpp(82,27): warning C4838: Преобразование из "int" в "SHORT" требует сужающего преобразования.
+D:\Project\Alhotithm_von_Neumann\Alhotithm_von_Neumann\Alhotithm_von_Neumann.cpp(82,34): warning C4838: Преобразование из "int" в "SHORT" требует сужающего преобразования.
+D:\Project\Alhotithm_von_Neumann\Alhotithm_von_Neumann\Alhotithm_von_Neumann.cpp(88,12): warning C4244: аргумент: преобразование "time_t" в "unsigned int", возможна потеря данных
+  Alhotithm_von_Neumann.vcxproj -> D:\Project\Alhotithm_von_Neumann\x64\Debug\Alhotithm_von_Neumann.exe
