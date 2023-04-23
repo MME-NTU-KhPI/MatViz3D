@@ -2,6 +2,14 @@
 <ui version="4.0">
  <class>MainWindow</class>
  <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1280</width>
+    <height>832</height>
+   </rect>
+  </property>
   <property name="minimumSize">
    <size>
     <width>1280</width>
@@ -120,6 +128,9 @@ color: #969696;</string>
        <property name="text">
         <string>Cube size:</string>
        </property>
+       <property name="buddy">
+        <cstring>Rectangle8</cstring>
+       </property>
       </widget>
       <widget class="QLineEdit" name="Rectangle8">
        <property name="geometry">
@@ -183,6 +194,9 @@ color: #969696;</string>
        <property name="text">
         <string>Number of points:</string>
        </property>
+       <property name="buddy">
+        <cstring>Rectangle9</cstring>
+       </property>
       </widget>
       <widget class="QLineEdit" name="Rectangle9">
        <property name="geometry">
@@ -214,7 +228,7 @@ padding-left: 4px;</string>
        <height>394</height>
       </rect>
      </property>
-     <widget class="QPushButton" name="Algoritm1">
+     <widget class="QPushButton" name="Algorithm1">
       <property name="geometry">
        <rect>
         <x>0</x>
@@ -240,10 +254,10 @@ line-height: 19px;
 color: #171616;</string>
       </property>
       <property name="text">
-       <string>Algoritm 1</string>
+       <string>Algorithm 1</string>
       </property>
      </widget>
-     <widget class="QPushButton" name="Algoritm2">
+     <widget class="QPushButton" name="Algorithm2">
       <property name="geometry">
        <rect>
         <x>0</x>
@@ -268,10 +282,10 @@ line-height: 19px;
 color: #171616;</string>
       </property>
       <property name="text">
-       <string>Algoritm 2</string>
+       <string>Algorithm 2</string>
       </property>
      </widget>
-     <widget class="QPushButton" name="Algoritm3">
+     <widget class="QPushButton" name="Algorithm3">
       <property name="geometry">
        <rect>
         <x>0</x>
@@ -295,10 +309,10 @@ line-height: 19px;
 color: #171616;</string>
       </property>
       <property name="text">
-       <string>Algoritm 3</string>
+       <string>Algorithm 3</string>
       </property>
      </widget>
-     <widget class="QPushButton" name="Algoritm4">
+     <widget class="QPushButton" name="Algorithm4">
       <property name="geometry">
        <rect>
         <x>0</x>
@@ -322,7 +336,7 @@ line-height: 19px;
 color: #171616;</string>
       </property>
       <property name="text">
-       <string>Algoritm 4</string>
+       <string>Algorithm 4</string>
       </property>
      </widget>
     </widget>
@@ -376,6 +390,126 @@ background: #363636;</string>
     <property name="frameShadow">
      <enum>QFrame::Raised</enum>
     </property>
+    <widget class="QCheckBox" name="Colormap">
+     <property name="geometry">
+      <rect>
+       <x>47</x>
+       <y>664</y>
+       <width>105</width>
+       <height>19</height>
+      </rect>
+     </property>
+     <property name="layoutDirection">
+      <enum>Qt::RightToLeft</enum>
+     </property>
+     <property name="styleSheet">
+      <string notr="true">font-family: 'Inter';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+padding-left: 0;
+color: #969696;
+
+indicator {
+    width: 16px;
+    height: 16px;
+    background-color: red;
+}</string>
+     </property>
+     <property name="text">
+      <string>Colormap</string>
+     </property>
+     <property name="iconSize">
+      <size>
+       <width>16</width>
+       <height>16</height>
+      </size>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="Start">
+     <property name="geometry">
+      <rect>
+       <x>689</x>
+       <y>644</y>
+       <width>280</width>
+       <height>93</height>
+      </rect>
+     </property>
+     <property name="styleSheet">
+      <string notr="true">background: #282828;
+border-radius: 8px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 700;
+font-size: 48px;
+line-height: 58px;
+/* identical to box height */
+
+
+color: rgba(150, 150, 150, 0.5);
+padding: 18px 61px 17px 60px;</string>
+     </property>
+     <property name="text">
+      <string>START</string>
+     </property>
+    </widget>
+    <widget class="QWidget" name="Visibility" native="true">
+     <property name="geometry">
+      <rect>
+       <x>802</x>
+       <y>37</y>
+       <width>167</width>
+       <height>45</height>
+      </rect>
+     </property>
+     <widget class="QSlider" name="Rectangle10">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>167</width>
+        <height>14</height>
+       </rect>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">background: linear-gradient(270deg, rgba(0, 137, 123, 0.5) 1.8%, rgba(0, 86, 77, 0.5) 100%);
+border-radius: 45px;</string>
+      </property>
+      <property name="orientation">
+       <enum>Qt::Horizontal</enum>
+      </property>
+     </widget>
+     <widget class="QLabel" name="Exploded_view">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>27</y>
+        <width>114</width>
+        <height>18</height>
+       </rect>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">font-family: 'Inter';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+
+color: #969696;</string>
+      </property>
+      <property name="text">
+       <string>Exploded view</string>
+      </property>
+      <property name="buddy">
+       <cstring>Rectangle10</cstring>
+      </property>
+     </widget>
+    </widget>
+    <zorder>Start</zorder>
+    <zorder>Visibility</zorder>
+    <zorder>Colormap</zorder>
    </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">

@@ -22,14 +22,16 @@ public:
 private slots:
     void checkInputFields();
 
-    void on_Algoritm1_clicked(bool checked);
+    void on_Algorithm1_clicked(bool checked);
 
-    void on_Algoritm2_clicked(bool checked);
+    void on_Algorithm2_clicked(bool checked);
 
 
-    void on_Algoritm3_clicked(bool checked);
+    void on_Algorithm3_clicked(bool checked);
 
-    void on_Algoritm4_clicked(bool checked);
+    void on_Algorithm4_clicked(bool checked);
+
+    void on_Colormap_stateChanged(int arg1);
 
 private:
     Ui::MainWindow *ui;
