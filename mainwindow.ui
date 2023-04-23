@@ -2,19 +2,392 @@
 <ui version="4.0">
  <class>MainWindow</class>
  <widget class="QMainWindow" name="MainWindow">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>800</width>
-    <height>600</height>
-   </rect>
+  <property name="minimumSize">
+   <size>
+    <width>1280</width>
+    <height>832</height>
+   </size>
+  </property>
+  <property name="maximumSize">
+   <size>
+    <width>1280</width>
+    <height>832</height>
+   </size>
   </property>
   <property name="windowTitle">
    <string>MainWindow</string>
   </property>
-  <widget class="QWidget" name="centralwidget"/>
-  <widget class="QMenuBar" name="menubar"/>
+  <property name="styleSheet">
+   <string notr="true">background-color: rgb(3, 6, 9);</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <widget class="QFrame" name="Rectangle4">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>0</y>
+      <width>268</width>
+      <height>832</height>
+     </rect>
+    </property>
+    <property name="maximumSize">
+     <size>
+      <width>16777215</width>
+      <height>832</height>
+     </size>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">background-color: rgb(40, 40, 40);</string>
+    </property>
+    <property name="frameShape">
+     <enum>QFrame::StyledPanel</enum>
+    </property>
+    <property name="frameShadow">
+     <enum>QFrame::Raised</enum>
+    </property>
+    <widget class="QLabel" name="MaterialVis">
+     <property name="geometry">
+      <rect>
+       <x>43</x>
+       <y>31</y>
+       <width>183</width>
+       <height>39</height>
+      </rect>
+     </property>
+     <property name="styleSheet">
+      <string notr="true">/* MaterialVis */
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 800;
+font-size: 32px;
+line-height: 39px;
+/* identical to box height */
+
+
+color: #00897B;
+</string>
+     </property>
+     <property name="text">
+      <string>Material&lt;font color='#00564D'&gt;Vis&lt;/font&gt;</string>
+     </property>
+    </widget>
+    <widget class="QWidget" name="date" native="true">
+     <property name="geometry">
+      <rect>
+       <x>48</x>
+       <y>104</y>
+       <width>176</width>
+       <height>172</height>
+      </rect>
+     </property>
+     <widget class="QWidget" name="Size" native="true">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>166</width>
+        <height>63</height>
+       </rect>
+      </property>
+      <widget class="QLabel" name="Cube_size">
+       <property name="geometry">
+        <rect>
+         <x>0</x>
+         <y>0</y>
+         <width>103</width>
+         <height>18</height>
+        </rect>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">/* Cube size: */
+
+
+position: absolute;
+width: 103px;
+height: 24px;
+left: 49px;
+top: 104px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 700;
+font-size: 20px;
+line-height: 24px;
+
+color: #969696;</string>
+       </property>
+       <property name="text">
+        <string>Cube size:</string>
+       </property>
+      </widget>
+      <widget class="QLineEdit" name="Rectangle8">
+       <property name="geometry">
+        <rect>
+         <x>0</x>
+         <y>42</y>
+         <width>166</width>
+         <height>21</height>
+        </rect>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">/* Rectangle 8 */
+
+
+background: #282828;
+border: 1px solid #969696;
+box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+border-radius: 5px;
+color: #969696;
+padding: 4px 0;
+padding-left: 4px;</string>
+       </property>
+      </widget>
+     </widget>
+     <widget class="QWidget" name="Points" native="true">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>109</y>
+        <width>176</width>
+        <height>63</height>
+       </rect>
+      </property>
+      <widget class="QLabel" name="Number_of_points">
+       <property name="geometry">
+        <rect>
+         <x>0</x>
+         <y>0</y>
+         <width>176</width>
+         <height>19</height>
+        </rect>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">/* Number of points: */
+
+
+position: absolute;
+width: 176px;
+height: 24px;
+left: 48px;
+top: 213px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 700;
+font-size: 20px;
+line-height: 24px;
+
+color: #969696;</string>
+       </property>
+       <property name="text">
+        <string>Number of points:</string>
+       </property>
+      </widget>
+      <widget class="QLineEdit" name="Rectangle9">
+       <property name="geometry">
+        <rect>
+         <x>0</x>
+         <y>42</y>
+         <width>166</width>
+         <height>21</height>
+        </rect>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">background: #282828;
+border: 1px solid #969696;
+box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+border-radius: 5px;
+color: #969696;
+padding: 4px 0;
+padding-left: 4px;</string>
+       </property>
+      </widget>
+     </widget>
+    </widget>
+    <widget class="QWidget" name="Algoritm" native="true">
+     <property name="geometry">
+      <rect>
+       <x>48</x>
+       <y>338</y>
+       <width>168</width>
+       <height>394</height>
+      </rect>
+     </property>
+     <widget class="QPushButton" name="Algoritm1">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>165</width>
+        <height>37</height>
+       </rect>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">/* Rectangle 3 */
+
+background: #282828;
+border: 1px solid #000000;
+box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+border-radius: 15px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+
+color: #171616;</string>
+      </property>
+      <property name="text">
+       <string>Algoritm 1</string>
+      </property>
+     </widget>
+     <widget class="QPushButton" name="Algoritm2">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>119</y>
+        <width>165</width>
+        <height>37</height>
+       </rect>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">
+
+background: #282828;
+border: 1px solid #000000;
+box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+border-radius: 15px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+
+color: #171616;</string>
+      </property>
+      <property name="text">
+       <string>Algoritm 2</string>
+      </property>
+     </widget>
+     <widget class="QPushButton" name="Algoritm3">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>238</y>
+        <width>165</width>
+        <height>37</height>
+       </rect>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">
+
+background: #282828;
+border: 1px solid #000000;
+border-radius: 15px;
+font-family: 'Inter';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+
+color: #171616;</string>
+      </property>
+      <property name="text">
+       <string>Algoritm 3</string>
+      </property>
+     </widget>
+     <widget class="QPushButton" name="Algoritm4">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>357</y>
+        <width>165</width>
+        <height>37</height>
+       </rect>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">
+background: #282828;
+border: 1px solid #000000;
+border-radius: 15px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+
+color: #171616;</string>
+      </property>
+      <property name="text">
+       <string>Algoritm 4</string>
+      </property>
+     </widget>
+    </widget>
+   </widget>
+   <widget class="QFrame" name="Tab">
+    <property name="geometry">
+     <rect>
+      <x>268</x>
+      <y>0</y>
+      <width>1012</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="frameShape">
+     <enum>QFrame::StyledPanel</enum>
+    </property>
+    <property name="frameShadow">
+     <enum>QFrame::Raised</enum>
+    </property>
+   </widget>
+   <widget class="QFrame" name="Rectangle1">
+    <property name="geometry">
+     <rect>
+      <x>268</x>
+      <y>41</y>
+      <width>1280</width>
+      <height>791</height>
+     </rect>
+    </property>
+    <property name="minimumSize">
+     <size>
+      <width>0</width>
+      <height>0</height>
+     </size>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">/* Rectangle 1 */
+
+
+position: absolute;
+width: 1012px;
+height: 791px;
+left: 268px;
+top: 41px;
+
+background: #363636;</string>
+    </property>
+    <property name="frameShape">
+     <enum>QFrame::StyledPanel</enum>
+    </property>
+    <property name="frameShadow">
+     <enum>QFrame::Raised</enum>
+    </property>
+   </widget>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1280</width>
+     <height>26</height>
+    </rect>
+   </property>
+  </widget>
   <widget class="QStatusBar" name="statusbar"/>
  </widget>
  <resources/>
