@@ -1,6 +1,9 @@
 
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
+#include "myglwidget.h"
+#include <QtWidgets>
+#include "probability_circle.h"
 
 
 MainWindow::MainWindow(QWidget *parent)
@@ -11,7 +14,22 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(ui->Rectangle8, &QLineEdit::textChanged, this, &MainWindow::checkInputFields);
     connect(ui->Rectangle9, &QLineEdit::textChanged, this, &MainWindow::checkInputFields);
+
+    connect(ui->Rectangle8, &QLineEdit::editingFinished, this, [=]() {
+        bool ok;
+        numCubes = ui->Rectangle8->text().toInt(&ok);
+        if (ok) {
+            ui->myGLWidget->setNumCubes(numCubes);
+        }
+    });
+
+    ui->Rectangle10->setSingleStep(0.0001);
+    ui->Rectangle10->setTickInterval(0.05);
+    connect(ui->Rectangle10, &QSlider::valueChanged, ui->myGLWidget, &MyGLWidget::setDistanceFactor);
+
+
     checkInputFields();
+
 }
 
 MainWindow::~MainWindow()
@@ -77,5 +95,23 @@ void MainWindow::on_Algorithm4_clicked(bool checked)
 void MainWindow::on_Colormap_stateChanged(int arg1)
 {
 
+}
+
+
+void MainWindow::keyPressEvent(QKeyEvent *e)
+{
+    if (e->key() == Qt::Key_Escape)
+        close();
+    else
+        QWidget::keyPressEvent(e);
+}
+
+void MainWindow::on_Start_clicked()
+{
+
+    Probability_Circle start;
+    uint16_t*** voxel = start.Generate_Initial_Cube(numCubes);
+    ui->myGLWidget->setVoxel(voxel, numCubes);
+    ui->myGLWidget->update();
 }
 

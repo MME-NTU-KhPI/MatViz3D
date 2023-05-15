@@ -1,6 +1,9 @@
-QT       += core gui
+QT       += core gui opengl
+
+LIBS += -lopengl32
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
+QT += openglwidgets
 
 CONFIG += c++17
 
@@ -10,10 +13,14 @@ CONFIG += c++17
 
 SOURCES += \
     main.cpp \
-    mainwindow.cpp
+    mainwindow.cpp \
+    myglwidget.cpp \
+    probability_circle.cpp
 
 HEADERS += \
-    mainwindow.h
+    mainwindow.h \
+    myglwidget.h \
+    probability_circle.h
 
 FORMS += \
     mainwindow.ui

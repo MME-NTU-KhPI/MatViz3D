@@ -4,6 +4,9 @@
 
 #include <QMainWindow>
 #include <QButtonGroup>
+#include <QWidget>
+#include <QSlider>
+#include "probability_circle.h"
 
 
 QT_BEGIN_NAMESPACE
@@ -17,6 +20,7 @@ class MainWindow : public QMainWindow
 
 public:
     MainWindow(QWidget *parent = nullptr);
+    short int numCubes = 1;
     ~MainWindow();
 
 private slots:
@@ -33,8 +37,20 @@ private slots:
 
     void on_Colormap_stateChanged(int arg1);
 
+
+    //void on_Start_clicked();
+
+    //void on_Rectangle10_valueChanged(int value);
+
+    void on_Start_clicked();
+
+protected:
+    void keyPressEvent(QKeyEvent *event);
+
 private:
     Ui::MainWindow *ui;
+
+
 };
 
 #endif // MAINWINDOW_H
