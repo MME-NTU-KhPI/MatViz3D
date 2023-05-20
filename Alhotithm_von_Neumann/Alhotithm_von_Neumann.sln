@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.4.33122.133
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Alhotithm_von_Neumann", "Alhotithm_von_Neumann\Alhotithm_von_Neumann.vcxproj", "{45FF7146-3DDD-46DE-8D6B-2EE35B1FBED6}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{45FF7146-3DDD-46DE-8D6B-2EE35B1FBED6}.Debug|x64.ActiveCfg = Debug|x64
+		{45FF7146-3DDD-46DE-8D6B-2EE35B1FBED6}.Debug|x64.Build.0 = Debug|x64
+		{45FF7146-3DDD-46DE-8D6B-2EE35B1FBED6}.Debug|x86.ActiveCfg = Debug|Win32
+		{45FF7146-3DDD-46DE-8D6B-2EE35B1FBED6}.Debug|x86.Build.0 = Debug|Win32
+		{45FF7146-3DDD-46DE-8D6B-2EE35B1FBED6}.Release|x64.ActiveCfg = Release|x64
+		{45FF7146-3DDD-46DE-8D6B-2EE35B1FBED6}.Release|x64.Build.0 = Release|x64
+		{45FF7146-3DDD-46DE-8D6B-2EE35B1FBED6}.Release|x86.ActiveCfg = Release|Win32
+		{45FF7146-3DDD-46DE-8D6B-2EE35B1FBED6}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {3106C84F-28B7-44D4-AB91-ED41B400D939}
+	EndGlobalSection
+EndGlobal

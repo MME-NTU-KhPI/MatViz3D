@@ -1,0 +1,7 @@
+<RCC>
+    <qresource prefix="/">
+        <file>resources/Rectangle 19.png</file>
+        <file>resources/Rectangle 19.svg</file>
+        <file>resources/Ellipse 1.svg</file>
+    </qresource>
+</RCC>

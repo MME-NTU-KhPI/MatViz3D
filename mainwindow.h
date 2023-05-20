@@ -4,6 +4,12 @@
 
 #include <QMainWindow>
 #include <QButtonGroup>
+#include <QPushButton>
+#include <QScreen>
+#include <QFileDialog>
+#include <QPixmap>
+#include <QPainter>
+#include <QGraphicsDropShadowEffect>
 
 
 QT_BEGIN_NAMESPACE
@@ -21,6 +27,8 @@ public:
 
 private slots:
     void checkInputFields();
+    void checkStart(bool algorithm1, bool algorithm2, bool algorithm3, bool algorithm4);
+    void setWidgetVisibility(QWidget* widget, bool visible);
 
     void on_Algorithm1_clicked(bool checked);
 
@@ -31,10 +39,14 @@ private slots:
 
     void on_Algorithm4_clicked(bool checked);
 
-    void on_Colormap_stateChanged(int arg1);
+
+    void on_Start_clicked();
+
+    void on_Save_clicked();
 
 private:
     Ui::MainWindow *ui;
+    QPushButton *buttons[4];
 };
 
 #endif // MAINWINDOW_H
