@@ -4,6 +4,8 @@
 #include "myglwidget.h"
 #include <QtWidgets>
 #include "probability_circle.h"
+#include <QMessageBox>
+#include "vonneumann.h"
 
 
 MainWindow::MainWindow(QWidget *parent)
@@ -108,10 +110,11 @@ void MainWindow::keyPressEvent(QKeyEvent *e)
 
 void MainWindow::on_Start_clicked()
 {
-
-    Probability_Circle start;
-    uint16_t*** voxel = start.Generate_Initial_Cube(numCubes);
-    ui->myGLWidget->setVoxel(voxel, numCubes);
+    //Probability_Circle start;
+    VonNeumann start;
+    uint16_t*** voxels = start.Generate_Initial_Cube(numCubes);
+    ui->myGLWidget->setVoxels(voxels, numCubes);
     ui->myGLWidget->update();
+
 }
 

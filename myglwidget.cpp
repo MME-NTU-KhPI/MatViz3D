@@ -15,13 +15,14 @@
 
 
 
+
 MyGLWidget::MyGLWidget(QWidget *parent)
     : QOpenGLWidget(parent)
 {
     xRot = 0;
     yRot = 0;
     zRot = 0;
-    distance = 5.0f;
+    distance = 2.0f;
     voxels = nullptr;
 }
 
@@ -138,7 +139,7 @@ void MyGLWidget::initializeGL()
 
 }
 
-void MyGLWidget::setVoxel(uint16_t*** voxels, short int numCubes)
+void MyGLWidget::setVoxels(uint16_t*** voxels, short int numCubes)
 {
     this->voxels=voxels;
     this->numCubes=numCubes;

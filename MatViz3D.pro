@@ -15,12 +15,14 @@ SOURCES += \
     main.cpp \
     mainwindow.cpp \
     myglwidget.cpp \
-    probability_circle.cpp
+    probability_circle.cpp \
+    vonneumann.cpp
 
 HEADERS += \
     mainwindow.h \
     myglwidget.h \
-    probability_circle.h
+    probability_circle.h \
+    vonneumann.h
 
 FORMS += \
     mainwindow.ui

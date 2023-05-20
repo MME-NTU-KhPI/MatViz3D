@@ -7,6 +7,7 @@
 #include <QWidget>
 #include <QSlider>
 #include "probability_circle.h"
+#include "vonneumann.h"
 
 
 QT_BEGIN_NAMESPACE
