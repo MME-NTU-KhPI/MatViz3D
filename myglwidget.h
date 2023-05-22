@@ -4,6 +4,7 @@
 #include <QtOpenGLWidgets/QOpenGLWidget>
 #include <QMatrix4x4>
 #include "probability_circle.h"
+#include "probability_ellipse.h"
 
 
 

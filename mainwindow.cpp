@@ -6,6 +6,7 @@
 #include "probability_circle.h"
 #include <QMessageBox>
 //#include "vonneumann.h"
+#include "parent_algorithm.h"
 
 
 MainWindow::MainWindow(QWidget *parent)
@@ -116,11 +117,18 @@ void MainWindow::keyPressEvent(QKeyEvent *e)
         QWidget::keyPressEvent(e);
 }
 
+void Parent_Algorithm::Call(Parent_Algorithm*obj){
+    obj->Generate_Filling (uint16_t*** voxels, short int numCubes);
+}
+
 void MainWindow::on_Start_clicked()
 {
-    Probability_Circle start;
-    //VonNeumann start;
+    //Probability_Circle start;
+    Parent_Algorithm start;
+    //Neumann start;
+    //Probability_Ellipse start;
     uint16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
+    Probability_Circle order;
     ui->myGLWidget->setVoxels(voxels, numCubes);
     ui->myGLWidget->update();
 

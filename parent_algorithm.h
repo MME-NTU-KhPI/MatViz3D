@@ -1,0 +1,16 @@
+
+#ifndef PARENT_ALGORITHM_H
+#define PARENT_ALGORITHM_H
+
+#include "probability_circle.h"
+#include <cstdint>
+
+class Parent_Algorithm
+{
+public:
+    Parent_Algorithm();
+    virtual Generate_Filling(uint16_t*** voxels, short int numCubes);
+    uint16_t*** Generate_Initial_Cube(short int numCubes, int numColors);
+};
+
+#endif // PARENT_ALGORITHM_H

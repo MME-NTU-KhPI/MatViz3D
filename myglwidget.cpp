@@ -153,7 +153,7 @@ std::vector<std::array<GLfloat, 4>> generateDistinctColors(int numColors) {
         float hue = i * hueIncrement;
         float saturation = 1.0f;
         float value = 1.0f;
-        float alpha = 1.0f;
+        float alpha = 0.6f;
 
         // Convert HSV to RGB
         float chroma = saturation * value;

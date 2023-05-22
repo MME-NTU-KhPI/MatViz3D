@@ -14,15 +14,21 @@ CONFIG += c++17
 SOURCES += \
     main.cpp \
     mainwindow.cpp \
+    moore.cpp \
     myglwidget.cpp \
+    neumann.cpp \
+    parent_algorithm.cpp \
     probability_circle.cpp \
-    vonneumann.cpp
+    probability_ellipse.cpp
 
 HEADERS += \
     mainwindow.h \
+    moore.h \
     myglwidget.h \
+    neumann.h \
+    parent_algorithm.h \
     probability_circle.h \
-    vonneumann.h
+    probability_ellipse.h
 
 FORMS += \
     mainwindow.ui
