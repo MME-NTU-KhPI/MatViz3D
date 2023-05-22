@@ -11,7 +11,7 @@
 #include <ctime>
 #include <QMatrix4x4>
 #include <QColor>
-
+#include <array>
 
 
 
@@ -84,6 +84,12 @@ void MyGLWidget::setNumCubes(int numCubes)
     update();
 }
 
+void MyGLWidget::setNumColors(int numColors)
+{
+    numColors_ = numColors;
+    update();
+}
+
 void MyGLWidget::setDistanceFactor(float factor)
 {
     distanceFactor = factor;
@@ -139,6 +145,59 @@ void MyGLWidget::initializeGL()
 
 }
 
+std::vector<std::array<GLfloat, 4>> generateDistinctColors(int numColors) {
+    std::vector<std::array<GLfloat, 4>> colors;
+    float hueIncrement = 360.0f / numColors;
+
+    for (int i = 0; i < numColors; ++i) {
+        float hue = i * hueIncrement;
+        float saturation = 1.0f;
+        float value = 1.0f;
+        float alpha = 1.0f;
+
+        // Convert HSV to RGB
+        float chroma = saturation * value;
+        float huePrime = hue / 60.0f;
+        float x = chroma * (1.0f - std::abs(std::fmod(huePrime, 2.0f) - 1.0f));
+        float r, g, b;
+
+        if (huePrime >= 0 && huePrime < 1) {
+            r = chroma;
+            g = x;
+            b = 0;
+        } else if (huePrime >= 1 && huePrime < 2) {
+            r = x;
+            g = chroma;
+            b = 0;
+        } else if (huePrime >= 2 && huePrime < 3) {
+            r = 0;
+            g = chroma;
+            b = x;
+        } else if (huePrime >= 3 && huePrime < 4) {
+            r = 0;
+            g = x;
+            b = chroma;
+        } else if (huePrime >= 4 && huePrime < 5) {
+            r = x;
+            g = 0;
+            b = chroma;
+        } else {
+            r = chroma;
+            g = 0;
+            b = x;
+        }
+
+        float m = value - chroma;
+        r += m;
+        g += m;
+        b += m;
+
+        colors.push_back({r, g, b, alpha});
+    }
+
+    return colors;
+}
+
 void MyGLWidget::setVoxels(uint16_t*** voxels, short int numCubes)
 {
     this->voxels=voxels;
@@ -161,35 +220,87 @@ void MyGLWidget::paintGL()
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    //srand(1);
+    //srand(time(NULL));
+    srand(1);
 
     // Define an array of 5 colors
-    GLfloat colors[7][4] = {{1.0, 0.0, 0.0, 0.8f},    // red
-                            {0.0, 1.0, 0.0, 0.8f},    // green
-                            {0.0, 0.0, 1.0, 0.8f},    // blue
-                            {1.0, 1.0, 0.0, 0.8f},    // yellow
-                            {0.0, 1.0, 1.0, 0.8f},    // magenta
-                            {1.0, 0.0, 1.0, 0.8f},    //
-                            {1.0, 1.0, 1.0, 0.8f}};   // white
+//    GLfloat colors[7][4] = {{1.0, 0.0, 0.0, 0.8f},    // red
+//                            {0.0, 1.0, 0.0, 0.8f},    // green
+//                            {0.0, 0.0, 1.0, 0.8f},    // blue
+//                            {1.0, 1.0, 0.0, 0.8f},    // yellow
+//                            {0.0, 1.0, 1.0, 0.8f},    // magenta
+//                            {1.0, 0.0, 1.0, 0.8f},    //
+//                            {1.0, 1.0, 1.0, 0.8f}};   // white
 
 
-    //int lastIndex = -1;
     // Draw the small cubes
     //int numCubes = 5; // Number of small cubes in each dimension
+
+    std::vector<std::array<GLfloat, 4>> colors = generateDistinctColors(numColors_);
+
     float cubeSize = 1.0 / numCubes_; // Size of each small cube
+
+    GLfloat refColor[] = {1.0f, 1.0f, 1.0f, 1.0f};
+
+    // Declare an array to store direction factors for each color
+    float directionFactors[numColors_];
+
+    // Initialize direction factors randomly for each color
+    for (int i = 0; i < numColors_; i++) {
+        directionFactors[i] = ((rand() % 2) == 0) ? 1.0f : -1.0f;
+    }
+
 
     for (int i = 0; i < numCubes_; i++) {
         for (int j = 0; j < numCubes_; j++) {
             for (int k = 0; k < numCubes_; k++) {
+
+
                 if (voxels[k][i][j] > 0) {
-                    int index = voxels[k][i][j] % 7; // Use the value in the array as an index for color selection
+                    //int numColors1_ = rand() % numColors_;
+                    //int index = voxels[k][i][j] % numColors1_;
+                    //int index = voxels[k][i][j]  % (rand() % numColors_); // Use the value in the array as an index for color selection
+                    int index = voxels[k][i][j] % numColors_ % rand();
+
+
+                    //int index = voxels[k][i][j]  % 7;
+
+                    //int index = rand() % numColors_;
+
+                    GLfloat* color = colors[index].data();
+
+                    GLfloat diff[] = {color[0] - refColor[0], color[1] - refColor[1], color[2] - refColor[2], color[3] - refColor[3]};
+
+                    // Define a direction factor, which can be negative or positive
+                    float directionFactor = directionFactors[index];
+
+                    GLfloat offset[] = {directionFactor * diff[0] * distanceFactor,
+                                        directionFactor * diff[1] * distanceFactor,
+                                        directionFactor * diff[2] * distanceFactor};
+
+                    glColor4fv(colors[index].data());
+                    glPushMatrix();
+                    glTranslatef((i + 0.5) * cubeSize - 0.5 + offset[0],
+                                 (j + 0.5) * cubeSize - 0.5 + offset[1],
+                                 (k + 0.5) * cubeSize - 0.5 + offset[2]);
+
+
+
                 // Choose a random color from the array
                 //int index = rand() % 7;
-                glColor4fv(colors[index]);
-                glPushMatrix();
-                glTranslatef((i + 0.5) * cubeSize - 0.5 + distanceFactor*i,
-                             (j + 0.5) * cubeSize - 0.5 + distanceFactor*j,
-                             (k + 0.5) * cubeSize - 0.5 + distanceFactor*k);
+
+
+
+
+//                glColor4fv(colors[index]);
+//                glPushMatrix();
+//                glTranslatef((i + 0.5) * cubeSize - 0.5 + distanceFactor*i,
+//                             (j + 0.5) * cubeSize - 0.5 + distanceFactor*j,
+//                             (k + 0.5) * cubeSize - 0.5 + distanceFactor*k);
+
+
+
+
                 //glColor3ub(rand() % 256, rand() % 256, rand() % 256); // Set a random RGB color
 
                 // Draw the small cube

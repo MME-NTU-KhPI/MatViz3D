@@ -39,6 +39,7 @@ public slots:
     void setYRotation(int angle);
     void setZRotation(int angle);
     void setNumCubes(int numCubes);
+    void setNumColors(int numColors);
     void setDistanceFactor(float factor);
     //void explodeCubes(int value);
     //void setColorDistanceFactor(float factor);
@@ -61,11 +62,13 @@ private:
     QPoint lastPos;
     QMatrix4x4 m_projection;
     int numCubes_;
+    int numColors_;
     float distanceFactor=0.001;
     //float colordistanceFactor;
 
     uint16_t*** voxels;
     short int numCubes;
+    int numColors;
 };
 
 #endif // MYGLWIDGET_H

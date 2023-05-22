@@ -123,7 +123,7 @@ void Probability_Circle::Generate_Filling(uint16_t*** voxels, short int numCubes
 }
 
 
-uint16_t*** Probability_Circle::Generate_Initial_Cube(short int numCubes) {
+uint16_t*** Probability_Circle::Generate_Initial_Cube(short int numCubes, int numColors) {
 
     //Создаём динамический массив. Вместо (30) подставить numCubes
     uint16_t*** voxels = new uint16_t** [numCubes];
@@ -146,10 +146,16 @@ uint16_t*** Probability_Circle::Generate_Initial_Cube(short int numCubes) {
     }
 
     //Заполняем массив начальными точками. Вместо (7) надо подставить значение пользователя
+//    srand(time(NULL));
+//    short int color = 0;
+//    for (int i = 0; i < 7; i++)
+//    {
+//        voxels[rand() % numCubes][rand() % numCubes][rand() % numCubes] = ++color;
+//    }
+
     srand(time(NULL));
     short int color = 0;
-    for (int i = 0; i < 7; i++)
-    {
+    for (int i = 0; i < numColors; i++) {
         voxels[rand() % numCubes][rand() % numCubes][rand() % numCubes] = ++color;
     }
 

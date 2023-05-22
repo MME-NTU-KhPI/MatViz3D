@@ -5,7 +5,7 @@
 #include <QtWidgets>
 #include "probability_circle.h"
 #include <QMessageBox>
-#include "vonneumann.h"
+//#include "vonneumann.h"
 
 
 MainWindow::MainWindow(QWidget *parent)
@@ -25,7 +25,15 @@ MainWindow::MainWindow(QWidget *parent)
         }
     });
 
-    ui->Rectangle10->setSingleStep(0.0001);
+    connect(ui->Rectangle9, &QLineEdit::editingFinished, this, [=]() {
+        bool ok;
+        numColors = ui->Rectangle9->text().toInt(&ok);
+        if (ok) {
+            ui->myGLWidget->setNumColors(numColors);
+        }
+    });
+
+    ui->Rectangle10->setSingleStep(0.01);
     ui->Rectangle10->setTickInterval(0.05);
     connect(ui->Rectangle10, &QSlider::valueChanged, ui->myGLWidget, &MyGLWidget::setDistanceFactor);
 
@@ -110,9 +118,9 @@ void MainWindow::keyPressEvent(QKeyEvent *e)
 
 void MainWindow::on_Start_clicked()
 {
-    //Probability_Circle start;
-    VonNeumann start;
-    uint16_t*** voxels = start.Generate_Initial_Cube(numCubes);
+    Probability_Circle start;
+    //VonNeumann start;
+    uint16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
     ui->myGLWidget->setVoxels(voxels, numCubes);
     ui->myGLWidget->update();
 

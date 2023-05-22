@@ -7,7 +7,7 @@
 #include <QWidget>
 #include <QSlider>
 #include "probability_circle.h"
-#include "vonneumann.h"
+//#include "vonneumann.h"
 
 
 QT_BEGIN_NAMESPACE
@@ -22,6 +22,7 @@ class MainWindow : public QMainWindow
 public:
     MainWindow(QWidget *parent = nullptr);
     short int numCubes = 1;
+    int numColors;
     ~MainWindow();
 
 private slots:
