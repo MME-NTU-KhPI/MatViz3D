@@ -14,6 +14,8 @@ Parent_Algorithm::Parent_Algorithm()
 
 }
 
+//void Parent_Algorithm::Generate_Filling(voxels, numCubes);
+
 uint16_t*** Parent_Algorithm::Generate_Initial_Cube(short int numCubes, int numColors) {
 
     //Создаём динамический массив. Вместо (30) подставить numCubes
@@ -36,7 +38,7 @@ uint16_t*** Parent_Algorithm::Generate_Initial_Cube(short int numCubes, int numC
         }
     }
 
-    //Заполняем массив начальными точками. Вместо (7) надо подставить значение пользователя
+    //Заполняем массив начальными точками. Вмето (7) надо подставить значение пользователя
     //    srand(time(NULL));
     //    short int color = 0;
     //    for (int i = 0; i < 7; i++)
@@ -53,3 +55,5 @@ uint16_t*** Parent_Algorithm::Generate_Initial_Cube(short int numCubes, int numC
     Generate_Filling(voxels, numCubes);
     return voxels;
 }
+
+

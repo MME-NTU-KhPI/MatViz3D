@@ -2,14 +2,18 @@
 #ifndef MOORE_H
 #define MOORE_H
 
-#include "probability_circle.h"
+#include "myglwidget.h"
+#include <QtOpenGLWidgets/QOpenGLWidget>
+#include <mainwindow.h>
+#include "parent_algorithm.h"
 
 
 
-class Moore : public Probability_Circle
-{
+class Moore : public Parent_Algorithm {
+
 public:
     Moore();
+    void Generate_Filling(uint16_t*** voxels, short int numCubes);
 };
 
 #endif // MOORE_H

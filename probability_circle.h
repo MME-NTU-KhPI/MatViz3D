@@ -5,7 +5,6 @@
 #include "myglwidget.h"
 #include <QtOpenGLWidgets/QOpenGLWidget>
 #include <mainwindow.h>
-#include "probability_ellipse.h"
 #include "parent_algorithm.h"
 
 

@@ -236,7 +236,6 @@ padding-left: 4px;</string>
 
 background: #282828;
 border: 1px solid #000000;
-box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
 border-radius: 15px;
 
 font-family: 'Inter';
@@ -248,7 +247,10 @@ line-height: 19px;
 color: #171616;</string>
       </property>
       <property name="text">
-       <string>Algorithm 1</string>
+       <string>Neumann</string>
+      </property>
+      <property name="checkable">
+       <bool>true</bool>
       </property>
      </widget>
      <widget class="QPushButton" name="Algorithm2">
@@ -265,7 +267,6 @@ color: #171616;</string>
 
 background: #282828;
 border: 1px solid #000000;
-box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
 border-radius: 15px;
 font-family: 'Inter';
 font-style: normal;
@@ -276,7 +277,10 @@ line-height: 19px;
 color: #171616;</string>
       </property>
       <property name="text">
-       <string>Algorithm 2</string>
+       <string>Probability Circle</string>
+      </property>
+      <property name="checkable">
+       <bool>true</bool>
       </property>
      </widget>
      <widget class="QPushButton" name="Algorithm3">
@@ -303,7 +307,10 @@ line-height: 19px;
 color: #171616;</string>
       </property>
       <property name="text">
-       <string>Algorithm 3</string>
+       <string>Probability Ellipse</string>
+      </property>
+      <property name="checkable">
+       <bool>true</bool>
       </property>
      </widget>
      <widget class="QPushButton" name="Algorithm4">
@@ -330,7 +337,10 @@ line-height: 19px;
 color: #171616;</string>
       </property>
       <property name="text">
-       <string>Algorithm 4</string>
+       <string>Moore</string>
+      </property>
+      <property name="checkable">
+       <bool>true</bool>
       </property>
      </widget>
     </widget>
@@ -389,7 +399,7 @@ background: #363636;</string>
       <rect>
        <x>47</x>
        <y>664</y>
-       <width>105</width>
+       <width>127</width>
        <height>19</height>
       </rect>
      </property>
@@ -397,22 +407,33 @@ background: #363636;</string>
       <enum>Qt::RightToLeft</enum>
      </property>
      <property name="styleSheet">
-      <string notr="true">font-family: 'Inter';
+      <string notr="true">QCheckBox {
+    font-family: 'Inter';
 font-style: normal;
 font-weight: 700;
 font-size: 16px;
 line-height: 19px;
 padding-left: 0;
 color: #969696;
+}
 
-indicator {
-    width: 16px;
-    height: 16px;
-    background-color: red;
+QCheckBox::indicator {
+
+width: 16px;
+height: 16px;
+
+background: #363636;
+border: 1px solid #969696;
+border-radius: 2px;
+}
+
+QCheckBox::indicator:checked {
+background-color: #969696;
+border: 1px solid #969696;
 }</string>
      </property>
      <property name="text">
-      <string>Colormap</string>
+      <string>Choose color</string>
      </property>
      <property name="iconSize">
       <size>
@@ -468,17 +489,34 @@ padding: 18px 61px 17px 60px;</string>
        </rect>
       </property>
       <property name="styleSheet">
-       <string notr="true">background: linear-gradient(270deg, rgba(0, 137, 123, 0.5) 1.8%, rgba(0, 86, 77, 0.5) 100%);
-border-radius: 45px;</string>
+       <string notr="true">QSlider::groove:horizontal {
+	background-color: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:0, stop:0 rgba(0, 86, 77, 0.5) , stop:1 rgba(0, 137, 123, 0.5));
+    height: 14px;
+    margin: -1px 0;
+    border-radius: 7px;
+ }
+
+ QSlider::handle:horizontal {
+   position: absolute;
+   background: #969696;
+    width: 16px;
+    height: 16px;
+    margin: -1px 0;
+    padding: 0;
+    border-radius: 8px;
+    subcontrol-position: center;
+    subcontrol-origin: margin;
+ }
+</string>
       </property>
       <property name="maximum">
-       <number>5</number>
+       <number>10</number>
       </property>
       <property name="singleStep">
-       <number>0</number>
+       <number>1</number>
       </property>
       <property name="pageStep">
-       <number>0</number>
+       <number>1</number>
       </property>
       <property name="value">
        <number>0</number>
@@ -538,17 +576,6 @@ color: #969696;</string>
     <zorder>Colormap</zorder>
    </widget>
   </widget>
-  <widget class="QMenuBar" name="menubar">
-   <property name="geometry">
-    <rect>
-     <x>0</x>
-     <y>0</y>
-     <width>1280</width>
-     <height>21</height>
-    </rect>
-   </property>
-  </widget>
-  <widget class="QStatusBar" name="statusbar"/>
  </widget>
  <customwidgets>
   <customwidget>

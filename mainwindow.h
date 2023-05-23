@@ -4,6 +4,7 @@
 
 #include <QMainWindow>
 #include <QButtonGroup>
+#include <QPushButton>
 #include <QWidget>
 #include <QSlider>
 #include "probability_circle.h"
@@ -28,6 +29,7 @@ public:
 
 private slots:
     void checkInputFields();
+    void checkStart(bool algorithm1, bool algorithm2, bool algorithm3, bool algorithm4);
 
     void on_Algorithm1_clicked(bool checked);
 
@@ -52,6 +54,7 @@ protected:
 
 private:
     Ui::MainWindow *ui;
+    QPushButton *buttons[4];
 
 
 };

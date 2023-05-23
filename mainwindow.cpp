@@ -5,7 +5,10 @@
 #include <QtWidgets>
 #include "probability_circle.h"
 #include <QMessageBox>
-//#include "vonneumann.h"
+#include <QPushButton>
+#include "neumann.h"
+#include "moore.h"
+#include "probability_ellipse.h"
 #include "parent_algorithm.h"
 
 
@@ -40,6 +43,10 @@ MainWindow::MainWindow(QWidget *parent)
 
 
     checkInputFields();
+    buttons[0] = ui->Algorithm1;
+    buttons[1] = ui->Algorithm2;
+    buttons[2] = ui->Algorithm3;
+    buttons[3] = ui->Algorithm4;
 
 }
 
@@ -77,29 +84,114 @@ void MainWindow::checkInputFields()
     }
 }
 
+// Функція перевірки для старт
+void MainWindow::checkStart(bool algorithm1, bool algorithm2, bool algorithm3, bool algorithm4)
+{
+    bool checked = algorithm1 || algorithm2 || algorithm3 || algorithm4;
+
+    if (checked) {
+        ui->Start->setEnabled(true);
+        ui->Start->setStyleSheet("background: #282828; border-radius: 8px; width: 280px; height: 93px; color: #969696; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 48px; line-height: 58px;");
+    } else if(!checked) {
+        ui->Start->setEnabled(false);
+        ui->Start->setStyleSheet("background: #282828; border-radius: 8px; width: 280px; height: 93px; color: rgba(150, 150, 150, 0.5); font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 48px; line-height: 58px;");
+    }
+}
+
 void MainWindow::on_Algorithm1_clicked(bool checked)
 {
-    ui->Algorithm1->setStyleSheet("font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; background: #969696; color: #000000; border: 1px solid #969696; border-radius: 15px;");
+    if(checked)
+    {
+        ui->Algorithm1->setStyleSheet("font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; background: #969696; color: #000000; border: 1px solid #969696; border-radius: 15px;");
 
+        // перебор всех кнопок и установка состояния "unchecked" для всех, кроме текущей
+        for(int i = 0; i < 4; i++)
+        {
+            if(buttons[i] != ui->Algorithm1)
+            {
+                buttons[i]->setChecked(false);
+                buttons[i]->setStyleSheet("background: #282828; border: 1px solid #969696; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #969696;");
+            }
+        }
+    }
+    else
+    {
+        ui->Algorithm1->setStyleSheet("background: #282828; border: 1px solid #969696; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #969696;");
+    }
+    checkStart(ui->Algorithm1->isChecked(), ui->Algorithm2->isChecked(), ui->Algorithm3->isChecked(), ui->Algorithm4->isChecked());
 }
 
 
 void MainWindow::on_Algorithm2_clicked(bool checked)
 {
-    ui->Algorithm2->setStyleSheet("font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; background: #969696; color: #000000; border: 1px solid #969696; border-radius: 15px;");
+    if(checked)
+    {
+        ui->Algorithm2->setStyleSheet("font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; background: #969696; color: #000000; border: 1px solid #969696; border-radius: 15px;");
+
+        // перебор всех кнопок и установка состояния "unchecked" для всех, кроме текущей
+        for(int i = 0; i < 4; i++)
+        {
+            if(buttons[i] != ui->Algorithm2)
+            {
+                buttons[i]->setChecked(false);
+                buttons[i]->setStyleSheet("background: #282828; border: 1px solid #969696; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #969696;");
+            }
+        }
+    }
+    else
+    {
+        ui->Algorithm2->setStyleSheet("background: #282828; border: 1px solid #969696; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #969696;");
+    }
+    checkStart(ui->Algorithm1->isChecked(), ui->Algorithm2->isChecked(), ui->Algorithm3->isChecked(), ui->Algorithm4->isChecked());
 }
 
 
 
 void MainWindow::on_Algorithm3_clicked(bool checked)
 {
-    ui->Algorithm3->setStyleSheet("font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; background: #969696; color: #000000; border: 1px solid #969696; border-radius: 15px;");
+    if(checked)
+    {
+        ui->Algorithm3->setStyleSheet("font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; background: #969696; color: #000000; border: 1px solid #969696; border-radius: 15px;");
+
+        // перебор всех кнопок и установка состояния "unchecked" для всех, кроме текущей
+        for(int i = 0; i < 4; i++)
+        {
+            if(buttons[i] != ui->Algorithm3)
+            {
+                buttons[i]->setChecked(false);
+                buttons[i]->setStyleSheet("background: #282828; border: 1px solid #969696; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #969696;");
+            }
+        }
+    }
+    else
+    {
+        ui->Algorithm3->setStyleSheet("background: #282828; border: 1px solid #969696; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #969696;");
+    }
+    checkStart(ui->Algorithm1->isChecked(), ui->Algorithm2->isChecked(), ui->Algorithm3->isChecked(), ui->Algorithm4->isChecked());
 }
 
 
 void MainWindow::on_Algorithm4_clicked(bool checked)
 {
-    ui->Algorithm4->setStyleSheet("font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; background: #969696; color: #000000; border: 1px solid #969696; border-radius: 15px;");
+    if(checked)
+    {
+        ui->Algorithm4->setStyleSheet("font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; background: #969696; color: #000000; border: 1px solid #969696; border-radius: 15px;");
+
+        // перебор всех кнопок и установка состояния "unchecked" для всех, кроме текущей
+        for(int i = 0; i < 4; i++)
+        {
+            if(buttons[i] != ui->Algorithm4)
+            {
+                buttons[i]->setChecked(false);
+                buttons[i]->setStyleSheet("background: #282828; border: 1px solid #969696; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #969696;");
+            }
+        }
+    }
+    else
+    {
+        ui->Algorithm4->setStyleSheet("background: #282828; border: 1px solid #969696; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #969696;");
+    }
+    checkStart(ui->Algorithm1->isChecked(), ui->Algorithm2->isChecked(), ui->Algorithm3->isChecked(), ui->Algorithm4->isChecked());
 }
 
 
@@ -117,20 +209,37 @@ void MainWindow::keyPressEvent(QKeyEvent *e)
         QWidget::keyPressEvent(e);
 }
 
-void Parent_Algorithm::Call(Parent_Algorithm*obj){
-    obj->Generate_Filling (uint16_t*** voxels, short int numCubes);
-}
 
 void MainWindow::on_Start_clicked()
 {
-    //Probability_Circle start;
-    Parent_Algorithm start;
-    //Neumann start;
-    //Probability_Ellipse start;
-    uint16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
-    Probability_Circle order;
-    ui->myGLWidget->setVoxels(voxels, numCubes);
-    ui->myGLWidget->update();
+    if (ui->Algorithm1->isChecked())
+    {
+        Neumann start;
+        uint16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
+        ui->myGLWidget->setVoxels(voxels, numCubes);
+        ui->myGLWidget->update();
+    }
+    else if (ui->Algorithm2->isChecked())
+    {
+        Probability_Circle start;
+        uint16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
+        ui->myGLWidget->setVoxels(voxels, numCubes);
+        ui->myGLWidget->update();
+    }
+    else if (ui->Algorithm3->isChecked())
+    {
+        Probability_Ellipse start;
+        uint16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
+        ui->myGLWidget->setVoxels(voxels, numCubes);
+        ui->myGLWidget->update();
+    }
+    else if (ui->Algorithm4->isChecked())
+    {
+        Moore start;
+        uint16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
+        ui->myGLWidget->setVoxels(voxels, numCubes);
+        ui->myGLWidget->update();
+    }
 
 }
 

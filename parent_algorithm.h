@@ -5,11 +5,13 @@
 #include "probability_circle.h"
 #include <cstdint>
 
+//class Probability_Circle;
+
 class Parent_Algorithm
 {
 public:
     Parent_Algorithm();
-    virtual Generate_Filling(uint16_t*** voxels, short int numCubes);
+    virtual void Generate_Filling(uint16_t*** voxels, short int numCubes) = 0;
     uint16_t*** Generate_Initial_Cube(short int numCubes, int numColors);
 };
 

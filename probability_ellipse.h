@@ -1,14 +1,18 @@
-//#ifndef PROBABILITY_ELLIPSE_H
-//#define PROBABILITY_ELLIPSE_H
 
-//#include "probability_circle.h"
 
-//class Probability_Ellipse : public Probability_Circle
-//{
-//public:
-//    Probability_Ellipse();
+#ifndef PROBABILITY_ELLIPSE_H
+#define PROBABILITY_ELLIPSE_H
 
-//    void Generate_Filling(uint16_t*** voxels, short int numCubes);
-//};
+#include "myglwidget.h"
+#include <QtOpenGLWidgets/QOpenGLWidget>
+#include <mainwindow.h>
+#include "parent_algorithm.h"
 
-//#endif // PROBABILITY_ELLIPSE_H
+class Probability_Ellipse : public Parent_Algorithm
+{
+public:
+   Probability_Ellipse();
+   void Generate_Filling(uint16_t*** voxels, short int numCubes);
+};
+
+#endif // PROBABILITY_ELLIPSE_H
