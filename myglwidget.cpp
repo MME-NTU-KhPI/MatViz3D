@@ -256,6 +256,17 @@ void MyGLWidget::paintGL()
         for (int j = 0; j < numCubes_; j++) {
             for (int k = 0; k < numCubes_; k++) {
 
+                if (numCubes_ > 30 && distanceFactor > 0.001) // Drop invisible cubes
+                {
+                    int alpha = 1; // How many elemt will be shown
+                    int lb = alpha;
+                    int ub = numCubes_ - alpha;
+                    bool i_cond = i > lb && i < ub;
+                    bool j_cond = j > lb && j < ub;
+                    bool k_cond = k > lb && k < ub;
+                    if (i_cond && j_cond && k_cond)
+                        continue;
+                }
 
                 if (voxels[k][i][j] > 0) {
                     //int numColors1_ = rand() % numColors_;
