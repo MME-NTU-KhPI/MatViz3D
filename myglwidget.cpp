@@ -251,14 +251,14 @@ void MyGLWidget::paintGL()
         directionFactors[i] = ((rand() % 2) == 0) ? 1.0f : -1.0f;
     }
 
-
+    const int CubeSizeLimit = 30;
     for (int i = 0; i < numCubes_; i++) {
         for (int j = 0; j < numCubes_; j++) {
             for (int k = 0; k < numCubes_; k++) {
 
-                if (numCubes_ > 30 && distanceFactor > 0.001) // Drop invisible cubes
+                if (numCubes_ > CubeSizeLimit && distanceFactor <= 0.1) // Drop invisible cubes
                 {
-                    int alpha = 1; // How many elemt will be shown
+                    int alpha = 1; // How many elemet will be shown
                     int lb = alpha;
                     int ub = numCubes_ - alpha;
                     bool i_cond = i > lb && i < ub;
@@ -363,52 +363,54 @@ void MyGLWidget::paintGL()
                 glVertex3f(cubeSize / 2.0, -cubeSize / 2.0, cubeSize / 2.0);
                 glEnd();
 
-                glColor3f(0.5f, 0.5f, 0.5f);
-                glLineWidth(3.0);
+                if (numCubes_ <= CubeSizeLimit)
+                {
+                    glColor3f(0.5f, 0.5f, 0.5f);
+                    glLineWidth(3.0);
 
-                glBegin(GL_LINES);
+                    glBegin(GL_LINES);
 
-                // draw edges along x-axis
-                glVertex3f(-cubeSize / 2.0, -cubeSize / 2.0, -cubeSize / 2.0);
-                glVertex3f(cubeSize / 2.0, -cubeSize / 2.0, -cubeSize / 2.0);
+                    // draw edges along x-axis
+                    glVertex3f(-cubeSize / 2.0, -cubeSize / 2.0, -cubeSize / 2.0);
+                    glVertex3f(cubeSize / 2.0, -cubeSize / 2.0, -cubeSize / 2.0);
 
-                glVertex3f(cubeSize / 2.0, -cubeSize / 2.0, -cubeSize / 2.0);
-                glVertex3f(cubeSize / 2.0, cubeSize / 2.0, -cubeSize / 2.0);
+                    glVertex3f(cubeSize / 2.0, -cubeSize / 2.0, -cubeSize / 2.0);
+                    glVertex3f(cubeSize / 2.0, cubeSize / 2.0, -cubeSize / 2.0);
 
-                glVertex3f(cubeSize / 2.0, cubeSize / 2.0, -cubeSize / 2.0);
-                glVertex3f(-cubeSize / 2.0, cubeSize / 2.0, -cubeSize / 2.0);
+                    glVertex3f(cubeSize / 2.0, cubeSize / 2.0, -cubeSize / 2.0);
+                    glVertex3f(-cubeSize / 2.0, cubeSize / 2.0, -cubeSize / 2.0);
 
-                glVertex3f(-cubeSize / 2.0, cubeSize / 2.0, -cubeSize / 2.0);
-                glVertex3f(-cubeSize / 2.0, -cubeSize / 2.0, -cubeSize / 2.0);
+                    glVertex3f(-cubeSize / 2.0, cubeSize / 2.0, -cubeSize / 2.0);
+                    glVertex3f(-cubeSize / 2.0, -cubeSize / 2.0, -cubeSize / 2.0);
 
-                // draw edges along y-axis
-                glVertex3f(-cubeSize / 2.0, -cubeSize / 2.0, -cubeSize / 2.0);
-                glVertex3f(-cubeSize / 2.0, -cubeSize / 2.0, cubeSize / 2.0);
+                    // draw edges along y-axis
+                    glVertex3f(-cubeSize / 2.0, -cubeSize / 2.0, -cubeSize / 2.0);
+                    glVertex3f(-cubeSize / 2.0, -cubeSize / 2.0, cubeSize / 2.0);
 
-                glVertex3f(-cubeSize / 2.0, -cubeSize / 2.0, cubeSize / 2.0);
-                glVertex3f(-cubeSize / 2.0, cubeSize / 2.0, cubeSize / 2.0);
+                    glVertex3f(-cubeSize / 2.0, -cubeSize / 2.0, cubeSize / 2.0);
+                    glVertex3f(-cubeSize / 2.0, cubeSize / 2.0, cubeSize / 2.0);
 
-                glVertex3f(-cubeSize / 2.0, cubeSize / 2.0, cubeSize / 2.0);
-                glVertex3f(-cubeSize / 2.0, cubeSize / 2.0, -cubeSize / 2.0);
+                    glVertex3f(-cubeSize / 2.0, cubeSize / 2.0, cubeSize / 2.0);
+                    glVertex3f(-cubeSize / 2.0, cubeSize / 2.0, -cubeSize / 2.0);
 
-                glVertex3f(-cubeSize / 2.0, cubeSize / 2.0, -cubeSize / 2.0);
-                glVertex3f(-cubeSize / 2.0, -cubeSize / 2.0, -cubeSize / 2.0);
+                    glVertex3f(-cubeSize / 2.0, cubeSize / 2.0, -cubeSize / 2.0);
+                    glVertex3f(-cubeSize / 2.0, -cubeSize / 2.0, -cubeSize / 2.0);
 
-                // draw edges along z-axis
-                glVertex3f(-cubeSize / 2.0, -cubeSize / 2.0, cubeSize / 2.0);
-                glVertex3f(cubeSize / 2.0, -cubeSize / 2.0, cubeSize / 2.0);
+                    // draw edges along z-axis
+                    glVertex3f(-cubeSize / 2.0, -cubeSize / 2.0, cubeSize / 2.0);
+                    glVertex3f(cubeSize / 2.0, -cubeSize / 2.0, cubeSize / 2.0);
 
-                glVertex3f(cubeSize / 2.0, -cubeSize / 2.0, cubeSize / 2.0);
-                glVertex3f(cubeSize / 2.0, cubeSize / 2.0, cubeSize / 2.0);
+                    glVertex3f(cubeSize / 2.0, -cubeSize / 2.0, cubeSize / 2.0);
+                    glVertex3f(cubeSize / 2.0, cubeSize / 2.0, cubeSize / 2.0);
 
-                glVertex3f(cubeSize / 2.0, cubeSize / 2.0, cubeSize / 2.0);
-                glVertex3f(-cubeSize / 2.0, cubeSize / 2.0, cubeSize / 2.0);
+                    glVertex3f(cubeSize / 2.0, cubeSize / 2.0, cubeSize / 2.0);
+                    glVertex3f(-cubeSize / 2.0, cubeSize / 2.0, cubeSize / 2.0);
 
-                glVertex3f(-cubeSize / 2.0, cubeSize / 2.0, cubeSize / 2.0);
-                glVertex3f(-cubeSize / 2.0, -cubeSize / 2.0, cubeSize / 2.0);
+                    glVertex3f(-cubeSize / 2.0, cubeSize / 2.0, cubeSize / 2.0);
+                    glVertex3f(-cubeSize / 2.0, -cubeSize / 2.0, cubeSize / 2.0);
 
-                glEnd();
-
+                    glEnd();
+                }
 
                 glPopMatrix();
                 }
