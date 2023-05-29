@@ -16,6 +16,7 @@
 
 
 
+
 MyGLWidget::MyGLWidget(QWidget *parent)
     : QOpenGLWidget(parent)
 {
@@ -260,7 +261,8 @@ void MyGLWidget::paintGL()
                     //int numColors1_ = rand() % numColors_;
                     //int index = voxels[k][i][j] % numColors1_;
                     //int index = voxels[k][i][j]  % (rand() % numColors_); // Use the value in the array as an index for color selection
-                    int index = voxels[k][i][j] % numColors_ % rand();
+
+                    int index = voxels[k][i][j] % numColors_ % (rand()+1); // +1 to prevent devision by zero
 
 
                     //int index = voxels[k][i][j]  % 7;
