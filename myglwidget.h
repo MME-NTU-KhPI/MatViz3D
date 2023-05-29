@@ -15,7 +15,7 @@ class MyGLWidget : public QOpenGLWidget
     Q_OBJECT
 public:
     explicit MyGLWidget(QWidget *parent = 0);
-    void setVoxels(uint16_t*** voxels, short int numCubes);
+    void setVoxels(int16_t*** voxels, short int numCubes);
     ~MyGLWidget();
 signals:
 
@@ -67,7 +67,7 @@ private:
     float distanceFactor=0.001;
     //float colordistanceFactor;
 
-    uint16_t*** voxels;
+    int16_t*** voxels;
     short int numCubes;
     int numColors;
 };

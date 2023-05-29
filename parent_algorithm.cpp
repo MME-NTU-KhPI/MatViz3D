@@ -16,14 +16,14 @@ Parent_Algorithm::Parent_Algorithm()
 
 //void Parent_Algorithm::Generate_Filling(voxels, numCubes);
 
-uint16_t*** Parent_Algorithm::Generate_Initial_Cube(short int numCubes, int numColors) {
+int16_t*** Parent_Algorithm::Generate_Initial_Cube(short int numCubes, int numColors) {
 
     //Создаём динамический массив. Вместо (30) подставить numCubes
-    uint16_t*** voxels = new uint16_t** [numCubes];
+    int16_t*** voxels = new int16_t** [numCubes];
     for (int i = 0; i < numCubes; i++) {
-        voxels[i] = new uint16_t* [numCubes];
+        voxels[i] = new int16_t* [numCubes];
         for (int j = 0; j < numCubes; j++) {
-            voxels[i][j] = new uint16_t[numCubes];
+            voxels[i][j] = new int16_t[numCubes];
         }
     }
 

@@ -18,7 +18,7 @@ Probability_Ellipse::Probability_Ellipse()
 }
 
 
-void Probability_Ellipse::Generate_Filling(uint16_t*** voxels, short int numCubes)
+void Probability_Ellipse::Generate_Filling(int16_t*** voxels, short int numCubes)
 {
     bool answer = true;
     while (answer) {

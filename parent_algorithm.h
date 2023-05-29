@@ -11,8 +11,8 @@ class Parent_Algorithm
 {
 public:
     Parent_Algorithm();
-    virtual void Generate_Filling(uint16_t*** voxels, short int numCubes) = 0;
-    uint16_t*** Generate_Initial_Cube(short int numCubes, int numColors);
+    virtual void Generate_Filling(int16_t*** voxels, short int numCubes) = 0;
+    int16_t*** Generate_Initial_Cube(short int numCubes, int numColors);
 };
 
 #endif // PARENT_ALGORITHM_H

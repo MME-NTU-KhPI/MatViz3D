@@ -215,28 +215,28 @@ void MainWindow::on_Start_clicked()
     if (ui->Algorithm1->isChecked())
     {
         Neumann start;
-        uint16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
+        int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
         ui->myGLWidget->setVoxels(voxels, numCubes);
         ui->myGLWidget->update();
     }
     else if (ui->Algorithm2->isChecked())
     {
         Probability_Circle start;
-        uint16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
+        int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
         ui->myGLWidget->setVoxels(voxels, numCubes);
         ui->myGLWidget->update();
     }
     else if (ui->Algorithm3->isChecked())
     {
         Probability_Ellipse start;
-        uint16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
+        int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
         ui->myGLWidget->setVoxels(voxels, numCubes);
         ui->myGLWidget->update();
     }
     else if (ui->Algorithm4->isChecked())
     {
         Moore start;
-        uint16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
+        int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
         ui->myGLWidget->setVoxels(voxels, numCubes);
         ui->myGLWidget->update();
     }

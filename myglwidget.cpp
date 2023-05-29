@@ -198,7 +198,7 @@ std::vector<std::array<GLfloat, 4>> generateDistinctColors(int numColors) {
     return colors;
 }
 
-void MyGLWidget::setVoxels(uint16_t*** voxels, short int numCubes)
+void MyGLWidget::setVoxels(int16_t*** voxels, short int numCubes)
 {
     this->voxels=voxels;
     this->numCubes=numCubes;

@@ -16,7 +16,7 @@ public:
 
     //uint16_t*** Generate_Initial_Cube(short int numCubes, int numColors);
     //void Check(uint16_t*** voxels, short int numCubes);
-    void Generate_Filling(uint16_t*** voxels, short int numCubes);
+    void Generate_Filling(int16_t*** voxels, short int numCubes);
 
 private:
 

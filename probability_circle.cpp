@@ -20,7 +20,7 @@ Probability_Circle::Probability_Circle():Parent_Algorithm()
 
 
 //Функция заполнения массива
-void Probability_Circle::Generate_Filling(uint16_t*** voxels, short int numCubes) {
+void Probability_Circle::Generate_Filling(int16_t*** voxels, short int numCubes) {
 
     bool answer = true;
     while (answer) {
