@@ -16,8 +16,6 @@ Parent_Algorithm::Parent_Algorithm()
 
 }
 
-//void Parent_Algorithm::Generate_Filling(voxels, numCubes);
-
 int16_t*** Parent_Algorithm::Generate_Initial_Cube(short int numCubes, int numColors) {
 
     //Создаём динамический массив. Вместо (30) подставить numCubes

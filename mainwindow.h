@@ -49,6 +49,8 @@ private slots:
 
     void on_Start_clicked();
 
+    void on_pushButton_clicked();
+
 protected:
     void keyPressEvent(QKeyEvent *event);
 

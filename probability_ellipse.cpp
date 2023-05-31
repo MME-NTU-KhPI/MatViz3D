@@ -19,6 +19,7 @@ Probability_Ellipse::Probability_Ellipse()
 
 
 void Probability_Ellipse::Generate_Filling(int16_t*** voxels, short int numCubes)
+//>>>>>>> origin/program-window+OpenGL
 {
     bool answer = true;
     while (answer) {

@@ -10,6 +10,7 @@
 #include "moore.h"
 #include "probability_ellipse.h"
 #include "parent_algorithm.h"
+#include <QFileDialog>
 
 
 MainWindow::MainWindow(QWidget *parent)
@@ -240,6 +241,32 @@ void MainWindow::on_Start_clicked()
         ui->myGLWidget->setVoxels(voxels, numCubes);
         ui->myGLWidget->update();
     }
+    ui->Start->setText("RELOAD");
+}
+
+
+void MainWindow::on_pushButton_clicked()
+{
+
+    QRect rect = ui->Rectangle1->geometry();
+    int x = rect.x();
+    int y = rect.y();
+    int width = rect.width();
+    int height = rect.height();
+
+    ui->Visibility->hide();
+    ui->wid_start->hide();
+
+    QPixmap pixmap(width, height);
+    ui->myGLWidget->render(&pixmap);
+
+    QString fileName = QFileDialog::getSaveFileName(this, "Зберегти зображення", "", "Зображення (*.png);;Всі файли (*.*)");
+    if (!fileName.isEmpty()) {
+        pixmap.save(fileName);
+    }
+
+    ui->Visibility->show();
+    ui->wid_start->show();
 
 }
 

@@ -16,6 +16,7 @@ Neumann::Neumann()
 
 }
 
+
 void Neumann::Generate_Filling(int16_t*** voxels, short int numCubes)
 {
     bool answer = true;
