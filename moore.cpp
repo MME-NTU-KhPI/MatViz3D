@@ -43,7 +43,12 @@ void Moore::Generate_Filling(int16_t*** voxels, short int numCubes)
                                         {
                                             if ((j + y) < numCubes && (j + y) >= 0)
                                             {
-                                                voxels[k + z][i + x][j + y] = -voxels[k][i][j];
+                                                if (voxels[k + z][i + x][j + y] == 0)
+                                                {
+
+                                                    voxels[k + z][i + x][j + y] = -voxels[k][i][j];
+
+                                                }
                                             }
                                         }
                                     }

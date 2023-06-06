@@ -449,7 +449,7 @@ void MyGLWidget::resizeGL(int width, int height)
 void MyGLWidget::wheelEvent(QWheelEvent *event)
 {
     int numDegrees = event->angleDelta().y() / 8;
-    int numSteps = numDegrees / 15;
+    int numSteps = numDegrees / 10;
 
     if (numSteps > 0) {
         // zoom in

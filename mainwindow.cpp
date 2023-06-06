@@ -72,16 +72,16 @@ void MainWindow::checkInputFields()
         ui->Algorithm4->setStyleSheet("background: #282828; border: 1px solid #000000; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #171616;");
     } else {
         ui->Algorithm1->setEnabled(true);
-        ui->Algorithm1->setStyleSheet("background: #282828; border: 1px solid #969696; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #969696;");
+        ui->Algorithm1->setStyleSheet("background: #282828; border: 1px solid #545252; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #545252;");
 
         ui->Algorithm2->setEnabled(true);
-        ui->Algorithm2->setStyleSheet("background: #282828; border: 1px solid #969696; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #969696;");
+        ui->Algorithm2->setStyleSheet("background: #282828; border: 1px solid #545252; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #545252;");
 
         ui->Algorithm3->setEnabled(true);
-        ui->Algorithm3->setStyleSheet("background: #282828; border: 1px solid #969696; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #969696;");
+        ui->Algorithm3->setStyleSheet("background: #282828; border: 1px solid #545252; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #545252;");
 
         ui->Algorithm4->setEnabled(true);
-        ui->Algorithm4->setStyleSheet("background: #282828; border: 1px solid #969696; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #969696;");
+        ui->Algorithm4->setStyleSheet("background: #282828; border: 1px solid #545252; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #545252;");
     }
 }
 
@@ -103,7 +103,7 @@ void MainWindow::on_Algorithm1_clicked(bool checked)
 {
     if(checked)
     {
-        ui->Algorithm1->setStyleSheet("font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; background: #969696; color: #000000; border: 1px solid #969696; border-radius: 15px;");
+        ui->Algorithm1->setStyleSheet("font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; background: #282828; color: #969696; border: 1px solid #969696; border-radius: 15px;");
 
         // перебор всех кнопок и установка состояния "unchecked" для всех, кроме текущей
         for(int i = 0; i < 4; i++)
@@ -111,13 +111,13 @@ void MainWindow::on_Algorithm1_clicked(bool checked)
             if(buttons[i] != ui->Algorithm1)
             {
                 buttons[i]->setChecked(false);
-                buttons[i]->setStyleSheet("background: #282828; border: 1px solid #969696; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #969696;");
+                buttons[i]->setStyleSheet("background: #282828; border: 1px solid #545252; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #545252;");
             }
         }
     }
     else
     {
-        ui->Algorithm1->setStyleSheet("background: #282828; border: 1px solid #969696; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #969696;");
+        ui->Algorithm1->setStyleSheet("background: #282828; border: 1px solid #545252; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #545252;");
     }
     checkStart(ui->Algorithm1->isChecked(), ui->Algorithm2->isChecked(), ui->Algorithm3->isChecked(), ui->Algorithm4->isChecked());
 }
@@ -127,7 +127,7 @@ void MainWindow::on_Algorithm2_clicked(bool checked)
 {
     if(checked)
     {
-        ui->Algorithm2->setStyleSheet("font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; background: #969696; color: #000000; border: 1px solid #969696; border-radius: 15px;");
+        ui->Algorithm2->setStyleSheet("font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; background: #282828; color: #969696; border: 1px solid #969696; border-radius: 15px;");
 
         // перебор всех кнопок и установка состояния "unchecked" для всех, кроме текущей
         for(int i = 0; i < 4; i++)
@@ -135,13 +135,13 @@ void MainWindow::on_Algorithm2_clicked(bool checked)
             if(buttons[i] != ui->Algorithm2)
             {
                 buttons[i]->setChecked(false);
-                buttons[i]->setStyleSheet("background: #282828; border: 1px solid #969696; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #969696;");
+                buttons[i]->setStyleSheet("background: #282828; border: 1px solid #545252; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #545252;");
             }
         }
     }
     else
     {
-        ui->Algorithm2->setStyleSheet("background: #282828; border: 1px solid #969696; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #969696;");
+        ui->Algorithm2->setStyleSheet("background: #282828; border: 1px solid #545252; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #545252;");
     }
     checkStart(ui->Algorithm1->isChecked(), ui->Algorithm2->isChecked(), ui->Algorithm3->isChecked(), ui->Algorithm4->isChecked());
 }
@@ -152,7 +152,7 @@ void MainWindow::on_Algorithm3_clicked(bool checked)
 {
     if(checked)
     {
-        ui->Algorithm3->setStyleSheet("font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; background: #969696; color: #000000; border: 1px solid #969696; border-radius: 15px;");
+        ui->Algorithm3->setStyleSheet("font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; background: #282828; color: #969696; border: 1px solid #969696; border-radius: 15px;");
 
         // перебор всех кнопок и установка состояния "unchecked" для всех, кроме текущей
         for(int i = 0; i < 4; i++)
@@ -160,13 +160,13 @@ void MainWindow::on_Algorithm3_clicked(bool checked)
             if(buttons[i] != ui->Algorithm3)
             {
                 buttons[i]->setChecked(false);
-                buttons[i]->setStyleSheet("background: #282828; border: 1px solid #969696; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #969696;");
+                buttons[i]->setStyleSheet("background: #282828; border: 1px solid #545252; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #545252;");
             }
         }
     }
     else
     {
-        ui->Algorithm3->setStyleSheet("background: #282828; border: 1px solid #969696; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #969696;");
+        ui->Algorithm3->setStyleSheet("background: #282828; border: 1px solid #545252; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #545252;");
     }
     checkStart(ui->Algorithm1->isChecked(), ui->Algorithm2->isChecked(), ui->Algorithm3->isChecked(), ui->Algorithm4->isChecked());
 }
@@ -176,7 +176,7 @@ void MainWindow::on_Algorithm4_clicked(bool checked)
 {
     if(checked)
     {
-        ui->Algorithm4->setStyleSheet("font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; background: #969696; color: #000000; border: 1px solid #969696; border-radius: 15px;");
+        ui->Algorithm4->setStyleSheet("font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; background: #282828; color: #969696; border: 1px solid #969696; border-radius: 15px;");
 
         // перебор всех кнопок и установка состояния "unchecked" для всех, кроме текущей
         for(int i = 0; i < 4; i++)
@@ -184,13 +184,13 @@ void MainWindow::on_Algorithm4_clicked(bool checked)
             if(buttons[i] != ui->Algorithm4)
             {
                 buttons[i]->setChecked(false);
-                buttons[i]->setStyleSheet("background: #282828; border: 1px solid #969696; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #969696;");
+                buttons[i]->setStyleSheet("background: #282828; border: 1px solid #545252; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #545252;");
             }
         }
     }
     else
     {
-        ui->Algorithm4->setStyleSheet("background: #282828; border: 1px solid #969696; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #969696;");
+        ui->Algorithm4->setStyleSheet("background: #282828; border: 1px solid #545252; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #545252;");
     }
     checkStart(ui->Algorithm1->isChecked(), ui->Algorithm2->isChecked(), ui->Algorithm3->isChecked(), ui->Algorithm4->isChecked());
 }
@@ -215,33 +215,81 @@ void MainWindow::on_Start_clicked()
 {
     if (ui->Algorithm1->isChecked())
     {
-        Neumann start;
-        int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
-        ui->myGLWidget->setVoxels(voxels, numCubes);
-        ui->myGLWidget->update();
+        if(std::isdigit(numCubes) == 0 && numCubes <= 0)
+        {
+            QMessageBox::information(nullptr,"Попередження!","Введено неправильне значення розміру куба! Це може призвести до неправильної роботи програми.");
+        }
+        else if(std::isdigit(numColors) == 0 && numColors <= 0)
+        {
+            QMessageBox::information(nullptr,"Попередження!","Введено неправильне значення кількості початкових точок!\nЦе призведе до неправильної роботи програми!");
+        }
+        else
+        {
+            Neumann start;
+            int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
+            ui->myGLWidget->setVoxels(voxels, numCubes);
+            ui->myGLWidget->update();
+            ui->Start->setText("RELOAD");
+        }
     }
     else if (ui->Algorithm2->isChecked())
     {
-        Probability_Circle start;
-        int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
-        ui->myGLWidget->setVoxels(voxels, numCubes);
-        ui->myGLWidget->update();
+        if(std::isdigit(numCubes) == 0 && numCubes <= 0)
+        {
+            QMessageBox::information(nullptr,"Попередження!","Введено неправильне значення розміру куба! Це може призвести до неправильної роботи програми.");
+        }
+        else if(std::isdigit(numColors) == 0 && numColors <= 0)
+        {
+            QMessageBox::information(nullptr,"Попередження!","Введено неправильне значення кількості початкових точок!\nЦе призведе до неправильної роботи програми!");
+        }
+        else
+        {
+            Probability_Circle start;
+            int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
+            ui->myGLWidget->setVoxels(voxels, numCubes);
+            ui->myGLWidget->update();
+            ui->Start->setText("RELOAD");
+        }
     }
     else if (ui->Algorithm3->isChecked())
     {
-        Probability_Ellipse start;
-        int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
-        ui->myGLWidget->setVoxels(voxels, numCubes);
-        ui->myGLWidget->update();
+        if(std::isdigit(numCubes) == 0 && numCubes <= 0)
+        {
+            QMessageBox::information(nullptr,"Попередження!","Введено неправильне значення розміру куба! Це може призвести до неправильної роботи програми.");
+        }
+        else if(std::isdigit(numColors) == 0 && numColors <= 0)
+        {
+            QMessageBox::information(nullptr,"Попередження!","Введено неправильне значення кількості початкових точок!\nЦе призведе до неправильної роботи програми!");
+        }
+        else
+        {
+            Probability_Ellipse start;
+            int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
+            ui->myGLWidget->setVoxels(voxels, numCubes);
+            ui->myGLWidget->update();
+            ui->Start->setText("RELOAD");
+        }
     }
     else if (ui->Algorithm4->isChecked())
     {
         Moore start;
-        int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
-        ui->myGLWidget->setVoxels(voxels, numCubes);
-        ui->myGLWidget->update();
+        if(std::isdigit(numCubes) == 0 && numCubes <= 0)
+        {
+            QMessageBox::information(nullptr,"Попередження!","Введено розмір кубу, який менше або дорівнює нулю!");
+        }
+        else if(std::isdigit(numColors) == 0 && numColors <= 0)
+        {
+            QMessageBox::information(nullptr,"Попередження!","Введено неправильне значення кількості початкових точок!\nЦе призведе до неправильної роботи програми!");
+        }
+        else
+        {
+            Moore start;
+            int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
+            ui->myGLWidget->setVoxels(voxels, numCubes);
+            ui->myGLWidget->update();
+            ui->Start->setText("RELOAD");
+        }
     }
-    ui->Start->setText("RELOAD");
 }
 
 

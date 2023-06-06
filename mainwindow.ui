@@ -305,7 +305,7 @@ padding-left: 4px;</string>
          <x>48</x>
          <y>338</y>
          <width>161</width>
-         <height>298</height>
+         <height>370</height>
         </rect>
        </property>
        <property name="sizePolicy">
@@ -323,12 +323,12 @@ padding-left: 4px;</string>
        <property name="maximumSize">
         <size>
          <width>224</width>
-         <height>407</height>
+         <height>409</height>
         </size>
        </property>
-       <layout class="QVBoxLayout" name="verticalLayout">
+       <layout class="QVBoxLayout" name="verticalLayout" stretch="0,0,0,0,0">
         <property name="spacing">
-         <number>50</number>
+         <number>45</number>
         </property>
         <property name="leftMargin">
          <number>0</number>
@@ -343,6 +343,34 @@ padding-left: 4px;</string>
          <number>0</number>
         </property>
         <item>
+         <widget class="QLabel" name="label">
+          <property name="minimumSize">
+           <size>
+            <width>151</width>
+            <height>17</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>151</width>
+            <height>20</height>
+           </size>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">font-family: 'Inter';
+font-style: normal;
+font-weight: 700;
+font-size: 20px;
+line-height: 24px;
+
+color: rgba(150, 150, 150, 0.5);</string>
+          </property>
+          <property name="text">
+           <string>Algorithms:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
          <widget class="QPushButton" name="Algorithm1">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
@@ -353,6 +381,12 @@ padding-left: 4px;</string>
           <property name="minimumSize">
            <size>
             <width>139</width>
+            <height>37</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
             <height>37</height>
            </size>
           </property>
@@ -393,6 +427,12 @@ color: #171616;</string>
             <height>37</height>
            </size>
           </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>37</height>
+           </size>
+          </property>
           <property name="styleSheet">
            <string notr="true">
 
@@ -426,6 +466,12 @@ color: #171616;</string>
           <property name="minimumSize">
            <size>
             <width>139</width>
+            <height>37</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
             <height>37</height>
            </size>
           </property>
@@ -465,6 +511,12 @@ color: #171616;</string>
             <height>37</height>
            </size>
           </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>37</height>
+           </size>
+          </property>
           <property name="styleSheet">
            <string notr="true">
 background: #282828;
@@ -493,7 +545,7 @@ color: #171616;</string>
        <property name="geometry">
         <rect>
          <x>48</x>
-         <y>720</y>
+         <y>755</y>
          <width>161</width>
          <height>37</height>
         </rect>
@@ -750,13 +802,13 @@ padding: 18px 61px 17px 60px;</string>
            <widget class="QWidget" name="Visibility" native="true">
             <property name="minimumSize">
              <size>
-              <width>222</width>
+              <width>230</width>
               <height>45</height>
              </size>
             </property>
             <property name="maximumSize">
              <size>
-              <width>222</width>
+              <width>230</width>
               <height>45</height>
              </size>
             </property>
