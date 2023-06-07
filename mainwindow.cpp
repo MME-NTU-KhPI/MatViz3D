@@ -1,4 +1,8 @@
 
+#include <iostream>
+#include <chrono>
+#include <Windows.h>
+
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "myglwidget.h"
@@ -215,6 +219,7 @@ void MainWindow::on_Start_clicked()
 {
     if (ui->Algorithm1->isChecked())
     {
+
         if(std::isdigit(numCubes) == 0 && numCubes <= 0)
         {
             QMessageBox::information(nullptr,"Попередження!","Введено неправильне значення розміру куба! Це може призвести до неправильної роботи програми.");
@@ -231,6 +236,7 @@ void MainWindow::on_Start_clicked()
             ui->myGLWidget->update();
             ui->Start->setText("RELOAD");
         }
+
     }
     else if (ui->Algorithm2->isChecked())
     {

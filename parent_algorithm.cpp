@@ -41,19 +41,12 @@ int16_t*** Parent_Algorithm::Generate_Initial_Cube(short int numCubes, int numCo
         }
     }
 
-    //Заполняем массив начальными точками. Вмето (7) надо подставить значение пользователя
-    //    srand(time(NULL));
-    //    short int color = 0;
-    //    for (int i = 0; i < 7; i++)
-    //    {
-    //        voxels[rand() % numCubes][rand() % numCubes][rand() % numCubes] = ++color;
-    //    }
-
     srand(time(NULL));
     short int color = 0;
     for (int i = 0; i < numColors; i++) {
         voxels[rand() % numCubes][rand() % numCubes][rand() % numCubes] = ++color;
     }
+
 
     Generate_Filling(voxels, numCubes);
     return voxels;

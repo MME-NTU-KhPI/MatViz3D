@@ -44,7 +44,7 @@ void Neumann::Generate_Filling(int16_t*** voxels, short int numCubes)
                                         {
                                             if ((j + y) < numCubes && (j + y) >= 0)
                                             {
-                                                if (voxels[k + z][i + x][j + y] == 0)
+                                                if ((((z == 0 && (x == 0 || y == 0)) || ((z == 1 || z == -1) && (x == 0 && y == 0)))) && voxels[k + z][i + x][j + y] == 0)
                                                 {
                                                     voxels[k + z][i + x][j + y] = -voxels[k][i][j];
                                                 }
@@ -106,4 +106,5 @@ void Neumann::Generate_Filling(int16_t*** voxels, short int numCubes)
             answer = false;
         }
     }
+
 }
