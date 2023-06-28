@@ -3,11 +3,6 @@
 
 #include <QtOpenGLWidgets/QOpenGLWidget>
 #include <QMatrix4x4>
-#include "probability_circle.h"
-#include "probability_ellipse.h"
-
-
-
 
 
 class MyGLWidget : public QOpenGLWidget
@@ -27,6 +22,8 @@ protected:
     void paintGL();
     void resizeGL(int width, int height);
     void paintSphere(float radius, int numStacks, int numSlices);
+    std::vector<std::array<GLfloat, 4>> generateDistinctColors();
+    void drawCube(float cubeSize, GLenum type = GL_QUADS);
 
     QSize minimumSizeHint() const;
     QSize sizeHint() const;
@@ -62,14 +59,15 @@ private:
 
     QPoint lastPos;
     QMatrix4x4 m_projection;
-    int numCubes_;
-    int numColors_;
     float distanceFactor=0.001;
     //float colordistanceFactor;
 
     int16_t*** voxels;
     short int numCubes;
     int numColors;
+
+    std::vector<std::array<GLfloat, 4>> colors;
+    std::vector<float> directionFactors;
 };
 
 #endif // MYGLWIDGET_H

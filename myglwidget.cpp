@@ -81,13 +81,21 @@ void MyGLWidget::setZRotation(int angle)
 
 void MyGLWidget::setNumCubes(int numCubes)
 {
-    numCubes_ = numCubes;
+    this->numCubes = numCubes;
     update();
 }
 
 void MyGLWidget::setNumColors(int numColors)
 {
-    numColors_ = numColors;
+    this->numColors = numColors;
+    this->colors = generateDistinctColors();
+    directionFactors.resize(numColors);
+
+    // Initialize direction factors randomly for each color
+    for (int i = 0; i < numColors; i++) {
+        directionFactors[i] = ((rand() % 2) == 0) ? 1.0f : -1.0f;
+    }
+
     update();
 }
 
@@ -146,7 +154,7 @@ void MyGLWidget::initializeGL()
 
 }
 
-std::vector<std::array<GLfloat, 4>> generateDistinctColors(int numColors) {
+std::vector<std::array<GLfloat, 4>> MyGLWidget::generateDistinctColors() {
     std::vector<std::array<GLfloat, 4>> colors;
     float hueIncrement = 360.0f / numColors;
 
@@ -205,6 +213,49 @@ void MyGLWidget::setVoxels(int16_t*** voxels, short int numCubes)
     this->numCubes=numCubes;
 }
 
+void MyGLWidget::drawCube(float cubeSize, GLenum type)
+{
+    float cb2 = cubeSize / 2.0;
+
+    static const GLfloat n[6][3] =
+        {
+            {-1.0, 0.0, 0.0},
+            {0.0, 1.0, 0.0},
+            {1.0, 0.0, 0.0},
+            {0.0, -1.0, 0.0},
+            {0.0, 0.0, 1.0},
+            {0.0, 0.0, -1.0}
+        };
+    static const GLint faces[6][4] =
+        {
+            {0, 1, 2, 3},
+            {3, 2, 6, 7},
+            {7, 6, 5, 4},
+            {4, 5, 1, 0},
+            {5, 6, 2, 1},
+            {7, 4, 0, 3}
+        };
+    GLfloat v[8][3];
+    GLint i;
+
+    v[0][0] = v[1][0] = v[2][0] = v[3][0] = -cb2;
+    v[4][0] = v[5][0] = v[6][0] = v[7][0] =  cb2 ;
+    v[0][1] = v[1][1] = v[4][1] = v[5][1] = -cb2;
+    v[2][1] = v[3][1] = v[6][1] = v[7][1] =  cb2;
+    v[0][2] = v[3][2] = v[4][2] = v[7][2] = -cb2;
+    v[1][2] = v[2][2] = v[5][2] = v[6][2] =  cb2;
+
+    for (i = 5; i >= 0; i--) {
+        glBegin(type);
+        glNormal3fv(&n[i][0]);
+        glVertex3fv(&v[faces[i][0]][0]);
+        glVertex3fv(&v[faces[i][1]][0]);
+        glVertex3fv(&v[faces[i][2]][0]);
+        glVertex3fv(&v[faces[i][3]][0]);
+        glEnd();
+    }
+}
+
 void MyGLWidget::paintGL()
 {
     if (voxels == nullptr)
@@ -221,46 +272,23 @@ void MyGLWidget::paintGL()
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    //srand(time(NULL));
-    srand(1);
 
-    // Define an array of 5 colors
-//    GLfloat colors[7][4] = {{1.0, 0.0, 0.0, 0.8f},    // red
-//                            {0.0, 1.0, 0.0, 0.8f},    // green
-//                            {0.0, 0.0, 1.0, 0.8f},    // blue
-//                            {1.0, 1.0, 0.0, 0.8f},    // yellow
-//                            {0.0, 1.0, 1.0, 0.8f},    // magenta
-//                            {1.0, 0.0, 1.0, 0.8f},    //
-//                            {1.0, 1.0, 1.0, 0.8f}};   // white
-
-
-    // Draw the small cubes
-    //int numCubes = 5; // Number of small cubes in each dimension
-
-    std::vector<std::array<GLfloat, 4>> colors = generateDistinctColors(numColors_);
-
-    float cubeSize = 1.0 / numCubes_; // Size of each small cube
+    float cubeSize = 1.0 / numCubes; // Size of each small cube
 
     GLfloat refColor[] = {1.0f, 1.0f, 1.0f, 1.0f};
 
-    // Declare an array to store direction factors for each color
-    float directionFactors[numColors_];
-
-    // Initialize direction factors randomly for each color
-    for (int i = 0; i < numColors_; i++) {
-        directionFactors[i] = ((rand() % 2) == 0) ? 1.0f : -1.0f;
-    }
-
     const int CubeSizeLimit = 30;
-    for (int i = 0; i < numCubes_; i++) {
-        for (int j = 0; j < numCubes_; j++) {
-            for (int k = 0; k < numCubes_; k++) {
+    for (int i = 0; i < numCubes; i++) {
+        for (int j = 0; j < numCubes; j++) {
+            for (int k = 0; k < numCubes; k++) {
 
-                if (numCubes_ > CubeSizeLimit && distanceFactor <= 0.1) // Drop invisible cubes
+                assert(voxels[k][i][j] > 0 );
+
+                if (numCubes > CubeSizeLimit && distanceFactor <= 0.1) // Drop invisible cubes
                 {
                     int alpha = 1; // How many elemet will be shown
                     int lb = alpha;
-                    int ub = numCubes_ - alpha;
+                    int ub = numCubes - alpha;
                     bool i_cond = i > lb && i < ub;
                     bool j_cond = j > lb && j < ub;
                     bool k_cond = k > lb && k < ub;
@@ -268,152 +296,41 @@ void MyGLWidget::paintGL()
                         continue;
                 }
 
-                if (voxels[k][i][j] > 0) {
-                    //int numColors1_ = rand() % numColors_;
-                    //int index = voxels[k][i][j] % numColors1_;
-                    //int index = voxels[k][i][j]  % (rand() % numColors_); // Use the value in the array as an index for color selection
 
-                    int index = voxels[k][i][j] % numColors_ % (rand()+1); // +1 to prevent devision by zero
+                int index = voxels[k][i][j] - 1;
+                assert(index>=0);
 
+                GLfloat* color = colors[index].data();
 
-                    //int index = voxels[k][i][j]  % 7;
+                GLfloat diff[] = {color[0] - refColor[0],
+                                  color[1] - refColor[1],
+                                  color[2] - refColor[2],
+                                  color[3] - refColor[3]};
 
-                    //int index = rand() % numColors_;
+                // Define a direction factor, which can be negative or positive
+                float directionFactor = directionFactors[index];
 
-                    GLfloat* color = colors[index].data();
+                GLfloat offset[] = {directionFactor * diff[0] * distanceFactor,
+                                    directionFactor * diff[1] * distanceFactor,
+                                    directionFactor * diff[2] * distanceFactor};
 
-                    GLfloat diff[] = {color[0] - refColor[0], color[1] - refColor[1], color[2] - refColor[2], color[3] - refColor[3]};
-
-                    // Define a direction factor, which can be negative or positive
-                    float directionFactor = directionFactors[index];
-
-                    GLfloat offset[] = {directionFactor * diff[0] * distanceFactor,
-                                        directionFactor * diff[1] * distanceFactor,
-                                        directionFactor * diff[2] * distanceFactor};
-
-                    glColor4fv(colors[index].data());
-                    glPushMatrix();
-                    glTranslatef((i + 0.5) * cubeSize - 0.5 + offset[0],
-                                 (j + 0.5) * cubeSize - 0.5 + offset[1],
-                                 (k + 0.5) * cubeSize - 0.5 + offset[2]);
+                glColor4fv(colors[index].data());
+                glPushMatrix();
+                glTranslatef((i + 0.5) * cubeSize - 0.5 + offset[0],
+                             (j + 0.5) * cubeSize - 0.5 + offset[1],
+                             (k + 0.5) * cubeSize - 0.5 + offset[2]);
 
 
-
-                // Choose a random color from the array
-                //int index = rand() % 7;
-
-
-
-
-//                glColor4fv(colors[index]);
-//                glPushMatrix();
-//                glTranslatef((i + 0.5) * cubeSize - 0.5 + distanceFactor*i,
-//                             (j + 0.5) * cubeSize - 0.5 + distanceFactor*j,
-//                             (k + 0.5) * cubeSize - 0.5 + distanceFactor*k);
-
-
-
-
-                //glColor3ub(rand() % 256, rand() % 256, rand() % 256); // Set a random RGB color
-
-                // Draw the small cube
-                glBegin(GL_QUADS);
-                glNormal3b(-1.0f, 0.0f, 0.0f);
-                glVertex3f(-cubeSize / 2.0, -cubeSize / 2.0, -cubeSize / 2.0);
-                glVertex3f(-cubeSize / 2.0, -cubeSize / 2.0, cubeSize / 2.0);
-                glVertex3f(-cubeSize / 2.0, cubeSize / 2.0, cubeSize / 2.0);
-                glVertex3f(-cubeSize / 2.0, cubeSize / 2.0, -cubeSize / 2.0);
-                glEnd();
-
-                glBegin(GL_QUADS);
-                glNormal3b(0.0f, 1.0f, 0.0f);
-                glVertex3f(-cubeSize / 2.0, -cubeSize / 2.0, cubeSize / 2.0);
-                glVertex3f(cubeSize / 2.0, -cubeSize / 2.0, cubeSize / 2.0);
-                glVertex3f(cubeSize / 2.0, cubeSize / 2.0, cubeSize / 2.0);
-                glVertex3f(-cubeSize / 2.0, cubeSize / 2.0, cubeSize / 2.0);
-                glEnd();
-
-                glBegin(GL_QUADS);
-                glNormal3b(0.0f, -1.0f, 0.0f);
-                glVertex3f(cubeSize / 2.0, -cubeSize / 2.0, cubeSize / 2.0);
-                glVertex3f(cubeSize / 2.0, -cubeSize / 2.0, -cubeSize / 2.0);
-                glVertex3f(cubeSize / 2.0, cubeSize / 2.0, -cubeSize / 2.0);
-                glVertex3f(cubeSize / 2.0, cubeSize / 2.0, cubeSize / 2.0);
-                glEnd();
-
-                glBegin(GL_QUADS);
-                glNormal3b(1.0f, 0.0f, 0.0f);
-                glVertex3f(cubeSize / 2.0, -cubeSize / 2.0, -cubeSize / 2.0);
-                glVertex3f(-cubeSize / 2.0, -cubeSize / 2.0, -cubeSize / 2.0);
-                glVertex3f(-cubeSize / 2.0, cubeSize / 2.0, -cubeSize / 2.0);
-                glVertex3f(cubeSize / 2.0, cubeSize / 2.0, -cubeSize / 2.0);
-                glEnd();
-                glBegin(GL_QUADS);
-                glNormal3b(0.0f, 0.0f, -1.0f);
-                glVertex3f(-cubeSize / 2.0, cubeSize / 2.0, -cubeSize / 2.0);
-                glVertex3f(-cubeSize / 2.0, cubeSize / 2.0, cubeSize / 2.0);
-                glVertex3f(cubeSize / 2.0, cubeSize / 2.0, cubeSize / 2.0);
-                glVertex3f(cubeSize / 2.0, cubeSize / 2.0, -cubeSize / 2.0);
-                glEnd();
-                glBegin(GL_QUADS);
-                glNormal3b(0.0f, 1.0f, 0.0f);
-                glVertex3f(-cubeSize / 2.0, -cubeSize / 2.0, cubeSize / 2.0);
-                glVertex3f(-cubeSize / 2.0, -cubeSize / 2.0, -cubeSize / 2.0);
-                glVertex3f(cubeSize / 2.0, -cubeSize / 2.0, -cubeSize / 2.0);
-                glVertex3f(cubeSize / 2.0, -cubeSize / 2.0, cubeSize / 2.0);
-                glEnd();
-
-                if (numCubes_ <= CubeSizeLimit)
+                drawCube(cubeSize);
+                if (numCubes <= CubeSizeLimit)
                 {
                     glColor3f(0.5f, 0.5f, 0.5f);
                     glLineWidth(3.0);
-
-                    glBegin(GL_LINES);
-
-                    // draw edges along x-axis
-                    glVertex3f(-cubeSize / 2.0, -cubeSize / 2.0, -cubeSize / 2.0);
-                    glVertex3f(cubeSize / 2.0, -cubeSize / 2.0, -cubeSize / 2.0);
-
-                    glVertex3f(cubeSize / 2.0, -cubeSize / 2.0, -cubeSize / 2.0);
-                    glVertex3f(cubeSize / 2.0, cubeSize / 2.0, -cubeSize / 2.0);
-
-                    glVertex3f(cubeSize / 2.0, cubeSize / 2.0, -cubeSize / 2.0);
-                    glVertex3f(-cubeSize / 2.0, cubeSize / 2.0, -cubeSize / 2.0);
-
-                    glVertex3f(-cubeSize / 2.0, cubeSize / 2.0, -cubeSize / 2.0);
-                    glVertex3f(-cubeSize / 2.0, -cubeSize / 2.0, -cubeSize / 2.0);
-
-                    // draw edges along y-axis
-                    glVertex3f(-cubeSize / 2.0, -cubeSize / 2.0, -cubeSize / 2.0);
-                    glVertex3f(-cubeSize / 2.0, -cubeSize / 2.0, cubeSize / 2.0);
-
-                    glVertex3f(-cubeSize / 2.0, -cubeSize / 2.0, cubeSize / 2.0);
-                    glVertex3f(-cubeSize / 2.0, cubeSize / 2.0, cubeSize / 2.0);
-
-                    glVertex3f(-cubeSize / 2.0, cubeSize / 2.0, cubeSize / 2.0);
-                    glVertex3f(-cubeSize / 2.0, cubeSize / 2.0, -cubeSize / 2.0);
-
-                    glVertex3f(-cubeSize / 2.0, cubeSize / 2.0, -cubeSize / 2.0);
-                    glVertex3f(-cubeSize / 2.0, -cubeSize / 2.0, -cubeSize / 2.0);
-
-                    // draw edges along z-axis
-                    glVertex3f(-cubeSize / 2.0, -cubeSize / 2.0, cubeSize / 2.0);
-                    glVertex3f(cubeSize / 2.0, -cubeSize / 2.0, cubeSize / 2.0);
-
-                    glVertex3f(cubeSize / 2.0, -cubeSize / 2.0, cubeSize / 2.0);
-                    glVertex3f(cubeSize / 2.0, cubeSize / 2.0, cubeSize / 2.0);
-
-                    glVertex3f(cubeSize / 2.0, cubeSize / 2.0, cubeSize / 2.0);
-                    glVertex3f(-cubeSize / 2.0, cubeSize / 2.0, cubeSize / 2.0);
-
-                    glVertex3f(-cubeSize / 2.0, cubeSize / 2.0, cubeSize / 2.0);
-                    glVertex3f(-cubeSize / 2.0, -cubeSize / 2.0, cubeSize / 2.0);
-
-                    glEnd();
+                    drawCube(cubeSize, GL_LINES);
                 }
 
                 glPopMatrix();
-                }
+
             }
         }
     }
@@ -422,7 +339,7 @@ void MyGLWidget::paintGL()
 
 void MyGLWidget::resizeGL(int width, int height)
 {
-    int side = qMin(width, height);
+ //   int side = qMin(width, height);
     glViewport(0, 0, width, height);
 
     glMatrixMode(GL_PROJECTION);
@@ -469,8 +386,8 @@ void MyGLWidget::mousePressEvent(QMouseEvent *event)
 
 void MyGLWidget::mouseMoveEvent(QMouseEvent *event)
 {
-    int dx = event->x() - lastPos.x();
-    int dy = event->y() - lastPos.y();
+    int dx = event->position().x() - lastPos.x();
+    int dy = event->position().y() - lastPos.y();
 
     if (event->buttons() & Qt::LeftButton) {
         setXRotation(xRot + 8 * dy);
