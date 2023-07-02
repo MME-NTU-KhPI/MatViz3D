@@ -2,6 +2,9 @@ QT       += core gui opengl
 
 LIBS += -lopengl32
 
+QMAKE_CXXFLAGS += -fopenmp
+LIBS += -fopenmp
+
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 QT += openglwidgets
 

@@ -42,10 +42,11 @@ MainWindow::MainWindow(QWidget *parent)
         }
     });
 
-    ui->Rectangle10->setSingleStep(0.01);
-    ui->Rectangle10->setTickInterval(0.05);
+    ui->Rectangle10->setMinimum(0);
+    ui->Rectangle10->setMaximum(10);
+    ui->Rectangle10->setSingleStep(1);
+    ui->Rectangle10->setTickInterval(5);
     connect(ui->Rectangle10, &QSlider::valueChanged, ui->myGLWidget, &MyGLWidget::setDistanceFactor);
-
 
     checkInputFields();
     buttons[0] = ui->Algorithm1;

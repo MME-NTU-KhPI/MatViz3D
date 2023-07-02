@@ -3,6 +3,8 @@
 
 #include <QtOpenGLWidgets/QOpenGLWidget>
 #include <QMatrix4x4>
+#include <QOpenGLFunctions>
+
 
 
 class MyGLWidget : public QOpenGLWidget
@@ -18,19 +20,21 @@ public slots:
 
 
 protected:
+    struct Voxel;
     void initializeGL();
     void paintGL();
     void resizeGL(int width, int height);
     void paintSphere(float radius, int numStacks, int numSlices);
-    std::vector<std::array<GLfloat, 4>> generateDistinctColors();
+    std::vector<std::array<GLubyte, 4>> generateDistinctColors();
     void drawCube(float cubeSize, GLenum type = GL_QUADS);
-
+    void drawCube(float cubeSize, Voxel v);
     QSize minimumSizeHint() const;
     QSize sizeHint() const;
     void mousePressEvent(QMouseEvent *event);
     void mouseMoveEvent(QMouseEvent *event);
     void wheelEvent(QWheelEvent *event);
 
+    void calculateScene();
 public slots:
     // slots for xyz-rotation slider
     void setXRotation(int angle);
@@ -38,7 +42,7 @@ public slots:
     void setZRotation(int angle);
     void setNumCubes(int numCubes);
     void setNumColors(int numColors);
-    void setDistanceFactor(float factor);
+    void setDistanceFactor(int factor);
     //void explodeCubes(int value);
     //void setColorDistanceFactor(float factor);
 
@@ -48,8 +52,8 @@ signals:
     void yRotationChanged(int angle);
     void zRotationChanged(int angle);
 
-private:
-    //void draw();
+protected:
+
 
     int xRot;
     int yRot;
@@ -66,8 +70,19 @@ private:
     short int numCubes;
     int numColors;
 
-    std::vector<std::array<GLfloat, 4>> colors;
+    std::vector<std::array<GLubyte, 4>> colors;
     std::vector<float> directionFactors;
+
+    struct Voxel
+    {
+        GLfloat x, y, z;
+        GLubyte r, g, b, a; // Color attributes
+        GLbyte nx, ny, nz; // Normal attributes
+    };
+    std::vector<Voxel> voxelScene;
+
+    bool plotWireFrame;
+
 };
 
 #endif // MYGLWIDGET_H
