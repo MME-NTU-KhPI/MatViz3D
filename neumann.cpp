@@ -17,11 +17,11 @@ Neumann::Neumann()
 }
 
 
-void Neumann::Generate_Filling(int16_t*** voxels, short int numCubes)
+void Neumann::Generate_Filling(int16_t*** voxels, short int numCubes, MyGLWidget* myglwidget)
 {
     bool answer = true;
-    while (answer) {
-
+    while (answer)
+    {
         srand(time(NULL));
         for (short int k = 0; k < numCubes; k++)
         {
@@ -72,6 +72,9 @@ void Neumann::Generate_Filling(int16_t*** voxels, short int numCubes)
                 }
             }
         }
+
+        myglwidget->setVoxels(voxels,numCubes);
+        myglwidget->repaint_function();
 
         int k = 0;
         for (; k < numCubes; k++)

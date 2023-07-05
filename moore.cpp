@@ -16,7 +16,7 @@ Moore::Moore()
 
 }
 
-void Moore::Generate_Filling(int16_t*** voxels, short int numCubes)
+void Moore::Generate_Filling(int16_t*** voxels, short int numCubes, MyGLWidget* myglwidget)
 {
     bool answer = true;
     while (answer) {
@@ -60,6 +60,9 @@ void Moore::Generate_Filling(int16_t*** voxels, short int numCubes)
             }
         }
 
+        myglwidget->setVoxels(voxels,numCubes);
+        myglwidget->repaint_function();
+
         for (int k = 0; k < numCubes; k++)
         {
             for (int i = 0; i < numCubes; i++)
@@ -73,7 +76,6 @@ void Moore::Generate_Filling(int16_t*** voxels, short int numCubes)
                 }
             }
         }
-
         int k = 0;
         for (; k < numCubes; k++)
         {

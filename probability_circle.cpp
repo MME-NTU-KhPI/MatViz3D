@@ -20,7 +20,7 @@ Probability_Circle::Probability_Circle():Parent_Algorithm()
 
 
 //Функция заполнения массива
-void Probability_Circle::Generate_Filling(int16_t*** voxels, short int numCubes) {
+void Probability_Circle::Generate_Filling(int16_t*** voxels, short int numCubes, MyGLWidget* myglwidget) {
 
     bool answer = true;
     while (answer) {
@@ -85,6 +85,9 @@ void Probability_Circle::Generate_Filling(int16_t*** voxels, short int numCubes)
                 }
             }
         }
+
+        myglwidget->setVoxels(voxels,numCubes);
+        myglwidget->repaint_function();
 
         int k = 0;
         for (; k < numCubes; k++)

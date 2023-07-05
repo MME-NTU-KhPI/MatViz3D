@@ -212,7 +212,12 @@ void MyGLWidget::calculateScene()
         for (int j = 0; j < numCubes; j++) {
             for (int k = 0; k < numCubes; k++) {
 
-                assert(voxels[k][i][j] > 0 );
+                assert(voxels[k][i][j] >= 0 );
+
+                if(voxels[k][i][j] == 0)
+                {
+                    continue;
+                }
 
                 bool condition1 = i > 0 && j > 0 && k > 0;
                 bool condition2 = i < numCubes -1 && j < numCubes -1 && k < numCubes -1;
@@ -374,6 +379,12 @@ void MyGLWidget::drawCube(float cubeSize, GLenum type)
         glVertex3fv(&v[faces[i][3]][0]);
         glEnd();
     }
+}
+
+void MyGLWidget::repaint_function()
+{
+    QThread::msleep(1000);
+    repaint();
 }
 
 void MyGLWidget::paintGL()

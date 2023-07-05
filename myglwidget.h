@@ -13,6 +13,7 @@ class MyGLWidget : public QOpenGLWidget
 public:
     explicit MyGLWidget(QWidget *parent = 0);
     void setVoxels(int16_t*** voxels, short int numCubes);
+    void repaint_function();
     ~MyGLWidget();
 signals:
 
