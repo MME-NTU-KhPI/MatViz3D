@@ -47,8 +47,7 @@ int16_t*** Parent_Algorithm::Generate_Initial_Cube(short int numCubes, int numCo
         voxels[rand() % numCubes][rand() % numCubes][rand() % numCubes] = ++color;
     }
 
-
-    Generate_Filling(voxels, numCubes);
+//    Generate_Filling(voxels, numCubes, myglwidget);
     return voxels;
 }
 

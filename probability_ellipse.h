@@ -12,7 +12,7 @@ class Probability_Ellipse : public Parent_Algorithm
 {
 public:
    Probability_Ellipse();
-   void Generate_Filling(int16_t*** voxels, short int numCubes);
+   void Generate_Filling(int16_t*** voxels, short int numCubes, MyGLWidget* myglwidget);
 };
 
 #endif // PROBABILITY_ELLIPSE_H

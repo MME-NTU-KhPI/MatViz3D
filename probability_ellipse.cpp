@@ -18,7 +18,7 @@ Probability_Ellipse::Probability_Ellipse()
 }
 
 
-void Probability_Ellipse::Generate_Filling(int16_t*** voxels, short int numCubes)
+void Probability_Ellipse::Generate_Filling(int16_t*** voxels, short int numCubes, MyGLWidget* myglwidget)
 //>>>>>>> origin/program-window+OpenGL
 {
     bool answer = true;
@@ -91,6 +91,9 @@ void Probability_Ellipse::Generate_Filling(int16_t*** voxels, short int numCubes
                 }
             }
         }
+
+        myglwidget->setVoxels(voxels,numCubes);
+        myglwidget->repaint_function();
 
         int k = 0;
         for (; k < numCubes; k++)
