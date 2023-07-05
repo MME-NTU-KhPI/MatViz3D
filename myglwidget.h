@@ -27,7 +27,7 @@ protected:
     void paintSphere(float radius, int numStacks, int numSlices);
     std::vector<std::array<GLubyte, 4>> generateDistinctColors();
     void drawCube(float cubeSize, GLenum type = GL_QUADS);
-    void drawCube(float cubeSize, Voxel v);
+    void drawCube(short cubeSize, Voxel v);
     QSize minimumSizeHint() const;
     QSize sizeHint() const;
     void mousePressEvent(QMouseEvent *event);
@@ -63,7 +63,7 @@ protected:
 
     QPoint lastPos;
     QMatrix4x4 m_projection;
-    float distanceFactor=0.001;
+    float distanceFactor = 0;
     //float colordistanceFactor;
 
     int16_t*** voxels;
@@ -75,13 +75,13 @@ protected:
 
     struct Voxel
     {
-        GLfloat x, y, z;
+        GLshort x, y, z;
         GLubyte r, g, b, a; // Color attributes
         GLbyte nx, ny, nz; // Normal attributes
     };
     std::vector<Voxel> voxelScene;
 
-    bool plotWireFrame;
+    bool plotWireFrame = false;
 
 };
 
