@@ -76,6 +76,7 @@ void MyGLWidget::setZRotation(int angle)
 
 void MyGLWidget::setNumCubes(int numCubes)
 {
+    distance = 2 * numCubes;
     this->numCubes = numCubes;
     update();
 }
@@ -96,7 +97,7 @@ void MyGLWidget::setNumColors(int numColors)
 
 void MyGLWidget::setDistanceFactor(int factor)
 {
-    distanceFactor = log(factor/5.0 + 1); // 5.0 - is a sensetivity factor. log - inroduce soft sizing
+    distanceFactor = log(factor/10.0 + 1) * numCubes; // 5.0 - is a sensetivity factor. log - inroduce soft sizing
     calculateScene();
     update();
 }
@@ -206,7 +207,7 @@ std::vector<std::array<GLubyte, 4>> MyGLWidget::generateDistinctColors()
 void MyGLWidget::calculateScene()
 {
     voxelScene.clear();
-    float cubeSize = 1.0 / numCubes;
+    float cubeSize = 1.0; // numCubes;
     for (int i = 0; i < numCubes; i++) {
         for (int j = 0; j < numCubes; j++) {
             for (int k = 0; k < numCubes; k++) {
@@ -248,9 +249,9 @@ void MyGLWidget::calculateScene()
                                     directionFactor * diff[2] * distanceFactor};
 
                 Voxel v;
-                v.x = (numCubes/2. - i) * cubeSize + offset[0];
-                v.y = (numCubes/2. - j) * cubeSize + offset[1];
-                v.z = (numCubes/2. - k) * cubeSize + offset[2];
+                v.x = (numCubes/2 - i) * cubeSize + ceil(offset[0]);
+                v.y = (numCubes/2 - j) * cubeSize + ceil(offset[1]);
+                v.z = (numCubes/2 - k) * cubeSize + ceil(offset[2]);
 
                 v.r = color[0];
                 v.g = color[1];
@@ -270,9 +271,8 @@ void MyGLWidget::setVoxels(int16_t*** voxels, short int numCubes)
     calculateScene();
 }
 
-void MyGLWidget::drawCube(float cubeSize, Voxel vox)
+void MyGLWidget::drawCube(short cubeSize, Voxel vox)
 {
-    const float cb2 = cubeSize / 2.0;
 
     static const GLfloat n[6][3] =
         {
@@ -295,12 +295,12 @@ void MyGLWidget::drawCube(float cubeSize, Voxel vox)
     float v[8][3];
 
 
-    v[0][0] = v[1][0] = v[2][0] = v[3][0] = vox.x - cb2;
-    v[4][0] = v[5][0] = v[6][0] = v[7][0] = vox.x + cb2 ;
-    v[0][1] = v[1][1] = v[4][1] = v[5][1] = vox.y - cb2;
-    v[2][1] = v[3][1] = v[6][1] = v[7][1] = vox.y + cb2;
-    v[0][2] = v[3][2] = v[4][2] = v[7][2] = vox.z - cb2;
-    v[1][2] = v[2][2] = v[5][2] = v[6][2] = vox.z + cb2;
+    v[0][0] = v[1][0] = v[2][0] = v[3][0] = vox.x;
+    v[4][0] = v[5][0] = v[6][0] = v[7][0] = vox.x + cubeSize ;
+    v[0][1] = v[1][1] = v[4][1] = v[5][1] = vox.y;
+    v[2][1] = v[3][1] = v[6][1] = v[7][1] = vox.y + cubeSize;
+    v[0][2] = v[3][2] = v[4][2] = v[7][2] = vox.z;
+    v[1][2] = v[2][2] = v[5][2] = v[6][2] = vox.z + cubeSize;
 
     Voxel v1, v2, v3, v4;
     for (int i = 5; i >= 0; i--)
@@ -419,7 +419,7 @@ void MyGLWidget::paintGL()
     // Bind the vertex buffer
     f->glBindBuffer(GL_ARRAY_BUFFER, vboIds[0]);
     f->glBufferData(GL_ARRAY_BUFFER, voxelScene.size() * sizeof(Voxel), &voxelScene[0], GL_STATIC_DRAW);
-    glVertexPointer(3, GL_FLOAT, sizeof(Voxel), 0);
+    glVertexPointer(3, GL_SHORT, sizeof(Voxel), 0);
 
     if (plotWireFrame == true)
     {
@@ -467,8 +467,8 @@ void MyGLWidget::resizeGL(int width, int height)
     // Set up perspective projection using glFrustum
     GLfloat aspect = (GLfloat)width / (GLfloat)height;
     GLfloat fov = 45.0f;
-    GLfloat nearVal = 0.01f;
-    GLfloat farVal = 100.0f;
+    GLfloat nearVal = 1.0f;
+    GLfloat farVal = 1000.0f;
     GLfloat top = nearVal * std::tan(fov * 0.5f * 3.14159f / 180.0f);
     GLfloat bottom = -top;
     GLfloat left = bottom * aspect;
@@ -489,10 +489,10 @@ void MyGLWidget::wheelEvent(QWheelEvent *event)
 
     if (numSteps > 0) {
         // zoom in
-        distance -= numSteps * 0.1f; // adjust the distance based on the number of steps
+        distance -= numSteps * numCubes * 0.1f; // adjust the distance based on the number of steps
     } else if (numSteps < 0) {
         // zoom out
-        distance += -numSteps * 0.1f; // adjust the distance based on the number of steps (use the absolute value)
+        distance += -numSteps * numCubes * 0.1f; // adjust the distance based on the number of steps (use the absolute value)
     }
 
     update(); // redraw the cube with the new camera position
