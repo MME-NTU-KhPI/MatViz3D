@@ -13,7 +13,7 @@ class Probability_Circle : public Parent_Algorithm
 {
 public:
     Probability_Circle();
-    void Generate_Filling(int16_t*** voxels, short int numCubes, MyGLWidget* myglwidget);
+    bool Generate_Filling(int16_t*** voxels, short int numCubes);
 
 private:
 

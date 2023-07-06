@@ -232,11 +232,14 @@ void MainWindow::on_Start_clicked()
         else
         {
             Neumann start;
-            MyGLWidget* glWidget = ui->myGLWidget;
             int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
-            start.Generate_Filling(voxels,numCubes,glWidget);
-//            ui->myGLWidget->setVoxels(voxels, numCubes);
-//            ui->myGLWidget->update();
+            bool answer = true;
+            while (answer)
+            {
+                answer = start.Generate_Filling(voxels,numCubes);
+                ui->myGLWidget->setVoxels(voxels, numCubes);
+                ui->myGLWidget->repaint_function();
+            }
             ui->Start->setText("RELOAD");
         }
 
@@ -254,11 +257,14 @@ void MainWindow::on_Start_clicked()
         else
         {
             Probability_Circle start;
-            MyGLWidget* glWidget = ui->myGLWidget;
             int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
-            start.Generate_Filling(voxels,numCubes,glWidget);
-//            ui->myGLWidget->setVoxels(voxels, numCubes);
-//            ui->myGLWidget->update();
+            bool answer = true;
+            while (answer)
+            {
+                answer = start.Generate_Filling(voxels,numCubes);
+                ui->myGLWidget->setVoxels(voxels, numCubes);
+                ui->myGLWidget->repaint_function();
+            }
             ui->Start->setText("RELOAD");
         }
     }
@@ -275,11 +281,14 @@ void MainWindow::on_Start_clicked()
         else
         {
             Probability_Ellipse start;
-            MyGLWidget* glWidget = ui->myGLWidget;
             int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
-            start.Generate_Filling(voxels,numCubes,glWidget);
-//            ui->myGLWidget->setVoxels(voxels, numCubes);
-//            ui->myGLWidget->update();
+            bool answer = true;
+            while (answer)
+            {
+                answer = start.Generate_Filling(voxels,numCubes);
+                ui->myGLWidget->setVoxels(voxels, numCubes);
+                ui->myGLWidget->repaint_function();
+            }
             ui->Start->setText("RELOAD");
         }
     }
@@ -296,11 +305,14 @@ void MainWindow::on_Start_clicked()
         else
         {
             Moore start;
-            MyGLWidget* glWidget = ui->myGLWidget;
             int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
-            start.Generate_Filling(voxels,numCubes,glWidget);
-//            ui->myGLWidget->setVoxels(voxels, numCubes);
-//            ui->myGLWidget->update();
+            bool answer = true;
+            while (answer)
+            {
+                answer = start.Generate_Filling(voxels,numCubes);
+                ui->myGLWidget->setVoxels(voxels, numCubes);
+                ui->myGLWidget->repaint_function();
+            }
             ui->Start->setText("RELOAD");
         }
     }
