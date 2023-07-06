@@ -218,19 +218,27 @@ void MainWindow::keyPressEvent(QKeyEvent *e)
 
 void MainWindow::on_Start_clicked()
 {
+//    ui->Start->setText("Loading...");
+//    ui->Start->setStyleSheet("background: transparent; color: #969696; font-size: 48px; font-family: Inter; font-style: normal; font-weight: 700; line-height: normal;");
+//    QApplication::processEvents();
+
     if (ui->Algorithm1->isChecked())
     {
 
         if(std::isdigit(numCubes) == 0 && numCubes <= 0)
         {
-            QMessageBox::information(nullptr,"Попередження!","Введено неправильне значення розміру куба! Це може призвести до неправильної роботи програми.");
+            QMessageBox::information(nullptr, "Warning!", "Invalid cube size value entered! This may lead to incorrect program operation.");
         }
         else if(std::isdigit(numColors) == 0 && numColors <= 0)
         {
-            QMessageBox::information(nullptr,"Попередження!","Введено неправильне значення кількості початкових точок!\nЦе призведе до неправильної роботи програми!");
+            QMessageBox::information(nullptr, "Warning!", "Invalid initial points value entered! This will result in incorrect program operation!");
         }
         else
         {
+            ui->Start->setText("Loading...");
+            ui->Start->setStyleSheet("background: transparent; color: #969696; font-size: 48px; font-family: Inter; font-style: normal; font-weight: 700; line-height: normal;");
+            QApplication::processEvents();
+
             Neumann start;
             int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
             bool answer = true;
@@ -241,6 +249,8 @@ void MainWindow::on_Start_clicked()
                 ui->myGLWidget->repaint_function();
             }
             ui->Start->setText("RELOAD");
+            ui->Start->setStyleSheet("background: #282828; border-radius: 8px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 48px; line-height: 58px; color: rgba(150, 150, 150, 0.5);");
+
         }
 
     }
@@ -248,14 +258,18 @@ void MainWindow::on_Start_clicked()
     {
         if(std::isdigit(numCubes) == 0 && numCubes <= 0)
         {
-            QMessageBox::information(nullptr,"Попередження!","Введено неправильне значення розміру куба! Це може призвести до неправильної роботи програми.");
+            QMessageBox::information(nullptr, "Warning!", "Invalid cube size value entered! This may result in incorrect program operation.");
         }
         else if(std::isdigit(numColors) == 0 && numColors <= 0)
         {
-            QMessageBox::information(nullptr,"Попередження!","Введено неправильне значення кількості початкових точок!\nЦе призведе до неправильної роботи програми!");
+            QMessageBox::information(nullptr, "Warning!", "Invalid initial points value entered! This will result in incorrect program operation!");
         }
         else
         {
+            ui->Start->setText("Loading...");
+            ui->Start->setStyleSheet("background: transparent; color: #969696; font-size: 48px; font-family: Inter; font-style: normal; font-weight: 700; line-height: normal;");
+            QApplication::processEvents();
+
             Probability_Circle start;
             int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
             bool answer = true;
@@ -266,20 +280,26 @@ void MainWindow::on_Start_clicked()
                 ui->myGLWidget->repaint_function();
             }
             ui->Start->setText("RELOAD");
+            ui->Start->setStyleSheet("background: #282828; border-radius: 8px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 48px; line-height: 58px; color: rgba(150, 150, 150, 0.5);");
+
         }
     }
     else if (ui->Algorithm3->isChecked())
     {
         if(std::isdigit(numCubes) == 0 && numCubes <= 0)
         {
-            QMessageBox::information(nullptr,"Попередження!","Введено неправильне значення розміру куба! Це може призвести до неправильної роботи програми.");
+            QMessageBox::information(nullptr, "Warning!", "Invalid cube size value entered! This may result in incorrect program operation.");
         }
         else if(std::isdigit(numColors) == 0 && numColors <= 0)
         {
-            QMessageBox::information(nullptr,"Попередження!","Введено неправильне значення кількості початкових точок!\nЦе призведе до неправильної роботи програми!");
+            QMessageBox::information(nullptr, "Warning!", "Invalid initial points value entered!\nThis will result in incorrect program operation!");
         }
         else
         {
+            ui->Start->setText("Loading...");
+            ui->Start->setStyleSheet("background: transparent; color: #969696; font-size: 48px; font-family: Inter; font-style: normal; font-weight: 700; line-height: normal;");
+            QApplication::processEvents();
+
             Probability_Ellipse start;
             int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
             bool answer = true;
@@ -290,20 +310,26 @@ void MainWindow::on_Start_clicked()
                 ui->myGLWidget->repaint_function();
             }
             ui->Start->setText("RELOAD");
+            ui->Start->setStyleSheet("background: #282828; border-radius: 8px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 48px; line-height: 58px; color: rgba(150, 150, 150, 0.5);");
+
         }
     }
     else if (ui->Algorithm4->isChecked())
     {
         if(std::isdigit(numCubes) == 0 && numCubes <= 0)
         {
-            QMessageBox::information(nullptr,"Попередження!","Введено розмір кубу, який менше або дорівнює нулю!");
+            QMessageBox::information(nullptr, "Warning!", "Entered cube size is less than or equal to zero!");
         }
         else if(std::isdigit(numColors) == 0 && numColors <= 0)
         {
-            QMessageBox::information(nullptr,"Попередження!","Введено неправильне значення кількості початкових точок!\nЦе призведе до неправильної роботи програми!");
+            QMessageBox::information(nullptr, "Warning!", "Invalid initial points value entered!\nThis will result in incorrect program operation!");
         }
         else
         {
+            ui->Start->setText("Loading...");
+            ui->Start->setStyleSheet("background: transparent; color: #969696; font-size: 48px; font-family: Inter; font-style: normal; font-weight: 700; line-height: normal;");
+            QApplication::processEvents();
+
             Moore start;
             int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
             bool answer = true;
@@ -314,6 +340,8 @@ void MainWindow::on_Start_clicked()
                 ui->myGLWidget->repaint_function();
             }
             ui->Start->setText("RELOAD");
+            ui->Start->setStyleSheet("background: #282828; border-radius: 8px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 48px; line-height: 58px; color: rgba(150, 150, 150, 0.5);");
+
         }
     }
 }
