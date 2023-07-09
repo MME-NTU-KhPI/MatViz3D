@@ -41,10 +41,13 @@ int16_t*** Parent_Algorithm::Generate_Initial_Cube(short int numCubes, int numCo
         }
     }
 
-    srand(time(NULL));
+    std::random_device rd;
+    std::mt19937 generator(rd());
+    std::uniform_int_distribution<int> distribution(0, numCubes - 1);
+
     short int color = 0;
     for (int i = 0; i < numColors; i++) {
-        voxels[rand() % numCubes][rand() % numCubes][rand() % numCubes] = ++color;
+        voxels[distribution(generator)][distribution(generator)][distribution(generator)] = ++color;
     }
 
 //    Generate_Filling(voxels, numCubes, myglwidget);

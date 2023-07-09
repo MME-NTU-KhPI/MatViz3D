@@ -3,6 +3,7 @@
 #define PARENT_ALGORITHM_H
 
 #include "probability_circle.h"
+#include <random>
 #include <cstdint>
 
 //class Probability_Circle;
