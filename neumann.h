@@ -13,7 +13,7 @@ class Neumann : public Parent_Algorithm
 {
 public:
     Neumann();
-    bool Generate_Filling(int16_t*** voxels, short int numCubes);
+    bool Generate_Filling(int16_t*** voxels, short int numCubes,int n);
 };
 
 #endif // NEUMANN_H

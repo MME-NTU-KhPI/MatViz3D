@@ -18,11 +18,13 @@ Probability_Ellipse::Probability_Ellipse()
 }
 
 
-bool Probability_Ellipse::Generate_Filling(int16_t*** voxels, short int numCubes)
+bool Probability_Ellipse::Generate_Filling(int16_t*** voxels, short int numCubes,int n)
 //>>>>>>> origin/program-window+OpenGL
 {
     bool answer = true;
     srand(time(NULL));
+    while (answer)
+    {
     for (short int k = 0; k < numCubes; k++)
     {
         for (short int i = 0; i < numCubes; i++)
@@ -120,6 +122,15 @@ bool Probability_Ellipse::Generate_Filling(int16_t*** voxels, short int numCubes
     if (k == numCubes)
     {
         answer = false;
+    }
+    if (n == 1)
+    {
+        break;
+    }
+    if (n > 1)
+    {
+        n--;
+    }
     }
     return answer;
 }

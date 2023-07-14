@@ -13,7 +13,7 @@ class Moore : public Parent_Algorithm {
 
 public:
     Moore();
-    bool Generate_Filling(int16_t*** voxels, short int numCubes);
+    bool Generate_Filling(int16_t*** voxels, short int numCubes,int n);
 };
 
 #endif // MOORE_H

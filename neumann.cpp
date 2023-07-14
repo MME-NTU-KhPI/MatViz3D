@@ -17,17 +17,18 @@ Neumann::Neumann()
 }
 
 
-bool Neumann::Generate_Filling(int16_t*** voxels, short int numCubes)
+bool Neumann::Generate_Filling(int16_t*** voxels, short int numCubes,int n)
 {
     bool answer = true;
     srand(time(NULL));
+    while (answer)
+    {
     for (short int k = 0; k < numCubes; k++)
     {
         for (short int i = 0; i < numCubes; i++)
         {
             for (short int j = 0; j < numCubes; j++)
             {
-
                 if (voxels[k][i][j] > 0)
                 {
                     for (short int z = -1; z < 2; z++)
@@ -70,6 +71,7 @@ bool Neumann::Generate_Filling(int16_t*** voxels, short int numCubes)
             }
         }
     }
+
     int k = 0;
     for (; k < numCubes; k++)
     {
@@ -101,6 +103,15 @@ bool Neumann::Generate_Filling(int16_t*** voxels, short int numCubes)
     if (k == numCubes)
     {
         answer = false;
+    }
+    if (n == 1)
+    {
+        break;
+    }
+    if (n > 1)
+    {
+        n--;
+    }
     }
     return answer;
 }

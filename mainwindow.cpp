@@ -242,11 +242,21 @@ void MainWindow::on_Start_clicked()
             Neumann start;
             int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
             bool answer = true;
-            while (answer)
+            int n = 0;
+            if (n == 0)
             {
-                answer = start.Generate_Filling(voxels,numCubes);
+                start.Generate_Filling(voxels,numCubes,n);
                 ui->myGLWidget->setVoxels(voxels, numCubes);
-                ui->myGLWidget->repaint_function();
+                ui->myGLWidget->update();
+            }
+            else
+            {
+                while (answer)
+                {
+                    answer = start.Generate_Filling(voxels,numCubes,n);
+                    ui->myGLWidget->setVoxels(voxels, numCubes);
+                    ui->myGLWidget->repaint_function();
+                }
             }
             ui->Start->setText("RELOAD");
             ui->Start->setStyleSheet("background: #282828; border-radius: 8px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 48px; line-height: 58px; color: rgba(150, 150, 150, 0.5);");
@@ -273,11 +283,21 @@ void MainWindow::on_Start_clicked()
             Probability_Circle start;
             int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
             bool answer = true;
-            while (answer)
+            int n = 0;
+            if (n == 0)
             {
-                answer = start.Generate_Filling(voxels,numCubes);
+                start.Generate_Filling(voxels,numCubes,n);
                 ui->myGLWidget->setVoxels(voxels, numCubes);
-                ui->myGLWidget->repaint_function();
+                ui->myGLWidget->update();
+            }
+            else
+            {
+                while (answer)
+                {
+                    answer = start.Generate_Filling(voxels,numCubes,n);
+                    ui->myGLWidget->setVoxels(voxels, numCubes);
+                    ui->myGLWidget->repaint_function();
+                }
             }
             ui->Start->setText("RELOAD");
             ui->Start->setStyleSheet("background: #282828; border-radius: 8px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 48px; line-height: 58px; color: rgba(150, 150, 150, 0.5);");
@@ -303,11 +323,21 @@ void MainWindow::on_Start_clicked()
             Probability_Ellipse start;
             int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
             bool answer = true;
-            while (answer)
+            int n = 0;
+            if (n == 0)
             {
-                answer = start.Generate_Filling(voxels,numCubes);
+                start.Generate_Filling(voxels,numCubes,n);
                 ui->myGLWidget->setVoxels(voxels, numCubes);
-                ui->myGLWidget->repaint_function();
+                ui->myGLWidget->update();
+            }
+            else
+            {
+                while (answer)
+                {
+                    answer = start.Generate_Filling(voxels,numCubes,n);
+                    ui->myGLWidget->setVoxels(voxels, numCubes);
+                    ui->myGLWidget->repaint_function();
+                }
             }
             ui->Start->setText("RELOAD");
             ui->Start->setStyleSheet("background: #282828; border-radius: 8px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 48px; line-height: 58px; color: rgba(150, 150, 150, 0.5);");
@@ -333,11 +363,21 @@ void MainWindow::on_Start_clicked()
             Moore start;
             int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
             bool answer = true;
-            while (answer)
+            int n = 0;
+            if (n == 0)
             {
-                answer = start.Generate_Filling(voxels,numCubes);
+                start.Generate_Filling(voxels,numCubes,n);
                 ui->myGLWidget->setVoxels(voxels, numCubes);
-                ui->myGLWidget->repaint_function();
+                ui->myGLWidget->update();
+            }
+            else
+            {
+                while (answer)
+                {
+                    answer = start.Generate_Filling(voxels,numCubes,n);
+                    ui->myGLWidget->setVoxels(voxels, numCubes);
+                    ui->myGLWidget->repaint_function();
+                }
             }
             ui->Start->setText("RELOAD");
             ui->Start->setStyleSheet("background: #282828; border-radius: 8px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 48px; line-height: 58px; color: rgba(150, 150, 150, 0.5);");
