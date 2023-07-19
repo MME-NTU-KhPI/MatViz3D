@@ -7,6 +7,7 @@
 #include <QPushButton>
 #include <QWidget>
 #include <QSlider>
+#include <QThread>
 #include "probability_circle.h"
 #include "probability_ellipse.h"
 //#include "vonneumann.h"
