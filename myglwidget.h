@@ -5,7 +5,7 @@
 #include <QMatrix4x4>
 #include <QOpenGLFunctions>
 
-
+#include "statistics.h"
 
 class MyGLWidget : public QOpenGLWidget
 {
@@ -13,6 +13,7 @@ class MyGLWidget : public QOpenGLWidget
 public:
     explicit MyGLWidget(QWidget *parent = 0);
     void setVoxels(int16_t*** voxels, short int numCubes);
+    QVector<int> countVoxelColors(); // Функція для підрахунку кількості вокселей кожного кольору
     void repaint_function();
     ~MyGLWidget();
 signals:
@@ -83,6 +84,8 @@ protected:
     std::vector<Voxel> voxelScene;
 
     bool plotWireFrame = false;
+
+
 
 };
 

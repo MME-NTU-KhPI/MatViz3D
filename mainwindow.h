@@ -9,6 +9,7 @@
 #include <QSlider>
 #include "probability_circle.h"
 #include "probability_ellipse.h"
+#include "statistics.h"
 //#include "vonneumann.h"
 
 
@@ -51,13 +52,17 @@ private slots:
 
     void on_pushButton_clicked();
 
+    void on_gifSave_clicked();
+
+    void on_statistics_clicked();
+
 protected:
     void keyPressEvent(QKeyEvent *event);
 
 private:
     Ui::MainWindow *ui;
     QPushButton *buttons[4];
-
+    Statistics form;
 
 };
 

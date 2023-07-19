@@ -9,6 +9,7 @@
 #include <QMatrix4x4>
 #include <QColor>
 #include <array>
+#include <qgifimage.h>
 
 
 MyGLWidget::MyGLWidget(QWidget *parent)
@@ -269,6 +270,7 @@ void MyGLWidget::setVoxels(int16_t*** voxels, short int numCubes)
     this->voxels = voxels;
     this->numCubes = numCubes;
     calculateScene();
+
 }
 
 void MyGLWidget::drawCube(short cubeSize, Voxel vox)
@@ -517,5 +519,24 @@ void MyGLWidget::mouseMoveEvent(QMouseEvent *event)
     }
 
     lastPos = event->pos();
+}
+
+// Функція для підрахунку кількості вокселей кожного кольору
+QVector<int> MyGLWidget::countVoxelColors()
+{
+    QVector<int> colorCounts(numColors, 0);
+
+    for (int k = 0; k < numCubes; k++) {
+        for (int i = 0; i < numCubes; i++) {
+            for (int j = 0; j < numCubes; j++) {
+                int color = voxels[k][i][j];
+                if (color > 0 && color <= numColors) {
+                    colorCounts[color - 1]++;
+                }
+            }
+        }
+    }
+
+    return colorCounts;
 }
 

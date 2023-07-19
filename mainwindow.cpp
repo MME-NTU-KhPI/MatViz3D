@@ -16,12 +16,20 @@
 #include "parent_algorithm.h"
 #include <QFileDialog>
 
+#include <qgifimage.h>
+#include "statistics.h"
+
+int16_t* createVoxelArray(int16_t*** voxels, int numCubes);
+std::unordered_map<int16_t, int> countVoxels(int16_t* voxelArray, int numCubes, int numColors);
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+
+    connect(ui->statistics, &QPushButton::clicked, this, &MainWindow::on_statistics_clicked);
+
 
     connect(ui->Rectangle8, &QLineEdit::textChanged, this, &MainWindow::checkInputFields);
     connect(ui->Rectangle9, &QLineEdit::textChanged, this, &MainWindow::checkInputFields);
@@ -54,6 +62,7 @@ MainWindow::MainWindow(QWidget *parent)
     buttons[2] = ui->Algorithm3;
     buttons[3] = ui->Algorithm4;
 
+    //form = new Statistics(QVector<int>());
 }
 
 MainWindow::~MainWindow()
@@ -218,9 +227,6 @@ void MainWindow::keyPressEvent(QKeyEvent *e)
 
 void MainWindow::on_Start_clicked()
 {
-//    ui->Start->setText("Loading...");
-//    ui->Start->setStyleSheet("background: transparent; color: #969696; font-size: 48px; font-family: Inter; font-style: normal; font-weight: 700; line-height: normal;");
-//    QApplication::processEvents();
 
     if (ui->Algorithm1->isChecked())
     {
@@ -242,21 +248,11 @@ void MainWindow::on_Start_clicked()
             Neumann start;
             int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
             bool answer = true;
-            int n = 0;
-            if (n == 0)
+            while (answer)
             {
-                start.Generate_Filling(voxels,numCubes,n);
+                answer = start.Generate_Filling(voxels,numCubes);
                 ui->myGLWidget->setVoxels(voxels, numCubes);
-                ui->myGLWidget->update();
-            }
-            else
-            {
-                while (answer)
-                {
-                    answer = start.Generate_Filling(voxels,numCubes,n);
-                    ui->myGLWidget->setVoxels(voxels, numCubes);
-                    ui->myGLWidget->repaint_function();
-                }
+                ui->myGLWidget->repaint_function();
             }
             ui->Start->setText("RELOAD");
             ui->Start->setStyleSheet("background: #282828; border-radius: 8px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 48px; line-height: 58px; color: rgba(150, 150, 150, 0.5);");
@@ -283,21 +279,11 @@ void MainWindow::on_Start_clicked()
             Probability_Circle start;
             int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
             bool answer = true;
-            int n = 0;
-            if (n == 0)
+            while (answer)
             {
-                start.Generate_Filling(voxels,numCubes,n);
+                answer = start.Generate_Filling(voxels,numCubes);
                 ui->myGLWidget->setVoxels(voxels, numCubes);
-                ui->myGLWidget->update();
-            }
-            else
-            {
-                while (answer)
-                {
-                    answer = start.Generate_Filling(voxels,numCubes,n);
-                    ui->myGLWidget->setVoxels(voxels, numCubes);
-                    ui->myGLWidget->repaint_function();
-                }
+                ui->myGLWidget->repaint_function();
             }
             ui->Start->setText("RELOAD");
             ui->Start->setStyleSheet("background: #282828; border-radius: 8px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 48px; line-height: 58px; color: rgba(150, 150, 150, 0.5);");
@@ -323,21 +309,11 @@ void MainWindow::on_Start_clicked()
             Probability_Ellipse start;
             int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
             bool answer = true;
-            int n = 0;
-            if (n == 0)
+            while (answer)
             {
-                start.Generate_Filling(voxels,numCubes,n);
+                answer = start.Generate_Filling(voxels,numCubes);
                 ui->myGLWidget->setVoxels(voxels, numCubes);
-                ui->myGLWidget->update();
-            }
-            else
-            {
-                while (answer)
-                {
-                    answer = start.Generate_Filling(voxels,numCubes,n);
-                    ui->myGLWidget->setVoxels(voxels, numCubes);
-                    ui->myGLWidget->repaint_function();
-                }
+                ui->myGLWidget->repaint_function();
             }
             ui->Start->setText("RELOAD");
             ui->Start->setStyleSheet("background: #282828; border-radius: 8px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 48px; line-height: 58px; color: rgba(150, 150, 150, 0.5);");
@@ -363,21 +339,11 @@ void MainWindow::on_Start_clicked()
             Moore start;
             int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
             bool answer = true;
-            int n = 0;
-            if (n == 0)
+            while (answer)
             {
-                start.Generate_Filling(voxels,numCubes,n);
+                answer = start.Generate_Filling(voxels,numCubes);
                 ui->myGLWidget->setVoxels(voxels, numCubes);
-                ui->myGLWidget->update();
-            }
-            else
-            {
-                while (answer)
-                {
-                    answer = start.Generate_Filling(voxels,numCubes,n);
-                    ui->myGLWidget->setVoxels(voxels, numCubes);
-                    ui->myGLWidget->repaint_function();
-                }
+                ui->myGLWidget->repaint_function();
             }
             ui->Start->setText("RELOAD");
             ui->Start->setStyleSheet("background: #282828; border-radius: 8px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 48px; line-height: 58px; color: rgba(150, 150, 150, 0.5);");
@@ -402,7 +368,7 @@ void MainWindow::on_pushButton_clicked()
     QPixmap pixmap(width, height);
     ui->myGLWidget->render(&pixmap);
 
-    QString fileName = QFileDialog::getSaveFileName(this, "Зберегти зображення", "", "Зображення (*.png);;Всі файли (*.*)");
+    QString fileName = QFileDialog::getSaveFileName(this, "Save Image", "", "Image Files (*.png);;All Files (*.*)");
     if (!fileName.isEmpty()) {
         pixmap.save(fileName);
     }
@@ -411,4 +377,19 @@ void MainWindow::on_pushButton_clicked()
     ui->wid_start->show();
 
 }
+
+
+void MainWindow::on_gifSave_clicked()
+{
+
+}
+
+
+void MainWindow::on_statistics_clicked()
+{
+    QVector<int> colorCounts = ui->myGLWidget->countVoxelColors();
+    form.setVoxelCounts(colorCounts);
+    form.show();
+}
+
 

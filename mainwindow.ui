@@ -35,8 +35,8 @@
    </property>
    <property name="maximumSize">
     <size>
-     <width>1920</width>
-     <height>1020</height>
+     <width>5000</width>
+     <height>5000</height>
     </size>
    </property>
    <layout class="QGridLayout" name="gridLayout_2">
@@ -78,6 +78,32 @@
       <property name="styleSheet">
        <string notr="true">background-color: rgb(40, 40, 40);</string>
       </property>
+      <widget class="QPushButton" name="gifSave">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>10</y>
+         <width>91</width>
+         <height>21</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Save as GIF</string>
+       </property>
+      </widget>
+      <widget class="QPushButton" name="statistics">
+       <property name="geometry">
+        <rect>
+         <x>120</x>
+         <y>10</y>
+         <width>81</width>
+         <height>21</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Statistics</string>
+       </property>
+      </widget>
      </widget>
     </item>
     <item row="0" column="0" rowspan="2">
