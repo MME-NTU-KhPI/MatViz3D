@@ -4,7 +4,7 @@
 #include <QVector>
 #include <algorithm>
 #include <vector>
-
+#include <QSet>
 
 Statistics::Statistics(QWidget *parent)
     : QWidget(parent), ui(new Ui::Statistics)
@@ -25,35 +25,28 @@ Statistics::~Statistics()
     delete ui;
 }
 
-
 void Statistics::setVoxelCounts(const QVector<int>& counts)
 {
     // Створення нової стовпчастої діаграми
     QBarSeries *series = new QBarSeries();
 
     // Створення категорій для стовпчиків
-    QMap<int, int> frequencyMap;
-    for (int i = 0; i < counts.size(); i++) {
-        int voxelCount = counts[i];
-        frequencyMap[voxelCount]++;
-    }
-
-    // Отримання мінімального та максимального значення категорій
-    int minValue = *std::min_element(frequencyMap.constBegin(), frequencyMap.constEnd());
-    int maxValue = *std::max_element(frequencyMap.constBegin(), frequencyMap.constEnd());
-
-    // Створення повного списку категорій
-    QStringList categories;
-    for (int i = minValue; i <= maxValue; i++) {
-        categories << QString::number(i);
-    }
+    QList<int> valuesList(counts.begin(), counts.end());
+    int minValue = *std::min_element(valuesList.constBegin(), valuesList.constEnd());
+    int maxValue = *std::max_element(valuesList.constBegin(), valuesList.constEnd());
 
     // Додавання стовпчиків до серії
     QBarSet *barSet = new QBarSet("Counts");
     for (int i = minValue; i <= maxValue; i++) {
-        *barSet << frequencyMap.value(i, 0);
+        int count = std::count(valuesList.begin(), valuesList.end(), i);
+        *barSet << count; // Змінюємо тут, щоб додати значення в стовпчик
     }
     series->append(barSet);
+
+    // Виведення унікальних значень і їх кількості
+    QSet<int> uniqueValuesSet(valuesList.begin(), valuesList.end());
+    QList<int> uniqueValues = uniqueValuesSet.values();
+    std::sort(uniqueValues.begin(), uniqueValues.end()); // Впорядкування у порядку зростання
 
     // Створення діаграми та налаштування властивостей
     QChart *chart = new QChart();
@@ -67,8 +60,11 @@ void Statistics::setVoxelCounts(const QVector<int>& counts)
 
     // Налаштування осі X з категоріями
     QBarCategoryAxis *axisX = new QBarCategoryAxis();
-    axisX->setCategories(categories);
-    axisX->setRange(categories.first(), categories.last());
+    QStringList categories;
+    for (int i = minValue; i <= maxValue; i++) {
+        categories << QString::number(i);
+    }
+    axisX->append(categories);
     chart->addAxis(axisX, Qt::AlignBottom);
     series->attachAxis(axisX);
 
@@ -76,17 +72,18 @@ void Statistics::setVoxelCounts(const QVector<int>& counts)
     QValueAxis *axisY = new QValueAxis();
     axisY->setLabelFormat("%i"); // Формат міток на осі Y
 
-    // Знаходження максимального значення
+    // Знаходимо максимальне значення серед усіх стовпчиків
     int maxCount = 0;
-    for (int i = 0; i < barSet->count(); i++) {
-        int value = barSet->at(i);
-        if (value > maxCount) {
-            maxCount = value;
+    const QList<QBarSet*> barSets = series->barSets();
+    if (!barSets.isEmpty()) {
+        const QBarSet *set = barSets.at(0);
+        for (int i = 0; i < set->count(); i++) {
+            maxCount = std::max(maxCount, static_cast<int>(set->at(i)));
         }
     }
 
-    axisY->setRange(0, maxCount); // Встановити діапазон осі Y
-    axisY->setLabelsVisible(true); // Відображати значення на осі Y
+    // Збільшуємо максимальне значення на 10% для запасу
+    axisY->setRange(0, maxCount /*+ maxCount * 0.1*/);
 
     chart->addAxis(axisY, Qt::AlignLeft);
     series->attachAxis(axisY);
@@ -110,20 +107,12 @@ void Statistics::setVoxelCounts(const QVector<int>& counts)
     qDebug() << "Counts vector size:" << counts.size();
 
     // Виведемо кількість унікальних значень у векторі counts
-    qDebug() << "Unique counts values:" << frequencyMap.size();
+    qDebug() << "Unique counts values:" << uniqueValues.size();
 
     // Виведемо значення і їх кількість
-    for (auto it = frequencyMap.constBegin(); it != frequencyMap.constEnd(); ++it) {
-        qDebug() << "Value:" << it.key() << ", Count:" << it.value();
+    for (int value : uniqueValues) {
+        int count = std::count(valuesList.begin(), valuesList.end(), value);
+        qDebug() << "Value:" << value << ", Count:" << count;
     }
 }
-
-
-
-
-
-
-
-
-
 
