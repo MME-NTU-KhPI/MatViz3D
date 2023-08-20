@@ -9,6 +9,7 @@
 #include <QBarSet>
 #include <QBarSeries>
 #include <QtCharts/QBarCategoryAxis>
+#include <QtCharts/QLineSeries>
 
 namespace Ui {
 class Statistics;

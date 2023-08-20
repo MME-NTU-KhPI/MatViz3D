@@ -15,6 +15,9 @@
 #include "probability_ellipse.h"
 #include "parent_algorithm.h"
 #include <QFileDialog>
+#include <QPropertyAnimation>
+#include <QParallelAnimationGroup>
+#include <QSequentialAnimationGroup>
 
 #include <qgifimage.h>
 #include "statistics.h"
@@ -62,12 +65,23 @@ MainWindow::MainWindow(QWidget *parent)
     buttons[2] = ui->Algorithm3;
     buttons[3] = ui->Algorithm4;
 
-    //form = new Statistics(QVector<int>());
+    // Перша анімація - зникнення Rectangle4 і збільшення ширини інших віджетів на сітці
+    connect(ui->menuVertical, &QPushButton::clicked, this, &MainWindow::on_menuVertical_clicked);
+    connect(ui->ConsoleButton, &QPushButton::clicked, this, &MainWindow::on_ConsoleButton_clicked);
+
+    messageHandlerInstance = new MessageHandler(ui->textEdit);
+    connect(messageHandlerInstance, &MessageHandler::messageWrittenSignal, this, &MainWindow::onLogMessageWritten);
+
 }
 
 MainWindow::~MainWindow()
 {
     delete ui;
+}
+
+void MainWindow::onLogMessageWritten(const QString &message)
+{
+    ui->textEdit->append(message); // Вивід повідомлень в textEdit
 }
 
 void MainWindow::checkInputFields()
@@ -227,7 +241,6 @@ void MainWindow::keyPressEvent(QKeyEvent *e)
 
 void MainWindow::on_Start_clicked()
 {
-
     if (ui->Algorithm1->isChecked())
     {
 
@@ -256,6 +269,7 @@ void MainWindow::on_Start_clicked()
             }
             ui->Start->setText("RELOAD");
             ui->Start->setStyleSheet("background: #282828; border-radius: 8px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 48px; line-height: 58px; color: rgba(150, 150, 150, 0.5);");
+            qDebug() << "NEUMANN";
 
         }
 
@@ -287,6 +301,7 @@ void MainWindow::on_Start_clicked()
             }
             ui->Start->setText("RELOAD");
             ui->Start->setStyleSheet("background: #282828; border-radius: 8px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 48px; line-height: 58px; color: rgba(150, 150, 150, 0.5);");
+            qDebug() << "PROBABILITY CIRCLE";
 
         }
     }
@@ -317,6 +332,7 @@ void MainWindow::on_Start_clicked()
             }
             ui->Start->setText("RELOAD");
             ui->Start->setStyleSheet("background: #282828; border-radius: 8px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 48px; line-height: 58px; color: rgba(150, 150, 150, 0.5);");
+            qDebug() << "PROBABILITY ELLIPSE";
 
         }
     }
@@ -347,13 +363,14 @@ void MainWindow::on_Start_clicked()
             }
             ui->Start->setText("RELOAD");
             ui->Start->setStyleSheet("background: #282828; border-radius: 8px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 48px; line-height: 58px; color: rgba(150, 150, 150, 0.5);");
+            qDebug() << "MOORE";
 
         }
     }
 }
 
 
-void MainWindow::on_pushButton_clicked()
+void MainWindow::on_imageSave_clicked()
 {
 
     QRect rect = ui->Rectangle1->geometry();
@@ -391,5 +408,134 @@ void MainWindow::on_statistics_clicked()
     form.setVoxelCounts(colorCounts);
     form.show();
 }
+
+
+
+void MainWindow::on_menuVertical_clicked()
+{
+    if (ui->Rectangle4->pos().x() == 0) {
+        // Анімація зміни положення Rectangle4 з лівого боку на видиму позицію
+        QPropertyAnimation* showAnimation = new QPropertyAnimation(ui->Rectangle4, "geometry", this);
+        showAnimation->setStartValue(QRect(-ui->Rectangle4->width(), ui->Rectangle4->y(), ui->Rectangle4->width(), ui->Rectangle4->height()));
+        showAnimation->setEndValue(QRect(0, ui->Rectangle4->y(), ui->Rectangle4->width(), ui->Rectangle4->height()));
+        showAnimation->setDuration(500);
+
+        // Анімація збільшення ширини інших віджетів на сітці
+        QParallelAnimationGroup* expandAnimation = new QParallelAnimationGroup(this);
+
+        QPropertyAnimation* expandAnimation1 = new QPropertyAnimation(ui->Rectangle1, "geometry", this);
+        expandAnimation1->setStartValue(QRect(ui->Rectangle1->pos().x(), ui->Rectangle1->y(), ui->Rectangle1->width(), ui->Rectangle1->height()));
+        expandAnimation1->setEndValue(QRect(ui->Rectangle1->pos().x() + ui->Rectangle4->width(), ui->Rectangle1->y(), ui->Rectangle1->width() - ui->Rectangle4->width(), ui->Rectangle1->height()));
+        expandAnimation1->setDuration(500);
+
+        QPropertyAnimation* expandAnimation2 = new QPropertyAnimation(ui->widget, "geometry", this);
+        expandAnimation2->setStartValue(QRect(ui->widget->pos().x(), ui->widget->y(), ui->widget->width(), ui->widget->height()));
+        expandAnimation2->setEndValue(QRect(ui->widget->pos().x() + ui->Rectangle4->width(), ui->widget->y(), ui->widget->width() - ui->Rectangle4->width(), ui->widget->height()));
+        expandAnimation2->setDuration(500);
+
+        QPropertyAnimation* expandAnimation3 = new QPropertyAnimation(ui->ConsoleWidget, "geometry", this);
+        expandAnimation3->setStartValue(QRect(ui->ConsoleWidget->pos().x(), ui->ConsoleWidget->y(), ui->ConsoleWidget->width(), ui->ConsoleWidget->height()));
+        expandAnimation3->setEndValue(QRect(ui->ConsoleWidget->pos().x() + ui->Rectangle4->width(), ui->ConsoleWidget->y(), ui->ConsoleWidget->width() - ui->Rectangle4->width(), ui->ConsoleWidget->height()));
+        expandAnimation3->setDuration(500);
+
+        expandAnimation->addAnimation(expandAnimation1);
+        expandAnimation->addAnimation(expandAnimation2);
+        expandAnimation->addAnimation(expandAnimation3);
+
+        // Запускаємо обидві анімації одночасно
+        QParallelAnimationGroup* animationGroup = new QParallelAnimationGroup(this);
+        animationGroup->addAnimation(showAnimation);
+        animationGroup->addAnimation(expandAnimation);
+
+        // Запускаємо обидві анімації одночасно
+        animationGroup->start(QAbstractAnimation::DeleteWhenStopped);
+
+    } else {
+        // Анімація зміни положення Rectangle4 з видимої позиції на лівий бік
+        QPropertyAnimation* hideAnimation = new QPropertyAnimation(ui->Rectangle4, "geometry", this);
+        hideAnimation->setStartValue(QRect(0, ui->Rectangle4->y(), ui->Rectangle4->width(), ui->Rectangle4->height()));
+        hideAnimation->setEndValue(QRect(-ui->Rectangle4->width(), ui->Rectangle4->y(), ui->Rectangle4->width(), ui->Rectangle4->height()));
+        hideAnimation->setDuration(500);
+
+        // Анімація зменшення ширини інших віджетів на сітці
+        QParallelAnimationGroup* shrinkAnimation = new QParallelAnimationGroup(this);
+
+        QPropertyAnimation* shrinkAnimation1 = new QPropertyAnimation(ui->Rectangle1, "geometry", this);
+        shrinkAnimation1->setStartValue(QRect(ui->Rectangle1->pos().x(), ui->Rectangle1->y(), ui->Rectangle1->width(), ui->Rectangle1->height()));
+        shrinkAnimation1->setEndValue(QRect(ui->Rectangle1->pos().x() - ui->Rectangle4->width(), ui->Rectangle1->y(), ui->Rectangle1->width() + ui->Rectangle4->width(), ui->Rectangle1->height()));
+        shrinkAnimation1->setDuration(500);
+
+        QPropertyAnimation* shrinkAnimation2 = new QPropertyAnimation(ui->widget, "geometry", this);
+        shrinkAnimation2->setStartValue(QRect(ui->widget->pos().x(), ui->widget->y(), ui->widget->width(), ui->widget->height()));
+        shrinkAnimation2->setEndValue(QRect(ui->widget->pos().x() - ui->Rectangle4->width(), ui->widget->y(), ui->widget->width() + ui->Rectangle4->width(), ui->widget->height()));
+        shrinkAnimation2->setDuration(500);
+
+        QPropertyAnimation* shrinkAnimation3 = new QPropertyAnimation(ui->ConsoleWidget, "geometry", this);
+        shrinkAnimation3->setStartValue(QRect(ui->ConsoleWidget->pos().x(), ui->ConsoleWidget->y(), ui->ConsoleWidget->width(), ui->ConsoleWidget->height()));
+        shrinkAnimation3->setEndValue(QRect(ui->ConsoleWidget->pos().x() - ui->Rectangle4->width(), ui->ConsoleWidget->y(), ui->ConsoleWidget->width() + ui->Rectangle4->width(), ui->ConsoleWidget->height()));
+        shrinkAnimation3->setDuration(500);
+
+        shrinkAnimation->addAnimation(shrinkAnimation1);
+        shrinkAnimation->addAnimation(shrinkAnimation2);
+        shrinkAnimation->addAnimation(shrinkAnimation3);
+
+        // Запускаємо обидві анімації одночасно
+        QParallelAnimationGroup* animationGroup = new QParallelAnimationGroup(this);
+        animationGroup->addAnimation(hideAnimation);
+        animationGroup->addAnimation(shrinkAnimation);
+
+        // Запускаємо обидві анімації одночасно
+        animationGroup->start(QAbstractAnimation::DeleteWhenStopped);
+    }
+}
+
+
+
+void MainWindow::on_ConsoleButton_clicked()
+{
+    if (ui->ConsoleWidget->pos().y() == height() - ui->ConsoleWidget->height()) {
+        // Анімація зміни положення ConsoleWidget вниз
+        QPropertyAnimation* hideAnimation = new QPropertyAnimation(ui->ConsoleWidget, "geometry", this);
+        hideAnimation->setStartValue(ui->ConsoleWidget->geometry());
+        hideAnimation->setEndValue(QRect(ui->ConsoleWidget->pos().x(), height(), ui->ConsoleWidget->width(), ui->ConsoleWidget->height()));
+        hideAnimation->setDuration(500);
+
+        // Анімація збільшення висоти Rectangle1 вниз
+        QPropertyAnimation* expandAnimation = new QPropertyAnimation(ui->Rectangle1, "geometry", this);
+        expandAnimation->setStartValue(ui->Rectangle1->geometry());
+        expandAnimation->setEndValue(QRect(ui->Rectangle1->pos().x(), ui->Rectangle1->pos().y(), ui->Rectangle1->width(), ui->Rectangle1->height() + ui->ConsoleWidget->height()));
+        expandAnimation->setDuration(500);
+
+        // Запускаємо обидві анімації одночасно
+        QParallelAnimationGroup* animationGroup = new QParallelAnimationGroup(this);
+        animationGroup->addAnimation(hideAnimation);
+        animationGroup->addAnimation(expandAnimation);
+
+        // Запускаємо обидві анімації одночасно
+        animationGroup->start(QAbstractAnimation::DeleteWhenStopped);
+
+    } else {
+        // Анімація зміни положення ConsoleWidget назад вниз
+        QPropertyAnimation* showAnimation = new QPropertyAnimation(ui->ConsoleWidget, "geometry", this);
+        showAnimation->setStartValue(ui->ConsoleWidget->geometry());
+        showAnimation->setEndValue(QRect(ui->ConsoleWidget->pos().x(), height() - ui->ConsoleWidget->height(), ui->ConsoleWidget->width(), ui->ConsoleWidget->height()));
+        showAnimation->setDuration(500);
+
+        // Анімація зменшення висоти Rectangle1 назад
+        QPropertyAnimation* shrinkAnimation = new QPropertyAnimation(ui->Rectangle1, "geometry", this);
+        shrinkAnimation->setStartValue(ui->Rectangle1->geometry());
+        shrinkAnimation->setEndValue(QRect(ui->Rectangle1->pos().x(), ui->Rectangle1->pos().y(), ui->Rectangle1->width(), ui->Rectangle1->height() - ui->ConsoleWidget->height()));
+        shrinkAnimation->setDuration(500);
+
+        // Запускаємо обидві анімації одночасно
+        QParallelAnimationGroup* animationGroup = new QParallelAnimationGroup(this);
+        animationGroup->addAnimation(showAnimation);
+        animationGroup->addAnimation(shrinkAnimation);
+
+        // Запускаємо обидві анімації одночасно
+        animationGroup->start(QAbstractAnimation::DeleteWhenStopped);
+    }
+}
+
 
 

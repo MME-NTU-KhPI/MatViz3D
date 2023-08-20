@@ -1,5 +1,8 @@
 <RCC>
     <qresource prefix="/">
         <file>icon/Plugin icon - 1icon.ico</file>
+        <file>icon/EllipseExplodedView.png</file>
+        <file>icon/VerticalMenuIcon.png</file>
+        <file>icon/Consol_Icon.png</file>
     </qresource>
 </RCC>

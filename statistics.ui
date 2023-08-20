@@ -19,6 +19,10 @@
   <property name="windowTitle">
    <string>Form</string>
   </property>
+  <property name="windowIcon">
+   <iconset resource="resourses.qrc">
+    <normaloff>:/icon/Plugin icon - 1icon.ico</normaloff>:/icon/Plugin icon - 1icon.ico</iconset>
+  </property>
   <property name="styleSheet">
    <string notr="true">background-color: rgba(40, 40, 40, 1);</string>
   </property>
@@ -30,6 +34,8 @@
    </item>
   </layout>
  </widget>
- <resources/>
+ <resources>
+  <include location="resourses.qrc"/>
+ </resources>
  <connections/>
 </ui>

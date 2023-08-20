@@ -20,6 +20,7 @@ include(3rdparty/qtgifimage/src/gifimage/qtgifimage.pri)
 SOURCES += \
     main.cpp \
     mainwindow.cpp \
+    messagehandler.cpp \
     moore.cpp \
     myglwidget.cpp \
     neumann.cpp \
@@ -30,6 +31,7 @@ SOURCES += \
 
 HEADERS += \
     mainwindow.h \
+    messagehandler.h \
     moore.h \
     myglwidget.h \
     neumann.h \

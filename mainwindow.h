@@ -10,6 +10,7 @@
 #include "probability_circle.h"
 #include "probability_ellipse.h"
 #include "statistics.h"
+#include "messagehandler.h"
 //#include "vonneumann.h"
 
 
@@ -31,6 +32,7 @@ public:
 private slots:
     void checkInputFields();
     void checkStart(bool algorithm1, bool algorithm2, bool algorithm3, bool algorithm4);
+    void onLogMessageWritten(const QString &message);
 
     void on_Algorithm1_clicked(bool checked);
 
@@ -50,11 +52,15 @@ private slots:
 
     void on_Start_clicked();
 
-    void on_pushButton_clicked();
-
     void on_gifSave_clicked();
 
     void on_statistics_clicked();
+
+    void on_menuVertical_clicked();
+
+    void on_imageSave_clicked();
+
+    void on_ConsoleButton_clicked();
 
 protected:
     void keyPressEvent(QKeyEvent *event);
@@ -63,6 +69,9 @@ private:
     Ui::MainWindow *ui;
     QPushButton *buttons[4];
     Statistics form;
+    QPropertyAnimation *animation; //анімація
+//    QFile logFile;
+    MessageHandler *messageHandlerInstance;
 
 };
 
