@@ -586,12 +586,22 @@ color: #5C5C5C;</string>
         <rect>
          <x>10</x>
          <y>10</y>
-         <width>91</width>
+         <width>100</width>
          <height>21</height>
         </rect>
        </property>
        <property name="styleSheet">
-        <string notr="true">border: 1px solid #000000;</string>
+        <string notr="true">background: #282828;
+border: 1px solid #000000;
+border-radius: 5px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+
+color: #171616;</string>
        </property>
        <property name="text">
         <string>Save as GIF</string>
@@ -602,12 +612,32 @@ color: #5C5C5C;</string>
         <rect>
          <x>120</x>
          <y>10</y>
-         <width>81</width>
+         <width>100</width>
          <height>21</height>
         </rect>
        </property>
        <property name="styleSheet">
-        <string notr="true">border: 1px solid #000000;</string>
+        <string notr="true">QPushButton {
+background: #282828;
+border: 1px solid #000000;
+border-radius: 5px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+
+color: #171616;
+}
+
+QPushButton:hover {
+    background-color: rgb(47, 47, 47);
+}
+
+QPushButton:pressed {
+    background-color: rgb(49, 49, 49);
+}</string>
        </property>
        <property name="text">
         <string>Statistics</string>
