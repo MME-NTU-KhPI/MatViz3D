@@ -119,22 +119,23 @@ Welcome to the Material Structure Visualization Tool! This application allows yo
 #### Analyzing Material Structure Using Algorithms
 
 <div style="display: flex;">
-  <div style="flex: 1; margin: 5px;">
-    <img src="images/vonNeu_MaterialViz3D.gif" alt="Algorithm 1 Example" width="350">
+  <div style="flex: 1; margin: 5px; width: 400px;">
+    <img src="images/vonNeu_MaterialViz3D.gif" alt="Algorithm 1 Example" style="width: 100%;">
   </div>
-  <div style="flex: 1; margin: 5px;">
-    <img src="images/Circle_MaterialViz3D.gif" alt="Algorithm 2 Example" width="350">
+  <div style="flex: 1; margin: 5px; width: 400px;">
+    <img src="images/Circle_MaterialViz3D.gif" alt="Algorithm 2 Example" style="width: 100%;">
   </div>
 </div>
 
 <div style="display: flex;">
-  <div style="flex: 1; margin: 5px;">
-    <img src="images/Ellipse_MaterialViz3D.gif" alt="Algorithm 3 Example" width="350">
+  <div style="flex: 1; margin: 5px; width: 400px;">
+    <img src="images/Ellipse_MaterialViz3D.gif" alt="Algorithm 3 Example" style="width: 100%;">
   </div>
-  <div style="flex: 1; margin: 5px;">
-    <img src="images/Moore_MaterialViz3D.gif" alt="Algorithm 4 Example" width="350">
+  <div style="flex: 1; margin: 5px; width: 400px;">
+    <img src="images/Moore_MaterialViz3D.gif" alt="Algorithm 4 Example" style="width: 100%;">
   </div>
 </div>
+
 
 
 
