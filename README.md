@@ -118,11 +118,11 @@ Welcome to the Material Structure Visualization Tool! This application allows yo
 
 #### Analyzing Material Structure Using Algorithms
 
-| ![Algorithm 1 Example](images/vonNeu_MaterialViz3D.gif) | ![Algorithm 2 Example](images/Circle_MaterialViz3D.gif) |
+| <img src="images/vonNeu_MaterialViz3D.gif" alt="Algorithm 1 Example" width="400"> | <img src="images/Circle_MaterialViz3D.gif" alt="Algorithm 2 Example" width="400"> |
 |:---:|:---:|
 | von Neumann | Probability Circle |
 
-| ![Algorithm 3 Example](images/Ellipse_MaterialViz3D.gif) | ![Algorithm 4 Example](images/Moore_MaterialViz3D.gif) |
+| <img src="images/Ellipse_MaterialViz3D.gif" alt="Algorithm 3 Example" width="400"> | <img src="images/Moore_MaterialViz3D.gif" alt="Algorithm 4 Example" width="400"> |
 |:---:|:---:|
 | Probability Ellipse | Moore |
 
@@ -246,11 +246,11 @@ ___
 
 #### Аналіз структури матеріалу з використанням різних алгоритмів
 
-| ![Algorithm 1 Example](images/vonNeu_MaterialViz3D.gif) | ![Algorithm 2 Example](images/Circle_MaterialViz3D.gif) |
+| <img src="images/vonNeu_MaterialViz3D.gif" alt="Algorithm 1 Example" width="400"> | <img src="images/Circle_MaterialViz3D.gif" alt="Algorithm 2 Example" width="400"> |
 |:---:|:---:|
 | von Neumann | Probability Circle |
 
-| ![Algorithm 3 Example](images/Ellipse_MaterialViz3D.gif) | ![Algorithm 4 Example](images/Moore_MaterialViz3D.gif) |
+| <img src="images/Ellipse_MaterialViz3D.gif" alt="Algorithm 3 Example" width="400"> | <img src="images/Moore_MaterialViz3D.gif" alt="Algorithm 4 Example" width="400"> |
 |:---:|:---:|
 | Probability Ellipse | Moore |
 
