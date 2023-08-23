@@ -246,17 +246,13 @@ ___
 
 #### Аналіз структури матеріалу з використанням різних алгоритмів
 
-![Приклад роботи Алгоритму 1](images/vonNeu_MaterialViz3D.gif)
+| ![Algorithm 1 Example](images/vonNeu_MaterialViz3D.gif) | ![Algorithm 2 Example](images/Circle_MaterialViz3D.gif) |
+|:---:|:---:|
+| von Neumann | Probability Circle |
 
-
-![Приклад роботи Алгоритму 2](images/Circle_MaterialViz3D.gif)
-
-
-![Приклад роботи Алгоритму 3](images/Ellipse_MaterialViz3D.gif)
-
-
-![Приклад роботи Алгоритму 4](images/Moore_MaterialViz3D.gif)
-
+| ![Algorithm 3 Example](images/Ellipse_MaterialViz3D.gif) | ![Algorithm 4 Example](images/Moore_MaterialViz3D.gif) |
+|:---:|:---:|
+| Probability Ellipse | Moore |
 
 ### Автори
 
