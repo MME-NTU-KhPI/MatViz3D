@@ -6,7 +6,7 @@ Tool for microstructure modeling using cellular automata
 
 ![](https://img.shields.io/badge/OpenGL-black?logo=opengl)
 
-![](https://img.shields.io/badge/Qt-blue?logo=qt)
+(https://img.shields.io/badge/Qt-blue?logo=qt)
 ___
 [English Version](#english-version) | [Українська версія](#українська-версія)
 ___
