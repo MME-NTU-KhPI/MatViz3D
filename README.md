@@ -1,10 +1,6 @@
 # <img src="images/Plugin_icon.ico" alt="App Icon" width="50" height="50" style="vertical-align: middle; margin-right: 8px;"> MatViz3D
 
 Tool for microstructure modeling using cellular automata
-
-![](https://img.shields.io/badge/C++-blue?logo=cplusplus)
-![](https://img.shields.io/badge/OpenGL-black?logo=opengl)
-![](https://img.shields.io/badge/Qt-blue?logo=qt)
 ___
 [English Version](#english-version) | [Українська версія](#українська-версія)
 ___
