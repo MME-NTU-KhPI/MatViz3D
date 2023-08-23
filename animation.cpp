@@ -1,16 +1,26 @@
 
 #include "animation.h"
 
+Animation::Animation()
+{
 
-void Animation::run()
+}
+
+Animation::Animation(int16_t*** a,Parent_Algorithm* b,MyGLWidget* c,int d,short int f,bool e)
+{
+    voxels = a;
+    begin = b;
+    myglwidget = c;
+    n = d;
+    numCubes = f;
+    answer = e;
+}
+
+void Animation::animate()
 {
     while (answer)
     {
-        answer = begin->Generate_Filling(voxels, numCubes, n);
-            QMetaObject::invokeMethod(myGLWidget, [=]() {
-            myGLWidget->setVoxels(voxels, numCubes);
-            myGLWidget->update();
-        });
-        QThread::msleep(1000);
+        answer = begin->Generate_Filling(voxels,numCubes,n);
+        emit updateRequested(voxels,numCubes);
     }
 }

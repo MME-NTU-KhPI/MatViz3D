@@ -16,10 +16,6 @@ public:
     void repaint_function();
     ~MyGLWidget();
 signals:
-
-public slots:
-
-
 protected:
     struct Voxel;
     void initializeGL();
@@ -44,21 +40,23 @@ public slots:
     void setNumCubes(int numCubes);
     void setNumColors(int numColors);
     void setDistanceFactor(int factor);
+    void setDelayAnimation(int delayAnimation);
+    void update_function();
     //void explodeCubes(int value);
     //void setColorDistanceFactor(float factor);
-
+    void updateGLWidget(int16_t*** voxels, short int numCubes);
 signals:
     // signaling rotation from mouse movement
     void xRotationChanged(int angle);
     void yRotationChanged(int angle);
     void zRotationChanged(int angle);
-
+private:
+    QTimer* timer;
 protected:
-
-
     int xRot;
     int yRot;
     int zRot;
+    int delayAnimation;
 
     float distance;
 

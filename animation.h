@@ -1,24 +1,32 @@
+
 #ifndef ANIMATION_H
 #define ANIMATION_H
 
-#include <QThread>
+
+#include <QObject>
+#include <QTimer>
+#include <QCoreApplication>
 #include <myglwidget.h>
 #include "parent_algorithm.h"
 
 
-
-class Animation : public QThread
+class Animation : public QObject
 {
+    Q_OBJECT
 public:
-    Animation(bool& answer, int16_t*** voxels, int numCubes, int n, Parent_Algorithm* start, MyGLWidget* myGLWidget): answer(answer), voxels(voxels), numCubes(numCubes), n(n), begin(start), myGLWidget(myGLWidget){};
-    void run() override;
+    Animation();
+    Animation(int16_t*** a,Parent_Algorithm* b,MyGLWidget* c,int d,short int e,bool f);
+    void animate();
+public slots:
 private:
-    bool& answer;
     int16_t*** voxels;
-    int numCubes;
-    int n;
     Parent_Algorithm* begin;
-    MyGLWidget* myGLWidget;
+    MyGLWidget* myglwidget;
+    int n;
+    short int numCubes;
+    bool answer;
+signals:
+    void updateRequested(int16_t*** voxels, short int numCubes);
 };
 
 #endif // ANIMATION_H

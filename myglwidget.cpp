@@ -19,10 +19,12 @@ MyGLWidget::MyGLWidget(QWidget *parent)
     zRot = 0;
     distance = 2.0f;
     voxels = nullptr;
+    timer = new QTimer(this);
 }
 
 MyGLWidget::~MyGLWidget()
 {
+    delete timer;
 }
 
 QSize MyGLWidget::minimumSizeHint() const
@@ -92,6 +94,11 @@ void MyGLWidget::setNumColors(int numColors)
     for (int i = 0; i < numColors; i++) {
         directionFactors[i] = ((rand() % 2) == 0) ? 1.0f : -1.0f;
     }
+}
+
+void MyGLWidget::setDelayAnimation(int delayAnimation)
+{
+    this->delayAnimation = delayAnimation;
 }
 
 
@@ -381,10 +388,9 @@ void MyGLWidget::drawCube(float cubeSize, GLenum type)
     }
 }
 
-void MyGLWidget::repaint_function()
+void MyGLWidget::update_function()
 {
-    QThread::msleep(1000);
-    repaint();
+    update();
 }
 
 void MyGLWidget::paintGL()
@@ -519,3 +525,10 @@ void MyGLWidget::mouseMoveEvent(QMouseEvent *event)
     lastPos = event->pos();
 }
 
+void MyGLWidget::updateGLWidget(int16_t*** voxels, short int numCubes)
+{
+    setVoxels(voxels, numCubes);
+    QThread::sleep(delayAnimation);
+    repaint();
+    //timer->singleShot(1000,this,SLOT(update_function()));
+}

@@ -8,8 +8,13 @@
 #include <QWidget>
 #include <QSlider>
 #include <QThread>
+#include "myglwidget.h"
+#include "animation.h"
+#include "neumann.h"
+#include "moore.h"
 #include "probability_circle.h"
 #include "probability_ellipse.h"
+#include "parent_algorithm.h"
 //#include "vonneumann.h"
 
 
@@ -25,6 +30,8 @@ class MainWindow : public QMainWindow
 public:
     MainWindow(QWidget *parent = nullptr);
     short int numCubes = 1;
+    int isAnimation;
+    int delayAnimation;
     int numColors;
     ~MainWindow();
 
@@ -51,7 +58,7 @@ private slots:
     void on_Start_clicked();
 
     void on_pushButton_clicked();
-
+signals:
 protected:
     void keyPressEvent(QKeyEvent *event);
 

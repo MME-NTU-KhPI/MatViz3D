@@ -1,20 +1,14 @@
-
+﻿
 #include <iostream>
 #include <chrono>
 #include <Windows.h>
 
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
-#include "myglwidget.h"
-#include "animation.h"
 #include <QtWidgets>
 #include "probability_circle.h"
 #include <QMessageBox>
 #include <QPushButton>
-#include "neumann.h"
-#include "moore.h"
-#include "probability_ellipse.h"
-#include "parent_algorithm.h"
 #include <QFileDialog>
 
 
@@ -26,6 +20,11 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(ui->Rectangle8, &QLineEdit::textChanged, this, &MainWindow::checkInputFields);
     connect(ui->Rectangle9, &QLineEdit::textChanged, this, &MainWindow::checkInputFields);
+
+    connect(ui->Delay, &QLineEdit::editingFinished, this, [=]() {
+        int delayValue = ui->Delay->text().toInt(); // Предполагая, что это текстовое представление числа delayAnimation
+        ui->myGLWidget->setDelayAnimation(delayValue);
+    });
 
     connect(ui->Rectangle8, &QLineEdit::editingFinished, this, [=]() {
         bool ok;
@@ -222,10 +221,12 @@ void MainWindow::on_Start_clicked()
 //    ui->Start->setText("Loading...");
 //    ui->Start->setStyleSheet("background: transparent; color: #969696; font-size: 48px; font-family: Inter; font-style: normal; font-weight: 700; line-height: normal;");
 //    QApplication::processEvents();
-
+    if (ui->isAnimation->isChecked())
+        isAnimation = 1;
+    else
+        isAnimation = 0;
     if (ui->Algorithm1->isChecked())
     {
-
         if(std::isdigit(numCubes) == 0 && numCubes <= 0)
         {
             QMessageBox::information(nullptr, "Warning!", "Invalid cube size value entered! This may lead to incorrect program operation.");
@@ -241,33 +242,33 @@ void MainWindow::on_Start_clicked()
             QApplication::processEvents();
 
             Neumann start;
+            //QThread* thread = new QThread;
             int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
             bool answer = true;
-            int n = 1;
-            if (n == 0)
+            if (isAnimation == 0)
             {
-                start.Generate_Filling(voxels,numCubes,n);
-                ui->myGLWidget->setVoxels(voxels, numCubes);
+                start.Generate_Filling(voxels,numCubes,isAnimation);
+                ui->myGLWidget->setVoxels(voxels,numCubes);
                 ui->myGLWidget->update();
             }
             else
             {
-                QThread* thread = new QThread();
-                Animation* animation = new Animation(answer, voxels, numCubes, n, &start, ui->myGLWidget);
-                animation->moveToThread(thread);
-
-                connect(thread, &QThread::started, animation, &Animation::run);
-                connect(animation, &Animation::finished, thread, &QThread::quit);
-                connect(animation, &Animation::finished, animation, &Animation::deleteLater);
-                connect(thread, &QThread::finished, thread, &QThread::deleteLater);
-
-                thread->start();
-                thread->quit();
-                thread->wait();
+//                Animation* go = new Animation(voxels,&start,ui->myGLWidget,isAnimation,numCubes,answer);
+//                go->moveToThread(thread);
+//                // Подключаем сигнал о завершении потока к удалению объекта
+//                connect(thread, &QThread::finished, go, &Animation::deleteLater);
+//                // Соединяем старт потока с методом animate
+//                connect(thread, &QThread::started, go, &Animation::animate);
+//                connect(go,&Animation::updateRequested,ui->myGLWidget,&MyGLWidget::updateGLWidget);
+//                thread->start();
+                Animation* go = new Animation(voxels,&start,ui->myGLWidget,isAnimation,numCubes,answer);
+                connect(go,&Animation::updateRequested,ui->myGLWidget,&MyGLWidget::updateGLWidget);
+                go->animate();
             }
+//            thread->wait();
+//            thread->quit();
             ui->Start->setText("RELOAD");
             ui->Start->setStyleSheet("background: #282828; border-radius: 8px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 48px; line-height: 58px; color: rgba(150, 150, 150, 0.5);");
-
         }
 
     }
@@ -290,21 +291,17 @@ void MainWindow::on_Start_clicked()
             Probability_Circle start;
             int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
             bool answer = true;
-            int n = 0;
-            if (n == 0)
+            if (isAnimation == 0)
             {
-                start.Generate_Filling(voxels,numCubes,n);
+                start.Generate_Filling(voxels,numCubes,isAnimation);
                 ui->myGLWidget->setVoxels(voxels, numCubes);
                 ui->myGLWidget->update();
             }
             else
             {
-                while (answer)
-                {
-                    answer = start.Generate_Filling(voxels,numCubes,n);
-                    ui->myGLWidget->setVoxels(voxels, numCubes);
-                    ui->myGLWidget->repaint_function();
-                }
+                Animation* go = new Animation(voxels,&start,ui->myGLWidget,isAnimation,numCubes,answer);
+                connect(go,&Animation::updateRequested,ui->myGLWidget,&MyGLWidget::updateGLWidget);
+                go->animate();
             }
             ui->Start->setText("RELOAD");
             ui->Start->setStyleSheet("background: #282828; border-radius: 8px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 48px; line-height: 58px; color: rgba(150, 150, 150, 0.5);");
@@ -330,21 +327,17 @@ void MainWindow::on_Start_clicked()
             Probability_Ellipse start;
             int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
             bool answer = true;
-            int n = 0;
-            if (n == 0)
+            if (isAnimation == 0)
             {
-                start.Generate_Filling(voxels,numCubes,n);
+                start.Generate_Filling(voxels,numCubes,isAnimation);
                 ui->myGLWidget->setVoxels(voxels, numCubes);
                 ui->myGLWidget->update();
             }
             else
             {
-                while (answer)
-                {
-                    answer = start.Generate_Filling(voxels,numCubes,n);
-                    ui->myGLWidget->setVoxels(voxels, numCubes);
-                    ui->myGLWidget->repaint_function();
-                }
+                Animation* go = new Animation(voxels,&start,ui->myGLWidget,isAnimation,numCubes,answer);
+                connect(go,&Animation::updateRequested,ui->myGLWidget,&MyGLWidget::updateGLWidget);
+                go->animate();
             }
             ui->Start->setText("RELOAD");
             ui->Start->setStyleSheet("background: #282828; border-radius: 8px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 48px; line-height: 58px; color: rgba(150, 150, 150, 0.5);");
@@ -370,21 +363,17 @@ void MainWindow::on_Start_clicked()
             Moore start;
             int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
             bool answer = true;
-            int n = 0;
-            if (n == 0)
+            if (isAnimation == 0)
             {
-                start.Generate_Filling(voxels,numCubes,n);
+                start.Generate_Filling(voxels,numCubes,isAnimation);
                 ui->myGLWidget->setVoxels(voxels, numCubes);
                 ui->myGLWidget->update();
             }
             else
             {
-                while (answer)
-                {
-                    answer = start.Generate_Filling(voxels,numCubes,n);
-                    ui->myGLWidget->setVoxels(voxels, numCubes);
-                    ui->myGLWidget->repaint_function();
-                }
+                Animation* go = new Animation(voxels,&start,ui->myGLWidget,isAnimation,numCubes,answer);
+                connect(go,&Animation::updateRequested,ui->myGLWidget,&MyGLWidget::updateGLWidget);
+                go->animate();
             }
             ui->Start->setText("RELOAD");
             ui->Start->setStyleSheet("background: #282828; border-radius: 8px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 48px; line-height: 58px; color: rgba(150, 150, 150, 0.5);");
@@ -416,6 +405,4 @@ void MainWindow::on_pushButton_clicked()
 
     ui->Visibility->show();
     ui->wid_start->show();
-
 }
-
