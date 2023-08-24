@@ -1,6 +1,10 @@
 # <img src="images/Plugin_icon.ico" alt="App Icon" width="50" height="50" style="vertical-align: middle; margin-right: 8px;"> MatViz3D
 
 Tool for microstructure modeling using cellular automata
+
+![](https://img.shields.io/badge/C++-282828?logo=cplusplus) ![](https://img.shields.io/badge/OpenGL-282828?logo=opengl) ![](https://img.shields.io/badge/Qt-282828?logo=qt) ![](https://img.shields.io/badge/Git-282828?logo=git) ![](https://img.shields.io/badge/GitHub-282828?logo=github)
+
+![GitHub commit activity (branch)](https://img.shields.io/github/commit-activity/m/MME-NTU-KhPI/MatViz3D?labelColor=%23282828%3B&color=%2300897B) ![GitHub watchers](https://img.shields.io/github/watchers/MME-NTU-KhPI/MatViz3D?labelColor=%23282828%3B&color=%2300564D) ![GitHub Repo stars](https://img.shields.io/github/stars/MME-NTU-KhPI/MatViz3D?labelColor=%23282828%3B&color=%2300897B) ![GitHub forks](https://img.shields.io/github/forks/MME-NTU-KhPI/MatViz3D?labelColor=%23282828%3B&color=%2300564D) ![GitHub followers](https://img.shields.io/github/followers/MME-NTU-KhPI?labelColor=%23282828%3B&color=%2300897B) ![GitHub repo size](https://img.shields.io/github/repo-size/MME-NTU-KhPI/MatViz3D?labelColor=%23282828%3B&color=%2300564D)
 ___
 [English Version](#english-version) | [Українська версія](#українська-версія)
 ___
