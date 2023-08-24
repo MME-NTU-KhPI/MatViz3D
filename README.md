@@ -7,7 +7,7 @@ ___
 
 ## English Version
 
-![App Screenshot](images/WindowScreenshot.png)
+![App Screenshot](images/MaterialViz3D.gif)
 
 Welcome to the Material Structure Visualization Tool! This application allows you to explore and analyze microstructures of materials through computer-generated simulations and visualizations.
 
@@ -141,7 +141,7 @@ ___
 
 ## Українська версія
 
-![Знімок екрану додатку](images/WindowScreenshot.png)
+![Знімок екрану додатку](images/MaterialViz3D.gif)
 
 Ласкаво просимо до Застосунку візуалізації структури матеріалів! Цей додаток дозволяє досліджувати та аналізувати мікроструктури матеріалів за допомогою комп'ютерних симуляцій та візуалізації.
 
