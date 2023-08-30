@@ -11,8 +11,10 @@ class Parent_Algorithm
 {
 public:
     Parent_Algorithm();
-    virtual bool Generate_Filling(int16_t*** voxels, short int numCubes,int n) = 0;
-    int16_t*** Generate_Initial_Cube(short int numCubes, int numColors);
+    virtual bool Generate_Filling(int16_t*** voxels, short int numCubes,int n, std::vector<int16_t> grains) = 0;
+    int16_t*** Generate_Initial_Cube(short int numCubes);
+    std::vector<int16_t> Generate_Random_Starting_Points(int16_t*** voxels, short int numCubes, int numColors);
+    bool Check(int16_t*** voxels,short int numCubes, bool answer,int n);
 };
 
 #endif // PARENT_ALGORITHM_H

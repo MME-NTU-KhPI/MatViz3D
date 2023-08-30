@@ -6,7 +6,7 @@ Animation::Animation()
 
 }
 
-Animation::Animation(int16_t*** a,Parent_Algorithm* b,MyGLWidget* c,int d,short int f,bool e)
+Animation::Animation(int16_t*** a,Parent_Algorithm* b,MyGLWidget* c,int d,short int f,bool e,std::vector<int16_t> grains)
 {
     voxels = a;
     begin = b;
@@ -14,13 +14,14 @@ Animation::Animation(int16_t*** a,Parent_Algorithm* b,MyGLWidget* c,int d,short 
     n = d;
     numCubes = f;
     answer = e;
+    this->grains = grains;
 }
 
 void Animation::animate()
 {
     while (answer)
     {
-        answer = begin->Generate_Filling(voxels,numCubes,n);
+        answer = begin->Generate_Filling(voxels,numCubes,n,grains);
         emit updateRequested(voxels,numCubes);
     }
 }

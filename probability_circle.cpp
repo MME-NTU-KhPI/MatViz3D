@@ -20,7 +20,7 @@ Probability_Circle::Probability_Circle():Parent_Algorithm()
 
 
 //Функция заполнения массива
-bool Probability_Circle::Generate_Filling(int16_t*** voxels, short int numCubes,int n)
+bool Probability_Circle::Generate_Filling(int16_t*** voxels, short int numCubes,int n, std::vector<int16_t> grains)
 {
     bool answer = true;
     srand(time(NULL));

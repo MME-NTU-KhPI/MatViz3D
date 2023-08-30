@@ -18,7 +18,7 @@ Probability_Ellipse::Probability_Ellipse()
 }
 
 
-bool Probability_Ellipse::Generate_Filling(int16_t*** voxels, short int numCubes,int n)
+bool Probability_Ellipse::Generate_Filling(int16_t*** voxels, short int numCubes,int n, std::vector<int16_t> grains)
 //>>>>>>> origin/program-window+OpenGL
 {
     bool answer = true;

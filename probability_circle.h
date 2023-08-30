@@ -13,7 +13,7 @@ class Probability_Circle : public Parent_Algorithm
 {
 public:
     Probability_Circle();
-    bool Generate_Filling(int16_t*** voxels, short int numCubes,int n);
+    bool Generate_Filling(int16_t*** voxels, short int numCubes,int n, std::vector<int16_t> grains);
 
 private:
 

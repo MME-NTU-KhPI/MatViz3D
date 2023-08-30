@@ -1,12 +1,9 @@
-#include <iostream>
+    #include <iostream>
 #include <windows.h>
 #include <ctime>
 #include <list>
 #include <cmath>
 #include <myglwidget.h>
-#include "mainwindow.h"
-#include "ui_mainwindow.h"
-#include "parent_algorithm.h"
 #include "neumann.h"
 
 using namespace std;
@@ -17,7 +14,7 @@ Neumann::Neumann()
 }
 
 
-bool Neumann::Generate_Filling(int16_t*** voxels, short int numCubes,int n)
+bool Neumann::Generate_Filling(int16_t*** voxels, short int numCubes,int n, std::vector<int16_t> grains)
 {
     bool answer = true;
     srand(time(NULL));
