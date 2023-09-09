@@ -406,10 +406,32 @@ void MainWindow::on_statistics_clicked()
 {
     QVector<int> colorCounts = ui->myGLWidget->countVoxelColors();
     form.setVoxelCounts(colorCounts);
+
+    // Отримати вибраний алгоритм
+    QString algorithmName;
+    if (ui->Algorithm1->isChecked())
+    {
+        algorithmName = "Neumann";
+    }
+    else if (ui->Algorithm2->isChecked())
+    {
+        algorithmName = "Probability Circle";
+    }
+    else if (ui->Algorithm3->isChecked())
+    {
+        algorithmName = "Probability Ellipse";
+    }
+    else if (ui->Algorithm4->isChecked())
+    {
+        algorithmName = "Moore";
+    }
+
+    // Встановити текст іконки вікна
+    form.setWindowTitle("Statistics - " + algorithmName);
+
+    // Показати вікно
     form.show();
 }
-
-
 
 void MainWindow::on_menuVertical_clicked()
 {
