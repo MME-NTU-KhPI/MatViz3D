@@ -381,6 +381,9 @@ void MainWindow::on_imageSave_clicked()
 
     ui->Visibility->hide();
     ui->wid_start->hide();
+    ui->menuVertical->hide();
+    ui->ConsoleButton->hide();
+    ui->ConsoleWidget->hide();
 
     QPixmap pixmap(width, height);
     ui->myGLWidget->render(&pixmap);
@@ -392,13 +395,40 @@ void MainWindow::on_imageSave_clicked()
 
     ui->Visibility->show();
     ui->wid_start->show();
-
+    ui->menuVertical->show();
+    ui->ConsoleButton->show();
+    ui->ConsoleWidget->show();
 }
 
 
 void MainWindow::on_gifSave_clicked()
 {
+    QRect rect = ui->Rectangle1->geometry();
+    int x = rect.x();
+    int y = rect.y();
+    int width = rect.width();
+    int height = rect.height();
 
+    ui->Visibility->hide();
+    ui->wid_start->hide();
+    ui->menuVertical->hide();
+    ui->ConsoleButton->hide();
+    ui->ConsoleWidget->hide();
+
+    QPixmap pixmap(width, height);
+    ui->myGLWidget->render(&pixmap);
+
+    QString fileName = QFileDialog::getSaveFileName(this, "Save GIF Image", "", "GIF Files (*.gif);;All Files (*.*)");
+    if (!fileName.isEmpty()) {
+        QImage gifImage = pixmap.toImage();
+        gifImage.save(fileName);
+    }
+
+    ui->Visibility->show();
+    ui->wid_start->show();
+    ui->menuVertical->show();
+    ui->ConsoleButton->show();
+    ui->ConsoleWidget->show();
 }
 
 
@@ -511,11 +541,10 @@ void MainWindow::on_menuVertical_clicked()
     }
 }
 
-
-
 void MainWindow::on_ConsoleButton_clicked()
 {
-    if (ui->ConsoleWidget->pos().y() == height() - ui->ConsoleWidget->height()) {
+    if (ui->ConsoleWidget->pos().y() == height() - ui->ConsoleWidget->height())
+     {
         // Анімація зміни положення ConsoleWidget вниз
         QPropertyAnimation* hideAnimation = new QPropertyAnimation(ui->ConsoleWidget, "geometry", this);
         hideAnimation->setStartValue(ui->ConsoleWidget->geometry());
@@ -558,6 +587,3 @@ void MainWindow::on_ConsoleButton_clicked()
         animationGroup->start(QAbstractAnimation::DeleteWhenStopped);
     }
 }
-
-
-

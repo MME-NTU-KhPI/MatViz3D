@@ -73,6 +73,7 @@ private:
 //    QFile logFile;
     MessageHandler *messageHandlerInstance;
 
+
 };
 
 #endif // MAINWINDOW_H

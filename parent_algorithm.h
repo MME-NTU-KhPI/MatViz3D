@@ -5,8 +5,6 @@
 #include "probability_circle.h"
 #include <cstdint>
 
-//class Probability_Circle;
-
 class Parent_Algorithm
 {
 public:

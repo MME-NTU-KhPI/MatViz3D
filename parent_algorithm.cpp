@@ -18,7 +18,6 @@ Parent_Algorithm::Parent_Algorithm()
 
 int16_t*** Parent_Algorithm::Generate_Initial_Cube(short int numCubes, int numColors) {
 
-    //Создаём динамический массив. Вместо (30) подставить numCubes
     int16_t*** voxels = new int16_t** [numCubes];
     assert(voxels);
     for (int i = 0; i < numCubes; i++) {
