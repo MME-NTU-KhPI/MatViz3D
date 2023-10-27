@@ -59,505 +59,6 @@ background-color: rgb(40, 40, 40);</string>
     <property name="spacing">
      <number>0</number>
     </property>
-    <item row="0" column="0" rowspan="2">
-     <widget class="QFrame" name="Rectangle4">
-      <property name="minimumSize">
-       <size>
-        <width>268</width>
-        <height>832</height>
-       </size>
-      </property>
-      <property name="maximumSize">
-       <size>
-        <width>402</width>
-        <height>2000</height>
-       </size>
-      </property>
-      <property name="styleSheet">
-       <string notr="true">background-color: rgb(40, 40, 40);</string>
-      </property>
-      <property name="frameShape">
-       <enum>QFrame::StyledPanel</enum>
-      </property>
-      <property name="frameShadow">
-       <enum>QFrame::Raised</enum>
-      </property>
-      <widget class="QLabel" name="MaterialVis">
-       <property name="geometry">
-        <rect>
-         <x>43</x>
-         <y>31</y>
-         <width>183</width>
-         <height>39</height>
-        </rect>
-       </property>
-       <property name="minimumSize">
-        <size>
-         <width>183</width>
-         <height>39</height>
-        </size>
-       </property>
-       <property name="maximumSize">
-        <size>
-         <width>239</width>
-         <height>44</height>
-        </size>
-       </property>
-       <property name="styleSheet">
-        <string notr="true">/* MaterialVis */
-
-font-family: 'Inter';
-font-style: normal;
-font-weight: 800;
-font-size: 32px;
-line-height: 39px;
-/* identical to box height */
-
-
-color: #00897B;
-</string>
-       </property>
-       <property name="text">
-        <string>Material&lt;font color='#00564D'&gt;Vis&lt;/font&gt;</string>
-       </property>
-      </widget>
-      <widget class="QWidget" name="date" native="true">
-       <property name="geometry">
-        <rect>
-         <x>48</x>
-         <y>104</y>
-         <width>176</width>
-         <height>172</height>
-        </rect>
-       </property>
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-       <property name="minimumSize">
-        <size>
-         <width>176</width>
-         <height>172</height>
-        </size>
-       </property>
-       <property name="maximumSize">
-        <size>
-         <width>224</width>
-         <height>172</height>
-        </size>
-       </property>
-       <widget class="QWidget" name="Size" native="true">
-        <property name="geometry">
-         <rect>
-          <x>0</x>
-          <y>0</y>
-          <width>166</width>
-          <height>63</height>
-         </rect>
-        </property>
-        <widget class="QLabel" name="Cube_size">
-         <property name="geometry">
-          <rect>
-           <x>0</x>
-           <y>0</y>
-           <width>103</width>
-           <height>18</height>
-          </rect>
-         </property>
-         <property name="styleSheet">
-          <string notr="true">/* Cube size: */
-
-
-position: absolute;
-width: 103px;
-height: 24px;
-left: 49px;
-top: 104px;
-
-font-family: 'Inter';
-font-style: normal;
-font-weight: 700;
-font-size: 20px;
-line-height: 24px;
-
-color: #969696;</string>
-         </property>
-         <property name="text">
-          <string>Cube size:</string>
-         </property>
-         <property name="buddy">
-          <cstring>Rectangle8</cstring>
-         </property>
-        </widget>
-        <widget class="QLineEdit" name="Rectangle8">
-         <property name="geometry">
-          <rect>
-           <x>0</x>
-           <y>42</y>
-           <width>166</width>
-           <height>21</height>
-          </rect>
-         </property>
-         <property name="styleSheet">
-          <string notr="true">/* Rectangle 8 */
-
-
-background: #282828;
-border: 1px solid #969696;
-border-radius: 5px;
-color: #969696;
-padding: 4px 0;
-padding-left: 4px;</string>
-         </property>
-        </widget>
-       </widget>
-       <widget class="QWidget" name="Points" native="true">
-        <property name="geometry">
-         <rect>
-          <x>0</x>
-          <y>109</y>
-          <width>176</width>
-          <height>63</height>
-         </rect>
-        </property>
-        <widget class="QLabel" name="Number_of_points">
-         <property name="geometry">
-          <rect>
-           <x>0</x>
-           <y>0</y>
-           <width>176</width>
-           <height>19</height>
-          </rect>
-         </property>
-         <property name="styleSheet">
-          <string notr="true">/* Number of points: */
-
-
-position: absolute;
-width: 176px;
-height: 24px;
-left: 48px;
-top: 213px;
-
-font-family: 'Inter';
-font-style: normal;
-font-weight: 700;
-font-size: 20px;
-line-height: 24px;
-
-color: #969696;</string>
-         </property>
-         <property name="text">
-          <string>Number of points:</string>
-         </property>
-         <property name="buddy">
-          <cstring>Rectangle9</cstring>
-         </property>
-        </widget>
-        <widget class="QLineEdit" name="Rectangle9">
-         <property name="geometry">
-          <rect>
-           <x>0</x>
-           <y>42</y>
-           <width>166</width>
-           <height>21</height>
-          </rect>
-         </property>
-         <property name="styleSheet">
-          <string notr="true">background: #282828;
-border: 1px solid #969696;
-border-radius: 5px;
-color: #969696;
-padding: 4px 0;
-padding-left: 4px;</string>
-         </property>
-        </widget>
-       </widget>
-      </widget>
-      <widget class="QWidget" name="Algoritm" native="true">
-       <property name="geometry">
-        <rect>
-         <x>48</x>
-         <y>338</y>
-         <width>161</width>
-         <height>370</height>
-        </rect>
-       </property>
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-       <property name="minimumSize">
-        <size>
-         <width>161</width>
-         <height>298</height>
-        </size>
-       </property>
-       <property name="maximumSize">
-        <size>
-         <width>224</width>
-         <height>409</height>
-        </size>
-       </property>
-       <layout class="QVBoxLayout" name="verticalLayout" stretch="0,0,0,0,0">
-        <property name="spacing">
-         <number>45</number>
-        </property>
-        <property name="leftMargin">
-         <number>0</number>
-        </property>
-        <property name="topMargin">
-         <number>0</number>
-        </property>
-        <property name="rightMargin">
-         <number>0</number>
-        </property>
-        <property name="bottomMargin">
-         <number>0</number>
-        </property>
-        <item>
-         <widget class="QLabel" name="label">
-          <property name="minimumSize">
-           <size>
-            <width>151</width>
-            <height>17</height>
-           </size>
-          </property>
-          <property name="maximumSize">
-           <size>
-            <width>151</width>
-            <height>20</height>
-           </size>
-          </property>
-          <property name="styleSheet">
-           <string notr="true">font-family: 'Inter';
-font-style: normal;
-font-weight: 700;
-font-size: 20px;
-line-height: 24px;
-
-color: rgba(150, 150, 150, 0.5);</string>
-          </property>
-          <property name="text">
-           <string>Algorithms:</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="Algorithm1">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="minimumSize">
-           <size>
-            <width>139</width>
-            <height>37</height>
-           </size>
-          </property>
-          <property name="maximumSize">
-           <size>
-            <width>16777215</width>
-            <height>37</height>
-           </size>
-          </property>
-          <property name="styleSheet">
-           <string notr="true">/* Rectangle 3 */
-
-background: #282828;
-border: 1px solid #000000;
-border-radius: 15px;
-
-font-family: 'Inter';
-font-style: normal;
-font-weight: 700;
-font-size: 16px;
-line-height: 19px;
-
-color: #171616;</string>
-          </property>
-          <property name="text">
-           <string>Neumann</string>
-          </property>
-          <property name="checkable">
-           <bool>true</bool>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="Algorithm2">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="minimumSize">
-           <size>
-            <width>139</width>
-            <height>37</height>
-           </size>
-          </property>
-          <property name="maximumSize">
-           <size>
-            <width>16777215</width>
-            <height>37</height>
-           </size>
-          </property>
-          <property name="styleSheet">
-           <string notr="true">
-
-background: #282828;
-border: 1px solid #000000;
-border-radius: 15px;
-font-family: 'Inter';
-font-style: normal;
-font-weight: 700;
-font-size: 16px;
-line-height: 19px;
-
-color: #171616;</string>
-          </property>
-          <property name="text">
-           <string>Probability Circle</string>
-          </property>
-          <property name="checkable">
-           <bool>true</bool>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="Algorithm3">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="minimumSize">
-           <size>
-            <width>139</width>
-            <height>37</height>
-           </size>
-          </property>
-          <property name="maximumSize">
-           <size>
-            <width>16777215</width>
-            <height>37</height>
-           </size>
-          </property>
-          <property name="styleSheet">
-           <string notr="true">
-
-background: #282828;
-border: 1px solid #000000;
-border-radius: 15px;
-font-family: 'Inter';
-font-style: normal;
-font-weight: 700;
-font-size: 16px;
-line-height: 19px;
-
-color: #171616;</string>
-          </property>
-          <property name="text">
-           <string>Probability Ellipse</string>
-          </property>
-          <property name="checkable">
-           <bool>true</bool>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="Algorithm4">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="minimumSize">
-           <size>
-            <width>139</width>
-            <height>37</height>
-           </size>
-          </property>
-          <property name="maximumSize">
-           <size>
-            <width>16777215</width>
-            <height>37</height>
-           </size>
-          </property>
-          <property name="styleSheet">
-           <string notr="true">
-background: #282828;
-border: 1px solid #000000;
-border-radius: 15px;
-
-font-family: 'Inter';
-font-style: normal;
-font-weight: 700;
-font-size: 16px;
-line-height: 19px;
-
-color: #171616;</string>
-          </property>
-          <property name="text">
-           <string>Moore</string>
-          </property>
-          <property name="checkable">
-           <bool>true</bool>
-          </property>
-         </widget>
-        </item>
-       </layout>
-      </widget>
-      <widget class="QPushButton" name="imageSave">
-       <property name="geometry">
-        <rect>
-         <x>48</x>
-         <y>755</y>
-         <width>161</width>
-         <height>37</height>
-        </rect>
-       </property>
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-       <property name="styleSheet">
-        <string notr="true">position: absolute;
-width: 238px;
-height: 44.7px;
-left: 82px;
-top: 917px;
-
-background: #282828;
-border: 1px solid #5C5C5C;
-border-radius: 15px;
-
-font-family: 'Inter';
-font-style: normal;
-font-weight: 700;
-font-size: 16px;
-line-height: 24px;
-
-color: #5C5C5C;</string>
-       </property>
-       <property name="text">
-        <string>Save image</string>
-       </property>
-      </widget>
-     </widget>
-    </item>
     <item row="0" column="1">
      <widget class="QWidget" name="widget" native="true">
       <property name="sizePolicy">
@@ -568,67 +69,105 @@ color: #5C5C5C;</string>
       </property>
       <property name="minimumSize">
        <size>
-        <width>1012</width>
-        <height>38</height>
+        <width>1280</width>
+        <height>67</height>
        </size>
       </property>
       <property name="maximumSize">
        <size>
-        <width>1600</width>
-        <height>38</height>
+        <width>10000000</width>
+        <height>67</height>
        </size>
       </property>
       <property name="styleSheet">
-       <string notr="true">background-color: rgb(40, 40, 40);</string>
+       <string notr="true">background-color: rgb(40, 40, 40);
+padding: 0px;</string>
       </property>
-      <widget class="QPushButton" name="gifSave">
-       <property name="geometry">
-        <rect>
-         <x>10</x>
-         <y>10</y>
-         <width>100</width>
-         <height>21</height>
-        </rect>
-       </property>
-       <property name="styleSheet">
-        <string notr="true">background: #282828;
-border: 1px solid #000000;
-border-radius: 5px;
-
-font-family: 'Inter';
+      <layout class="QHBoxLayout" name="horizontalLayout">
+       <item>
+        <spacer name="horizontalSpacer_7">
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+         <property name="sizeType">
+          <enum>QSizePolicy::Fixed</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>40</width>
+           <height>20</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item>
+        <widget class="QPushButton" name="IconMenu">
+         <property name="minimumSize">
+          <size>
+           <width>48</width>
+           <height>48</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>48</width>
+           <height>48</height>
+          </size>
+         </property>
+         <property name="text">
+          <string/>
+         </property>
+         <property name="icon">
+          <iconset resource="resourses.qrc">
+           <normaloff>:/GITHUB/MatViz3D/icon/image 3.png</normaloff>:/GITHUB/MatViz3D/icon/image 3.png</iconset>
+         </property>
+         <property name="iconSize">
+          <size>
+           <width>48</width>
+           <height>48</height>
+          </size>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="horizontalSpacer_8">
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+         <property name="sizeType">
+          <enum>QSizePolicy::Fixed</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>40</width>
+           <height>20</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item>
+        <widget class="QPushButton" name="FileButton">
+         <property name="minimumSize">
+          <size>
+           <width>45</width>
+           <height>29</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>45</width>
+           <height>29</height>
+          </size>
+         </property>
+         <property name="styleSheet">
+          <string notr="true">QPushButton {
+color: #CFCECE;
+font-family: Montserrat;
+font-size: 24px;
 font-style: normal;
-font-weight: 700;
-font-size: 16px;
-line-height: 19px;
-
-color: #171616;</string>
-       </property>
-       <property name="text">
-        <string>Save as GIF</string>
-       </property>
-      </widget>
-      <widget class="QPushButton" name="statistics">
-       <property name="geometry">
-        <rect>
-         <x>120</x>
-         <y>10</y>
-         <width>100</width>
-         <height>21</height>
-        </rect>
-       </property>
-       <property name="styleSheet">
-        <string notr="true">QPushButton {
-background: #282828;
-border: 1px solid #000000;
-border-radius: 5px;
-
-font-family: 'Inter';
-font-style: normal;
-font-weight: 700;
-font-size: 16px;
-line-height: 19px;
-
-color: #171616;
+font-weight: 400;
+line-height: normal;
+margin: 0px;
 }
 
 QPushButton:hover {
@@ -638,11 +177,240 @@ QPushButton:hover {
 QPushButton:pressed {
     background-color: rgb(49, 49, 49);
 }</string>
-       </property>
-       <property name="text">
-        <string>Statistics</string>
-       </property>
-      </widget>
+         </property>
+         <property name="text">
+          <string>File</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="horizontalSpacer_9">
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+         <property name="sizeType">
+          <enum>QSizePolicy::Fixed</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>38</width>
+           <height>20</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item>
+        <widget class="QPushButton" name="WindowButton">
+         <property name="minimumSize">
+          <size>
+           <width>101</width>
+           <height>29</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>101</width>
+           <height>29</height>
+          </size>
+         </property>
+         <property name="styleSheet">
+          <string notr="true">QPushButton {
+color: #CFCECE;
+font-family: Montserrat;
+font-size: 24px;
+font-style: normal;
+font-weight: 400;
+line-height: normal;
+margin: 0px;
+}
+
+QPushButton:hover {
+    background-color: rgb(47, 47, 47);
+}
+
+QPushButton:pressed {
+    background-color: rgb(49, 49, 49);
+}</string>
+         </property>
+         <property name="text">
+          <string>Window</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="horizontalSpacer_10">
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+         <property name="sizeType">
+          <enum>QSizePolicy::Fixed</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>40</width>
+           <height>20</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item>
+        <widget class="QPushButton" name="statistics">
+         <property name="minimumSize">
+          <size>
+           <width>109</width>
+           <height>29</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>109</width>
+           <height>29</height>
+          </size>
+         </property>
+         <property name="styleSheet">
+          <string notr="true">QPushButton {
+color: #CFCECE;
+font-family: Montserrat;
+font-size: 24px;
+font-style: normal;
+font-weight: 400;
+line-height: normal;
+margin: 0px;
+}
+
+QPushButton:hover {
+    background-color: rgb(47, 47, 47);
+}
+
+QPushButton:pressed {
+    background-color: rgb(49, 49, 49);
+}</string>
+         </property>
+         <property name="text">
+          <string>Statistics</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="horizontalSpacer_11">
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+         <property name="sizeType">
+          <enum>QSizePolicy::Fixed</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>40</width>
+           <height>20</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item>
+        <widget class="QPushButton" name="AboutButton">
+         <property name="minimumSize">
+          <size>
+           <width>75</width>
+           <height>29</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>75</width>
+           <height>29</height>
+          </size>
+         </property>
+         <property name="styleSheet">
+          <string notr="true">QPushButton {
+color: #CFCECE;
+font-family: Montserrat;
+font-size: 24px;
+font-style: normal;
+font-weight: 400;
+line-height: normal;
+margin: 0px;
+}
+
+QPushButton:hover {
+    background-color: rgb(47, 47, 47);
+}
+
+QPushButton:pressed {
+    background-color: rgb(49, 49, 49);
+}</string>
+         </property>
+         <property name="text">
+          <string>About</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="horizontalSpacer_13">
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>40</width>
+           <height>20</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item>
+        <widget class="QLabel" name="MaterialVis">
+         <property name="minimumSize">
+          <size>
+           <width>190</width>
+           <height>44</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>190</width>
+           <height>44</height>
+          </size>
+         </property>
+         <property name="layoutDirection">
+          <enum>Qt::LeftToRight</enum>
+         </property>
+         <property name="styleSheet">
+          <string notr="true">/* MaterialVis */
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 800;
+font-size: 36px;
+line-height: normal;
+/* identical to box height */
+
+
+color: #00897B;
+</string>
+         </property>
+         <property name="text">
+          <string>Material&lt;font color='#00564D'&gt;Vis&lt;/font&gt;</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="horizontalSpacer_12">
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+         <property name="sizeType">
+          <enum>QSizePolicy::Fixed</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>40</width>
+           <height>20</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
      </widget>
     </item>
     <item row="1" column="1">
@@ -733,39 +501,7 @@ padding: 0px;</string>
           <property name="spacing">
            <number>0</number>
           </property>
-          <item row="2" column="2" rowspan="2">
-           <spacer name="horizontalSpacer_2">
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-            <property name="sizeType">
-             <enum>QSizePolicy::Expanding</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>850</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item row="0" column="6">
-           <spacer name="verticalSpacer_2">
-            <property name="orientation">
-             <enum>Qt::Vertical</enum>
-            </property>
-            <property name="sizeType">
-             <enum>QSizePolicy::Fixed</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>10</width>
-              <height>37</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item row="1" column="6">
+          <item row="0" column="5">
            <widget class="QWidget" name="Visibility" native="true">
             <property name="minimumSize">
              <size>
@@ -919,179 +655,6 @@ QSlider::handle {
             </layout>
            </widget>
           </item>
-          <item row="6" column="6">
-           <spacer name="verticalSpacer_3">
-            <property name="orientation">
-             <enum>Qt::Vertical</enum>
-            </property>
-            <property name="sizeType">
-             <enum>QSizePolicy::Fixed</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>10</width>
-              <height>54</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item row="7" column="4">
-           <spacer name="horizontalSpacer_5">
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-            <property name="sizeType">
-             <enum>QSizePolicy::Expanding</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>40</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item row="7" column="3">
-           <widget class="QPushButton" name="ConsoleButton">
-            <property name="minimumSize">
-             <size>
-              <width>176</width>
-              <height>25</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>176</width>
-              <height>25</height>
-             </size>
-            </property>
-            <property name="styleSheet">
-             <string notr="true">QPushButton {
-    background-color: rgb(40, 40, 40);
-    border: none;
-    border-radius: 10px;
-	border-bottom-left-radius: 0px;
-	border-bottom-right-radius: 0px;
-    font-family: Arial, sans-serif;
-    font-size: 20px;
-	color: rgb(95, 95, 95);
-	padding-top: 50px;
-	padding-bottom: 50px;
-   	margin-bottom: 0px;
-}
-
-QPushButton:hover {
-    background-color: rgb(47, 47, 47);
-}
-
-QPushButton:pressed {
-    background-color: rgb(49, 49, 49);
-}</string>
-            </property>
-            <property name="text">
-             <string/>
-            </property>
-            <property name="icon">
-             <iconset resource="resourses.qrc">
-              <normaloff>:/icon/Consol_Icon.png</normaloff>:/icon/Consol_Icon.png</iconset>
-            </property>
-            <property name="iconSize">
-             <size>
-              <width>20</width>
-              <height>18</height>
-             </size>
-            </property>
-           </widget>
-          </item>
-          <item row="4" column="6">
-           <widget class="QWidget" name="wid_start" native="true">
-            <property name="minimumSize">
-             <size>
-              <width>280</width>
-              <height>93</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>280</width>
-              <height>93</height>
-             </size>
-            </property>
-            <property name="styleSheet">
-             <string notr="true">background-color: transparent;</string>
-            </property>
-            <widget class="QPushButton" name="Start">
-             <property name="geometry">
-              <rect>
-               <x>0</x>
-               <y>0</y>
-               <width>280</width>
-               <height>93</height>
-              </rect>
-             </property>
-             <property name="minimumSize">
-              <size>
-               <width>280</width>
-               <height>93</height>
-              </size>
-             </property>
-             <property name="maximumSize">
-              <size>
-               <width>280</width>
-               <height>93</height>
-              </size>
-             </property>
-             <property name="styleSheet">
-              <string notr="true">background: #282828;
-border-radius: 8px;
-
-font-family: 'Inter';
-font-style: normal;
-font-weight: 700;
-font-size: 48px;
-line-height: 58px;
-
-color: rgba(150, 150, 150, 0.5);
-padding: 18px 61px 17px 60px;</string>
-             </property>
-             <property name="text">
-              <string>START</string>
-             </property>
-            </widget>
-           </widget>
-          </item>
-          <item row="3" column="6">
-           <spacer name="verticalSpacer">
-            <property name="orientation">
-             <enum>Qt::Vertical</enum>
-            </property>
-            <property name="sizeType">
-             <enum>QSizePolicy::Expanding</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>10</width>
-              <height>485</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item row="4" column="7">
-           <spacer name="horizontalSpacer">
-            <property name="orientation">
-             <enum>Qt::Horizontal</enum>
-            </property>
-            <property name="sizeType">
-             <enum>QSizePolicy::Fixed</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>73</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
           <item row="4" column="2">
            <spacer name="horizontalSpacer_4">
             <property name="orientation">
@@ -1108,59 +671,21 @@ padding: 18px 61px 17px 60px;</string>
             </property>
            </spacer>
           </item>
-          <item row="3" column="0">
-           <widget class="QPushButton" name="menuVertical">
-            <property name="enabled">
-             <bool>true</bool>
+          <item row="1" column="2" rowspan="2">
+           <spacer name="horizontalSpacer_2">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
             </property>
-            <property name="minimumSize">
+            <property name="sizeType">
+             <enum>QSizePolicy::Expanding</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
              <size>
-              <width>25</width>
-              <height>176</height>
-             </size>
-            </property>
-            <property name="maximumSize">
-             <size>
-              <width>25</width>
-              <height>176</height>
-             </size>
-            </property>
-            <property name="styleSheet">
-             <string notr="true">QPushButton {
-    background-color: rgb(40, 40, 40);
-    border: none;
-    border-radius: 10px;
-	border-top-left-radius: 0px;
-	border-bottom-left-radius: 0px;
-    font-family: Arial, sans-serif;
-    font-size: 20px;
-	color: rgb(95, 95, 95);
-	padding-top: 50px;
-	padding-bottom: 50px;
-}
-
-QPushButton:hover {
-    background-color: rgb(47, 47, 47);
-}
-
-QPushButton:pressed {
-    background-color: rgb(49, 49, 49);
-}</string>
-            </property>
-            <property name="text">
-             <string/>
-            </property>
-            <property name="icon">
-             <iconset resource="resourses.qrc">
-              <normaloff>:/icon/VerticalMenuIcon.png</normaloff>:/icon/VerticalMenuIcon.png</iconset>
-            </property>
-            <property name="iconSize">
-             <size>
-              <width>18</width>
+              <width>850</width>
               <height>20</height>
              </size>
             </property>
-           </widget>
+           </spacer>
           </item>
           <item row="7" column="5">
            <spacer name="horizontalSpacer_6">
@@ -1173,6 +698,333 @@ QPushButton:pressed {
             <property name="sizeHint" stdset="0">
              <size>
               <width>120</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item row="4" column="6">
+           <spacer name="horizontalSpacer">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeType">
+             <enum>QSizePolicy::Fixed</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>73</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item row="0" column="2">
+           <widget class="QWidget" name="DataWidget" native="true">
+            <property name="minimumSize">
+             <size>
+              <width>402</width>
+              <height>488</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>402</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="styleSheet">
+             <string notr="true">background-color: rgba(40, 40, 40, 0.24);
+border-radius: 13px;</string>
+            </property>
+            <layout class="QGridLayout" name="gridLayout_7">
+             <item row="0" column="0">
+              <widget class="QWidget" name="verticalWidget" native="true">
+               <property name="minimumSize">
+                <size>
+                 <width>226</width>
+                 <height>0</height>
+                </size>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>300</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">background-color: transparent;</string>
+               </property>
+               <layout class="QGridLayout" name="gridLayout_8">
+                <item row="1" column="0">
+                 <widget class="QLineEdit" name="Rectangle8">
+                  <property name="minimumSize">
+                   <size>
+                    <width>224</width>
+                    <height>21</height>
+                   </size>
+                  </property>
+                  <property name="maximumSize">
+                   <size>
+                    <width>224</width>
+                    <height>21</height>
+                   </size>
+                  </property>
+                  <property name="styleSheet">
+                   <string notr="true">background: #282828;
+border: 1px solid #969696;
+border-radius: 5px;
+color: #969696;
+padding: 4px 0;
+padding-left: 4px;</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="0" column="0">
+                 <widget class="QLabel" name="Cube_size">
+                  <property name="minimumSize">
+                   <size>
+                    <width>103</width>
+                    <height>24</height>
+                   </size>
+                  </property>
+                  <property name="maximumSize">
+                   <size>
+                    <width>103</width>
+                    <height>24</height>
+                   </size>
+                  </property>
+                  <property name="styleSheet">
+                   <string notr="true">/* Cube size: */
+
+
+color: #969696;
+font-family: Inter;
+font-size: 20px;
+font-style: normal;
+font-weight: 700;
+line-height: normal;</string>
+                  </property>
+                  <property name="text">
+                   <string>Cube size:</string>
+                  </property>
+                  <property name="buddy">
+                   <cstring>Rectangle8</cstring>
+                  </property>
+                 </widget>
+                </item>
+                <item row="4" column="0">
+                 <widget class="QLabel" name="label">
+                  <property name="minimumSize">
+                   <size>
+                    <width>104</width>
+                    <height>24</height>
+                   </size>
+                  </property>
+                  <property name="maximumSize">
+                   <size>
+                    <width>104</width>
+                    <height>24</height>
+                   </size>
+                  </property>
+                  <property name="styleSheet">
+                   <string notr="true">font-family: 'Inter';
+font-style: normal;
+font-weight: 700;
+font-size: 20px;
+line-height: 24px;
+
+color:#969696;</string>
+                  </property>
+                  <property name="text">
+                   <string>Algorithms:</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="6" column="0">
+                 <widget class="QPushButton" name="Start">
+                  <property name="minimumSize">
+                   <size>
+                    <width>97</width>
+                    <height>54</height>
+                   </size>
+                  </property>
+                  <property name="maximumSize">
+                   <size>
+                    <width>111</width>
+                    <height>54</height>
+                   </size>
+                  </property>
+                  <property name="styleSheet">
+                   <string notr="true">padding: 15px;
+
+border-radius: 15px;
+border: 1px solid #969696;
+background: #282828;
+
+color: rgba(150, 150, 150, 0.50);
+text-align: center;
+font-family: Inter;
+font-size: 20px;
+font-style: normal;
+font-weight: 700;
+line-height: normal;
+text-transform: uppercase;</string>
+                  </property>
+                  <property name="text">
+                   <string>START</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="5" column="0">
+                 <widget class="QComboBox" name="AlgorithmsBox">
+                  <property name="minimumSize">
+                   <size>
+                    <width>224</width>
+                    <height>21</height>
+                   </size>
+                  </property>
+                  <property name="maximumSize">
+                   <size>
+                    <width>224</width>
+                    <height>21</height>
+                   </size>
+                  </property>
+                  <property name="styleSheet">
+                   <string notr="true">background: #282828;
+border: 1px solid #969696;
+border-radius: 5px;
+color: #969696;
+padding: 4px 0;
+padding-left: 4px;</string>
+                  </property>
+                  <item>
+                   <property name="text">
+                    <string>Neumann</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Probability Circle</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Probability Ellipse</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Moore</string>
+                   </property>
+                  </item>
+                 </widget>
+                </item>
+                <item row="2" column="0">
+                 <widget class="QLabel" name="Number_of_points">
+                  <property name="minimumSize">
+                   <size>
+                    <width>178</width>
+                    <height>24</height>
+                   </size>
+                  </property>
+                  <property name="maximumSize">
+                   <size>
+                    <width>178</width>
+                    <height>24</height>
+                   </size>
+                  </property>
+                  <property name="styleSheet">
+                   <string notr="true">/* Number of points: */
+
+color: #969696;
+font-family: Inter;
+font-size: 20px;
+font-style: normal;
+font-weight: 700;
+line-height: normal;</string>
+                  </property>
+                  <property name="text">
+                   <string>Number of points:</string>
+                  </property>
+                  <property name="buddy">
+                   <cstring>Rectangle9</cstring>
+                  </property>
+                 </widget>
+                </item>
+                <item row="3" column="0">
+                 <widget class="QLineEdit" name="Rectangle9">
+                  <property name="minimumSize">
+                   <size>
+                    <width>224</width>
+                    <height>21</height>
+                   </size>
+                  </property>
+                  <property name="maximumSize">
+                   <size>
+                    <width>224</width>
+                    <height>21</height>
+                   </size>
+                  </property>
+                  <property name="styleSheet">
+                   <string notr="true">background: #282828;
+border: 1px solid #969696;
+border-radius: 5px;
+color: #969696;
+padding: 4px 0;
+padding-left: 4px;</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="6" column="1">
+                 <widget class="QPushButton" name="imageSave">
+                  <property name="sizePolicy">
+                   <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                   </sizepolicy>
+                  </property>
+                  <property name="styleSheet">
+                   <string notr="true">position: absolute;
+width: 238px;
+height: 44.7px;
+left: 82px;
+top: 917px;
+
+background: #282828;
+border: 1px solid #5C5C5C;
+border-radius: 15px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 24px;
+
+color: #5C5C5C;</string>
+                  </property>
+                  <property name="text">
+                   <string>Save image</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item row="7" column="3">
+           <spacer name="horizontalSpacer_5">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeType">
+             <enum>QSizePolicy::Expanding</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
               <height>20</height>
              </size>
             </property>
@@ -1307,7 +1159,7 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>990</width>
+            <width>1258</width>
             <height>226</height>
            </rect>
           </property>
@@ -1333,6 +1185,21 @@ line-height: normal;</string>
     </item>
    </layout>
   </widget>
+  <action name="actionOpen">
+   <property name="text">
+    <string>Open</string>
+   </property>
+  </action>
+  <action name="actionNew">
+   <property name="text">
+    <string>New</string>
+   </property>
+  </action>
+  <action name="actionSave_as_image">
+   <property name="text">
+    <string>Save as image</string>
+   </property>
+  </action>
  </widget>
  <customwidgets>
   <customwidget>

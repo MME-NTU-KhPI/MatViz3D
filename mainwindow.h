@@ -30,25 +30,20 @@ public:
     ~MainWindow();
 
 private slots:
-    void checkInputFields();
+//    void checkInputFields();
     void checkStart(bool algorithm1, bool algorithm2, bool algorithm3, bool algorithm4);
     void onLogMessageWritten(const QString &message);
 
-    void on_Algorithm1_clicked(bool checked);
+//    void on_Algorithm1_clicked(bool checked);
 
-    void on_Algorithm2_clicked(bool checked);
+//    void on_Algorithm2_clicked(bool checked);
 
 
-    void on_Algorithm3_clicked(bool checked);
+//    void on_Algorithm3_clicked(bool checked);
 
-    void on_Algorithm4_clicked(bool checked);
+//    void on_Algorithm4_clicked(bool checked);
 
     void on_Colormap_stateChanged(int arg1);
-
-
-    //void on_Start_clicked();
-
-    //void on_Rectangle10_valueChanged(int value);
 
     void on_Start_clicked();
 
@@ -56,21 +51,15 @@ private slots:
 
     void on_statistics_clicked();
 
-    void on_menuVertical_clicked();
-
     void on_imageSave_clicked();
-
-    void on_ConsoleButton_clicked();
 
 protected:
     void keyPressEvent(QKeyEvent *event);
 
 private:
     Ui::MainWindow *ui;
-    QPushButton *buttons[4];
+//    QPushButton *buttons[4];
     Statistics form;
-    QPropertyAnimation *animation; //анімація
-//    QFile logFile;
     MessageHandler *messageHandlerInstance;
 
 
