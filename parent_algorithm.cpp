@@ -43,25 +43,32 @@ int16_t*** Parent_Algorithm::Generate_Initial_Cube(short int numCubes) {
     return voxels;
 }
 
-std::vector<int16_t> Parent_Algorithm::Generate_Random_Starting_Points(int16_t*** voxels,short int numCubes, int numColors)
+std::vector<Parent_Algorithm::Coordinate> Parent_Algorithm::Generate_Random_Starting_Points(int16_t*** voxels,short int numCubes, int numColors)
 {
     std::random_device rd;
     std::mt19937 generator(rd());
     std::uniform_int_distribution<int> distribution(0, numCubes - 1);
 
-    int x,y,z;
+    Coordinate a;
+    counter = 0;
     short int color = 0;
-    std::vector<int16_t> grains;
+    std::vector<Coordinate> grains;
     for (int i = 0; i < numColors; i++)
     {
-        x = distribution(generator);
-        y = distribution(generator);
-        z = distribution(generator);
-        voxels[x][y][z] = ++color;
-        grains.push_back(x);
-        grains.push_back(y);
-        grains.push_back(z);
+        a.x = distribution(generator);
+        a.y = distribution(generator);
+        a.z = distribution(generator);
+        voxels[a.x][a.y][a.z] = ++color;
+        grains.push_back(a);
+        counter++;
     }
+    return grains;
+}
+
+std::vector<Parent_Algorithm::Coordinate> Parent_Algorithm::Delete_Points(std::vector<Coordinate> grains,size_t i)
+{
+    std::vector<Coordinate>::iterator it = grains.begin() + i;
+    grains.erase(it);
     return grains;
 }
 

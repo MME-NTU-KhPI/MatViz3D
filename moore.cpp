@@ -4,6 +4,9 @@
 #include <list>
 #include <cmath>
 #include <myglwidget.h>
+#include "mainwindow.h"
+#include "ui_mainwindow.h"
+#include "parent_algorithm.h"
 #include "moore.h"
 
 using namespace std;
@@ -13,106 +16,73 @@ Moore::Moore()
 
 }
 
-bool Moore::Generate_Filling(int16_t*** voxels, short int numCubes,int n, std::vector<int16_t> grains)
+bool Moore::Generate_Filling(int16_t*** voxels, short int numCubes,int n,std::vector<Coordinate> grains)
 {
     bool answer = true;
+    int IterationNumber = 0;
     while (answer)
     {
-        for (size_t gr = 0; gr < grains.size(); gr += 3)
+        Coordinate temp;
+        int16_t x,y,z;
+        std::vector<Coordinate> newGrains;
+        int counter_max = pow(numCubes,3);
+        for(size_t i = 0; i < grains.size(); i++)
         {
-            for (int x = -1; x < 2; x++)
+            temp = grains[i];
+            x = temp.x;
+            y = temp.y;
+            z = temp.z;
+            for (int16_t k = -1; k < 2; k++)
             {
-                for (int y = -1; y < 2; y++)
+                for(int16_t p = -1; p < 2; p++)
                 {
-                    for (int z = -1; z < 2; z++)
+                    for(int16_t l = -1; l < 2; l++)
                     {
-                        int newX = grains[gr] + x;
-                        int newY = grains[gr + 1] + y;
-                        int newZ = grains[gr + 2] + z;
-
-                        if (newX < 0) newX = numCubes - 1;
-                        if (newX >= numCubes) newX = 0;
-                        if (newY < 0) newY = numCubes - 1;
-                        if (newY >= numCubes) newY = 0;
-                        if (newZ < 0) newZ = numCubes - 1;
-                        if (newZ >= numCubes) newZ = 0;
-
-                        if (voxels[newX][newY][newZ] == 0)
+                        int16_t newX = k+x;
+                        int16_t newY = p+y;
+                        int16_t newZ = l+z;
+                        bool isValidXYZ = (newX >= 0 && newX < numCubes) && (newY >= 0 && newY < numCubes) && (newZ >= 0 && newZ < numCubes) && voxels[newX][newY][newZ] == 0;
+                        if (isValidXYZ)
                         {
-                            voxels[newX][newY][newZ] = -voxels[grains[gr]][grains[gr + 1]][grains[gr + 2]];
-                            grains.push_back(newX);
-                            grains.push_back(newY);
-                            grains.push_back(newZ);
+                            voxels[newX][newY][newZ] = -voxels[x][y][z];
+                            newGrains.push_back({newX,newY,newZ});
                         }
                     }
                 }
             }
         }
-        for (int i = 0; i < numCubes; i++)
+        grains.clear();
+        grains.insert(grains.end(), newGrains.begin(), newGrains.end());
+        for (int k = 0; k < numCubes; k++)
         {
-            for (int j = 0; j < numCubes; j++)
+            for (int i = 0; i < numCubes; i++)
             {
-                for (int k = 0; k < numCubes; k++)
+                for (int j = 0; j < numCubes; j++)
                 {
-                    if (voxels[i][j][k] < 0)
+                    if (voxels[k][i][j] < 0)
                     {
-                        voxels[i][j][k] = abs(voxels[i][j][k]);
-                        grains.push_back(i);grains.push_back(j);grains.push_back(k);
+                        voxels[k][i][j] = abs(voxels[k][i][j]);
+                        counter++;
                     }
                 }
             }
         }
-        answer = Check(voxels,numCubes,answer,n);
+        // Перевірка, чи є порожні місця в масиві voxels
+        if (counter < counter_max)
+            answer = true;
+        else
+            answer = false;
+        // Перевірка, чи потрібна анімація
         if (n == 1)
+        {
             break;
-        Cleaning(voxels,numCubes,grains);
+        }
+        if (n > 1)
+        {
+            n--;
+        }
+        IterationNumber++;
+        qDebug()<<IterationNumber<<grains.size()<<counter<<counter_max;
     }
     return answer;
-}
-
-void Moore::Cleaning(int16_t*** voxels,short int numCubes,std::vector<int16_t> grains)
-{
-    for (size_t gr = 0; gr < grains.size(); gr += 2)
-    {
-        int count = 0;
-        for (int x = -1; x < 2; x++)
-        {
-            if (((grains[gr] + x) >= 0) && ((grains[gr] + x) < numCubes))
-            {
-                for (int y = -1; y < 2; y++)
-                {
-                    if (((grains[gr + 1] + y) >= 0) && ((grains[gr + 1] + y) < numCubes))
-                    {
-                        for (int z = -1; z < 2; z++)
-                        {
-                            if (((grains[gr+2] + z) >= 0) && ((grains[gr+2] + z) < numCubes))
-                            {
-                                if (voxels[grains[gr] + x][grains[gr + 1] + y][grains[gr + 2] + z] != 0)
-                                {
-                                    count++;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        if (count == 26)
-        {
-            int indexRemove = grains[gr];
-            auto it = grains.begin();
-            advance(it, indexRemove);
-            grains.erase(it);
-
-            indexRemove = grains[gr + 1];
-            it = grains.begin();
-            advance(it, indexRemove);
-            grains.erase(it);
-
-            indexRemove = grains[gr + 2];
-            it = grains.begin();
-            advance(it, indexRemove);
-            grains.erase(it);
-        }
-    }
 }

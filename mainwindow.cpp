@@ -225,6 +225,10 @@ void MainWindow::on_Start_clicked()
         isAnimation = 1;
     else
         isAnimation = 0;
+    if (ui->isClosedCube->isChecked())
+        isClosedCube = 1;
+    else
+        isClosedCube = 0;
     if (ui->Algorithm1->isChecked())
     {
         if(std::isdigit(numCubes) == 0 && numCubes <= 0)
@@ -243,7 +247,7 @@ void MainWindow::on_Start_clicked()
 
             Neumann start;
             int16_t*** voxels = start.Generate_Initial_Cube(numCubes);
-            std::vector<int16_t> grains = start.Generate_Random_Starting_Points(voxels,numCubes,numColors);
+            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(voxels,numCubes,numColors);
             bool answer = true;
             if (isAnimation == 0)
             {
@@ -291,7 +295,7 @@ void MainWindow::on_Start_clicked()
 
             Probability_Circle start;
             int16_t*** voxels = start.Generate_Initial_Cube(numCubes);
-            std::vector<int16_t> grains = start.Generate_Random_Starting_Points(voxels,numCubes,numColors);
+            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(voxels,numCubes,numColors);
             bool answer = true;
             if (isAnimation == 0)
             {
@@ -332,7 +336,7 @@ void MainWindow::on_Start_clicked()
 
             Probability_Ellipse start;
             int16_t*** voxels = start.Generate_Initial_Cube(numCubes);
-            std::vector<int16_t> grains = start.Generate_Random_Starting_Points(voxels,numCubes,numColors);
+            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(voxels,numCubes,numColors);
             bool answer = true;
             if (isAnimation == 0)
             {
@@ -369,7 +373,7 @@ void MainWindow::on_Start_clicked()
 
             Moore start;
             int16_t*** voxels = start.Generate_Initial_Cube(numCubes);
-            std::vector<int16_t> grains = start.Generate_Random_Starting_Points(voxels,numCubes,numColors);
+            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(voxels,numCubes,numColors);
             bool answer = true;
             if (isAnimation == 0)
             {

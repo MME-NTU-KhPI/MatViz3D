@@ -31,6 +31,7 @@ public:
     MainWindow(QWidget *parent = nullptr);
     short int numCubes = 1;
     int isAnimation;
+    int isClosedCube;
     int delayAnimation;
     int numColors;
     ~MainWindow();

@@ -13,8 +13,7 @@ class Moore : public Parent_Algorithm {
 
 public:
     Moore();
-    bool Generate_Filling(int16_t*** voxels, short int numCubes,int n, std::vector<int16_t> grains);
-    void Cleaning(int16_t*** voxels, short int numCubes,std::vector<int16_t> grains);
+    bool Generate_Filling(int16_t*** voxels, short int numCubes,int n,std::vector<Coordinate> grains);
 };
 
 #endif // MOORE_H
