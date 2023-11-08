@@ -776,15 +776,124 @@ void ansysWrapper::generate_random_angles(double *angl, bool in_deg, double epsi
     }
 }
 
+
+void ansysWrapper::load_loadstep(int num)
+{
+    QString path_to_file = tempDir.filePath(QString("ls_")+QString::number(num)+".csv");
+    QFile file(path_to_file);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+    {
+        qDebug() << "Can not open file to read results. Path to file: " << path_to_file;
+        return;
+    }
+    int i = 0;
+    QByteArray parts[18]; // X;Y;Z;UX;UY;UZ;SX;SY;SZ;SXY;SYZ;SXZ;EpsX;EpsY;EpsZ;EpsXY;EpsYZ;EpsXZ
+
+    x.clear();
+    y.clear();
+    z.clear();
+
+    sx.clear();
+    sy.clear();
+    sz.clear();
+    sxy.clear();
+    syz.clear();
+    sxz.clear();
+
+    epsx.clear();
+    epsy.clear();
+    epsz.clear();
+    epsxy.clear();
+    epsyz.clear();
+    epsxz.clear();
+
+    while (!file.atEnd()) {
+        i++;
+        QByteArray line = file.readLine();
+        if (i == 1) //skip header line
+            continue;
+
+        for (int j = 0; j < 18; j++)
+        {
+            parts[j] = line.sliced(j*17, 16).trimmed();
+        }
+
+        x.push_back(parts[0].toFloat());
+        y.push_back(parts[1].toFloat());
+        z.push_back(parts[2].toFloat());
+
+        ux.push_back(parts[3].toFloat());
+        uy.push_back(parts[4].toFloat());
+        uz.push_back(parts[5].toFloat());
+
+        sx.push_back(parts[6].toFloat());
+        sy.push_back(parts[7].toFloat());
+        sz.push_back(parts[8].toFloat());
+        sxy.push_back(parts[9].toFloat());
+        syz.push_back(parts[10].toFloat());
+        sxz.push_back(parts[11].toFloat());
+
+        epsx.push_back(parts[12].toFloat());
+        epsy.push_back(parts[13].toFloat());
+        epsz.push_back(parts[14].toFloat());
+        epsxy.push_back(parts[15].toFloat());
+        epsyz.push_back(parts[16].toFloat());
+        epsxz.push_back(parts[17].toFloat());
+    }
+    avg_x = calc_avg(x);
+    avg_y = calc_avg(y);
+    avg_z = calc_avg(z);
+
+    avg_ux = calc_avg(ux);
+    avg_uy = calc_avg(uy);
+    avg_uz = calc_avg(uz);
+
+    avg_sx = calc_avg(sx);
+    avg_sy = calc_avg(sy);
+    avg_sz = calc_avg(sz);
+    avg_sxy = calc_avg(sxy);
+    avg_syz = calc_avg(syz);
+    avg_sxz = calc_avg(sxz);
+
+    avg_epsx = calc_avg(epsx);
+    avg_epsy = calc_avg(epsy);
+    avg_epsz = calc_avg(epsz);
+    avg_epsxy = calc_avg(epsxy);
+    avg_epsyz = calc_avg(epsyz);
+    avg_epsxz = calc_avg(epsxz);
+
+    qDebug() << "AVG Stress tensor: ";
+    qDebug() << "  "<< avg_sx  << avg_sxy << avg_sxz;
+    qDebug() << "  "<< avg_sxy << avg_sy  << avg_syz;
+    qDebug() << "  "<< avg_sxz << avg_syz << avg_sz;
+
+    qDebug() << "AVG Strain tensor: ";
+    qDebug() << "  "<< avg_epsx  << avg_epsxy << avg_epsxz;
+    qDebug() << "  "<< avg_epsxy << avg_epsy  << avg_epsyz;
+    qDebug() << "  "<< avg_epsxz << avg_epsyz << avg_epsz;
+}
+
+float ansysWrapper::calc_avg(QVector<float> &x)
+{
+    if (x.size() > 0)
+        return std::accumulate(x.begin(), x.end(), 0.0f) / (float)x.size();
+
+    qWarning() << "Zero sized vector in calc_avg()";
+    return 0;
+}
+
 void ansysWrapper::saveAll()
 {
     auto s = R"(
 
 alls     !this selects everything, good place to start
-NSEL,S,S,EQV,,, ,0 !- Select nodes with results
+
 !
 set,first
 *GET,numb_sets,ACTIVE,0,SET,NSET !get number of results sets
+
+NSEL,S,S,EQV,,, ,0 !- Select nodes with results
+
 *get,nummax,NODE,,num,max !Max Node id in selected nodes
 *get,numnode,NODE,,count !Number of selected nodes
 *dim,mask,array,nummax

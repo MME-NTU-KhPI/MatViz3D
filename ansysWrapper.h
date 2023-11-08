@@ -27,6 +27,7 @@ class ansysWrapper
 
         QTemporaryDir tempDir;
         QString exitCodeToText(int retcode);
+        float calc_avg(QVector<float> &x);
 
 	public:
 		ansysWrapper(bool isBatch);
@@ -77,6 +78,13 @@ class ansysWrapper
         void prep7();
         void clearBC();
         void saveAll();
+        void load_loadstep(int num);
+
+        QVector<float> x, y, z, ux, uy, uz, sx, sy, sz, sxy, syz, sxz, epsx, epsy, epsz, epsxy, epsyz, epsxz;
+        float avg_x, avg_y, avg_z,
+            avg_ux, avg_uy, avg_uz,
+            avg_sx, avg_sy, avg_sz, avg_sxy, avg_syz, avg_sxz,
+            avg_epsx, avg_epsy, avg_epsz, avg_epsxy, avg_epsyz, avg_epsxz;
 };
 
 

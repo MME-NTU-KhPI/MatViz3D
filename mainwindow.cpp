@@ -376,7 +376,7 @@ void MainWindow::on_pushButton_clicked()
 
 void MainWindow::on_pushButton_2_clicked()
 {
-    ansysWrapper wr(false);
+    ansysWrapper wr(true);
     wr.setNP(1);
     wr.setMaterial(2.1e11, 0.3, 0);
     wr.setElemByNum(186);
@@ -411,6 +411,10 @@ void MainWindow::on_pushButton_2_clicked()
     wr.solveLS(1, 4);
     wr.saveAll();
     wr.run();
+    wr.load_loadstep(1);
+    wr.load_loadstep(2);
+    wr.load_loadstep(3);
+    wr.load_loadstep(4);
 
 }
 
