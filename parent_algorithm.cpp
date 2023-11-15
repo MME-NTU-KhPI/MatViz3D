@@ -67,8 +67,8 @@ std::vector<Parent_Algorithm::Coordinate> Parent_Algorithm::Generate_Random_Star
 
 std::vector<Parent_Algorithm::Coordinate> Parent_Algorithm::Delete_Points(std::vector<Coordinate> grains,size_t i)
 {
-    std::vector<Coordinate>::iterator it = grains.begin() + i;
-    grains.erase(it);
+    grains.erase(grains.begin() + i);
+    i--;
     return grains;
 }
 

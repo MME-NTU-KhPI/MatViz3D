@@ -17,7 +17,7 @@ public:
         int16_t y;
         int16_t z;
     };
-    int counter;
+    unsigned int counter;
     Parent_Algorithm();
     virtual bool Generate_Filling(int16_t*** voxels, short int numCubes,int n, std::vector<Coordinate> grains) = 0;
     int16_t*** Generate_Initial_Cube(short int numCubes);

@@ -22,53 +22,73 @@ bool Probability_Ellipse::Generate_Filling(int16_t*** voxels, short int numCubes
 //>>>>>>> origin/program-window+OpenGL
 {
     bool answer = true;
+    int IterationNumber = 0;
     srand(time(NULL));
-    while (answer)
+    unsigned int counter_max = pow(numCubes,3);
+    while (counter < counter_max)
     {
-    for (short int k = 0; k < numCubes; k++)
-    {
-        for (short int i = 0; i < numCubes; i++)
-        {
-            for (short int j = 0; j < numCubes; j++)
-            {
 
-                if (voxels[k][i][j] > 0)
+        Coordinate temp;
+        int16_t x,y,z;
+        std::vector<Coordinate> newGrains;
+        for(size_t i = 0; i < grains.size(); i++)
+        {
+            temp = grains[i];
+            x = temp.x;
+            y = temp.y;
+            z = temp.z;
+            for (int16_t k = -1; k < 2; k++)
+            {
+                for(int16_t p = -1; p < 2; p++)
                 {
-                    for (short int z = -1; z < 2; z++)
+                    for(int16_t l = -1; l < 2; l++)
                     {
-                        if ((k + z) < numCubes && (k + z) >= 0)
+                        int16_t newX = k+x;
+                        int16_t newY = p+y;
+                        int16_t newZ = l+z;
+                        bool isValidXYZ = (newX >= 0 && newX < numCubes) && (newY >= 0 && newY < numCubes) && (newZ >= 0 && newZ < numCubes) && voxels[newX][newY][newZ] == 0;
+                        bool Chance50 = (rand() % 100) < 50;
+                        bool Chance16 = (rand() % 100) < 16;
+                        bool Chance44 = (rand() % 100) < 44;
+                        if (isValidXYZ)
                         {
-                            for (short int x = -1; x < 2; x++)
+                            if(p == 0 || l == 0)
                             {
-                                if ((i + x) < numCubes && (i + x) >= 0)
+                                if (Chance50)
                                 {
-                                    for (short int y = -1; y < 2; y++)
-                                    {
-                                        if ((j + y) < numCubes && (j + y) >= 0)
-                                        {
-                                            if ((x == 0 || y == 0) && voxels[k + z][i + x][j + y] == 0)
-                                            {
-                                                if ((rand() % 100) < 50)
-                                                {
-                                                    voxels[k + z][i + x][j + y] = -voxels[k][i][j];
-                                                }
-                                            }
-                                            else if ((x + y == abs(2)) && voxels[k + z][i + x][j + y] == 0)
-                                            {
-                                                if ((rand() % 100) < 16)
-                                                {
-                                                    voxels[k + z][i + x][j + y] = -voxels[k][i][j];
-                                                }
-                                            }
-                                            else if ((x + y == 0) && voxels[k + z][i + x][j + y] == 0)
-                                            {
-                                                if ((rand() % 100) < 44)
-                                                {
-                                                    voxels[k + z][i + x][j + y] = -voxels[k][i][j];
-                                                }
-                                            }
-                                        }
-                                    }
+                                    voxels[newX][newY][newZ] = voxels[x][y][z];
+                                    newGrains.push_back({newX,newY,newZ});
+                                    counter++;
+                                }
+                                else
+                                {
+                                    newGrains.push_back({x,y,z});
+                                }
+                            }
+                            else if ((p + l == abs(2)))
+                            {
+                                if(Chance16)
+                                {
+                                    voxels[newX][newY][newZ] = voxels[x][y][z];
+                                    newGrains.push_back({newX,newY,newZ});
+                                    counter++;
+                                }
+                                else
+                                {
+                                    newGrains.push_back({x,y,z});
+                                }
+                            }
+                            else
+                            {
+                                if(Chance44)
+                                {
+                                    voxels[newX][newY][newZ] = voxels[x][y][z];
+                                    newGrains.push_back({newX,newY,newZ});
+                                    counter++;
+                                }
+                                else
+                                {
+                                    newGrains.push_back({x,y,z});
                                 }
                             }
                         }
@@ -76,61 +96,15 @@ bool Probability_Ellipse::Generate_Filling(int16_t*** voxels, short int numCubes
                 }
             }
         }
-    }
-
-    for (int k = 0; k < numCubes; k++)
-    {
-        for (int i = 0; i < numCubes; i++)
-        {
-            for (int j = 0; j < numCubes; j++)
-            {
-                if (voxels[k][i][j] < 0)
-                {
-                    voxels[k][i][j] = abs(voxels[k][i][j]);
-                }
-            }
-        }
-    }
-    int k = 0;
-    for (; k < numCubes; k++)
-    {
-        int i = 0;
-        for (; i < numCubes; i++)
-        {
-            int j = 0;
-            for (; j < numCubes; j++)
-            {
-                if (voxels[k][i][j] == 0)
-                {
-                    answer = true;
-                    break;
-                }
-            }
-
-            if (j < numCubes)
-            {
-                break;
-            }
-        }
-
-        if (i < numCubes)
+        grains.clear();
+        grains.insert(grains.end(), newGrains.begin(), newGrains.end());
+        if (n == 1)
         {
             break;
         }
-    }
-
-    if (k == numCubes)
-    {
-        answer = false;
-    }
-    if (n == 1)
-    {
-        break;
-    }
-    if (n > 1)
-    {
-        n--;
-    }
+        IterationNumber++;
+        double o = (double)counter/counter_max;
+        qDebug().nospace() << o << "\t" << IterationNumber << "\t" << grains.size();
     }
     return answer;
 }

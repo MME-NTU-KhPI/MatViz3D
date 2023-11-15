@@ -14,16 +14,16 @@ Neumann::Neumann()
 }
 
 
-bool Neumann::Generate_Filling(int16_t*** voxels, short int numCubes,int n, std::vector<Coordinate> grains)
+bool Neumann::Generate_Filling(int16_t*** voxels, short int numCubes, int n, std::vector<Coordinate> grains)
 {
     bool answer = true;
     int IterationNumber = 0;
-    while (answer)
+    unsigned int counter_max = pow(numCubes,3);
+    while (counter < counter_max)
     {
         Coordinate temp;
         int16_t x,y,z;
         std::vector<Coordinate> newGrains;
-        int counter_max = pow(numCubes,3);
         for(size_t i = 0; i < grains.size(); i++)
         {
             temp = grains[i];
@@ -40,53 +40,33 @@ bool Neumann::Generate_Filling(int16_t*** voxels, short int numCubes,int n, std:
                 bool isValidZ = (newZ >= 0 && newZ < numCubes) && voxels[x][y][newZ] == 0;
                 if (isValidX)
                 {
-                    voxels[newX][y][z] = -voxels[x][y][z];
+                    voxels[newX][y][z] = voxels[x][y][z];
                     newGrains.push_back({newX,y,z});
+                    counter++;
                 }
                 if (isValidY)
                 {
-                    voxels[x][newY][z] = -voxels[x][y][z];
+                    voxels[x][newY][z] = voxels[x][y][z];
                     newGrains.push_back({x,newY,z});
+                    counter++;
                 }
                 if (isValidZ)
                 {
-                    voxels[x][y][newZ] = -voxels[x][y][z];
+                    voxels[x][y][newZ] = voxels[x][y][z];
                     newGrains.push_back({x,y,newZ});
+                    counter++;
                 }
             }
         }
         grains.clear();
         grains.insert(grains.end(), newGrains.begin(), newGrains.end());
-        for (int k = 0; k < numCubes; k++)
-        {
-            for (int i = 0; i < numCubes; i++)
-            {
-                for (int j = 0; j < numCubes; j++)
-                {
-                    if (voxels[k][i][j] < 0)
-                    {
-                        voxels[k][i][j] = abs(voxels[k][i][j]);
-                        counter++;
-                    }
-                }
-            }
-        }
-        if (counter < counter_max)
-            answer = true;
-        else
-            answer = false;
-        if (n == 1)
-        {
-            answer=false;
-        }
-        if (n > 1)
-        {
-            n--;
-        }
         IterationNumber++;
         double o = (double)counter/counter_max;
         qDebug().nospace() << o << "\t" << IterationNumber << "\t" << grains.size();
-
+        if (n == 1)
+        {
+            break;
+        }
     }
     return answer;
 }
