@@ -119,7 +119,7 @@ padding: 0px;</string>
          </property>
          <property name="icon">
           <iconset resource="resourses.qrc">
-           <normaloff>:/icon/image 3.png</normaloff>:/icon/image 3.png</iconset>
+           <normaloff>:/icon/iconMenu.png</normaloff>:/icon/iconMenu.png</iconset>
          </property>
          <property name="iconSize">
           <size>
