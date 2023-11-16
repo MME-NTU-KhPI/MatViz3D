@@ -16,6 +16,7 @@ public:
     QVector<int> countVoxelColors(); // Функція для підрахунку кількості вокселей кожного кольору
     void repaint_function();
     ~MyGLWidget();
+    void calculateSurfaceArea();
 signals:
 
 public slots:

@@ -31,8 +31,15 @@ public:
 
 private slots:
 //    void checkInputFields();
-    void checkStart(bool algorithm1, bool algorithm2, bool algorithm3, bool algorithm4);
+    void checkStart();
     void onLogMessageWritten(const QString &message);
+    void setupFileMenu();
+    void saveAsImage();
+    void setupWindowMenu();
+    void onAllCheckBoxChanged(int state);
+    void onConsoleCheckBoxChanged(int state);
+    void onDataCheckBoxChanged(int state);
+    void onAnimationCheckBoxChanged(int state);
 
 //    void on_Algorithm1_clicked(bool checked);
 
@@ -43,15 +50,9 @@ private slots:
 
 //    void on_Algorithm4_clicked(bool checked);
 
-    void on_Colormap_stateChanged(int arg1);
-
     void on_Start_clicked();
 
-    void on_gifSave_clicked();
-
     void on_statistics_clicked();
-
-    void on_imageSave_clicked();
 
 protected:
     void keyPressEvent(QKeyEvent *event);
@@ -61,6 +62,8 @@ private:
 //    QPushButton *buttons[4];
     Statistics form;
     MessageHandler *messageHandlerInstance;
+    QCheckBox *dataCheckBox;
+    QCheckBox *consoleCheckBox;
 
 
 };

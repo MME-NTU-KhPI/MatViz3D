@@ -4,6 +4,11 @@
         <file>icon/EllipseExplodedView.png</file>
         <file>icon/VerticalMenuIcon.png</file>
         <file>icon/Consol_Icon.png</file>
-        <file>../../GITHUB/MatViz3D/icon/image 3.png</file>
+        <file>icon/image 3.png</file>
+        <file>icon/checkOff.png</file>
+        <file>icon/check.png</file>
+        <file>icon/roll.png</file>
+        <file>icon/AniOFF.png</file>
+        <file>icon/AniON.png</file>
     </qresource>
 </RCC>

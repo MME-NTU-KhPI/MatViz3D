@@ -540,3 +540,56 @@ QVector<int> MyGLWidget::countVoxelColors()
     return colorCounts;
 }
 
+void MyGLWidget::calculateSurfaceArea()
+{
+    qDebug() << "Total Surface Area for Color";
+    QVector<int> colorCounts = countVoxelColors();
+
+    for (int colorIndex = 0; colorIndex < numColors; colorIndex++) {
+        int colorCount = colorCounts[colorIndex];
+
+        if (colorCount > 0) {
+            //qDebug() << "Color" << colorIndex + 1 << "Surface Area:";
+
+            int totalSurfaceArea = 0;
+
+            for (int k = 0; k < numCubes; k++) {
+                for (int i = 0; i < numCubes; i++) {
+                    for (int j = 0; j < numCubes; j++) {
+                        int currentColor = voxels[k][i][j];
+
+                        if (currentColor == colorIndex + 1) {
+                            int surfaceArea = 0;
+
+                            // Check the six faces of the voxel
+                            if (i == 0 || voxels[k][i - 1][j] != colorIndex + 1) {
+                                surfaceArea++; // left face
+                            }
+                            if (i == numCubes - 1 || voxels[k][i + 1][j] != colorIndex + 1) {
+                                surfaceArea++; // right face
+                            }
+                            if (j == 0 || voxels[k][i][j - 1] != colorIndex + 1) {
+                                surfaceArea++; // front face
+                            }
+                            if (j == numCubes - 1 || voxels[k][i][j + 1] != colorIndex + 1) {
+                                surfaceArea++; // back face
+                            }
+                            if (k == 0 || voxels[k - 1][i][j] != colorIndex + 1) {
+                                surfaceArea++; // bottom face
+                            }
+                            if (k == numCubes - 1 || voxels[k + 1][i][j] != colorIndex + 1) {
+                                surfaceArea++; // top face
+                            }
+
+                            //qDebug() << "Voxel at (" << i << ", " << j << ", " << k << ") - Surface Area: " << surfaceArea;
+                            totalSurfaceArea += surfaceArea;
+                        }
+                    }
+                }
+            }
+
+            qDebug() << "Color" << colorIndex + 1 << ": " << totalSurfaceArea;
+            //qDebug() << totalSurfaceArea;
+        }
+    }
+}

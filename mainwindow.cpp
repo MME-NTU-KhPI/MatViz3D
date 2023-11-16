@@ -31,19 +31,8 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
-    // Створіть QMenu та QAction
-    QMenu *FileMenu = new QMenu(this);
-    QAction *saveAction = new QAction("Save", this);
-    QAction *openAction = new QAction("Open", this);
-
-
-    // Додайте дії до меню
-    FileMenu->addAction(saveAction);
-    FileMenu->addAction(openAction);
-
-    // Призначте це меню кнопці
-    ui->FileButton->setMenu(FileMenu);
-
+    setupFileMenu();
+    setupWindowMenu();
 
     connect(ui->statistics, &QPushButton::clicked, this, &MainWindow::on_statistics_clicked);
 
@@ -81,6 +70,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     messageHandlerInstance = new MessageHandler(ui->textEdit);
     connect(messageHandlerInstance, &MessageHandler::messageWrittenSignal, this, &MainWindow::onLogMessageWritten);
+    //connect(saveAsImageAction, &QAction::triggered, this, &MainWindow::saveAsImage);
 
 }
 
@@ -124,7 +114,7 @@ void MainWindow::onLogMessageWritten(const QString &message)
 //}
 
 // Функція перевірки для старт
-void MainWindow::checkStart(bool algorithm1, bool algorithm2, bool algorithm3, bool algorithm4)
+void MainWindow::checkStart()
 {
     bool checked = ui->AlgorithmsBox->currentIndex() != -1; // Перевірте, чи обраний елемент
     //bool checked = algorithm1 || algorithm2 || algorithm3 || algorithm4;
@@ -233,12 +223,6 @@ void MainWindow::checkStart(bool algorithm1, bool algorithm2, bool algorithm3, b
 //    }
 //    checkStart(ui->Algorithm1->isChecked(), ui->Algorithm2->isChecked(), ui->Algorithm3->isChecked(), ui->Algorithm4->isChecked());
 //}
-
-
-void MainWindow::on_Colormap_stateChanged(int arg1)
-{
-
-}
 
 
 void MainWindow::keyPressEvent(QKeyEvent *e)
@@ -379,54 +363,9 @@ void MainWindow::on_Start_clicked()
 
         }
     }
+
+    ui->myGLWidget->calculateSurfaceArea();
 }
-
-
-void MainWindow::on_imageSave_clicked()
-{
-
-    QRect rect = ui->Rectangle1->geometry();
-    int width = rect.width();
-    int height = rect.height();
-
-    ui->Visibility->hide();
-    ui->ConsoleWidget->hide();
-
-    QPixmap pixmap(width, height);
-    ui->myGLWidget->render(&pixmap);
-
-    QString fileName = QFileDialog::getSaveFileName(this, "Save Image", "", "Image Files (*.png);;All Files (*.*)");
-    if (!fileName.isEmpty()) {
-        pixmap.save(fileName);
-    }
-
-    ui->Visibility->show();
-    ui->ConsoleWidget->show();
-}
-
-
-void MainWindow::on_gifSave_clicked()
-{
-    QRect rect = ui->Rectangle1->geometry();
-    int width = rect.width();
-    int height = rect.height();
-
-    ui->Visibility->hide();
-    ui->ConsoleWidget->hide();
-
-    QPixmap pixmap(width, height);
-    ui->myGLWidget->render(&pixmap);
-
-    QString fileName = QFileDialog::getSaveFileName(this, "Save GIF Image", "", "GIF Files (*.gif);;All Files (*.*)");
-    if (!fileName.isEmpty()) {
-        QImage gifImage = pixmap.toImage();
-        gifImage.save(fileName);
-    }
-
-    ui->Visibility->show();
-    ui->ConsoleWidget->show();
-}
-
 
 void MainWindow::on_statistics_clicked()
 {
@@ -457,4 +396,246 @@ void MainWindow::on_statistics_clicked()
 
     // Показати вікно
     form.show();
+}
+
+// Потім в тому ж класі додайте реалізацію цієї функції
+void MainWindow::setupFileMenu() {
+    // Створіть QMenu та QAction для FileMenu
+    QMenu *fileMenu = new QMenu(this);
+
+    // Додайте Action для кнопки Project та його підменю
+    QAction *projectAction = new QAction("Project", this);
+    QMenu *projectMenu = new QMenu(this);
+    QAction *newAction = new QAction("New", this);
+    QAction *openProjectAction = new QAction("Open", this);
+
+    // Додайте дії до підменю Project
+    projectMenu->addAction(newAction);
+    projectMenu->addAction(openProjectAction);
+
+    // Додайте підменю до Action "Project"
+    projectAction->setMenu(projectMenu);
+    fileMenu->addAction(projectAction);
+
+    // Додайте інші дії до FileMenu
+    QAction *saveAsImageAction = new QAction("Save as image", this);
+    QAction *saveAllDataAction = new QAction("Save all data", this);
+    QAction *importAction = new QAction("Import", this);
+    QAction *exportAction = new QAction("Export", this);
+
+    fileMenu->addAction(saveAsImageAction);
+    fileMenu->addAction(saveAllDataAction);
+    fileMenu->addAction(importAction);
+    fileMenu->addAction(exportAction);
+
+    // Кастомізація FileMenu за допомогою CSS
+    projectMenu->setStyleSheet("QMenu {"
+                               "    width: 140px;"
+                               "    height: 45px;"
+                               "    background-color: #414141;" // фон меню
+                               "    color: rgba(217, 217, 217, 0.70);" // колір тексту
+                               "    spacing: 30px;"              // відступи між пунктами меню
+                               "    border-radius: 15px;"
+                               "}"
+                               "QMenu::item {"
+                               "    background-color: transparent;"
+                               "    border-radius: 15px;"
+                               "    color: #969696;"
+                               "    font-family: Inter;"
+                               "    font-size: 13px;"
+                               "}"
+                               "QMenu::item:selected {"
+                               "    background-color: rgba(40, 40, 40, 0.24);"  // фон для вибраного елемента
+                               "}"
+                               "QMenu::down-arrow {"
+                               "    width: 0; height: 0;"  // Зробити стрілку невидимою
+                               "}"
+                               "QMenu::indicator {"
+                               "    width: 0; height: 0;"  // Зробити стрілку невидимою
+                               "}");
+
+
+    // Кастомізація FileMenu за допомогою CSS
+    fileMenu->setStyleSheet("QMenu {"
+                            "    width: 402px;"
+                            "    height: 488px;"
+                            "    background-color: #282828;" // фон меню
+                            "    color: rgba(217, 217, 217, 0.70);" // колір тексту
+                            "    margin: 0px;"
+                            "    padding: 0px;"
+                            "}"
+                            "QMenu::item {"
+                            "    width: 170px;"
+                            "    height: 54px;"
+                            "    background-color: transparent;"
+                            "    padding: 8px 16px;"           // відступи для тексту
+                            "    border: 1px solid #969696;"  // обводка для кожного пункту
+                            "    border-radius: 15px;"
+                            "    font-size: 20px;"
+                            "    padding-top: 5px;"
+                            "    padding-left: 30px;"
+                            "    margin-top: 15px;"
+                            "    margin-left: 100px;"
+                            "}"
+                            "QMenu::item:selected {"
+                            "    background-color: rgba(217, 217, 217, 0.30);"  // фон для вибраного елемента
+                            "}"
+                            "QMenu::drop-down {"
+                            "    width: 0; height: 0;"  // Зробити стрілку невидимою
+                            "}"
+                            "QMenu::indicator {"
+                            "    width: 0; height: 0;"  // Зробити стрілку невидимою
+                            "}");
+
+    // Кастомізація QAction
+    QFont actionFont;
+    actionFont.setPointSize(14);  // розмір тексту
+    newAction->setFont(actionFont);
+    openProjectAction->setFont(actionFont);
+    saveAsImageAction->setFont(actionFont);
+    saveAllDataAction->setFont(actionFont);
+    importAction->setFont(actionFont);
+    exportAction->setFont(actionFont);
+
+    // Призначте це меню кнопці
+    ui->FileButton->setMenu(fileMenu);
+
+    connect(saveAsImageAction, &QAction::triggered, this, &MainWindow::saveAsImage);
+}
+
+void MainWindow::setupWindowMenu() {
+    // Створіть QMenu для WindowMenu
+    QMenu *windowMenu = new QMenu(this);
+
+    // Створіть чекбокси для WindowMenu
+    QCheckBox *allCheckBox = new QCheckBox("All", this);
+    QCheckBox *statisticsCheckBox = new QCheckBox("Statistics", this);
+    QCheckBox *animationCheckBox = new QCheckBox("Animation", this);
+    dataCheckBox = new QCheckBox("Data", this);
+    consoleCheckBox = new QCheckBox("Console", this);
+
+    // Створіть QWidgetAction для кожного чекбоксу
+    QWidgetAction *allCheckBoxAction = new QWidgetAction(this);
+    QWidgetAction *statisticsCheckBoxAction = new QWidgetAction(this);
+    QWidgetAction *animationCheckBoxAction = new QWidgetAction(this);
+    QWidgetAction *consoleCheckBoxAction = new QWidgetAction(this);
+    QWidgetAction *dataCheckBoxAction = new QWidgetAction(this);
+
+    // Встановіть віджети для QWidgetAction
+    allCheckBoxAction->setDefaultWidget(allCheckBox);
+    statisticsCheckBoxAction->setDefaultWidget(statisticsCheckBox);
+    animationCheckBoxAction->setDefaultWidget(animationCheckBox);
+    consoleCheckBoxAction->setDefaultWidget(consoleCheckBox);
+    dataCheckBoxAction->setDefaultWidget(dataCheckBox);
+
+    // Додайте QWidgetAction до WindowMenu
+    windowMenu->addAction(allCheckBoxAction);
+    windowMenu->addAction(statisticsCheckBoxAction);
+    windowMenu->addAction(animationCheckBoxAction);
+    windowMenu->addAction(consoleCheckBoxAction);
+    windowMenu->addAction(dataCheckBoxAction);
+
+    // Встановіть стани чекбоксів за замовчуванням
+    dataCheckBox->setChecked(true);
+    consoleCheckBox->setChecked(true);
+    animationCheckBox->setChecked(false);
+
+    // Кастомізація WindowMenu за допомогою CSS (можете вказати власні стилі)
+    windowMenu->setStyleSheet("QMenu {"
+                              "    width: 290px;"
+                              "    height: 260px;"
+                              "    background-color: #282828;" // фон меню
+                              "    color: rgba(217, 217, 217, 0.70);" // колір тексту
+                              "}"
+                              "QCheckBox {"
+                              "    padding: 8px 16px;"           // відступи для тексту
+                              "    font-size: 14px;"
+                              "    font-weight: 500;"
+                              "    color: #CFCECE;"
+                              "    background-color: transparent;"
+                              "    margin-left: 90px;"
+                              "}"
+                              "QCheckBox::indicator {"
+                              "    width: 30px;"
+                              "    height: 30px;"
+                              "    background-color: transparent;"
+                              "}"
+                              "QCheckBox::indicator:unchecked {"
+                              "    image: url(:/icon/checkOff.png);"  // зображення для невибраного чекбоксу
+                              "}"
+                              "QCheckBox::indicator:checked {"
+                              "    image: url(:/icon/check.png);"  // зображення для вибраного чекбоксу
+                              "}");
+
+    // Призначте це меню кнопці
+    ui->WindowButton->setMenu(windowMenu);
+
+    // Приєднайте слоти до зміни стану чекбоксів (якщо потрібно)
+    connect(allCheckBox, &QCheckBox::stateChanged, this, &MainWindow::onAllCheckBoxChanged);
+    //connect(statisticsCheckBox, &QCheckBox::stateChanged, this, &MainWindow::onStatisticsCheckBoxChanged);
+    connect(animationCheckBox, &QCheckBox::stateChanged, this, &MainWindow::onAnimationCheckBoxChanged);
+    connect(consoleCheckBox, &QCheckBox::stateChanged, this, &MainWindow::onConsoleCheckBoxChanged);
+    connect(dataCheckBox, &QCheckBox::stateChanged, this, &MainWindow::onDataCheckBoxChanged);
+}
+
+void MainWindow::saveAsImage() {
+    QRect rect = ui->Rectangle1->geometry();
+    int width = rect.width();
+    int height = rect.height();
+
+    ui->backgrAnim->hide();
+    ui->ConsoleWidget->hide();
+    ui->DataWidget->hide();
+
+    QPixmap pixmap(width, height);
+    ui->myGLWidget->render(&pixmap);
+
+    QString fileName = QFileDialog::getSaveFileName(this, "Save Image", "", "Image Files (*.png);;All Files (*.*)");
+    if (!fileName.isEmpty()) {
+        pixmap.save(fileName);
+    }
+
+    ui->backgrAnim->show();
+    ui->ConsoleWidget->show();
+    ui->DataWidget->show();
+}
+
+void MainWindow::onAllCheckBoxChanged(int state) {
+    // Обробка зміни стану чекбоксу All
+    if (state == Qt::Checked) {
+        dataCheckBox->setChecked(true);
+        consoleCheckBox->setChecked(true);
+        //animationCheckBox->setChecked(true);
+    } else {
+        dataCheckBox->setChecked(false);
+        consoleCheckBox->setChecked(false);
+        //animationCheckBox->setChecked(false);
+    }
+}
+
+void MainWindow::onDataCheckBoxChanged(int state) {
+    // Обробка зміни стану чекбоксу All
+    if (state == Qt::Checked) {
+        ui->DataWidget->show();
+    } else {
+        ui->DataWidget->hide();
+    }
+}
+
+void MainWindow::onConsoleCheckBoxChanged(int state) {
+    // Обробка зміни стану чекбоксу All
+    if (state == Qt::Checked) {
+        ui->ConsoleWidget->show();
+    } else {
+        ui->ConsoleWidget->hide();
+    }
+}
+
+void MainWindow::onAnimationCheckBoxChanged(int state) {
+    // Обробка зміни стану чекбоксу All
+    if (state == Qt::Checked) {
+        ui->backgrAnim->show();
+    } else {
+        ui->backgrAnim->hide();
+    }
 }
