@@ -14,12 +14,10 @@ Neumann::Neumann()
 }
 
 
-bool Neumann::Generate_Filling(int16_t*** voxels, short int numCubes, int n, std::vector<Coordinate> grains)
+std::vector<Parent_Algorithm::Coordinate> Neumann::Generate_Filling(int16_t*** voxels, short int numCubes, int n, std::vector<Coordinate> grains)
 {
-    bool answer = true;
-    int IterationNumber = 0;
     unsigned int counter_max = pow(numCubes,3);
-    while (counter < counter_max)
+    while (!grains.empty())
     {
         Coordinate temp;
         int16_t x,y,z;
@@ -68,5 +66,5 @@ bool Neumann::Generate_Filling(int16_t*** voxels, short int numCubes, int n, std
             break;
         }
     }
-    return answer;
+    return grains;
 }

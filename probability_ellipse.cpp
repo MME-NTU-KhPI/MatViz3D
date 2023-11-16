@@ -18,14 +18,12 @@ Probability_Ellipse::Probability_Ellipse()
 }
 
 
-bool Probability_Ellipse::Generate_Filling(int16_t*** voxels, short int numCubes,int n, std::vector<Coordinate> grains)
+std::vector<Parent_Algorithm::Coordinate> Probability_Ellipse::Generate_Filling(int16_t*** voxels, short int numCubes,int n, std::vector<Coordinate> grains)
 //>>>>>>> origin/program-window+OpenGL
 {
-    bool answer = true;
-    int IterationNumber = 0;
     srand(time(NULL));
     unsigned int counter_max = pow(numCubes,3);
-    while (counter < counter_max)
+    while (!grains.empty())
     {
 
         Coordinate temp;
@@ -98,13 +96,13 @@ bool Probability_Ellipse::Generate_Filling(int16_t*** voxels, short int numCubes
         }
         grains.clear();
         grains.insert(grains.end(), newGrains.begin(), newGrains.end());
+        IterationNumber++;
+        double o = (double)counter/counter_max;
+        qDebug().nospace() << o << "\t" << IterationNumber << "\t" << grains.size();
         if (n == 1)
         {
             break;
         }
-        IterationNumber++;
-        double o = (double)counter/counter_max;
-        qDebug().nospace() << o << "\t" << IterationNumber << "\t" << grains.size();
     }
-    return answer;
+    return grains;
 }

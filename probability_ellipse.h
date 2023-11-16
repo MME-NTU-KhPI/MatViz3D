@@ -12,7 +12,7 @@ class Probability_Ellipse : public Parent_Algorithm
 {
 public:
    Probability_Ellipse();
-   bool Generate_Filling(int16_t*** voxels, short int numCubes,int n, std::vector<Coordinate> grains);
+   std::vector<Coordinate> Generate_Filling(int16_t*** voxels, short int numCubes,int n, std::vector<Coordinate> grains);
 };
 
 #endif // PROBABILITY_ELLIPSE_H

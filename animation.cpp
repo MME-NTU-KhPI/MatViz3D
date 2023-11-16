@@ -19,9 +19,9 @@ Animation::Animation(int16_t*** a,Parent_Algorithm* b,MyGLWidget* c,int d,short 
 
 void Animation::animate()
 {
-    while (answer)
+    while (!grains.empty())
     {
-        answer = begin->Generate_Filling(voxels,numCubes,n,grains);
+        grains = begin->Generate_Filling(voxels,numCubes,n,grains);
         emit updateRequested(voxels,numCubes);
     }
 }

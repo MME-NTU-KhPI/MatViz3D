@@ -18,8 +18,9 @@ public:
         int16_t z;
     };
     unsigned int counter;
+    unsigned int IterationNumber = 0;
     Parent_Algorithm();
-    virtual bool Generate_Filling(int16_t*** voxels, short int numCubes,int n, std::vector<Coordinate> grains) = 0;
+    virtual std::vector<Coordinate> Generate_Filling(int16_t*** voxels, short int numCubes,int n, std::vector<Coordinate> grains) = 0;
     int16_t*** Generate_Initial_Cube(short int numCubes);
     std::vector<Coordinate> Generate_Random_Starting_Points(int16_t*** voxels, short int numCubes, int numColors);
     std::vector<Coordinate> Delete_Points(std::vector<Coordinate> grains,size_t i);
