@@ -220,10 +220,6 @@ void MyGLWidget::calculateScene()
             for (int k = 0; k < numCubes; k++) {
 
                 assert(voxels[k][i][j] >= 0 );
-                if (voxelScene.size() > 250*250*250)
-                {
-                    continue;
-                }
 
                 if(voxels[k][i][j] == 0)
                 {
