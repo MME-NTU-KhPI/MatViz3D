@@ -1,12 +1,9 @@
-#include <iostream>
+    #include <iostream>
 #include <windows.h>
 #include <ctime>
 #include <list>
 #include <cmath>
 #include <myglwidget.h>
-#include "mainwindow.h"
-#include "ui_mainwindow.h"
-#include "parent_algorithm.h"
 #include "neumann.h"
 
 using namespace std;
@@ -17,90 +14,57 @@ Neumann::Neumann()
 }
 
 
-bool Neumann::Generate_Filling(int16_t*** voxels, short int numCubes)
+std::vector<Parent_Algorithm::Coordinate> Neumann::Generate_Filling(int16_t*** voxels, short int numCubes, int n, std::vector<Coordinate> grains)
 {
-    bool answer = true;
-    srand(time(NULL));
-    for (short int k = 0; k < numCubes; k++)
+    unsigned int counter_max = pow(numCubes,3);
+    while (!grains.empty())
     {
-        for (short int i = 0; i < numCubes; i++)
+        Coordinate temp;
+        int16_t x,y,z;
+        std::vector<Coordinate> newGrains;
+        for(size_t i = 0; i < grains.size(); i++)
         {
-            for (short int j = 0; j < numCubes; j++)
+            temp = grains[i];
+            x = temp.x;
+            y = temp.y;
+            z = temp.z;
+            for (int16_t k = -1; k < 2; k+=2)
             {
-
-                if (voxels[k][i][j] > 0)
+                int16_t newX = k+x;
+                int16_t newY = k+y;
+                int16_t newZ = k+z;
+                bool isValidX = (newX >= 0 && newX < numCubes) && voxels[newX][y][z] == 0;
+                bool isValidY = (newY >= 0 && newY < numCubes) && voxels[x][newY][z] == 0;
+                bool isValidZ = (newZ >= 0 && newZ < numCubes) && voxels[x][y][newZ] == 0;
+                if (isValidX)
                 {
-                    for (short int z = -1; z < 2; z++)
-                    {
-                        if ((k + z) < numCubes && (k + z) >= 0)
-                        {
-                            for (short int x = -1; x < 2; x++)
-                            {
-                                if ((i + x) < numCubes && (i + x) >= 0)
-                                {
-                                    for (short int y = -1; y < 2; y++)
-                                    {
-                                        if ((j + y) < numCubes && (j + y) >= 0)
-                                        {
-                                            if ((((z == 0 && (x == 0 || y == 0)) || ((z == 1 || z == -1) && (x == 0 && y == 0)))) && voxels[k + z][i + x][j + y] == 0)
-                                            {
-                                                voxels[k + z][i + x][j + y] = -voxels[k][i][j];
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    voxels[newX][y][z] = voxels[x][y][z];
+                    newGrains.push_back({newX,y,z});
+                    counter++;
+                }
+                if (isValidY)
+                {
+                    voxels[x][newY][z] = voxels[x][y][z];
+                    newGrains.push_back({x,newY,z});
+                    counter++;
+                }
+                if (isValidZ)
+                {
+                    voxels[x][y][newZ] = voxels[x][y][z];
+                    newGrains.push_back({x,y,newZ});
+                    counter++;
                 }
             }
         }
-    }
-
-    for (int k = 0; k < numCubes; k++)
-    {
-        for (int i = 0; i < numCubes; i++)
-        {
-            for (int j = 0; j < numCubes; j++)
-            {
-                if (voxels[k][i][j] < 0)
-                {
-                    voxels[k][i][j] = abs(voxels[k][i][j]);
-                }
-            }
-        }
-    }
-    int k = 0;
-    for (; k < numCubes; k++)
-    {
-        int i = 0;
-        for (; i < numCubes; i++)
-        {
-            int j = 0;
-            for (; j < numCubes; j++)
-            {
-                if (voxels[k][i][j] == 0)
-                {
-                    answer = true;
-                    break;
-                }
-            }
-
-            if (j < numCubes)
-            {
-                break;
-            }
-        }
-
-        if (i < numCubes)
+        grains.clear();
+        grains.insert(grains.end(), newGrains.begin(), newGrains.end());
+        IterationNumber++;
+        double o = (double)counter/counter_max;
+        qDebug().nospace() << o << "\t" << IterationNumber << "\t" << grains.size();
+        if (n == 1)
         {
             break;
         }
     }
-
-    if (k == numCubes)
-    {
-        answer = false;
-    }
-    return answer;
+    return grains;
 }

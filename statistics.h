@@ -27,7 +27,6 @@ public:
 
 private:
     Ui::Statistics *ui;
-    //QCustomPlot *plot;
     QVector<int> m_colorCounts;
 
 };

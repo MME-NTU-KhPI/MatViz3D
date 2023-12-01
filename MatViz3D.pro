@@ -18,6 +18,8 @@ include(3rdparty/qtgifimage/src/gifimage/qtgifimage.pri)
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
+    about.cpp \
+    animation.cpp \
     main.cpp \
     mainwindow.cpp \
     messagehandler.cpp \
@@ -30,6 +32,8 @@ SOURCES += \
     statistics.cpp
 
 HEADERS += \
+    about.h \
+    animation.h \
     mainwindow.h \
     messagehandler.h \
     moore.h \
@@ -41,6 +45,7 @@ HEADERS += \
     statistics.h
 
 FORMS += \
+    about.ui \
     mainwindow.ui \
     statistics.ui
 

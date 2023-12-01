@@ -7,11 +7,12 @@
 #include <QPushButton>
 #include <QWidget>
 #include <QSlider>
+#include "animation.h"
 #include "probability_circle.h"
 #include "probability_ellipse.h"
 #include "statistics.h"
 #include "messagehandler.h"
-//#include "vonneumann.h"
+#include "about.h"
 
 
 QT_BEGIN_NAMESPACE
@@ -26,6 +27,10 @@ class MainWindow : public QMainWindow
 public:
     MainWindow(QWidget *parent = nullptr);
     short int numCubes = 1;
+    int isAnimation;
+    int isClosedCube;
+    int delayAnimation;
+
     int numColors;
     ~MainWindow();
 
@@ -36,10 +41,10 @@ private slots:
     void setupFileMenu();
     void saveAsImage();
     void setupWindowMenu();
-    void onAllCheckBoxChanged(int state);
     void onConsoleCheckBoxChanged(int state);
-    void onDataCheckBoxChanged(int state);
     void onAnimationCheckBoxChanged(int state);
+    void onDataCheckBoxChanged(int state);
+    void onAllCheckBoxChanged(int state);
 
 //    void on_Algorithm1_clicked(bool checked);
 
@@ -54,6 +59,10 @@ private slots:
 
     void on_statistics_clicked();
 
+    void on_checkBoxAnimation_stateChanged(int arg1);
+
+    void on_AboutButton_clicked();
+
 protected:
     void keyPressEvent(QKeyEvent *event);
 
@@ -61,9 +70,12 @@ private:
     Ui::MainWindow *ui;
 //    QPushButton *buttons[4];
     Statistics form;
+    About *about;
     MessageHandler *messageHandlerInstance;
+    QCheckBox *allCheckBox;
     QCheckBox *dataCheckBox;
     QCheckBox *consoleCheckBox;
+    QCheckBox *animationCheckBox;
 
 
 };

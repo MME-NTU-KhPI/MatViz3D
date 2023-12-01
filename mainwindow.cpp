@@ -18,6 +18,7 @@
 #include <QPropertyAnimation>
 #include <QParallelAnimationGroup>
 #include <QSequentialAnimationGroup>
+#include <ctime>
 
 #include <qgifimage.h>
 #include "statistics.h"
@@ -236,6 +237,7 @@ void MainWindow::keyPressEvent(QKeyEvent *e)
 
 void MainWindow::on_Start_clicked()
 {
+    clock_t start_time = clock(); // Фіксація часу початку виконання
     QString selectedAlgorithm = ui->AlgorithmsBox->currentText();
     if (selectedAlgorithm == "Neumann")
     {
@@ -255,13 +257,29 @@ void MainWindow::on_Start_clicked()
             QApplication::processEvents();
 
             Neumann start;
-            int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
+            int16_t*** voxels = start.Generate_Initial_Cube(numCubes);
+            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(voxels,numCubes,numColors);
             bool answer = true;
-            while (answer)
+            if (isAnimation == 0)
             {
-                answer = start.Generate_Filling(voxels,numCubes);
-                ui->myGLWidget->setVoxels(voxels, numCubes);
-                ui->myGLWidget->repaint_function();
+                start.Generate_Filling(voxels,numCubes,isAnimation,grains);
+                ui->myGLWidget->setVoxels(voxels,numCubes);
+                ui->myGLWidget->update();
+            }
+            else
+            {
+                //                QThread* thread = new QThread;
+                //                Animation* go = new Animation(voxels,&start,ui->myGLWidget,isAnimation,numCubes,answer);
+                //                go->moveToThread(thread);
+                //                // Подключаем сигнал о завершении потока к удалению объекта
+                //                connect(thread, &QThread::finished, go, &Animation::deleteLater);
+                //                // Соединяем старт потока с методом animate
+                //                connect(thread, &QThread::started, go, &Animation::animate);
+                //                connect(go,&Animation::updateRequested,ui->myGLWidget,&MyGLWidget::updateGLWidget);
+                //                thread->start();
+                Animation* go = new Animation(voxels,&start,ui->myGLWidget,isAnimation,numCubes,answer,grains);
+                connect(go,&Animation::updateRequested,ui->myGLWidget,&MyGLWidget::updateGLWidget);
+                go->animate();
             }
             ui->Start->setText("RELOAD");
             ui->Start->setStyleSheet("background: #282828; border-radius: 8px; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
@@ -287,13 +305,24 @@ void MainWindow::on_Start_clicked()
             QApplication::processEvents();
 
             Probability_Circle start;
-            int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
+            int16_t*** voxels = start.Generate_Initial_Cube(numCubes);
+            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(voxels,numCubes,numColors);
             bool answer = true;
-            while (answer)
+            if (isAnimation == 0)
             {
-                answer = start.Generate_Filling(voxels,numCubes);
+                start.Generate_Filling(voxels,numCubes,isAnimation,grains);
                 ui->myGLWidget->setVoxels(voxels, numCubes);
-                ui->myGLWidget->repaint_function();
+                ui->myGLWidget->update();
+            }
+            else
+            {
+                //QThread* thread = new QThread(this);
+                //connect(this,SIGNAL(destroyed()),thread,SLOT(quit()));
+                Animation* go = new Animation(voxels,&start,ui->myGLWidget,isAnimation,numCubes,answer,grains);
+                //go->moveToThread(thread);
+                connect(go,&Animation::updateRequested,ui->myGLWidget,&MyGLWidget::updateGLWidget);
+                //thread->start();
+                go->animate();
             }
             ui->Start->setText("RELOAD");
             ui->Start->setStyleSheet("background: #282828; border-radius: 8px; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
@@ -318,14 +347,22 @@ void MainWindow::on_Start_clicked()
             QApplication::processEvents();
 
             Probability_Ellipse start;
-            int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
+            int16_t*** voxels = start.Generate_Initial_Cube(numCubes);
+            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(voxels,numCubes,numColors);
             bool answer = true;
-            while (answer)
+            if (isAnimation == 0)
             {
-                answer = start.Generate_Filling(voxels,numCubes);
+                start.Generate_Filling(voxels,numCubes,isAnimation,grains);
                 ui->myGLWidget->setVoxels(voxels, numCubes);
-                ui->myGLWidget->repaint_function();
+                ui->myGLWidget->update();
             }
+            else
+            {
+                Animation* go = new Animation(voxels,&start,ui->myGLWidget,isAnimation,numCubes,answer,grains);
+                connect(go,&Animation::updateRequested,ui->myGLWidget,&MyGLWidget::updateGLWidget);
+                go->animate();
+            }
+
             ui->Start->setText("RELOAD");
             ui->Start->setStyleSheet("background: #282828; border-radius: 8px; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
             qDebug() << "PROBABILITY ELLIPSE";
@@ -349,20 +386,33 @@ void MainWindow::on_Start_clicked()
             QApplication::processEvents();
 
             Moore start;
-            int16_t*** voxels = start.Generate_Initial_Cube(numCubes, numColors);
+            int16_t*** voxels = start.Generate_Initial_Cube(numCubes);
+            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(voxels,numCubes,numColors);
             bool answer = true;
-            while (answer)
+            if (isAnimation == 0)
             {
-                answer = start.Generate_Filling(voxels,numCubes);
+                start.Generate_Filling(voxels,numCubes,isAnimation,grains);
                 ui->myGLWidget->setVoxels(voxels, numCubes);
-                ui->myGLWidget->repaint_function();
+                ui->myGLWidget->update();
             }
+            else
+            {
+                Animation* go = new Animation(voxels,&start,ui->myGLWidget,isAnimation,numCubes,answer,grains);
+                connect(go,&Animation::updateRequested,ui->myGLWidget,&MyGLWidget::updateGLWidget);
+                go->animate();
+            }
+
             ui->Start->setText("RELOAD");
             ui->Start->setStyleSheet("background: #282828; border-radius: 8px; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
             qDebug() << "MOORE";
 
         }
     }
+
+    clock_t end_time = clock(); // Фіксація часу завершення виконання
+    double elapsed_time = double(end_time - start_time) / CLOCKS_PER_SEC; // Обчислення часу виконання в секундах
+
+    qDebug() << "Total execution time: " << elapsed_time << " seconds";
 
     ui->myGLWidget->calculateSurfaceArea();
 }
@@ -371,28 +421,29 @@ void MainWindow::on_statistics_clicked()
 {
     QVector<int> colorCounts = ui->myGLWidget->countVoxelColors();
     form.setVoxelCounts(colorCounts);
+    QString selectedAlgorithm = ui->AlgorithmsBox->currentText();
 
     // Отримати вибраний алгоритм
-//    QString algorithmName;
-//    if (ui->Algorithm1->isChecked())
-//    {
-//        algorithmName = "Neumann";
-//    }
-//    else if (ui->Algorithm2->isChecked())
-//    {
-//        algorithmName = "Probability Circle";
-//    }
-//    else if (ui->Algorithm3->isChecked())
-//    {
-//        algorithmName = "Probability Ellipse";
-//    }
-//    else if (ui->Algorithm4->isChecked())
-//    {
-//        algorithmName = "Moore";
-//    }
+    QString algorithmName;
+    if (selectedAlgorithm == "Neumann")
+    {
+        algorithmName = "Neumann";
+    }
+    else if (selectedAlgorithm == "Probability Circle")
+    {
+        algorithmName = "Probability Circle";
+    }
+    else if (selectedAlgorithm == "Probability Ellipse")
+    {
+        algorithmName = "Probability Ellipse";
+    }
+    else if (selectedAlgorithm == "Moore")
+    {
+        algorithmName = "Moore";
+    }
 
     // Встановити текст іконки вікна
-//    form.setWindowTitle("Statistics - " + algorithmName);
+    form.setWindowTitle("Statistics - " + algorithmName);
 
     // Показати вікно
     form.show();
@@ -509,28 +560,29 @@ void MainWindow::setupWindowMenu() {
 
     // Створіть чекбокси для WindowMenu
     QCheckBox *allCheckBox = new QCheckBox("All", this);
-    QCheckBox *statisticsCheckBox = new QCheckBox("Statistics", this);
-    QCheckBox *animationCheckBox = new QCheckBox("Animation", this);
+    //QCheckBox *statisticsCheckBox = new QCheckBox("Statistics", this);
+    //QCheckBox *animationCheckBox = new QCheckBox("Animation", this);
+    animationCheckBox = new QCheckBox("Animation", this);
     dataCheckBox = new QCheckBox("Data", this);
     consoleCheckBox = new QCheckBox("Console", this);
 
     // Створіть QWidgetAction для кожного чекбоксу
     QWidgetAction *allCheckBoxAction = new QWidgetAction(this);
-    QWidgetAction *statisticsCheckBoxAction = new QWidgetAction(this);
+    //QWidgetAction *statisticsCheckBoxAction = new QWidgetAction(this);
     QWidgetAction *animationCheckBoxAction = new QWidgetAction(this);
     QWidgetAction *consoleCheckBoxAction = new QWidgetAction(this);
     QWidgetAction *dataCheckBoxAction = new QWidgetAction(this);
 
     // Встановіть віджети для QWidgetAction
     allCheckBoxAction->setDefaultWidget(allCheckBox);
-    statisticsCheckBoxAction->setDefaultWidget(statisticsCheckBox);
+    //statisticsCheckBoxAction->setDefaultWidget(statisticsCheckBox);
     animationCheckBoxAction->setDefaultWidget(animationCheckBox);
     consoleCheckBoxAction->setDefaultWidget(consoleCheckBox);
     dataCheckBoxAction->setDefaultWidget(dataCheckBox);
 
     // Додайте QWidgetAction до WindowMenu
     windowMenu->addAction(allCheckBoxAction);
-    windowMenu->addAction(statisticsCheckBoxAction);
+    //windowMenu->addAction(statisticsCheckBoxAction);
     windowMenu->addAction(animationCheckBoxAction);
     windowMenu->addAction(consoleCheckBoxAction);
     windowMenu->addAction(dataCheckBoxAction);
@@ -538,7 +590,8 @@ void MainWindow::setupWindowMenu() {
     // Встановіть стани чекбоксів за замовчуванням
     dataCheckBox->setChecked(true);
     consoleCheckBox->setChecked(true);
-    animationCheckBox->setChecked(false);
+    animationCheckBox->setChecked(true);
+    allCheckBox->setChecked(true);
 
     // Кастомізація WindowMenu за допомогою CSS (можете вказати власні стилі)
     windowMenu->setStyleSheet("QMenu {"
@@ -570,7 +623,7 @@ void MainWindow::setupWindowMenu() {
     // Призначте це меню кнопці
     ui->WindowButton->setMenu(windowMenu);
 
-    // Приєднайте слоти до зміни стану чекбоксів (якщо потрібно)
+    // Приєднайте слоти до зміни стану чекбоксів
     connect(allCheckBox, &QCheckBox::stateChanged, this, &MainWindow::onAllCheckBoxChanged);
     //connect(statisticsCheckBox, &QCheckBox::stateChanged, this, &MainWindow::onStatisticsCheckBoxChanged);
     connect(animationCheckBox, &QCheckBox::stateChanged, this, &MainWindow::onAnimationCheckBoxChanged);
@@ -605,16 +658,15 @@ void MainWindow::onAllCheckBoxChanged(int state) {
     if (state == Qt::Checked) {
         dataCheckBox->setChecked(true);
         consoleCheckBox->setChecked(true);
-        //animationCheckBox->setChecked(true);
+        animationCheckBox->setChecked(true);
     } else {
         dataCheckBox->setChecked(false);
         consoleCheckBox->setChecked(false);
-        //animationCheckBox->setChecked(false);
+        animationCheckBox->setChecked(false);
     }
 }
 
 void MainWindow::onDataCheckBoxChanged(int state) {
-    // Обробка зміни стану чекбоксу All
     if (state == Qt::Checked) {
         ui->DataWidget->show();
     } else {
@@ -623,7 +675,6 @@ void MainWindow::onDataCheckBoxChanged(int state) {
 }
 
 void MainWindow::onConsoleCheckBoxChanged(int state) {
-    // Обробка зміни стану чекбоксу All
     if (state == Qt::Checked) {
         ui->ConsoleWidget->show();
     } else {
@@ -634,8 +685,31 @@ void MainWindow::onConsoleCheckBoxChanged(int state) {
 void MainWindow::onAnimationCheckBoxChanged(int state) {
     // Обробка зміни стану чекбоксу All
     if (state == Qt::Checked) {
-        ui->backgrAnim->show();
+        ui->frameAnimation->show();
     } else {
-        ui->backgrAnim->hide();
+        ui->frameAnimation->hide();
     }
 }
+
+
+
+void MainWindow::on_checkBoxAnimation_stateChanged(int arg1)
+{
+    if(arg1 == Qt::Checked) {
+        isAnimation = 1;
+        isClosedCube = 1;
+        qDebug() << "Checkbox is checked";
+    } else {
+        isAnimation = 0;
+        isClosedCube = 0;
+        qDebug() << "Checkbox is unchecked";
+    }
+}
+
+
+void MainWindow::on_AboutButton_clicked()
+{
+    about = new About;
+    about->show();
+}
+

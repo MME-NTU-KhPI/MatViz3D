@@ -390,7 +390,7 @@ color: #00897B;
 </string>
          </property>
          <property name="text">
-          <string>Material&lt;font color='#00564D'&gt;Vis&lt;/font&gt;</string>
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Material&lt;span style=&quot; color:#00564d;&quot;&gt;Viz&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
          </property>
         </widget>
        </item>
@@ -515,11 +515,11 @@ padding: 0px;</string>
            </spacer>
           </item>
           <item row="1" column="4">
-           <widget class="QFrame" name="frame_2">
+           <widget class="QFrame" name="frameAnimation">
             <property name="minimumSize">
              <size>
               <width>402</width>
-              <height>0</height>
+              <height>275</height>
              </size>
             </property>
             <property name="maximumSize">
@@ -527,6 +527,9 @@ padding: 0px;</string>
               <width>402</width>
               <height>16777215</height>
              </size>
+            </property>
+            <property name="styleSheet">
+             <string notr="true">background-color: transparent;</string>
             </property>
             <property name="frameShape">
              <enum>QFrame::StyledPanel</enum>
@@ -552,7 +555,7 @@ padding: 0px;</string>
              <property name="maximumSize">
               <size>
                <width>402</width>
-               <height>200</height>
+               <height>273</height>
               </size>
              </property>
              <property name="styleSheet">
@@ -613,7 +616,7 @@ background-color: transparent;</string>
                   </widget>
                  </item>
                  <item>
-                  <widget class="QCheckBox" name="checkBox">
+                  <widget class="QCheckBox" name="checkBoxAnimation">
                    <property name="minimumSize">
                     <size>
                      <width>59</width>
@@ -742,7 +745,7 @@ border: none;</string>
                 <property name="frameShadow">
                  <enum>QFrame::Raised</enum>
                 </property>
-                <widget class="QSlider" name="Rectangle10_2">
+                <widget class="QSlider" name="SliderAnimationSpeed">
                  <property name="geometry">
                   <rect>
                    <x>0</x>
@@ -1277,6 +1280,22 @@ text-transform: uppercase;</string>
              <size>
               <width>20</width>
               <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item row="3" column="2">
+           <spacer name="verticalSpacer">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeType">
+             <enum>QSizePolicy::Fixed</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>474</height>
              </size>
             </property>
            </spacer>

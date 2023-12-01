@@ -9,7 +9,6 @@
 #include <QMatrix4x4>
 #include <QColor>
 #include <array>
-#include <qgifimage.h>
 
 
 MyGLWidget::MyGLWidget(QWidget *parent)
@@ -20,10 +19,12 @@ MyGLWidget::MyGLWidget(QWidget *parent)
     zRot = 0;
     distance = 2.0f;
     voxels = nullptr;
+    timer = new QTimer(this);
 }
 
 MyGLWidget::~MyGLWidget()
 {
+    delete timer;
 }
 
 QSize MyGLWidget::minimumSizeHint() const
@@ -93,6 +94,11 @@ void MyGLWidget::setNumColors(int numColors)
     for (int i = 0; i < numColors; i++) {
         directionFactors[i] = ((rand() % 2) == 0) ? 1.0f : -1.0f;
     }
+}
+
+void MyGLWidget::setDelayAnimation(int delayAnimation)
+{
+    this->delayAnimation = delayAnimation;
 }
 
 
@@ -238,9 +244,9 @@ void MyGLWidget::calculateScene()
 
                 GLfloat refColor[] = {1.0f, 1.0f, 1.0f};
                 GLfloat diff[] = {  GLfloat(color[0]/255.0 - refColor[0]),
-                                    GLfloat(color[1]/255.0 - refColor[1]),
-                                    GLfloat(color[2]/255.0 - refColor[2])
-                                 };
+                    GLfloat(color[1]/255.0 - refColor[1]),
+                    GLfloat(color[2]/255.0 - refColor[2])
+                };
 
                 // Define a direction factor, which can be negative or positive
                 float directionFactor = directionFactors[index];
@@ -270,7 +276,6 @@ void MyGLWidget::setVoxels(int16_t*** voxels, short int numCubes)
     this->voxels = voxels;
     this->numCubes = numCubes;
     calculateScene();
-
 }
 
 void MyGLWidget::drawCube(short cubeSize, Voxel vox)
@@ -383,10 +388,9 @@ void MyGLWidget::drawCube(float cubeSize, GLenum type)
     }
 }
 
-void MyGLWidget::repaint_function()
+void MyGLWidget::update_function()
 {
-    QThread::msleep(1000);
-    repaint();
+    update();
 }
 
 void MyGLWidget::paintGL()
@@ -442,7 +446,7 @@ void MyGLWidget::paintGL()
     glNormalPointer(GL_BYTE, sizeof(Voxel), 0);
 
     // Draw the voxel scene using the VBOs
-    glDrawArrays(GL_QUADS, 0, voxelScene.size()); // 24 vertices per voxel (6 faces * 4 vertices)
+    glDrawArrays(GL_QUADS, 0, voxelScene.size() * 24); // 24 vertices per voxel (6 faces * 4 vertices)
 
 
     // Unbind the buffers and disable client-side capabilities
@@ -460,7 +464,7 @@ void MyGLWidget::paintGL()
 
 void MyGLWidget::resizeGL(int width, int height)
 {
- //   int side = qMin(width, height);
+    //   int side = qMin(width, height);
     glViewport(0, 0, width, height);
 
     glMatrixMode(GL_PROJECTION);
@@ -520,6 +524,15 @@ void MyGLWidget::mouseMoveEvent(QMouseEvent *event)
 
     lastPos = event->pos();
 }
+
+void MyGLWidget::updateGLWidget(int16_t*** voxels, short int numCubes)
+{
+    setVoxels(voxels, numCubes);
+    QThread::sleep(delayAnimation);
+    repaint();
+    //timer->singleShot(1000,this,SLOT(update_function()));
+}
+
 
 // Функція для підрахунку кількості вокселей кожного кольору
 QVector<int> MyGLWidget::countVoxelColors()
