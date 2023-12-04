@@ -50,7 +50,6 @@ private slots:
 
 //    void on_Algorithm2_clicked(bool checked);
 
-
 //    void on_Algorithm3_clicked(bool checked);
 
 //    void on_Algorithm4_clicked(bool checked);

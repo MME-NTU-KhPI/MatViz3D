@@ -419,97 +419,107 @@ void MainWindow::on_Start_clicked()
 
 void MainWindow::on_statistics_clicked()
 {
-    QVector<int> colorCounts = ui->myGLWidget->countVoxelColors();
-    form.setVoxelCounts(colorCounts);
-    QString selectedAlgorithm = ui->AlgorithmsBox->currentText();
+    if(std::isdigit(numCubes) == 0 && numCubes <= 0)
+    {
+        QMessageBox::information(nullptr, "Warning!", "Invalid cube size value entered! This may result in incorrect program operation.");
+    }
+    else if(std::isdigit(numColors) == 0 && numColors <= 0)
+    {
+        QMessageBox::information(nullptr, "Warning!", "Invalid initial points value entered!\nThis will result in incorrect program operation!");
+    }
+    else{
+        QVector<int> colorCounts = ui->myGLWidget->countVoxelColors();
+        form.setVoxelCounts(colorCounts);
+        QString selectedAlgorithm = ui->AlgorithmsBox->currentText();
 
-    // Отримати вибраний алгоритм
-    QString algorithmName;
-    if (selectedAlgorithm == "Neumann")
-    {
-        algorithmName = "Neumann";
-    }
-    else if (selectedAlgorithm == "Probability Circle")
-    {
-        algorithmName = "Probability Circle";
-    }
-    else if (selectedAlgorithm == "Probability Ellipse")
-    {
-        algorithmName = "Probability Ellipse";
-    }
-    else if (selectedAlgorithm == "Moore")
-    {
-        algorithmName = "Moore";
-    }
+        // Отримати вибраний алгоритм
+        QString algorithmName;
+        if (selectedAlgorithm == "Neumann")
+        {
+            algorithmName = "Neumann";
+        }
+        else if (selectedAlgorithm == "Probability Circle")
+        {
+            algorithmName = "Probability Circle";
+        }
+        else if (selectedAlgorithm == "Probability Ellipse")
+        {
+            algorithmName = "Probability Ellipse";
+        }
+        else if (selectedAlgorithm == "Moore")
+        {
+            algorithmName = "Moore";
+        }
 
-    // Встановити текст іконки вікна
-    form.setWindowTitle("Statistics - " + algorithmName);
+        // Встановити текст іконки вікна
+        form.setWindowTitle("Statistics - " + algorithmName);
 
-    // Показати вікно
-    form.show();
+        // Показати вікно
+        form.show();
+    }
 }
 
-// Потім в тому ж класі додайте реалізацію цієї функції
+
 void MainWindow::setupFileMenu() {
     // Створіть QMenu та QAction для FileMenu
     QMenu *fileMenu = new QMenu(this);
 
     // Додайте Action для кнопки Project та його підменю
-    QAction *projectAction = new QAction("Project", this);
-    QMenu *projectMenu = new QMenu(this);
-    QAction *newAction = new QAction("New", this);
-    QAction *openProjectAction = new QAction("Open", this);
+//    QAction *projectAction = new QAction("Project", this);
+//    QMenu *projectMenu = new QMenu(this);
+//    QAction *newAction = new QAction("New", this);
+//    QAction *openProjectAction = new QAction("Open", this);
 
     // Додайте дії до підменю Project
-    projectMenu->addAction(newAction);
-    projectMenu->addAction(openProjectAction);
+//    projectMenu->addAction(newAction);
+//    projectMenu->addAction(openProjectAction);
 
     // Додайте підменю до Action "Project"
-    projectAction->setMenu(projectMenu);
-    fileMenu->addAction(projectAction);
+//    projectAction->setMenu(projectMenu);
+//    fileMenu->addAction(projectAction);
 
     // Додайте інші дії до FileMenu
     QAction *saveAsImageAction = new QAction("Save as image", this);
-    QAction *saveAllDataAction = new QAction("Save all data", this);
-    QAction *importAction = new QAction("Import", this);
-    QAction *exportAction = new QAction("Export", this);
+//    QAction *saveAllDataAction = new QAction("Save all data", this);
+//    QAction *importAction = new QAction("Import", this);
+    QAction *exportAction = new QAction("Export to vrl", this);
 
     fileMenu->addAction(saveAsImageAction);
-    fileMenu->addAction(saveAllDataAction);
-    fileMenu->addAction(importAction);
+//    fileMenu->addAction(saveAllDataAction);
+//    fileMenu->addAction(importAction);
     fileMenu->addAction(exportAction);
 
-    // Кастомізація FileMenu за допомогою CSS
-    projectMenu->setStyleSheet("QMenu {"
-                               "    width: 140px;"
-                               "    height: 45px;"
-                               "    background-color: #414141;" // фон меню
-                               "    color: rgba(217, 217, 217, 0.70);" // колір тексту
-                               "    spacing: 30px;"              // відступи між пунктами меню
-                               "    border-radius: 15px;"
-                               "}"
-                               "QMenu::item {"
-                               "    background-color: transparent;"
-                               "    border-radius: 15px;"
-                               "    color: #969696;"
-                               "    font-family: Inter;"
-                               "    font-size: 13px;"
-                               "}"
-                               "QMenu::item:selected {"
-                               "    background-color: rgba(40, 40, 40, 0.24);"  // фон для вибраного елемента
-                               "}"
-                               "QMenu::down-arrow {"
-                               "    width: 0; height: 0;"  // Зробити стрілку невидимою
-                               "}"
-                               "QMenu::indicator {"
-                               "    width: 0; height: 0;"  // Зробити стрілку невидимою
-                               "}");
+    // Кастомізація Project Menu за допомогою CSS
+//    projectMenu->setStyleSheet("QMenu {"
+//                               "    width: 140px;"
+//                               "    height: 45px;"
+//                               "    background-color: #414141;" // фон меню
+//                               "    color: rgba(217, 217, 217, 0.70);" // колір тексту
+//                               "    spacing: 30px;"              // відступи між пунктами меню
+//                               "    border-radius: 15px;"
+//                               "}"
+//                               "QMenu::item {"
+//                               "    background-color: transparent;"
+//                               "    border-radius: 15px;"
+//                               "    color: #969696;"
+//                               "    font-family: Inter;"
+//                               "    font-size: 13px;"
+//                               "}"
+//                               "QMenu::item:selected {"
+//                               "    background-color: rgba(40, 40, 40, 0.24);"  // фон для вибраного елемента
+//                               "}"
+//                               "QMenu::down-arrow {"
+//                               "    width: 0; height: 0;"  // Зробити стрілку невидимою
+//                               "}"
+//                               "QMenu::indicator {"
+//                               "    width: 0; height: 0;"  // Зробити стрілку невидимою
+//                               "}");
 
 
     // Кастомізація FileMenu за допомогою CSS
     fileMenu->setStyleSheet("QMenu {"
-                            "    width: 402px;"
-                            "    height: 488px;"
+                            "    width: 255px;"
+                            "    height: 190px;"
                             "    background-color: #282828;" // фон меню
                             "    color: rgba(217, 217, 217, 0.70);" // колір тексту
                             "    margin: 0px;"
@@ -526,7 +536,7 @@ void MainWindow::setupFileMenu() {
                             "    padding-top: 5px;"
                             "    padding-left: 30px;"
                             "    margin-top: 15px;"
-                            "    margin-left: 100px;"
+                            "    margin-left: 20px;"
                             "}"
                             "QMenu::item:selected {"
                             "    background-color: rgba(217, 217, 217, 0.30);"  // фон для вибраного елемента
@@ -541,11 +551,11 @@ void MainWindow::setupFileMenu() {
     // Кастомізація QAction
     QFont actionFont;
     actionFont.setPointSize(14);  // розмір тексту
-    newAction->setFont(actionFont);
-    openProjectAction->setFont(actionFont);
+//    newAction->setFont(actionFont);
+//    openProjectAction->setFont(actionFont);
     saveAsImageAction->setFont(actionFont);
-    saveAllDataAction->setFont(actionFont);
-    importAction->setFont(actionFont);
+//    saveAllDataAction->setFont(actionFont);
+//    importAction->setFont(actionFont);
     exportAction->setFont(actionFont);
 
     // Призначте це меню кнопці
@@ -595,8 +605,8 @@ void MainWindow::setupWindowMenu() {
 
     // Кастомізація WindowMenu за допомогою CSS (можете вказати власні стилі)
     windowMenu->setStyleSheet("QMenu {"
-                              "    width: 290px;"
-                              "    height: 260px;"
+                              "    width: 195px;"
+                              "    height: 200px;"
                               "    background-color: #282828;" // фон меню
                               "    color: rgba(217, 217, 217, 0.70);" // колір тексту
                               "}"
@@ -606,7 +616,7 @@ void MainWindow::setupWindowMenu() {
                               "    font-weight: 500;"
                               "    color: #CFCECE;"
                               "    background-color: transparent;"
-                              "    margin-left: 90px;"
+                              "    margin-left: 20px;"
                               "}"
                               "QCheckBox::indicator {"
                               "    width: 30px;"
@@ -712,4 +722,5 @@ void MainWindow::on_AboutButton_clicked()
     about = new About;
     about->show();
 }
+
 
