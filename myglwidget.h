@@ -15,6 +15,7 @@ public:
     void setVoxels(int16_t*** voxels, short int numCubes);
     void repaint_function();
     QVector<int> countVoxelColors(); // Функція для підрахунку кількості вокселей кожного кольору
+    void generateVRMLContent();
     void calculateSurfaceArea();
     ~MyGLWidget();
 signals:

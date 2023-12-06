@@ -40,6 +40,7 @@ private slots:
     void onLogMessageWritten(const QString &message);
     void setupFileMenu();
     void saveAsImage();
+    void exportToWRL();
     void setupWindowMenu();
     void onConsoleCheckBoxChanged(int state);
     void onAnimationCheckBoxChanged(int state);
@@ -61,6 +62,8 @@ private slots:
     void on_checkBoxAnimation_stateChanged(int arg1);
 
     void on_AboutButton_clicked();
+
+    void on_SliderAnimationSpeed_valueChanged(int value);
 
 protected:
     void keyPressEvent(QKeyEvent *event);

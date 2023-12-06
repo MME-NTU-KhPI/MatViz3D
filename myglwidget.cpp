@@ -635,3 +635,37 @@ void MyGLWidget::calculateSurfaceArea()
         }
     }
 }
+
+
+void MyGLWidget::generateVRMLContent() {
+
+    // Викликаємо діалогове вікно для вибору файлу та отримання імені файлу для збереження
+    QString filename = QFileDialog::getSaveFileName(this, tr("Save VRML File"), QDir::homePath(), tr("VRML Files (*.wrl);;All Files (*)"));
+
+    QFile file(filename);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        qDebug() << "Cannot open file for writing!";
+        return;
+    }
+
+    QTextStream out(&file);
+    out << "#VRML V2.0 utf8\n\n";
+
+    for (const Voxel& voxel : voxelScene) {
+        out << "Transform {\n";
+        out << "  translation " << voxel.x << " " << voxel.y << " " << voxel.z << "\n";
+        out << "  children Shape {\n";
+        out << "    appearance Appearance {\n";
+        out << "      material Material {\n";
+        out << "        diffuseColor " << voxel.r/(255.0/numColors) << " " << voxel.g/(255.0/numColors) << " " << voxel.b/(255.0/numColors) << "\n";
+        out << "      }\n";
+        out << "    }\n";
+        out << "    geometry Box {\n";
+        out << "      size " << 1.0 << " " << 1.0 << " " << 1.0 << "\n";
+        out << "    }\n";
+        out << "  }\n";
+        out << "}\n";
+    }
+
+    file.close();
+}

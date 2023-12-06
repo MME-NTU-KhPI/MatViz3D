@@ -482,12 +482,12 @@ void MainWindow::setupFileMenu() {
     QAction *saveAsImageAction = new QAction("Save as image", this);
 //    QAction *saveAllDataAction = new QAction("Save all data", this);
 //    QAction *importAction = new QAction("Import", this);
-    QAction *exportAction = new QAction("Export to vrl", this);
+    QAction *exportWRLAction = new QAction("Export to wrl", this);
 
     fileMenu->addAction(saveAsImageAction);
 //    fileMenu->addAction(saveAllDataAction);
 //    fileMenu->addAction(importAction);
-    fileMenu->addAction(exportAction);
+    fileMenu->addAction(exportWRLAction);
 
     // Кастомізація Project Menu за допомогою CSS
 //    projectMenu->setStyleSheet("QMenu {"
@@ -556,12 +556,13 @@ void MainWindow::setupFileMenu() {
     saveAsImageAction->setFont(actionFont);
 //    saveAllDataAction->setFont(actionFont);
 //    importAction->setFont(actionFont);
-    exportAction->setFont(actionFont);
+    exportWRLAction->setFont(actionFont);
 
     // Призначте це меню кнопці
     ui->FileButton->setMenu(fileMenu);
 
     connect(saveAsImageAction, &QAction::triggered, this, &MainWindow::saveAsImage);
+    connect(exportWRLAction, &QAction::triggered, this, &MainWindow::exportToWRL);
 }
 
 void MainWindow::setupWindowMenu() {
@@ -663,6 +664,10 @@ void MainWindow::saveAsImage() {
     ui->DataWidget->show();
 }
 
+void MainWindow::exportToWRL(){
+    ui->myGLWidget->generateVRMLContent();
+}
+
 void MainWindow::onAllCheckBoxChanged(int state) {
     // Обробка зміни стану чекбоксу All
     if (state == Qt::Checked) {
@@ -723,4 +728,19 @@ void MainWindow::on_AboutButton_clicked()
     about->show();
 }
 
+
+
+void MainWindow::on_SliderAnimationSpeed_valueChanged(int value)
+{
+//    //діапазон слайдера від 1 до 100
+//    double minValueSlider = 1.0;
+//    double maxValueSlider = 100.0;
+
+//    // діапазон від 0,5 до 0,01
+//    double minValueConverted = 0.5;
+//    double maxValueConverted = 0.01;
+
+//    // Конвертація значення
+//    delayAnimation = ((maxValueConverted - minValueConverted) / (maxValueSlider - minValueSlider)) * (value - minValueSlider) + minValueConverted;
+}
 

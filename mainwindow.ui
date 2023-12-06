@@ -638,8 +638,11 @@ QSlider::handle {
 
 </string>
                  </property>
+                 <property name="minimum">
+                  <number>1</number>
+                 </property>
                  <property name="maximum">
-                  <number>10</number>
+                  <number>100</number>
                  </property>
                  <property name="singleStep">
                   <number>1</number>
@@ -648,10 +651,10 @@ QSlider::handle {
                   <number>1</number>
                  </property>
                  <property name="value">
-                  <number>0</number>
+                  <number>1</number>
                  </property>
                  <property name="sliderPosition">
-                  <number>0</number>
+                  <number>1</number>
                  </property>
                  <property name="orientation">
                   <enum>Qt::Horizontal</enum>
