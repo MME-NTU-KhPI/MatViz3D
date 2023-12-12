@@ -732,15 +732,14 @@ void MainWindow::on_AboutButton_clicked()
 
 void MainWindow::on_SliderAnimationSpeed_valueChanged(int value)
 {
-//    //діапазон слайдера від 1 до 100
-//    double minValueSlider = 1.0;
-//    double maxValueSlider = 100.0;
+    double minValueSlider = 1.0;
+    double maxValueSlider = 100.0;
+    double minValueConverted = 1.0;
+    double maxValueConverted = 0.01;
 
-//    // діапазон від 0,5 до 0,01
-//    double minValueConverted = 0.5;
-//    double maxValueConverted = 0.01;
+    // Конвертація значення слайдера
+    double delayAnimation = ((maxValueConverted - minValueConverted) * (value - minValueSlider) / (maxValueSlider - minValueSlider)) + minValueConverted;
 
-//    // Конвертація значення
-//    delayAnimation = ((maxValueConverted - minValueConverted) / (maxValueSlider - minValueSlider)) * (value - minValueSlider) + minValueConverted;
+    ui->myGLWidget->setDelayAnimation(delayAnimation);
 }
 

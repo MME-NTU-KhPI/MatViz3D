@@ -12,6 +12,7 @@
 #include <QFileDialog>
 #include <QFile>
 #include <QTextStream>
+#include <set>
 
 
 MyGLWidget::MyGLWidget(QWidget *parent)
@@ -651,17 +652,25 @@ void MyGLWidget::generateVRMLContent() {
     QTextStream out(&file);
     out << "#VRML V2.0 utf8\n\n";
 
+    std::set<std::tuple<int, int, int>> uniqueCoords;
+
     for (const Voxel& voxel : voxelScene) {
+        if (uniqueCoords.find(std::make_tuple(voxel.x, voxel.y, voxel.z)) != uniqueCoords.end()) {
+            continue;
+        }
+
+        uniqueCoords.insert(std::make_tuple(voxel.x, voxel.y, voxel.z));
+
         out << "Transform {\n";
         out << "  translation " << voxel.x << " " << voxel.y << " " << voxel.z << "\n";
         out << "  children Shape {\n";
         out << "    appearance Appearance {\n";
         out << "      material Material {\n";
-        out << "        diffuseColor " << voxel.r/(255.0/numColors) << " " << voxel.g/(255.0/numColors) << " " << voxel.b/(255.0/numColors) << "\n";
+        out << "        diffuseColor " << (voxel.r/255.0) << " " << (voxel.g/255.0) << " " << (voxel.b/255.0) << "\n";
         out << "      }\n";
         out << "    }\n";
         out << "    geometry Box {\n";
-        out << "      size " << 1.0 << " " << 1.0 << " " << 1.0 << "\n";
+        out << "      size " << cubeSize << " " << cubeSize << " " << cubeSize << "\n";
         out << "    }\n";
         out << "  }\n";
         out << "}\n";

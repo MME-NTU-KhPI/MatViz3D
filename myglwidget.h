@@ -18,6 +18,7 @@ public:
     void generateVRMLContent();
     void calculateSurfaceArea();
     ~MyGLWidget();
+    int cubeSize = 1;
 signals:
 protected:
     struct Voxel;

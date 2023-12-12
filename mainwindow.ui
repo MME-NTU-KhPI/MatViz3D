@@ -651,10 +651,10 @@ QSlider::handle {
                   <number>1</number>
                  </property>
                  <property name="value">
-                  <number>1</number>
+                  <number>50</number>
                  </property>
                  <property name="sliderPosition">
-                  <number>1</number>
+                  <number>50</number>
                  </property>
                  <property name="orientation">
                   <enum>Qt::Horizontal</enum>
