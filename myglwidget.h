@@ -15,7 +15,8 @@ public:
     void setVoxels(int16_t*** voxels, short int numCubes);
     void repaint_function();
     QVector<int> countVoxelColors(); // Функція для підрахунку кількості вокселей кожного кольору
-    void generateVRMLContent();
+    void exportVRML(const QString& filename, const std::vector<std::array<GLubyte, 4>>& colors);
+    std::vector<std::array<GLubyte, 4>> generateDistinctColors();
     void calculateSurfaceArea();
     ~MyGLWidget();
     int cubeSize = 1;
@@ -26,7 +27,6 @@ protected:
     void paintGL();
     void resizeGL(int width, int height);
     void paintSphere(float radius, int numStacks, int numSlices);
-    std::vector<std::array<GLubyte, 4>> generateDistinctColors();
     void drawCube(float cubeSize, GLenum type = GL_QUADS);
     void drawCube(short cubeSize, Voxel v);
     QSize minimumSizeHint() const;
