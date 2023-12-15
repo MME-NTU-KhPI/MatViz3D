@@ -73,6 +73,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(messageHandlerInstance, &MessageHandler::messageWrittenSignal, this, &MainWindow::onLogMessageWritten);
     //connect(saveAsImageAction, &QAction::triggered, this, &MainWindow::saveAsImage);
 
+    startButtonPressed = false;
 }
 
 MainWindow::~MainWindow()
@@ -415,21 +416,20 @@ void MainWindow::on_Start_clicked()
     qDebug() << "Total execution time: " << elapsed_time << " seconds";
 
     ui->myGLWidget->calculateSurfaceArea();
+
+    startButtonPressed = true;
 }
 
 void MainWindow::on_statistics_clicked()
 {
-    if(std::isdigit(numCubes) == 0 && numCubes <= 0)
+    if(startButtonPressed == false)
     {
-        QMessageBox::information(nullptr, "Warning!", "Invalid cube size value entered! This may result in incorrect program operation.");
-    }
-    else if(std::isdigit(numColors) == 0 && numColors <= 0)
-    {
-        QMessageBox::information(nullptr, "Warning!", "Invalid initial points value entered!\nThis will result in incorrect program operation!");
+        QMessageBox::information(nullptr, "Warning!", "The structure was not generated.");
     }
     else{
         QVector<int> colorCounts = ui->myGLWidget->countVoxelColors();
         form.setVoxelCounts(colorCounts);
+
         QString selectedAlgorithm = ui->AlgorithmsBox->currentText();
 
         // Отримати вибраний алгоритм
@@ -665,14 +665,21 @@ void MainWindow::saveAsImage() {
 }
 
 void MainWindow::exportToWRL(){
-    //MyGLWidget voxelCube;
-    QString fileName = QFileDialog::getSaveFileName(this, tr("Save VRML File"), QDir::homePath(), tr("VRML Files (*.wrl);;All Files (*)"));
-    if (!fileName.isEmpty()) {
-        //pixmap.save(fileName);
-        MyGLWidget *voxelCube = ui->myGLWidget;
-        std::vector<std::array<GLubyte, 4>> colors = voxelCube->generateDistinctColors();
-        voxelCube->exportVRML(fileName, colors);
-    };
+    if(startButtonPressed == false)
+    {
+        QMessageBox::information(nullptr, "Warning!", "The structure was not generated.");
+    }
+    else
+    {
+        //MyGLWidget voxelCube;
+        QString fileName = QFileDialog::getSaveFileName(this, tr("Save VRML File"), QDir::homePath(), tr("VRML Files (*.wrl);;All Files (*)"));
+        if (!fileName.isEmpty()) {
+            //pixmap.save(fileName);
+            MyGLWidget *voxelCube = ui->myGLWidget;
+            std::vector<std::array<GLubyte, 4>> colors = voxelCube->generateDistinctColors();
+            voxelCube->exportVRML(fileName, colors);
+        };
+    }
 }
 
 void MainWindow::onAllCheckBoxChanged(int state) {
@@ -720,11 +727,11 @@ void MainWindow::on_checkBoxAnimation_stateChanged(int arg1)
     if(arg1 == Qt::Checked) {
         isAnimation = 1;
         isClosedCube = 1;
-        qDebug() << "Checkbox is checked";
+        //qDebug() << "Checkbox is checked";
     } else {
         isAnimation = 0;
         isClosedCube = 0;
-        qDebug() << "Checkbox is unchecked";
+        //qDebug() << "Checkbox is unchecked";
     }
 }
 

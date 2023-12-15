@@ -78,6 +78,7 @@ private:
     QCheckBox *dataCheckBox;
     QCheckBox *consoleCheckBox;
     QCheckBox *animationCheckBox;
+    bool startButtonPressed;
 
 
 };

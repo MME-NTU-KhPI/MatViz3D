@@ -450,7 +450,7 @@ void MyGLWidget::paintGL()
     glNormalPointer(GL_BYTE, sizeof(Voxel), 0);
 
     // Draw the voxel scene using the VBOs
-    glDrawArrays(GL_QUADS, 0, voxelScene.size() * 24); // 24 vertices per voxel (6 faces * 4 vertices)
+    glDrawArrays(GL_QUADS, 0, voxelScene.size()); // 24 vertices per voxel (6 faces * 4 vertices)
 
 
     // Unbind the buffers and disable client-side capabilities
