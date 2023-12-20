@@ -137,7 +137,7 @@ Welcome to the Material Structure Visualization Tool! This application allows yo
 :small_blue_diamond: Anastasiіa Korzh \
 :small_blue_diamond: Nikita Mityasov ([Nekit2003](https://github.com/Nekit2003)) \
 :small_blue_diamond: Oleh Semenenko ([HappyNext](https://github.com/HappyNext)) \
-:small_blue_diamond: Kateryna Skrynnik \
+:small_blue_diamond: Kateryna Skrynnyk ([Skvirell](https://github.com/Skvirell)) \
 :small_blue_diamond: Yuliia Chepela 
 
 
@@ -265,5 +265,5 @@ ___
 :small_blue_diamond: Корж Анастасія Сергіївна \
 :small_blue_diamond: Мітясов Нікіта Олександрович ([Nekit2003](https://github.com/Nekit2003)) \
 :small_blue_diamond: Семененко Олег Сергійович ([HappyNext](https://github.com/HappyNext)) \
-:small_blue_diamond: Скринник Катерина Юріївна \
+:small_blue_diamond: Скринник Катерина Юріївна ([Skvirell](https://github.com/Skvirell)) \
 :small_blue_diamond: Чепела Юлія Володимирівна 
