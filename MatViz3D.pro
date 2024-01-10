@@ -29,6 +29,7 @@ SOURCES += \
     parent_algorithm.cpp \
     probability_circle.cpp \
     probability_ellipse.cpp \
+    radial.cpp \
     statistics.cpp
 
 HEADERS += \
@@ -42,6 +43,7 @@ HEADERS += \
     parent_algorithm.h \
     probability_circle.h \
     probability_ellipse.h \
+    radial.h \
     statistics.h
 
 FORMS += \

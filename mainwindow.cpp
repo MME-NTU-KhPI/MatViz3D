@@ -2,17 +2,17 @@
 #include <iostream>
 #include <chrono>
 #include <Windows.h>
-
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "myglwidget.h"
 #include <QtWidgets>
-#include "probability_circle.h"
 #include <QMessageBox>
 #include <QPushButton>
+#include "radial.h"
 #include "neumann.h"
 #include "moore.h"
 #include "probability_ellipse.h"
+#include "probability_circle.h"
 #include "parent_algorithm.h"
 #include <QFileDialog>
 #include <QPropertyAnimation>
