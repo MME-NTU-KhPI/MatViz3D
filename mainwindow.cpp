@@ -406,7 +406,44 @@ void MainWindow::on_Start_clicked()
             ui->Start->setText("RELOAD");
             ui->Start->setStyleSheet("background: #282828; border-radius: 8px; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
             qDebug() << "MOORE";
+        }
+    }
+    else if(selectedAlgorithm == "Radial")
+    {
+        if(std::isdigit(numCubes) == 0 && numCubes <= 0)
+        {
+            QMessageBox::information(nullptr, "Warning!", "Entered cube size is less than or equal to zero!");
+        }
+        else if(std::isdigit(numColors) == 0 && numColors <= 0)
+        {
+            QMessageBox::information(nullptr, "Warning!", "Invalid initial points value entered!\nThis will result in incorrect program operation!");
+        }
+        else
+        {
+            ui->Start->setText("Loading...");
+            ui->Start->setStyleSheet("background: transparent; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
+            QApplication::processEvents();
 
+            Radial start;
+            int16_t*** voxels = start.Generate_Initial_Cube(numCubes);
+            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(voxels,numCubes,numColors);
+            bool answer = true;
+            if (isAnimation == 0)
+            {
+                start.Generate_Filling(voxels,numCubes,isAnimation,grains);
+                ui->myGLWidget->setVoxels(voxels, numCubes);
+                ui->myGLWidget->update();
+            }
+            else
+            {
+                Animation* go = new Animation(voxels,&start,ui->myGLWidget,isAnimation,numCubes,answer,grains);
+                connect(go,&Animation::updateRequested,ui->myGLWidget,&MyGLWidget::updateGLWidget);
+                go->animate();
+            }
+
+            ui->Start->setText("RELOAD");
+            ui->Start->setStyleSheet("background: #282828; border-radius: 8px; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
+            qDebug() << "RADIAL";
         }
     }
 
