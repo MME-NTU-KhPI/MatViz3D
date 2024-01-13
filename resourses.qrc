@@ -1,0 +1,14 @@
+<RCC>
+    <qresource prefix="/">
+        <file>icon/Plugin icon - 1icon.ico</file>
+        <file>icon/EllipseExplodedView.png</file>
+        <file>icon/VerticalMenuIcon.png</file>
+        <file>icon/Consol_Icon.png</file>
+        <file>icon/checkOff.png</file>
+        <file>icon/check.png</file>
+        <file>icon/roll.png</file>
+        <file>icon/AniOFF.png</file>
+        <file>icon/AniON.png</file>
+        <file>icon/iconMenu.png</file>
+    </qresource>
+</RCC>
