@@ -1116,17 +1116,12 @@ QComboBox QAbstractItemView:hover {
                   </property>
                   <item>
                    <property name="text">
-                    <string>Neumann</string>
+                    <string>Probability Circle</string>
                    </property>
                   </item>
                   <item>
                    <property name="text">
                     <string>Radial</string>
-                   </property>
-                  </item>
-                  <item>
-                   <property name="text">
-                    <string>Probability Circle</string>
                    </property>
                   </item>
                   <item>
@@ -1137,6 +1132,11 @@ QComboBox QAbstractItemView:hover {
                   <item>
                    <property name="text">
                     <string>Moore</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Neumann</string>
                    </property>
                   </item>
                  </widget>
@@ -1469,8 +1469,8 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>1262</width>
-            <height>222</height>
+            <width>1258</width>
+            <height>218</height>
            </rect>
           </property>
           <layout class="QGridLayout" name="gridLayout_5">
