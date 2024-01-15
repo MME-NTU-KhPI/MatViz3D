@@ -38,8 +38,8 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->statistics, &QPushButton::clicked, this, &MainWindow::on_statistics_clicked);
 
 
-//    connect(ui->Rectangle8, &QLineEdit::textChanged, this, &MainWindow::checkInputFields);
-//    connect(ui->Rectangle9, &QLineEdit::textChanged, this, &MainWindow::checkInputFields);
+    //    connect(ui->Rectangle8, &QLineEdit::textChanged, this, &MainWindow::checkInputFields);
+    //    connect(ui->Rectangle9, &QLineEdit::textChanged, this, &MainWindow::checkInputFields);
 
     connect(ui->Rectangle8, &QLineEdit::editingFinished, this, [=]() {
         bool ok;
@@ -63,11 +63,11 @@ MainWindow::MainWindow(QWidget *parent)
     ui->Rectangle10->setTickInterval(5);
     connect(ui->Rectangle10, &QSlider::valueChanged, ui->myGLWidget, &MyGLWidget::setDistanceFactor);
 
-//    checkInputFields();
-//    buttons[0] = ui->Algorithm1;
-//    buttons[1] = ui->Algorithm2;
-//    buttons[2] = ui->Algorithm3;
-//    buttons[3] = ui->Algorithm4;
+    //    checkInputFields();
+    //    buttons[0] = ui->Algorithm1;
+    //    buttons[1] = ui->Algorithm2;
+    //    buttons[2] = ui->Algorithm3;
+    //    buttons[3] = ui->Algorithm4;
 
     messageHandlerInstance = new MessageHandler(ui->textEdit);
     connect(messageHandlerInstance, &MessageHandler::messageWrittenSignal, this, &MainWindow::onLogMessageWritten);
@@ -502,57 +502,57 @@ void MainWindow::setupFileMenu() {
     QMenu *fileMenu = new QMenu(this);
 
     // Додайте Action для кнопки Project та його підменю
-//    QAction *projectAction = new QAction("Project", this);
-//    QMenu *projectMenu = new QMenu(this);
-//    QAction *newAction = new QAction("New", this);
-//    QAction *openProjectAction = new QAction("Open", this);
+    //    QAction *projectAction = new QAction("Project", this);
+    //    QMenu *projectMenu = new QMenu(this);
+    //    QAction *newAction = new QAction("New", this);
+    //    QAction *openProjectAction = new QAction("Open", this);
 
     // Додайте дії до підменю Project
-//    projectMenu->addAction(newAction);
-//    projectMenu->addAction(openProjectAction);
+    //    projectMenu->addAction(newAction);
+    //    projectMenu->addAction(openProjectAction);
 
     // Додайте підменю до Action "Project"
-//    projectAction->setMenu(projectMenu);
-//    fileMenu->addAction(projectAction);
+    //    projectAction->setMenu(projectMenu);
+    //    fileMenu->addAction(projectAction);
 
     // Додайте інші дії до FileMenu
     QAction *saveAsImageAction = new QAction("Save as image", this);
-//    QAction *saveAllDataAction = new QAction("Save all data", this);
-//    QAction *importAction = new QAction("Import", this);
+    //    QAction *saveAllDataAction = new QAction("Save all data", this);
+    //    QAction *importAction = new QAction("Import", this);
     QAction *exportWRLAction = new QAction("Export to wrl", this);
     QAction *exportCSVAction = new QAction("Export to csv", this);
 
     fileMenu->addAction(saveAsImageAction);
-//    fileMenu->addAction(saveAllDataAction);
-//    fileMenu->addAction(importAction);
+    //    fileMenu->addAction(saveAllDataAction);
+    //    fileMenu->addAction(importAction);
     fileMenu->addAction(exportWRLAction);
     fileMenu->addAction(exportCSVAction);
 
     // Кастомізація Project Menu за допомогою CSS
-//    projectMenu->setStyleSheet("QMenu {"
-//                               "    width: 140px;"
-//                               "    height: 45px;"
-//                               "    background-color: #414141;" // фон меню
-//                               "    color: rgba(217, 217, 217, 0.70);" // колір тексту
-//                               "    spacing: 30px;"              // відступи між пунктами меню
-//                               "    border-radius: 15px;"
-//                               "}"
-//                               "QMenu::item {"
-//                               "    background-color: transparent;"
-//                               "    border-radius: 15px;"
-//                               "    color: #969696;"
-//                               "    font-family: Inter;"
-//                               "    font-size: 13px;"
-//                               "}"
-//                               "QMenu::item:selected {"
-//                               "    background-color: rgba(40, 40, 40, 0.24);"  // фон для вибраного елемента
-//                               "}"
-//                               "QMenu::down-arrow {"
-//                               "    width: 0; height: 0;"  // Зробити стрілку невидимою
-//                               "}"
-//                               "QMenu::indicator {"
-//                               "    width: 0; height: 0;"  // Зробити стрілку невидимою
-//                               "}");
+    //    projectMenu->setStyleSheet("QMenu {"
+    //                               "    width: 140px;"
+    //                               "    height: 45px;"
+    //                               "    background-color: #414141;" // фон меню
+    //                               "    color: rgba(217, 217, 217, 0.70);" // колір тексту
+    //                               "    spacing: 30px;"              // відступи між пунктами меню
+    //                               "    border-radius: 15px;"
+    //                               "}"
+    //                               "QMenu::item {"
+    //                               "    background-color: transparent;"
+    //                               "    border-radius: 15px;"
+    //                               "    color: #969696;"
+    //                               "    font-family: Inter;"
+    //                               "    font-size: 13px;"
+    //                               "}"
+    //                               "QMenu::item:selected {"
+    //                               "    background-color: rgba(40, 40, 40, 0.24);"  // фон для вибраного елемента
+    //                               "}"
+    //                               "QMenu::down-arrow {"
+    //                               "    width: 0; height: 0;"  // Зробити стрілку невидимою
+    //                               "}"
+    //                               "QMenu::indicator {"
+    //                               "    width: 0; height: 0;"  // Зробити стрілку невидимою
+    //                               "}");
 
 
     // Кастомізація FileMenu за допомогою CSS
@@ -590,11 +590,11 @@ void MainWindow::setupFileMenu() {
     // Кастомізація QAction
     QFont actionFont;
     actionFont.setPointSize(14);  // розмір тексту
-//    newAction->setFont(actionFont);
-//    openProjectAction->setFont(actionFont);
+    //    newAction->setFont(actionFont);
+    //    openProjectAction->setFont(actionFont);
     saveAsImageAction->setFont(actionFont);
-//    saveAllDataAction->setFont(actionFont);
-//    importAction->setFont(actionFont);
+    //    saveAllDataAction->setFont(actionFont);
+    //    importAction->setFont(actionFont);
     exportWRLAction->setFont(actionFont);
     exportCSVAction->setFont(actionFont);
 
