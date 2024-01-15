@@ -1116,12 +1116,17 @@ QComboBox QAbstractItemView:hover {
                   </property>
                   <item>
                    <property name="text">
-                    <string>Probability Circle</string>
+                    <string>Neumann</string>
                    </property>
                   </item>
                   <item>
                    <property name="text">
                     <string>Radial</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Probability Circle</string>
                    </property>
                   </item>
                   <item>
@@ -1132,11 +1137,6 @@ QComboBox QAbstractItemView:hover {
                   <item>
                    <property name="text">
                     <string>Moore</string>
-                   </property>
-                  </item>
-                  <item>
-                   <property name="text">
-                    <string>Neumann</string>
                    </property>
                   </item>
                  </widget>
