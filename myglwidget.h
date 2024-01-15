@@ -13,9 +13,11 @@ class MyGLWidget : public QOpenGLWidget
 public:
     explicit MyGLWidget(QWidget *parent = 0);
     void setVoxels(int16_t*** voxels, short int numCubes);
+    int16_t*** getVoxels();
     void repaint_function();
     QVector<int> countVoxelColors(); // Функція для підрахунку кількості вокселей кожного кольору
     void exportVRML(const QString& filename, const std::vector<std::array<GLubyte, 4>>& colors);
+    void exportCSV(const QString& filename, short int numCubes, int16_t ***voxels);
     std::vector<std::array<GLubyte, 4>> generateDistinctColors();
     void calculateSurfaceArea();
     ~MyGLWidget();

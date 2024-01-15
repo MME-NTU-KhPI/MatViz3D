@@ -671,3 +671,30 @@ void MyGLWidget::exportVRML(const QString& filename, const std::vector<std::arra
     }
     file.close();
 }
+
+void MyGLWidget::exportCSV(const QString& filename, short int numCubes, int16_t ***voxels)
+{
+    QFile file(filename);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        qDebug() << "Cannot open file!";
+        return;
+    }
+    QTextStream out(&file);
+    out << "X;Y;Z;Colors\n";
+    for(int k = 0; k < numCubes; k++)
+    {
+        for (int i = 0; i < numCubes; i++)
+        {
+            for(int j = 0; j < numCubes; j++)
+            {
+                out << k << ";" << i << ";" << j << ";" << voxels[k][i][j] << "\n";
+            }
+        }
+    }
+    file.close();
+}
+
+int16_t*** MyGLWidget::getVoxels()
+{
+    return voxels;
+}

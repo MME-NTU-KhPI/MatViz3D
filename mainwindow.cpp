@@ -723,6 +723,26 @@ void MainWindow::exportToWRL(){
     }
 }
 
+// Cube csv export button
+void MainWindow::exportToCSV(){
+    if(startButtonPressed == false)
+    {
+        QMessageBox::information(nullptr, "Warning!", "The structure was not generated.");
+    }
+    else
+    {
+        //MyGLWidget voxelCube;
+        QString fileName = QFileDialog::getSaveFileName(this, tr("Save CSV File"), QDir::homePath(), tr("CSV Files (*.csv);;All Files (*)"));
+        if (!fileName.isEmpty()) {
+            //pixmap.save(fileName);
+            MyGLWidget *voxelCube = ui->myGLWidget;
+            std::vector<std::array<GLubyte, 4>> colors = voxelCube->generateDistinctColors();
+            int16_t ***currentVoxels = voxelCube->getVoxels();
+            voxelCube->exportCSV(fileName,numCubes,currentVoxels);
+        };
+    }
+}
+
 void MainWindow::onAllCheckBoxChanged(int state) {
     // Обробка зміни стану чекбоксу All
     if (state == Qt::Checked) {
@@ -796,9 +816,4 @@ void MainWindow::on_SliderAnimationSpeed_valueChanged(int value)
     double delayAnimation = ((maxValueConverted - minValueConverted) * (value - minValueSlider) / (maxValueSlider - minValueSlider)) + minValueConverted;
 
     ui->myGLWidget->setDelayAnimation(delayAnimation);
-}
-
-// Cube csv export button
-void MainWindow::exportToCSV(){
-
 }

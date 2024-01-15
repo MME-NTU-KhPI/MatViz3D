@@ -30,7 +30,6 @@ public:
     int isAnimation;
     int isClosedCube;
     int delayAnimation;
-
     int numColors;
     ~MainWindow();
 
