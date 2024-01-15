@@ -520,11 +520,13 @@ void MainWindow::setupFileMenu() {
 //    QAction *saveAllDataAction = new QAction("Save all data", this);
 //    QAction *importAction = new QAction("Import", this);
     QAction *exportWRLAction = new QAction("Export to wrl", this);
+    QAction *exportCSVAction = new QAction("Export to csv", this);
 
     fileMenu->addAction(saveAsImageAction);
 //    fileMenu->addAction(saveAllDataAction);
 //    fileMenu->addAction(importAction);
     fileMenu->addAction(exportWRLAction);
+    fileMenu->addAction(exportCSVAction);
 
     // Кастомізація Project Menu за допомогою CSS
 //    projectMenu->setStyleSheet("QMenu {"
@@ -556,7 +558,7 @@ void MainWindow::setupFileMenu() {
     // Кастомізація FileMenu за допомогою CSS
     fileMenu->setStyleSheet("QMenu {"
                             "    width: 255px;"
-                            "    height: 190px;"
+                            "    height: 260px;"
                             "    background-color: #282828;" // фон меню
                             "    color: rgba(217, 217, 217, 0.70);" // колір тексту
                             "    margin: 0px;"
@@ -594,12 +596,14 @@ void MainWindow::setupFileMenu() {
 //    saveAllDataAction->setFont(actionFont);
 //    importAction->setFont(actionFont);
     exportWRLAction->setFont(actionFont);
+    exportCSVAction->setFont(actionFont);
 
     // Призначте це меню кнопці
     ui->FileButton->setMenu(fileMenu);
 
     connect(saveAsImageAction, &QAction::triggered, this, &MainWindow::saveAsImage);
     connect(exportWRLAction, &QAction::triggered, this, &MainWindow::exportToWRL);
+    connect(exportCSVAction, &QAction::triggered, this, &MainWindow::exportToCSV);
 }
 
 void MainWindow::setupWindowMenu() {
@@ -794,3 +798,7 @@ void MainWindow::on_SliderAnimationSpeed_valueChanged(int value)
     ui->myGLWidget->setDelayAnimation(delayAnimation);
 }
 
+// Cube csv export button
+void MainWindow::exportToCSV(){
+
+}

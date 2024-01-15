@@ -46,6 +46,7 @@ private slots:
     void onAnimationCheckBoxChanged(int state);
     void onDataCheckBoxChanged(int state);
     void onAllCheckBoxChanged(int state);
+    void exportToCSV();
 
 //    void on_Algorithm1_clicked(bool checked);
 
