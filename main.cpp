@@ -8,28 +8,52 @@ int main(int argc, char *argv[])
     QApplication::setApplicationName("MatViz3D");
     QApplication::setApplicationVersion("2.01");
     QCommandLineParser parser;
+    short int size = 0;
+    short int points = 0;
+    unsigned int generations = 1;
+    QString algorithm;
+    QString filename;
     parser.addHelpOption();
     parser.addVersionOption();
-    QCommandLineOption helloOption("hello","Say hello!");
-    QCommandLineOption sizeOption("size","Enter size of cube");
-    QCommandLineOption pointsOption("points","Enter number of points");
-    QCommandLineOption algorithmOption("algorithm","Choose algorithm to generate");
-    QCommandLineOption generationsOption("generations", "Enter the numbers of generation");
-    QCommandLineOption GUIOption("gui","Remove GUI in app");
-    QCommandLineOption exportOption("export","Choose export");
-    parser.addOptions({helloOption, sizeOption, pointsOption, algorithmOption, generationsOption, GUIOption, exportOption});
+    QCommandLineOption sizeOption(QStringList() << "s" << "size", "Set the size", "size");
+    QCommandLineOption pointsOption(QStringList() << "p" << "points", "Set the number of points", "points");
+    QCommandLineOption algorithmOption(QStringList() << "a" << "algorithm", "Set the algorithm", "algorithm");;
+    QCommandLineOption generationsOption(QStringList() << "g" << "generations", "Enter the numbers of generation", "generations");
+    QCommandLineOption noGUIOption("nogui","Open app with no GUI");
+    QCommandLineOption GUIOption("gui","Open app with GUI");
+    QCommandLineOption outputOption(QStringList() << "o" << "output", "Specify output file", "filename");
+    parser.addOptions({sizeOption, pointsOption, algorithmOption, generationsOption, noGUIOption, GUIOption, outputOption});
     parser.process(a);
     MainWindow w;
-    if (parser.isSet(GUIOption))
-        w.show();
-    if (parser.isSet(generationsOption))
+    //w.show();
+    if (parser.isSet(noGUIOption))
     {
-
+        w.close();
     }
     if (parser.isSet(sizeOption))
     {
-
+        const QString str = parser.value(sizeOption);
+        size = str.toShort();
     }
+    if (parser.isSet(pointsOption))
+    {
+        const QString str = parser.value(pointsOption);
+        points = str.toShort();
+    }
+    if (parser.isSet(algorithmOption))
+    {
+        algorithm = parser.value(algorithmOption);
+    }
+    if (parser.isSet(outputOption))
+    {
+        filename = parser.value(outputOption);
+    }
+    if (parser.isSet(generationsOption))
+    {
+        const QString str = parser.value(generationsOption);
+        generations = str.toUInt();
+    }
+
     return a.exec();
 
         return 0;
