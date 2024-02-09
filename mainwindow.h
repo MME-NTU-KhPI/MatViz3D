@@ -8,8 +8,6 @@
 #include <QWidget>
 #include <QSlider>
 #include "animation.h"
-#include "probability_circle.h"
-#include "probability_ellipse.h"
 #include "statistics.h"
 #include "messagehandler.h"
 #include "about.h"
@@ -26,6 +24,9 @@ class MainWindow : public QMainWindow
 
 public:
     MainWindow(QWidget *parent = nullptr);
+    void setNumCubes(short int a);
+    void setNumColors(int a);
+    void setAlgorithms(QString a);
     short int numCubes = 1;
     int isAnimation;
     int isClosedCube;

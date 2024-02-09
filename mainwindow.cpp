@@ -15,6 +15,7 @@
 #include "probability_circle.h"
 #include "parent_algorithm.h"
 #include <QFileDialog>
+#include <QDebug>
 #include <QPropertyAnimation>
 #include <QParallelAnimationGroup>
 #include <QSequentialAnimationGroup>
@@ -803,8 +804,6 @@ void MainWindow::on_AboutButton_clicked()
     about->show();
 }
 
-
-
 void MainWindow::on_SliderAnimationSpeed_valueChanged(int value)
 {
     double minValueSlider = 1.0;
@@ -816,4 +815,23 @@ void MainWindow::on_SliderAnimationSpeed_valueChanged(int value)
     double delayAnimation = ((maxValueConverted - minValueConverted) * (value - minValueSlider) / (maxValueSlider - minValueSlider)) + minValueConverted;
 
     ui->myGLWidget->setDelayAnimation(delayAnimation);
+}
+
+void MainWindow::setNumCubes(short int a)
+{
+    QString str = QString::number(a);
+    ui->Rectangle8->setText(str);
+    emit ui->Rectangle8->editingFinished();
+}
+
+void MainWindow::setNumColors(int a)
+{
+    QString str = QString::number(a);
+    ui->Rectangle9->setText(str);
+    emit ui->Rectangle9->editingFinished();
+}
+
+void MainWindow::setAlgorithms(QString a)
+{
+    ui->AlgorithmsBox->setCurrentText(a);
 }

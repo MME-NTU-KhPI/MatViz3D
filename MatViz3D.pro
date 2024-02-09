@@ -26,6 +26,7 @@ SOURCES += \
     moore.cpp \
     myglwidget.cpp \
     neumann.cpp \
+    parameters.cpp \
     parent_algorithm.cpp \
     probability_circle.cpp \
     probability_ellipse.cpp \
@@ -40,6 +41,7 @@ HEADERS += \
     moore.h \
     myglwidget.h \
     neumann.h \
+    parameters.h \
     parent_algorithm.h \
     probability_circle.h \
     probability_ellipse.h \
