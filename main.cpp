@@ -1,5 +1,4 @@
 #include "mainwindow.h"
-#include "myglwidget.h"
 #include "parameters.h"
 #include <QCommandLineParser>
 #include <QApplication>
@@ -18,7 +17,8 @@ int main(int argc, char *argv[])
     QCommandLineOption algorithmOption(QStringList() << "a" << "algorithm", "Set the algorithm", "algorithm");;
     QCommandLineOption noGUIOption("nogui","Open app with no GUI");
     QCommandLineOption outputOption(QStringList() << "o" << "output", "Specify output file", "filename");
-    parser.addOptions({sizeOption, pointsOption, algorithmOption, noGUIOption, outputOption});
+    QCommandLineOption autoStartOption("autostart", "Specify output file");
+    parser.addOptions({sizeOption, pointsOption, algorithmOption, noGUIOption, outputOption, autoStartOption});
     parser.process(a);
     MainWindow w;
     w.show();
@@ -47,6 +47,11 @@ int main(int argc, char *argv[])
     if (parser.isSet(noGUIOption))
     {
         w.close();
+        w.onStartClicked();
+    }
+    if (parser.isSet(autoStartOption))
+    {
+        w.onStartClicked();
     }
     return a.exec();
 

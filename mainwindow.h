@@ -34,6 +34,9 @@ public:
     int numColors;
     ~MainWindow();
 
+public slots:
+    void onStartClicked();
+
 private slots:
 //    void checkInputFields();
     void checkStart();

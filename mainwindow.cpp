@@ -37,6 +37,7 @@ MainWindow::MainWindow(QWidget *parent)
     setupWindowMenu();
 
     connect(ui->statistics, &QPushButton::clicked, this, &MainWindow::on_statistics_clicked);
+    connect(this, &MainWindow::on_Start_clicked, this, &MainWindow::on_Start_clicked);
 
 
     //    connect(ui->Rectangle8, &QLineEdit::textChanged, this, &MainWindow::checkInputFields);
@@ -834,4 +835,9 @@ void MainWindow::setNumColors(int a)
 void MainWindow::setAlgorithms(QString a)
 {
     ui->AlgorithmsBox->setCurrentText(a);
+}
+
+void MainWindow::onStartClicked()
+{
+    emit on_Start_clicked();
 }
