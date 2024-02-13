@@ -14,11 +14,11 @@ int main(int argc, char *argv[])
     parser.addVersionOption();
     QCommandLineOption sizeOption(QStringList() << "s" << "size", "Set the size", "size");
     QCommandLineOption pointsOption(QStringList() << "p" << "points", "Set the number of points", "points");
-    QCommandLineOption algorithmOption(QStringList() << "a" << "algorithm", "Set the algorithm", "algorithm");;
-    QCommandLineOption noGUIOption("nogui","Open app with no GUI");
+    QCommandLineOption algorithmOption(QStringList() << "a" << "algorithm", "Set the algorithm", "algorithm");
     QCommandLineOption outputOption(QStringList() << "o" << "output", "Specify output file", "filename");
-    QCommandLineOption autoStartOption("autostart", "Specify output file");
-    parser.addOptions({sizeOption, pointsOption, algorithmOption, noGUIOption, outputOption, autoStartOption});
+    QCommandLineOption noGUIOption("nogui","Open app with no GUI");
+    QCommandLineOption autoStartOption("autostart", "Running a program with auto-generation of a cube");
+    parser.addOptions({sizeOption, pointsOption, algorithmOption, outputOption, noGUIOption, autoStartOption});
     parser.process(a);
     MainWindow w;
     w.show();
@@ -42,7 +42,6 @@ int main(int argc, char *argv[])
     if (parser.isSet(outputOption))
     {
         Parameters::filename = parser.value(outputOption);
-
     }
     if (parser.isSet(noGUIOption))
     {
