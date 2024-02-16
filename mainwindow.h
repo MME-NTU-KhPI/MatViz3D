@@ -24,9 +24,10 @@ class MainWindow : public QMainWindow
 
 public:
     MainWindow(QWidget *parent = nullptr);
-    void setNumCubes(short int a);
-    void setNumColors(int a);
-    void setAlgorithms(QString a);
+    void setNumCubes(short int arg);
+    void setNumColors(int arg);
+    void setAlgorithms(QString arg);
+    void callExportToCSV();
     short int numCubes = 1;
     int isAnimation;
     int isClosedCube;

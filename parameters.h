@@ -7,6 +7,7 @@
 class Parameters
 {
 public:
+    static int16_t*** voxels;
     static short int size;
     static int points;
     static int generations;

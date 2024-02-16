@@ -1,7 +1,7 @@
-
 #include <iostream>
 #include <chrono>
 #include <Windows.h>
+#include "parameters.h"
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "myglwidget.h"
@@ -20,7 +20,6 @@
 #include <QParallelAnimationGroup>
 #include <QSequentialAnimationGroup>
 #include <ctime>
-
 #include <qgifimage.h>
 #include "statistics.h"
 
@@ -260,13 +259,13 @@ void MainWindow::on_Start_clicked()
             QApplication::processEvents();
 
             Neumann start;
-            int16_t*** voxels = start.Generate_Initial_Cube(numCubes);
-            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(voxels,numCubes,numColors);
+            Parameters::voxels = start.Generate_Initial_Cube(numCubes);
+            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(Parameters::voxels,numCubes,numColors);
             bool answer = true;
             if (isAnimation == 0)
             {
-                start.Generate_Filling(voxels,numCubes,isAnimation,grains);
-                ui->myGLWidget->setVoxels(voxels,numCubes);
+                start.Generate_Filling(Parameters::voxels,numCubes,isAnimation,grains);
+                ui->myGLWidget->setVoxels(Parameters::voxels,numCubes);
                 ui->myGLWidget->update();
             }
             else
@@ -280,7 +279,7 @@ void MainWindow::on_Start_clicked()
                 //                connect(thread, &QThread::started, go, &Animation::animate);
                 //                connect(go,&Animation::updateRequested,ui->myGLWidget,&MyGLWidget::updateGLWidget);
                 //                thread->start();
-                Animation* go = new Animation(voxels,&start,ui->myGLWidget,isAnimation,numCubes,answer,grains);
+                Animation* go = new Animation(Parameters::voxels,&start,ui->myGLWidget,isAnimation,numCubes,answer,grains);
                 connect(go,&Animation::updateRequested,ui->myGLWidget,&MyGLWidget::updateGLWidget);
                 go->animate();
             }
@@ -308,20 +307,20 @@ void MainWindow::on_Start_clicked()
             QApplication::processEvents();
 
             Probability_Circle start;
-            int16_t*** voxels = start.Generate_Initial_Cube(numCubes);
-            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(voxels,numCubes,numColors);
+            Parameters::voxels = start.Generate_Initial_Cube(numCubes);
+            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(Parameters::voxels,numCubes,numColors);
             bool answer = true;
             if (isAnimation == 0)
             {
-                start.Generate_Filling(voxels,numCubes,isAnimation,grains);
-                ui->myGLWidget->setVoxels(voxels, numCubes);
+                start.Generate_Filling(Parameters::voxels,numCubes,isAnimation,grains);
+                ui->myGLWidget->setVoxels(Parameters::voxels, numCubes);
                 ui->myGLWidget->update();
             }
             else
             {
                 //QThread* thread = new QThread(this);
                 //connect(this,SIGNAL(destroyed()),thread,SLOT(quit()));
-                Animation* go = new Animation(voxels,&start,ui->myGLWidget,isAnimation,numCubes,answer,grains);
+                Animation* go = new Animation(Parameters::voxels,&start,ui->myGLWidget,isAnimation,numCubes,answer,grains);
                 //go->moveToThread(thread);
                 connect(go,&Animation::updateRequested,ui->myGLWidget,&MyGLWidget::updateGLWidget);
                 //thread->start();
@@ -350,18 +349,18 @@ void MainWindow::on_Start_clicked()
             QApplication::processEvents();
 
             Probability_Ellipse start;
-            int16_t*** voxels = start.Generate_Initial_Cube(numCubes);
-            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(voxels,numCubes,numColors);
+            Parameters::voxels = start.Generate_Initial_Cube(numCubes);
+            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(Parameters::voxels,numCubes,numColors);
             bool answer = true;
             if (isAnimation == 0)
             {
-                start.Generate_Filling(voxels,numCubes,isAnimation,grains);
-                ui->myGLWidget->setVoxels(voxels, numCubes);
+                start.Generate_Filling(Parameters::voxels,numCubes,isAnimation,grains);
+                ui->myGLWidget->setVoxels(Parameters::voxels, numCubes);
                 ui->myGLWidget->update();
             }
             else
             {
-                Animation* go = new Animation(voxels,&start,ui->myGLWidget,isAnimation,numCubes,answer,grains);
+                Animation* go = new Animation(Parameters::voxels,&start,ui->myGLWidget,isAnimation,numCubes,answer,grains);
                 connect(go,&Animation::updateRequested,ui->myGLWidget,&MyGLWidget::updateGLWidget);
                 go->animate();
             }
@@ -389,18 +388,18 @@ void MainWindow::on_Start_clicked()
             QApplication::processEvents();
 
             Moore start;
-            int16_t*** voxels = start.Generate_Initial_Cube(numCubes);
-            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(voxels,numCubes,numColors);
+            Parameters::voxels = start.Generate_Initial_Cube(numCubes);
+            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(Parameters::voxels,numCubes,numColors);
             bool answer = true;
             if (isAnimation == 0)
             {
-                start.Generate_Filling(voxels,numCubes,isAnimation,grains);
-                ui->myGLWidget->setVoxels(voxels, numCubes);
+                start.Generate_Filling(Parameters::voxels,numCubes,isAnimation,grains);
+                ui->myGLWidget->setVoxels(Parameters::voxels, numCubes);
                 ui->myGLWidget->update();
             }
             else
             {
-                Animation* go = new Animation(voxels,&start,ui->myGLWidget,isAnimation,numCubes,answer,grains);
+                Animation* go = new Animation(Parameters::voxels,&start,ui->myGLWidget,isAnimation,numCubes,answer,grains);
                 connect(go,&Animation::updateRequested,ui->myGLWidget,&MyGLWidget::updateGLWidget);
                 go->animate();
             }
@@ -427,18 +426,18 @@ void MainWindow::on_Start_clicked()
             QApplication::processEvents();
 
             Radial start;
-            int16_t*** voxels = start.Generate_Initial_Cube(numCubes);
-            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(voxels,numCubes,numColors);
+            Parameters::voxels = start.Generate_Initial_Cube(numCubes);
+            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(Parameters::voxels,numCubes,numColors);
             bool answer = true;
             if (isAnimation == 0)
             {
-                start.Generate_Filling(voxels,numCubes,isAnimation,grains);
-                ui->myGLWidget->setVoxels(voxels, numCubes);
+                start.Generate_Filling(Parameters::voxels,numCubes,isAnimation,grains);
+                ui->myGLWidget->setVoxels(Parameters::voxels, numCubes);
                 ui->myGLWidget->update();
             }
             else
             {
-                Animation* go = new Animation(voxels,&start,ui->myGLWidget,isAnimation,numCubes,answer,grains);
+                Animation* go = new Animation(Parameters::voxels,&start,ui->myGLWidget,isAnimation,numCubes,answer,grains);
                 connect(go,&Animation::updateRequested,ui->myGLWidget,&MyGLWidget::updateGLWidget);
                 go->animate();
             }
@@ -818,26 +817,31 @@ void MainWindow::on_SliderAnimationSpeed_valueChanged(int value)
     ui->myGLWidget->setDelayAnimation(delayAnimation);
 }
 
-void MainWindow::setNumCubes(short int a)
+void MainWindow::setNumCubes(short int arg)
 {
-    QString str = QString::number(a);
+    QString str = QString::number(arg);
     ui->Rectangle8->setText(str);
     emit ui->Rectangle8->editingFinished();
 }
 
-void MainWindow::setNumColors(int a)
+void MainWindow::setNumColors(int arg)
 {
-    QString str = QString::number(a);
+    QString str = QString::number(arg);
     ui->Rectangle9->setText(str);
     emit ui->Rectangle9->editingFinished();
 }
 
-void MainWindow::setAlgorithms(QString a)
+void MainWindow::setAlgorithms(QString arg)
 {
-    ui->AlgorithmsBox->setCurrentText(a);
+    ui->AlgorithmsBox->setCurrentText(arg);
 }
 
 void MainWindow::onStartClicked()
 {
     emit on_Start_clicked();
+}
+
+void MainWindow::callExportToCSV()
+{
+    emit exportToCSV();
 }

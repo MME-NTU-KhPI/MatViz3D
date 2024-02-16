@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include "myglwidget.h"
 #include "parameters.h"
 #include <QCommandLineParser>
 #include <QApplication>
@@ -15,7 +16,7 @@ int main(int argc, char *argv[])
     QCommandLineOption sizeOption(QStringList() << "s" << "size", "Set the size", "size");
     QCommandLineOption pointsOption(QStringList() << "p" << "points", "Set the number of points", "points");
     QCommandLineOption algorithmOption(QStringList() << "a" << "algorithm", "Set the algorithm", "algorithm");
-    QCommandLineOption outputOption(QStringList() << "o" << "output", "Specify output file", "filename");
+    QCommandLineOption outputOption(QStringList() << "o" << "output", "Specify output file");
     QCommandLineOption noGUIOption("nogui","Open app with no GUI");
     QCommandLineOption autoStartOption("autostart", "Running a program with auto-generation of a cube");
     parser.addOptions({sizeOption, pointsOption, algorithmOption, outputOption, noGUIOption, autoStartOption});
@@ -47,6 +48,7 @@ int main(int argc, char *argv[])
     {
         w.close();
         w.onStartClicked();
+        w.callExportToCSV();
     }
     if (parser.isSet(autoStartOption))
     {
