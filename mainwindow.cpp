@@ -22,6 +22,7 @@
 #include <ctime>
 #include <qgifimage.h>
 #include "statistics.h"
+#include "export.h"
 
 int16_t* createVoxelArray(int16_t*** voxels, int numCubes);
 std::unordered_map<int16_t, int> countVoxels(int16_t* voxelArray, int numCubes, int numColors);
@@ -44,17 +45,17 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(ui->Rectangle8, &QLineEdit::editingFinished, this, [=]() {
         bool ok;
-        numCubes = ui->Rectangle8->text().toInt(&ok);
+        Parameters::size = ui->Rectangle8->text().toInt(&ok);
         if (ok) {
-            ui->myGLWidget->setNumCubes(numCubes);
+            ui->myGLWidget->setNumCubes(Parameters::size);
         }
     });
 
     connect(ui->Rectangle9, &QLineEdit::editingFinished, this, [=]() {
         bool ok;
-        numColors = ui->Rectangle9->text().toInt(&ok);
+        Parameters::points = ui->Rectangle9->text().toInt(&ok);
         if (ok) {
-            ui->myGLWidget->setNumColors(numColors);
+            ui->myGLWidget->setNumColors(Parameters::points);
         }
     });
 
@@ -244,11 +245,11 @@ void MainWindow::on_Start_clicked()
     if (selectedAlgorithm == "Neumann")
     {
 
-        if(std::isdigit(numCubes) == 0 && numCubes <= 0)
+        if(std::isdigit(Parameters::size) == 0 && Parameters::size <= 0)
         {
             QMessageBox::information(nullptr, "Warning!", "Invalid cube size value entered! This may lead to incorrect program operation.");
         }
-        else if(std::isdigit(numColors) == 0 && numColors <= 0)
+        else if(std::isdigit(Parameters::points) == 0 && Parameters::points <= 0)
         {
             QMessageBox::information(nullptr, "Warning!", "Invalid initial points value entered! This will result in incorrect program operation!");
         }
@@ -259,13 +260,13 @@ void MainWindow::on_Start_clicked()
             QApplication::processEvents();
 
             Neumann start;
-            Parameters::voxels = start.Generate_Initial_Cube(numCubes);
-            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(Parameters::voxels,numCubes,numColors);
+            Parameters::voxels = start.Generate_Initial_Cube(Parameters::size);
+            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(Parameters::voxels,Parameters::size,Parameters::points);
             bool answer = true;
             if (isAnimation == 0)
             {
-                start.Generate_Filling(Parameters::voxels,numCubes,isAnimation,grains);
-                ui->myGLWidget->setVoxels(Parameters::voxels,numCubes);
+                start.Generate_Filling(Parameters::voxels,Parameters::size,isAnimation,grains);
+                ui->myGLWidget->setVoxels(Parameters::voxels,Parameters::size);
                 ui->myGLWidget->update();
             }
             else
@@ -279,7 +280,7 @@ void MainWindow::on_Start_clicked()
                 //                connect(thread, &QThread::started, go, &Animation::animate);
                 //                connect(go,&Animation::updateRequested,ui->myGLWidget,&MyGLWidget::updateGLWidget);
                 //                thread->start();
-                Animation* go = new Animation(Parameters::voxels,&start,ui->myGLWidget,isAnimation,numCubes,answer,grains);
+                Animation* go = new Animation(Parameters::voxels,&start,ui->myGLWidget,isAnimation,Parameters::size,answer,grains);
                 connect(go,&Animation::updateRequested,ui->myGLWidget,&MyGLWidget::updateGLWidget);
                 go->animate();
             }
@@ -292,11 +293,11 @@ void MainWindow::on_Start_clicked()
     }
     else if (selectedAlgorithm == "Probability Circle")
     {
-        if(std::isdigit(numCubes) == 0 && numCubes <= 0)
+        if(std::isdigit(Parameters::size) == 0 && Parameters::size <= 0)
         {
             QMessageBox::information(nullptr, "Warning!", "Invalid cube size value entered! This may result in incorrect program operation.");
         }
-        else if(std::isdigit(numColors) == 0 && numColors <= 0)
+        else if(std::isdigit(Parameters::points) == 0 && Parameters::points <= 0)
         {
             QMessageBox::information(nullptr, "Warning!", "Invalid initial points value entered! This will result in incorrect program operation!");
         }
@@ -307,20 +308,20 @@ void MainWindow::on_Start_clicked()
             QApplication::processEvents();
 
             Probability_Circle start;
-            Parameters::voxels = start.Generate_Initial_Cube(numCubes);
-            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(Parameters::voxels,numCubes,numColors);
+            Parameters::voxels = start.Generate_Initial_Cube(Parameters::size);
+            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(Parameters::voxels,Parameters::size,Parameters::points);
             bool answer = true;
             if (isAnimation == 0)
             {
-                start.Generate_Filling(Parameters::voxels,numCubes,isAnimation,grains);
-                ui->myGLWidget->setVoxels(Parameters::voxels, numCubes);
+                start.Generate_Filling(Parameters::voxels,Parameters::size,isAnimation,grains);
+                ui->myGLWidget->setVoxels(Parameters::voxels, Parameters::size);
                 ui->myGLWidget->update();
             }
             else
             {
                 //QThread* thread = new QThread(this);
                 //connect(this,SIGNAL(destroyed()),thread,SLOT(quit()));
-                Animation* go = new Animation(Parameters::voxels,&start,ui->myGLWidget,isAnimation,numCubes,answer,grains);
+                Animation* go = new Animation(Parameters::voxels,&start,ui->myGLWidget,isAnimation,Parameters::size,answer,grains);
                 //go->moveToThread(thread);
                 connect(go,&Animation::updateRequested,ui->myGLWidget,&MyGLWidget::updateGLWidget);
                 //thread->start();
@@ -334,11 +335,11 @@ void MainWindow::on_Start_clicked()
     }
     else if (selectedAlgorithm == "Probability Ellipse")
     {
-        if(std::isdigit(numCubes) == 0 && numCubes <= 0)
+        if(std::isdigit(Parameters::size) == 0 && Parameters::size <= 0)
         {
             QMessageBox::information(nullptr, "Warning!", "Invalid cube size value entered! This may result in incorrect program operation.");
         }
-        else if(std::isdigit(numColors) == 0 && numColors <= 0)
+        else if(std::isdigit(Parameters::points) == 0 && Parameters::points <= 0)
         {
             QMessageBox::information(nullptr, "Warning!", "Invalid initial points value entered!\nThis will result in incorrect program operation!");
         }
@@ -349,18 +350,18 @@ void MainWindow::on_Start_clicked()
             QApplication::processEvents();
 
             Probability_Ellipse start;
-            Parameters::voxels = start.Generate_Initial_Cube(numCubes);
-            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(Parameters::voxels,numCubes,numColors);
+            Parameters::voxels = start.Generate_Initial_Cube(Parameters::size);
+            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(Parameters::voxels,Parameters::size,Parameters::points);
             bool answer = true;
             if (isAnimation == 0)
             {
-                start.Generate_Filling(Parameters::voxels,numCubes,isAnimation,grains);
-                ui->myGLWidget->setVoxels(Parameters::voxels, numCubes);
+                start.Generate_Filling(Parameters::voxels,Parameters::size,isAnimation,grains);
+                ui->myGLWidget->setVoxels(Parameters::voxels, Parameters::size);
                 ui->myGLWidget->update();
             }
             else
             {
-                Animation* go = new Animation(Parameters::voxels,&start,ui->myGLWidget,isAnimation,numCubes,answer,grains);
+                Animation* go = new Animation(Parameters::voxels,&start,ui->myGLWidget,isAnimation,Parameters::size,answer,grains);
                 connect(go,&Animation::updateRequested,ui->myGLWidget,&MyGLWidget::updateGLWidget);
                 go->animate();
             }
@@ -373,11 +374,11 @@ void MainWindow::on_Start_clicked()
     }
     else if (selectedAlgorithm == "Moore")
     {
-        if(std::isdigit(numCubes) == 0 && numCubes <= 0)
+        if(std::isdigit(Parameters::size) == 0 && Parameters::size <= 0)
         {
             QMessageBox::information(nullptr, "Warning!", "Entered cube size is less than or equal to zero!");
         }
-        else if(std::isdigit(numColors) == 0 && numColors <= 0)
+        else if(std::isdigit(Parameters::points) == 0 && Parameters::points <= 0)
         {
             QMessageBox::information(nullptr, "Warning!", "Invalid initial points value entered!\nThis will result in incorrect program operation!");
         }
@@ -388,18 +389,18 @@ void MainWindow::on_Start_clicked()
             QApplication::processEvents();
 
             Moore start;
-            Parameters::voxels = start.Generate_Initial_Cube(numCubes);
-            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(Parameters::voxels,numCubes,numColors);
+            Parameters::voxels = start.Generate_Initial_Cube(Parameters::size);
+            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(Parameters::voxels,Parameters::size,Parameters::points);
             bool answer = true;
             if (isAnimation == 0)
             {
-                start.Generate_Filling(Parameters::voxels,numCubes,isAnimation,grains);
-                ui->myGLWidget->setVoxels(Parameters::voxels, numCubes);
+                start.Generate_Filling(Parameters::voxels,Parameters::size,isAnimation,grains);
+                ui->myGLWidget->setVoxels(Parameters::voxels, Parameters::size);
                 ui->myGLWidget->update();
             }
             else
             {
-                Animation* go = new Animation(Parameters::voxels,&start,ui->myGLWidget,isAnimation,numCubes,answer,grains);
+                Animation* go = new Animation(Parameters::voxels,&start,ui->myGLWidget,isAnimation,Parameters::size,answer,grains);
                 connect(go,&Animation::updateRequested,ui->myGLWidget,&MyGLWidget::updateGLWidget);
                 go->animate();
             }
@@ -411,11 +412,11 @@ void MainWindow::on_Start_clicked()
     }
     else if(selectedAlgorithm == "Radial")
     {
-        if(std::isdigit(numCubes) == 0 && numCubes <= 0)
+        if(std::isdigit(Parameters::size) == 0 && Parameters::size <= 0)
         {
             QMessageBox::information(nullptr, "Warning!", "Entered cube size is less than or equal to zero!");
         }
-        else if(std::isdigit(numColors) == 0 && numColors <= 0)
+        else if(std::isdigit(Parameters::points) == 0 && Parameters::points <= 0)
         {
             QMessageBox::information(nullptr, "Warning!", "Invalid initial points value entered!\nThis will result in incorrect program operation!");
         }
@@ -426,18 +427,18 @@ void MainWindow::on_Start_clicked()
             QApplication::processEvents();
 
             Radial start;
-            Parameters::voxels = start.Generate_Initial_Cube(numCubes);
-            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(Parameters::voxels,numCubes,numColors);
+            Parameters::voxels = start.Generate_Initial_Cube(Parameters::size);
+            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(Parameters::voxels,Parameters::size,Parameters::points);
             bool answer = true;
             if (isAnimation == 0)
             {
-                start.Generate_Filling(Parameters::voxels,numCubes,isAnimation,grains);
-                ui->myGLWidget->setVoxels(Parameters::voxels, numCubes);
+                start.Generate_Filling(Parameters::voxels,Parameters::size,isAnimation,grains);
+                ui->myGLWidget->setVoxels(Parameters::voxels, Parameters::size);
                 ui->myGLWidget->update();
             }
             else
             {
-                Animation* go = new Animation(Parameters::voxels,&start,ui->myGLWidget,isAnimation,numCubes,answer,grains);
+                Animation* go = new Animation(Parameters::voxels,&start,ui->myGLWidget,isAnimation,Parameters::size,answer,grains);
                 connect(go,&Animation::updateRequested,ui->myGLWidget,&MyGLWidget::updateGLWidget);
                 go->animate();
             }
@@ -732,15 +733,7 @@ void MainWindow::exportToCSV(){
     }
     else
     {
-        //MyGLWidget voxelCube;
-        QString fileName = QFileDialog::getSaveFileName(this, tr("Save CSV File"), QDir::homePath(), tr("CSV Files (*.csv);;All Files (*)"));
-        if (!fileName.isEmpty()) {
-            //pixmap.save(fileName);
-            MyGLWidget *voxelCube = ui->myGLWidget;
-            std::vector<std::array<GLubyte, 4>> colors = voxelCube->generateDistinctColors();
-            int16_t ***currentVoxels = voxelCube->getVoxels();
-            voxelCube->exportCSV(fileName,numCubes,currentVoxels);
-        };
+        Export::ExportToCSV(Parameters::size, Parameters::voxels);
     }
 }
 

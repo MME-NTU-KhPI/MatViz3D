@@ -71,35 +71,3 @@ std::vector<Parent_Algorithm::Coordinate> Parent_Algorithm::Delete_Points(std::v
     i--;
     return grains;
 }
-
-bool Parent_Algorithm::Check(int16_t*** voxels,short int numCubes, bool answer,int n)
-{
-    if (n == 1)
-    {
-        answer = false;
-        return answer;
-    }
-    int k = 0;
-    for(;k < numCubes;k++)
-    {
-        for(int i = 0; i < numCubes; i++)
-        {
-            for(int j = 0; j < numCubes; j++)
-            {
-                for(int k = 0; k < numCubes; k++)
-                {
-                    if (voxels[i][j][k] == 0)
-                    {
-                        answer = true;
-                        return answer;
-                    }
-                }
-            }
-        }
-    }
-    if (k == numCubes)
-    {
-        answer = false;
-    }
-    return answer;
-}

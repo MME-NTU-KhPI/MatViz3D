@@ -10,7 +10,6 @@
 #include <QColor>
 #include <array>
 #include <QFileDialog>
-#include <QFile>
 #include <QTextStream>
 #include <set>
 

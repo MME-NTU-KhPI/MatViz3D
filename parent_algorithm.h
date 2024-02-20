@@ -24,7 +24,6 @@ public:
     int16_t*** Generate_Initial_Cube(short int numCubes);
     std::vector<Coordinate> Generate_Random_Starting_Points(int16_t*** voxels, short int numCubes, int numColors);
     std::vector<Coordinate> Delete_Points(std::vector<Coordinate> grains,size_t i);
-    bool Check(int16_t*** voxels,short int numCubes, bool answer,int n);
 };
 
 #endif // PARENT_ALGORITHM_H

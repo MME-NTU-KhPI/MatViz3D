@@ -1,0 +1,41 @@
+
+#include "console.h"
+
+Console::Console()
+{
+
+}
+
+void Console::processOptions(const QCommandLineParser &parser, MainWindow &window)
+{
+    if (parser.isSet("size"))
+    {
+        QString str = parser.value("size");
+        Parameters::size = str.toInt();
+        window.setNumCubes(Parameters::size);
+    }
+    if (parser.isSet("points"))
+    {
+        QString str = parser.value("points");
+        Parameters::points = str.toInt();
+        window.setNumColors(Parameters::points);
+    }
+    if (parser.isSet("algorithm"))
+    {
+        Parameters::algorithm = parser.value("algorithm");
+        window.setAlgorithms(Parameters::algorithm);
+    }
+    if (parser.isSet("output"))
+    {
+        Parameters::filename = parser.value("output");
+        window.callExportToCSV();
+    }
+    if (!parser.isSet("nogui"))
+    {
+        window.show();
+    }
+    if (parser.isSet("autostart"))
+    {
+        window.onStartClicked();
+    }
+}

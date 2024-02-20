@@ -28,11 +28,9 @@ public:
     void setNumColors(int arg);
     void setAlgorithms(QString arg);
     void callExportToCSV();
-    short int numCubes = 1;
     int isAnimation;
     int isClosedCube;
     int delayAnimation;
-    int numColors;
     ~MainWindow();
 
 public slots:
