@@ -24,11 +24,14 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
     {
         Parameters::algorithm = parser.value("algorithm");
         window.setAlgorithms(Parameters::algorithm);
-    }
-    if (parser.isSet("output"))
-    {
-        Parameters::filename = parser.value("output");
-        window.callExportToCSV();
+        if (Parameters::algorithm == "prob_circle")
+        {
+            window.setAlgorithms("Probability Circle");
+        }
+        if (Parameters::algorithm == "prob_ellipse")
+        {
+            window.setAlgorithms("Probability Ellipse");
+        }
     }
     if (!parser.isSet("nogui"))
     {
@@ -37,5 +40,10 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
     if (parser.isSet("autostart"))
     {
         window.onStartClicked();
+    }
+    if (parser.isSet("output"))
+    {
+        Parameters::filename = parser.value("output");
+        window.callExportToCSV();
     }
 }
