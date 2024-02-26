@@ -637,61 +637,39 @@ void MyGLWidget::calculateSurfaceArea()
 }
 
 
-void MyGLWidget::exportVRML(const QString& filename, const std::vector<std::array<GLubyte, 4>>& colors) {
-    QFile file(filename);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        qDebug() << "Cannot open file!";
-        return;
-    }
+//void MyGLWidget::exportVRML(const QString& filename, const std::vector<std::array<GLubyte, 4>>& colors) {
+//    QFile file(filename);
+//    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+//        qDebug() << "Cannot open file!";
+//        return;
+//    }
 
-    QTextStream out(&file);
-    out << "#VRML V2.0 utf8\n\n";
+//    QTextStream out(&file);
+//    out << "#VRML V2.0 utf8\n\n";
 
-    for (int k = 0; k < numCubes; k++) {
-        for (int i = 0; i < numCubes; i++) {
-            for (int j = 0; j < numCubes; j++) {
-                out << "Transform {\n";
-                out << "  translation " << k << " " << i << " " << j << "\n";
-                out << "  children Shape {\n";
-                out << "    appearance Appearance {\n";
-                out << "      material Material {\n";
-                out << "        diffuseColor " << (colors[voxels[k][i][j] - 1][0] / 255.0) << " "
-                    << (colors[voxels[k][i][j] - 1][1] / 255.0) << " "
-                    << (colors[voxels[k][i][j] - 1][2] / 255.0) << "\n";
-                out << "      }\n";
-                out << "    }\n";
-                out << "    geometry Box {\n";
-                out << "      size " << cubeSize << " " << cubeSize << " " << cubeSize << "\n";
-                out << "    }\n";
-                out << "  }\n";
-                out << "}\n";
-            }
-        }
-    }
-    file.close();
-}
-
-void MyGLWidget::exportCSV(const QString& filename, short int numCubes, int16_t ***voxels)
-{
-    QFile file(filename);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        qDebug() << "Cannot open file!";
-        return;
-    }
-    QTextStream out(&file);
-    out << "X;Y;Z;Colors\n";
-    for(int k = 0; k < numCubes; k++)
-    {
-        for (int i = 0; i < numCubes; i++)
-        {
-            for(int j = 0; j < numCubes; j++)
-            {
-                out << k << ";" << i << ";" << j << ";" << voxels[k][i][j] << "\n";
-            }
-        }
-    }
-    file.close();
-}
+//    for (int k = 0; k < numCubes; k++) {
+//        for (int i = 0; i < numCubes; i++) {
+//            for (int j = 0; j < numCubes; j++) {
+//                out << "Transform {\n";
+//                out << "  translation " << k << " " << i << " " << j << "\n";
+//                out << "  children Shape {\n";
+//                out << "    appearance Appearance {\n";
+//                out << "      material Material {\n";
+//                out << "        diffuseColor " << (colors[voxels[k][i][j] - 1][0] / 255.0) << " "
+//                    << (colors[voxels[k][i][j] - 1][1] / 255.0) << " "
+//                    << (colors[voxels[k][i][j] - 1][2] / 255.0) << "\n";
+//                out << "      }\n";
+//                out << "    }\n";
+//                out << "    geometry Box {\n";
+//                out << "      size 1.0 1.0 1.0\n";
+//                out << "    }\n";
+//                out << "  }\n";
+//                out << "}\n";
+//            }
+//        }
+//    }
+//    file.close();
+//}
 
 int16_t*** MyGLWidget::getVoxels()
 {

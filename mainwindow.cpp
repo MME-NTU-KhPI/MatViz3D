@@ -714,14 +714,9 @@ void MainWindow::exportToWRL(){
     }
     else
     {
-        //MyGLWidget voxelCube;
-        QString fileName = QFileDialog::getSaveFileName(this, tr("Save VRML File"), QDir::homePath(), tr("VRML Files (*.wrl);;All Files (*)"));
-        if (!fileName.isEmpty()) {
-            //pixmap.save(fileName);
-            MyGLWidget *voxelCube = ui->myGLWidget;
-            std::vector<std::array<GLubyte, 4>> colors = voxelCube->generateDistinctColors();
-            voxelCube->exportVRML(fileName, colors);
-        };
+        MyGLWidget *voxelCube = ui->myGLWidget;
+        std::vector<std::array<GLubyte, 4>> colors = voxelCube->generateDistinctColors();
+        Export::ExportToVRML(colors,Parameters::size,Parameters::voxels);
     }
 }
 

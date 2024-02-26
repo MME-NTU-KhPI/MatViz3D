@@ -8,7 +8,7 @@ class Export
 {
 public:
     static void ExportToCSV(short int numCubes, int16_t ***voxels);
-    static void ExportToVRML(const QString& filename, short int numCubes, int16_t ***voxels);
+    static void ExportToVRML(const std::vector<std::array<GLubyte, 4>>& colors, short int numCubes, int16_t ***voxels);
 };
 
 #endif // EXPORT_H
