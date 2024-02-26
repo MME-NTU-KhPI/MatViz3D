@@ -1469,8 +1469,8 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>1262</width>
-            <height>222</height>
+            <width>1258</width>
+            <height>218</height>
            </rect>
           </property>
           <layout class="QGridLayout" name="gridLayout_5">
@@ -1483,6 +1483,9 @@ font-size: 16px;
 font-style: normal;
 font-weight: 700;
 line-height: normal;</string>
+             </property>
+             <property name="readOnly">
+              <bool>true</bool>
              </property>
             </widget>
            </item>
@@ -1519,6 +1522,22 @@ line-height: normal;</string>
    <container>1</container>
   </customwidget>
  </customwidgets>
+ <tabstops>
+  <tabstop>Rectangle8</tabstop>
+  <tabstop>Rectangle9</tabstop>
+  <tabstop>AlgorithmsBox</tabstop>
+  <tabstop>Rectangle10</tabstop>
+  <tabstop>SliderAnimationSpeed</tabstop>
+  <tabstop>checkBoxAnimation</tabstop>
+  <tabstop>Start</tabstop>
+  <tabstop>FileButton</tabstop>
+  <tabstop>WindowButton</tabstop>
+  <tabstop>statistics</tabstop>
+  <tabstop>AboutButton</tabstop>
+  <tabstop>IconMenu</tabstop>
+  <tabstop>scrollArea</tabstop>
+  <tabstop>textEdit</tabstop>
+ </tabstops>
  <resources>
   <include location="resourses.qrc"/>
  </resources>
