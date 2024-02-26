@@ -36,7 +36,6 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
     if (!parser.isSet("nogui"))
     {
         window.show();
-        qDebug() << "Run app with no GUI ";
     }
     if (parser.isSet("autostart"))
     {
