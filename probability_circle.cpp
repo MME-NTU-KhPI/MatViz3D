@@ -45,13 +45,27 @@ std::vector<Parent_Algorithm::Coordinate> Probability_Circle::Generate_Filling(i
                         int16_t newY = p+y;
                         int16_t newZ = l+z;
                         bool isValidXYZ = (newX >= 0 && newX < numCubes) && (newY >= 0 && newY < numCubes) && (newZ >= 0 && newZ < numCubes) && voxels[newX][newY][newZ] == 0;
-                        bool Chance97 = (rand() % 100) < 97;
-                        bool Chance53 = (rand() % 100) < 53;
+                        bool Chance94 = (rand() % 100) < 94;
+                        bool Chance50 = (rand() % 100) < 50;
+                        bool Chance17 = (rand() % 100) < 17;
                         if (isValidXYZ)
                         {
-                            if(p == 0 || l == 0)
+                            if (p != 0 && l != 0 && k != 0)
                             {
-                                if (Chance97)
+                                if(Chance17)
+                                {
+                                    voxels[newX][newY][newZ] = voxels[x][y][z];
+                                    newGrains.push_back({newX,newY,newZ});
+                                    counter++;
+                                }
+                                else
+                                {
+                                    newGrains.push_back({x,y,z});
+                                }
+                            }
+                            if(p == 0 || l == 0 || k == 0)
+                            {
+                                if (Chance50)
                                 {
                                     voxels[newX][newY][newZ] = voxels[x][y][z];
                                     newGrains.push_back({newX,newY,newZ});
@@ -64,7 +78,7 @@ std::vector<Parent_Algorithm::Coordinate> Probability_Circle::Generate_Filling(i
                             }
                             else
                             {
-                                if(Chance53)
+                                if(Chance94)
                                 {
                                     voxels[newX][newY][newZ] = voxels[x][y][z];
                                     newGrains.push_back({newX,newY,newZ});

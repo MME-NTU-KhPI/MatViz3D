@@ -28,7 +28,7 @@ public:
     void setNumColors(int arg);
     void setAlgorithms(QString arg);
     void callExportToCSV();
-    int isAnimation;
+    int isAnimation = 0;
     int isClosedCube;
     int delayAnimation;
     ~MainWindow();
