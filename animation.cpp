@@ -1,5 +1,6 @@
 
 #include "animation.h"
+#include <QApplication>
 
 Animation::Animation()
 {
@@ -22,6 +23,7 @@ void Animation::animate()
     while (!grains.empty())
     {
         grains = begin->Generate_Filling(voxels,numCubes,n,grains);
+        QApplication::processEvents();
         emit updateRequested(voxels,numCubes);
     }
 }

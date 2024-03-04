@@ -20,6 +20,7 @@ include(3rdparty/qtgifimage/src/gifimage/qtgifimage.pri)
 SOURCES += \
     about.cpp \
     animation.cpp \
+    dlca.cpp \
     main.cpp \
     mainwindow.cpp \
     messagehandler.cpp \
@@ -35,6 +36,7 @@ SOURCES += \
 HEADERS += \
     about.h \
     animation.h \
+    dlca.h \
     mainwindow.h \
     messagehandler.h \
     moore.h \
