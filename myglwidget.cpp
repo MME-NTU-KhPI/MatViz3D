@@ -533,7 +533,7 @@ void MyGLWidget::mouseMoveEvent(QMouseEvent *event)
 void MyGLWidget::updateGLWidget(int16_t*** voxels, short int numCubes)
 {
     setVoxels(voxels, numCubes);
-    QThread::sleep(delayAnimation);
+    QThread::msleep(delayAnimation);
     repaint();
     //timer->singleShot(1000,this,SLOT(update_function()));
 }

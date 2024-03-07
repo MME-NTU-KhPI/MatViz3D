@@ -22,6 +22,7 @@ SOURCES += \
     animation.cpp \
     console.cpp \
     export.cpp \
+    dlca.cpp \
     main.cpp \
     mainwindow.cpp \
     messagehandler.cpp \
@@ -40,6 +41,7 @@ HEADERS += \
     animation.h \
     console.h \
     export.h \
+    dlca.h \
     mainwindow.h \
     messagehandler.h \
     moore.h \
