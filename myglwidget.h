@@ -16,7 +16,6 @@ public:
     int16_t*** getVoxels();
     void repaint_function();
     QVector<int> countVoxelColors(); // Функція для підрахунку кількості вокселей кожного кольору
-    //void exportVRML(const QString& filename, const std::vector<std::array<GLubyte, 4>>& colors);
     std::vector<std::array<GLubyte, 4>> generateDistinctColors();
     void calculateSurfaceArea();
     ~MyGLWidget();
@@ -47,8 +46,6 @@ public slots:
     void setDistanceFactor(int factor);
     void setDelayAnimation(int delayAnimation);
     void update_function();
-    //void explodeCubes(int value);
-    //void setColorDistanceFactor(float factor);
     void updateGLWidget(int16_t*** voxels, short int numCubes);
 signals:
     // signaling rotation from mouse movement
@@ -68,7 +65,6 @@ protected:
     QPoint lastPos;
     QMatrix4x4 m_projection;
     float distanceFactor = 0;
-    //float colordistanceFactor;
 
     int16_t*** voxels;
     short int numCubes;

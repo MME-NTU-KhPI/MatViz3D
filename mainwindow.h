@@ -29,6 +29,7 @@ public:
     void setAlgorithms(QString arg);
     void callExportToCSV();
     int isAnimation = 0;
+    int isWaveGeneration = 1;
     int isClosedCube;
     int delayAnimation;
     ~MainWindow();
@@ -37,7 +38,6 @@ public slots:
     void onStartClicked();
 
 private slots:
-//    void checkInputFields();
     void checkStart();
     void onLogMessageWritten(const QString &message);
     void setupFileMenu();
@@ -49,14 +49,6 @@ private slots:
     void onDataCheckBoxChanged(int state);
     void onAllCheckBoxChanged(int state);
     void exportToCSV();
-
-//    void on_Algorithm1_clicked(bool checked);
-
-//    void on_Algorithm2_clicked(bool checked);
-
-//    void on_Algorithm3_clicked(bool checked);
-
-//    void on_Algorithm4_clicked(bool checked);
 
     void on_Start_clicked();
 
@@ -73,7 +65,6 @@ protected:
 
 private:
     Ui::MainWindow *ui;
-//    QPushButton *buttons[4];
     Statistics form;
     About *about;
     MessageHandler *messageHandlerInstance;

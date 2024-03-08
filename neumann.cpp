@@ -13,8 +13,14 @@ Neumann::Neumann()
 
 }
 
+Neumann::Neumann(short int numCubes, int numColors)
+{
+    this->numCubes = numCubes;
+    this->numColors = numColors;
+}
 
-std::vector<Parent_Algorithm::Coordinate> Neumann::Generate_Filling(int16_t*** voxels, short int numCubes, int n, std::vector<Coordinate> grains)
+
+void Neumann::Generate_Filling(int isAnimation, int isWaveGeneration)
 {
     unsigned int counter_max = pow(numCubes,3);
     while (!grains.empty())
@@ -58,13 +64,23 @@ std::vector<Parent_Algorithm::Coordinate> Neumann::Generate_Filling(int16_t*** v
         }
         grains.clear();
         grains.insert(grains.end(), newGrains.begin(), newGrains.end());
+        newGrains.clear();
         IterationNumber++;
         double o = (double)counter/counter_max;
         qDebug().nospace() << o << "\t" << IterationNumber << "\t" << grains.size();
-        if (n == 1)
+        if (isAnimation == 1)
         {
+            if (isWaveGeneration == 1)
+            {
+                if (remainingPoints > 0)
+                {
+                    pointsForThisStep = max(1, static_cast<int>(0.1 * remainingPoints));
+                    newGrains = Add_New_Points(newGrains,pointsForThisStep);
+                    grains.insert(grains.end(), newGrains.begin(), newGrains.end());
+                    remainingPoints -= pointsForThisStep;
+                }
+            }
             break;
         }
     }
-    return grains;
 }

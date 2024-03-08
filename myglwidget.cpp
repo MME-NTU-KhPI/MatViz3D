@@ -535,21 +535,12 @@ void MyGLWidget::updateGLWidget(int16_t*** voxels, short int numCubes)
     setVoxels(voxels, numCubes);
     QThread::msleep(delayAnimation);
     repaint();
-    //timer->singleShot(1000,this,SLOT(update_function()));
 }
 
 
 // Функція для підрахунку кількості вокселей кожного кольору
 QVector<int> MyGLWidget::countVoxelColors()
 {
-//    // Викликати QFileDialog для вибору шляху до збереження файлу
-//    QString filePath = QFileDialog::getSaveFileName(this, tr("Зберегти файл"), "", tr("CSV Файли (*.csv);;Всі файли (*.*)"));
-
-//    if (filePath.isEmpty()) {
-//        // Користувач скасував вибір файлу
-//        return QVector<int>();
-//    }
-
     QVector<int> colorCounts(numColors, 0);
 
     for (int k = 0; k < numCubes; k++) {
@@ -562,25 +553,6 @@ QVector<int> MyGLWidget::countVoxelColors()
             }
         }
     }
-
-//    // Записати дані у CSV файл
-//    QFile file(filePath);
-//    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-//        QTextStream out(&file);
-
-//        // Записати заголовок CSV файлу
-//        out << "Колір, Кількість\n";
-
-//        // Записати дані у CSV файл
-//        for (int i = 0; i < colorCounts.size(); i++) {
-//            out << QString::number(i + 1) << ", " << colorCounts[i] << "\n";
-//        }
-
-//        file.close();
-//    } else {
-//        // Обробити помилку відкриття файлу
-//    }
-
     return colorCounts;
 }
 

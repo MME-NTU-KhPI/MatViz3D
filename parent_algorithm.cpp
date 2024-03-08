@@ -4,8 +4,6 @@
 #include <list>
 #include <cmath>
 #include <myglwidget.h>
-#include "mainwindow.h"
-#include "ui_mainwindow.h"
 #include "parent_algorithm.h"
 #include <cstdint>
 #include <new>
@@ -15,10 +13,10 @@ Parent_Algorithm::Parent_Algorithm()
 
 }
 
-int16_t*** Parent_Algorithm::Generate_Initial_Cube(short int numCubes) {
+int16_t*** Parent_Algorithm::Generate_Initial_Cube() {
 
     //Создаём динамический массив. Вместо (30) подставить numCubes
-    int16_t*** voxels = new int16_t** [numCubes];
+    voxels = new int16_t** [numCubes];
     assert(voxels);
     for (int i = 0; i < numCubes; i++) {
         voxels[i] = new int16_t* [numCubes];
@@ -39,21 +37,43 @@ int16_t*** Parent_Algorithm::Generate_Initial_Cube(short int numCubes) {
             }
         }
     }
-    //    Generate_Filling(voxels, numCubes, myglwidget);
     return voxels;
 }
 
-std::vector<Parent_Algorithm::Coordinate> Parent_Algorithm::Generate_Random_Starting_Points(int16_t*** voxels,short int numCubes, int numColors)
+void Parent_Algorithm::Generate_Random_Starting_Points(int isWaveGeneration)
+{
+    std::random_device rd;
+    std::mt19937 generator(rd());
+    std::uniform_int_distribution<int> distribution(0, numCubes - 1);
+    int currentPoints;
+    if (isWaveGeneration == 1)
+    {
+        currentPoints = static_cast<int>(0.1 * numColors);
+    }
+    else
+    {
+        currentPoints = numColors;
+    }
+    Coordinate a;
+    for (int i = 0; i < currentPoints; i++)
+    {
+        a.x = distribution(generator);
+        a.y = distribution(generator);
+        a.z = distribution(generator);
+        voxels[a.x][a.y][a.z] = ++color;
+        grains.push_back(a);
+        counter++;
+    }
+}
+
+std::vector<Parent_Algorithm::Coordinate> Parent_Algorithm::Add_New_Points(std::vector<Coordinate> grains, int numPoints)
 {
     std::random_device rd;
     std::mt19937 generator(rd());
     std::uniform_int_distribution<int> distribution(0, numCubes - 1);
 
     Coordinate a;
-    counter = 0;
-    short int color = 0;
-    std::vector<Coordinate> grains;
-    for (int i = 0; i < numColors; i++)
+    for (int i = 0; i < numPoints; i++)
     {
         a.x = distribution(generator);
         a.y = distribution(generator);

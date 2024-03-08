@@ -6,7 +6,13 @@ Radial::Radial()
 
 }
 
-std::vector<Parent_Algorithm::Coordinate> Radial::Generate_Filling(int16_t*** voxels, short int numCubes,int n, std::vector<Parent_Algorithm::Coordinate> grains)
+Radial::Radial(short int numCubes, int numColors)
+{
+    this->numCubes = numCubes;
+    this->numColors = numColors;
+}
+
+void Radial::Generate_Filling(int isAnimation, int isWaveGeneration)
 {
     unsigned int counter_max = pow(numCubes,3);
     while (!grains.empty())
@@ -50,10 +56,9 @@ std::vector<Parent_Algorithm::Coordinate> Radial::Generate_Filling(int16_t*** vo
         double o = (double)counter/counter_max;
         qDebug().nospace() << o << "\t" << IterationNumber << "\t" << grains.size();
         // Перевірка, чи потрібна анімація
-        if (n == 1)
+        if (isAnimation == 1)
         {
             break;
         }
     }
-    return grains;
 }

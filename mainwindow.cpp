@@ -41,9 +41,6 @@ MainWindow::MainWindow(QWidget *parent)
     connect(this, &MainWindow::on_Start_clicked, this, &MainWindow::on_Start_clicked);
 
 
-    //    connect(ui->Rectangle8, &QLineEdit::textChanged, this, &MainWindow::checkInputFields);
-    //    connect(ui->Rectangle9, &QLineEdit::textChanged, this, &MainWindow::checkInputFields);
-
     connect(ui->Rectangle8, &QLineEdit::editingFinished, this, [=]() {
         bool ok;
         Parameters::size = ui->Rectangle8->text().toInt(&ok);
@@ -66,15 +63,8 @@ MainWindow::MainWindow(QWidget *parent)
     ui->Rectangle10->setTickInterval(5);
     connect(ui->Rectangle10, &QSlider::valueChanged, ui->myGLWidget, &MyGLWidget::setDistanceFactor);
 
-    //    checkInputFields();
-    //    buttons[0] = ui->Algorithm1;
-    //    buttons[1] = ui->Algorithm2;
-    //    buttons[2] = ui->Algorithm3;
-    //    buttons[3] = ui->Algorithm4;
-
     messageHandlerInstance = new MessageHandler(ui->textEdit);
     connect(messageHandlerInstance, &MessageHandler::messageWrittenSignal, this, &MainWindow::onLogMessageWritten);
-    //connect(saveAsImageAction, &QAction::triggered, this, &MainWindow::saveAsImage);
 
     startButtonPressed = false;
 }
@@ -89,40 +79,10 @@ void MainWindow::onLogMessageWritten(const QString &message)
     ui->textEdit->append(message); // Вивід повідомлень в textEdit
 }
 
-//void MainWindow::checkInputFields()
-//{
-//    if (ui->Rectangle8->text().isEmpty() || ui->Rectangle9->text().isEmpty()) {
-//        ui->Algorithm1->setEnabled(false);
-//        ui->Algorithm1->setStyleSheet("background: #282828; border: 1px solid #000000; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #171616;");
-
-//        ui->Algorithm2->setEnabled(false);
-//        ui->Algorithm2->setStyleSheet("background: #282828; border: 1px solid #000000; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #171616;");
-
-//        ui->Algorithm3->setEnabled(false);
-//        ui->Algorithm3->setStyleSheet("background: #282828; border: 1px solid #000000; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #171616;");
-
-//        ui->Algorithm4->setEnabled(false);
-//        ui->Algorithm4->setStyleSheet("background: #282828; border: 1px solid #000000; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #171616;");
-//    } else {
-//        ui->Algorithm1->setEnabled(true);
-//        ui->Algorithm1->setStyleSheet("background: #282828; border: 1px solid #545252; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #545252;");
-
-//        ui->Algorithm2->setEnabled(true);
-//        ui->Algorithm2->setStyleSheet("background: #282828; border: 1px solid #545252; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #545252;");
-
-//        ui->Algorithm3->setEnabled(true);
-//        ui->Algorithm3->setStyleSheet("background: #282828; border: 1px solid #545252; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #545252;");
-
-//        ui->Algorithm4->setEnabled(true);
-//        ui->Algorithm4->setStyleSheet("background: #282828; border: 1px solid #545252; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #545252;");
-//    }
-//}
-
 // Функція перевірки для старт
 void MainWindow::checkStart()
 {
     bool checked = ui->AlgorithmsBox->currentIndex() != -1; // Перевірте, чи обраний елемент
-    //bool checked = algorithm1 || algorithm2 || algorithm3 || algorithm4;
 
     if (checked) {
         ui->Start->setEnabled(true);
@@ -132,102 +92,6 @@ void MainWindow::checkStart()
         ui->Start->setStyleSheet("background: #282828; border-radius: 8px; width: 280px; height: 93px; color: rgba(150, 150, 150, 0.5); font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 48px; line-height: 58px;");
     }
 }
-
-//void MainWindow::on_Algorithm1_clicked(bool checked)
-//{
-//    if(checked)
-//    {
-//        ui->Algorithm1->setStyleSheet("font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; background: #282828; color: #969696; border: 1px solid #969696; border-radius: 15px;");
-
-//        // перебор всех кнопок и установка состояния "unchecked" для всех, кроме текущей
-//        for(int i = 0; i < 4; i++)
-//        {
-//            if(buttons[i] != ui->Algorithm1)
-//            {
-//                buttons[i]->setChecked(false);
-//                buttons[i]->setStyleSheet("background: #282828; border: 1px solid #545252; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #545252;");
-//            }
-//        }
-//    }
-//    else
-//    {
-//        ui->Algorithm1->setStyleSheet("background: #282828; border: 1px solid #545252; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #545252;");
-//    }
-//    checkStart(ui->Algorithm1->isChecked(), ui->Algorithm2->isChecked(), ui->Algorithm3->isChecked(), ui->Algorithm4->isChecked());
-//}
-
-
-//void MainWindow::on_Algorithm2_clicked(bool checked)
-//{
-//    if(checked)
-//    {
-//        ui->Algorithm2->setStyleSheet("font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; background: #282828; color: #969696; border: 1px solid #969696; border-radius: 15px;");
-
-//        // перебор всех кнопок и установка состояния "unchecked" для всех, кроме текущей
-//        for(int i = 0; i < 4; i++)
-//        {
-//            if(buttons[i] != ui->Algorithm2)
-//            {
-//                buttons[i]->setChecked(false);
-//                buttons[i]->setStyleSheet("background: #282828; border: 1px solid #545252; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #545252;");
-//            }
-//        }
-//    }
-//    else
-//    {
-//        ui->Algorithm2->setStyleSheet("background: #282828; border: 1px solid #545252; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #545252;");
-//    }
-//    checkStart(ui->Algorithm1->isChecked(), ui->Algorithm2->isChecked(), ui->Algorithm3->isChecked(), ui->Algorithm4->isChecked());
-//}
-
-
-
-//void MainWindow::on_Algorithm3_clicked(bool checked)
-//{
-//    if(checked)
-//    {
-//        ui->Algorithm3->setStyleSheet("font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; background: #282828; color: #969696; border: 1px solid #969696; border-radius: 15px;");
-
-//        // перебор всех кнопок и установка состояния "unchecked" для всех, кроме текущей
-//        for(int i = 0; i < 4; i++)
-//        {
-//            if(buttons[i] != ui->Algorithm3)
-//            {
-//                buttons[i]->setChecked(false);
-//                buttons[i]->setStyleSheet("background: #282828; border: 1px solid #545252; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #545252;");
-//            }
-//        }
-//    }
-//    else
-//    {
-//        ui->Algorithm3->setStyleSheet("background: #282828; border: 1px solid #545252; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #545252;");
-//    }
-//    checkStart(ui->Algorithm1->isChecked(), ui->Algorithm2->isChecked(), ui->Algorithm3->isChecked(), ui->Algorithm4->isChecked());
-//}
-
-
-//void MainWindow::on_Algorithm4_clicked(bool checked)
-//{
-//    if(checked)
-//    {
-//        ui->Algorithm4->setStyleSheet("font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; background: #282828; color: #969696; border: 1px solid #969696; border-radius: 15px;");
-
-//        // перебор всех кнопок и установка состояния "unchecked" для всех, кроме текущей
-//        for(int i = 0; i < 4; i++)
-//        {
-//            if(buttons[i] != ui->Algorithm4)
-//            {
-//                buttons[i]->setChecked(false);
-//                buttons[i]->setStyleSheet("background: #282828; border: 1px solid #545252; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #545252;");
-//            }
-//        }
-//    }
-//    else
-//    {
-//        ui->Algorithm4->setStyleSheet("background: #282828; border: 1px solid #545252; border-radius: 15px; font-family: 'Inter'; font-style: normal; font-weight: 700; font-size: 16px; line-height: 19px; color: #545252;");
-//    }
-//    checkStart(ui->Algorithm1->isChecked(), ui->Algorithm2->isChecked(), ui->Algorithm3->isChecked(), ui->Algorithm4->isChecked());
-//}
 
 
 void MainWindow::keyPressEvent(QKeyEvent *e)
@@ -243,262 +107,157 @@ void MainWindow::on_Start_clicked()
 {
     clock_t start_time = clock(); // Фіксація часу початку виконання
     QString selectedAlgorithm = ui->AlgorithmsBox->currentText();
-
-    //needs to update animation speed value
     this->on_SliderAnimationSpeed_valueChanged(ui->SliderAnimationSpeed->value());
-
+    if(std::isdigit(Parameters::size) == 0 && Parameters::size <= 0)
+    {
+        QMessageBox::warning(nullptr,"Warning!","Entered cube size is less than or equal to zero!");
+    }
+    else if(std::isdigit(Parameters::points) == 0 && Parameters::points <= 0)
+    {
+        QMessageBox::warning(nullptr, "Warning!", "Invalid initial points value entered!\nThis will result in incorrect program operation!");
+    }
+    ui->Start->setText("Loading...");
+    ui->Start->setStyleSheet("background: transparent; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
+    QApplication::processEvents();
     if (selectedAlgorithm == "Neumann")
     {
-
-        if(std::isdigit(Parameters::size) == 0 && Parameters::size <= 0)
+        Neumann start(Parameters::size, Parameters::points);
+        Parameters::voxels = start.Generate_Initial_Cube();
+        start.Generate_Random_Starting_Points(isWaveGeneration);
+        start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
+        if (isAnimation == 0)
         {
-            QMessageBox::information(nullptr, "Warning!", "Invalid cube size value entered! This may lead to incorrect program operation.");
-        }
-        else if(std::isdigit(Parameters::points) == 0 && Parameters::points <= 0)
-        {
-            QMessageBox::information(nullptr, "Warning!", "Invalid initial points value entered! This will result in incorrect program operation!");
+            start.Generate_Filling(isAnimation, isWaveGeneration);
+            ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
+            ui->myGLWidget->update();
         }
         else
         {
-            ui->Start->setText("Loading...");
-            ui->Start->setStyleSheet("background: transparent; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
-            QApplication::processEvents();
-
-            Neumann start;
-            Parameters::voxels = start.Generate_Initial_Cube(Parameters::size);
-            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(Parameters::voxels,Parameters::size,Parameters::points);
-            bool answer = true;
-            if (isAnimation == 0)
+            while (!start.grains.empty())
             {
-                start.Generate_Filling(Parameters::voxels,Parameters::size,isAnimation,grains);
-                ui->myGLWidget->setVoxels(Parameters::voxels,Parameters::size);
-                ui->myGLWidget->update();
+                start.Generate_Filling(isAnimation, isWaveGeneration);
+                QApplication::processEvents();
+                ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
             }
-            else
-            {
-                //                QThread* thread = new QThread;
-                //                Animation* go = new Animation(voxels,&start,ui->myGLWidget,isAnimation,numCubes,answer);
-                //                go->moveToThread(thread);
-                //                // Подключаем сигнал о завершении потока к удалению объекта
-                //                connect(thread, &QThread::finished, go, &Animation::deleteLater);
-                //                // Соединяем старт потока с методом animate
-                //                connect(thread, &QThread::started, go, &Animation::animate);
-                //                connect(go,&Animation::updateRequested,ui->myGLWidget,&MyGLWidget::updateGLWidget);
-                //                thread->start();
-                Animation* go = new Animation(Parameters::voxels,&start,ui->myGLWidget,isAnimation,Parameters::size,answer,grains);
-                connect(go,&Animation::updateRequested,ui->myGLWidget,&MyGLWidget::updateGLWidget);
-                go->animate();
-            }
-            ui->Start->setText("RELOAD");
-            ui->Start->setStyleSheet("background: #282828; border-radius: 8px; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
-            qDebug() << "NEUMANN";
-
         }
-
+        qDebug() << "NEUMANN";
     }
     else if (selectedAlgorithm == "Probability Circle")
     {
-        if(std::isdigit(Parameters::size) == 0 && Parameters::size <= 0)
-        {
-            QMessageBox::information(nullptr, "Warning!", "Invalid cube size value entered! This may result in incorrect program operation.");
-        }
-        else if(std::isdigit(Parameters::points) == 0 && Parameters::points <= 0)
-        {
-            QMessageBox::information(nullptr, "Warning!", "Invalid initial points value entered! This will result in incorrect program operation!");
-        }
-        else
-        {
-            ui->Start->setText("Loading...");
-            ui->Start->setStyleSheet("background: transparent; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
-            QApplication::processEvents();
-
-            Probability_Circle start;
-            Parameters::voxels = start.Generate_Initial_Cube(Parameters::size);
-            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(Parameters::voxels,Parameters::size,Parameters::points);
-            bool answer = true;
+            Probability_Circle start(Parameters::size, Parameters::points);
+            Parameters::voxels = start.Generate_Initial_Cube();
+            start.Generate_Random_Starting_Points(isWaveGeneration);
             if (isAnimation == 0)
             {
-                start.Generate_Filling(Parameters::voxels,Parameters::size,isAnimation,grains);
-                ui->myGLWidget->setVoxels(Parameters::voxels, Parameters::size);
+                start.Generate_Filling(isAnimation, isWaveGeneration);
+                ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
                 ui->myGLWidget->update();
             }
             else
             {
-                //QThread* thread = new QThread(this);
-                //connect(this,SIGNAL(destroyed()),thread,SLOT(quit()));
-                Animation* go = new Animation(Parameters::voxels,&start,ui->myGLWidget,isAnimation,Parameters::size,answer,grains);
-                //go->moveToThread(thread);
-                connect(go,&Animation::updateRequested,ui->myGLWidget,&MyGLWidget::updateGLWidget);
-                //thread->start();
-                go->animate();
+                while (!start.grains.empty())
+                {
+                    start.Generate_Filling(isAnimation, isWaveGeneration);
+                    QApplication::processEvents();
+                    ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
+                }
             }
-            ui->Start->setText("RELOAD");
-            ui->Start->setStyleSheet("background: #282828; border-radius: 8px; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
             qDebug() << "PROBABILITY CIRCLE";
-
-        }
     }
     else if (selectedAlgorithm == "Probability Ellipse")
     {
-        if(std::isdigit(Parameters::size) == 0 && Parameters::size <= 0)
-        {
-            QMessageBox::information(nullptr, "Warning!", "Invalid cube size value entered! This may result in incorrect program operation.");
-        }
-        else if(std::isdigit(Parameters::points) == 0 && Parameters::points <= 0)
-        {
-            QMessageBox::information(nullptr, "Warning!", "Invalid initial points value entered!\nThis will result in incorrect program operation!");
-        }
-        else
-        {
-            ui->Start->setText("Loading...");
-            ui->Start->setStyleSheet("background: transparent; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
-            QApplication::processEvents();
-
-            Probability_Ellipse start;
-            Parameters::voxels = start.Generate_Initial_Cube(Parameters::size);
-            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(Parameters::voxels,Parameters::size,Parameters::points);
-            bool answer = true;
+            Probability_Ellipse start(Parameters::size, Parameters::points);
+            Parameters::voxels = start.Generate_Initial_Cube();
+            start.Generate_Random_Starting_Points(isWaveGeneration);
             if (isAnimation == 0)
             {
-                start.Generate_Filling(Parameters::voxels,Parameters::size,isAnimation,grains);
-                ui->myGLWidget->setVoxels(Parameters::voxels, Parameters::size);
+                start.Generate_Filling(isAnimation, isWaveGeneration);
+                ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
                 ui->myGLWidget->update();
             }
             else
             {
-                Animation* go = new Animation(Parameters::voxels,&start,ui->myGLWidget,isAnimation,Parameters::size,answer,grains);
-                connect(go,&Animation::updateRequested,ui->myGLWidget,&MyGLWidget::updateGLWidget);
-                go->animate();
+                while (!start.grains.empty())
+                {
+                    start.Generate_Filling(isAnimation, isWaveGeneration);
+                    QApplication::processEvents();
+                    ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
+                }
             }
-
-            ui->Start->setText("RELOAD");
-            ui->Start->setStyleSheet("background: #282828; border-radius: 8px; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
             qDebug() << "PROBABILITY ELLIPSE";
-
-        }
     }
     else if (selectedAlgorithm == "Moore")
     {
-        if(std::isdigit(Parameters::size) == 0 && Parameters::size <= 0)
-        {
-            QMessageBox::information(nullptr, "Warning!", "Entered cube size is less than or equal to zero!");
-        }
-        else if(std::isdigit(Parameters::points) == 0 && Parameters::points <= 0)
-        {
-            QMessageBox::information(nullptr, "Warning!", "Invalid initial points value entered!\nThis will result in incorrect program operation!");
-        }
-        else
-        {
-            ui->Start->setText("Loading...");
-            ui->Start->setStyleSheet("background: transparent; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
-            QApplication::processEvents();
-
-            Moore start;
-            Parameters::voxels = start.Generate_Initial_Cube(Parameters::size);
-            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(Parameters::voxels,Parameters::size,Parameters::points);
-            bool answer = true;
+            Moore start(Parameters::size, Parameters::points);
+            Parameters::voxels = start.Generate_Initial_Cube();
+            start.Generate_Random_Starting_Points(isWaveGeneration);
             if (isAnimation == 0)
             {
-                start.Generate_Filling(Parameters::voxels,Parameters::size,isAnimation,grains);
-                ui->myGLWidget->setVoxels(Parameters::voxels, Parameters::size);
+                start.Generate_Filling(isAnimation, isWaveGeneration);
+                ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
                 ui->myGLWidget->update();
             }
             else
             {
-                Animation* go = new Animation(Parameters::voxels,&start,ui->myGLWidget,isAnimation,Parameters::size,answer,grains);
-                connect(go,&Animation::updateRequested,ui->myGLWidget,&MyGLWidget::updateGLWidget);
-                go->animate();
+                while (!start.grains.empty())
+                {
+                    start.Generate_Filling(isAnimation, isWaveGeneration);
+                    QApplication::processEvents();
+                    ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
+                }
             }
-
-            ui->Start->setText("RELOAD");
-            ui->Start->setStyleSheet("background: #282828; border-radius: 8px; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
             qDebug() << "MOORE";
-        }
     }
     else if(selectedAlgorithm == "Radial")
     {
-        if(std::isdigit(Parameters::size) == 0 && Parameters::size <= 0)
-        {
-            QMessageBox::information(nullptr, "Warning!", "Entered cube size is less than or equal to zero!");
-        }
-        else if(std::isdigit(Parameters::points) == 0 && Parameters::points <= 0)
-        {
-            QMessageBox::information(nullptr, "Warning!", "Invalid initial points value entered!\nThis will result in incorrect program operation!");
-        }
-        else
-        {
-            ui->Start->setText("Loading...");
-            ui->Start->setStyleSheet("background: transparent; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
-            QApplication::processEvents();
-
-            Radial start;
-            Parameters::voxels = start.Generate_Initial_Cube(Parameters::size);
-            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(Parameters::voxels,Parameters::size,Parameters::points);
-            bool answer = true;
+            Radial start(Parameters::size, Parameters::points);
+            Parameters::voxels = start.Generate_Initial_Cube();
+            start.Generate_Random_Starting_Points(isWaveGeneration);
             if (isAnimation == 0)
             {
-                start.Generate_Filling(Parameters::voxels,Parameters::size,isAnimation,grains);
-                ui->myGLWidget->setVoxels(Parameters::voxels, Parameters::size);
+                start.Generate_Filling(isAnimation, isWaveGeneration);
+                ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
                 ui->myGLWidget->update();
             }
             else
             {
-                Animation* go = new Animation(Parameters::voxels,&start,ui->myGLWidget,isAnimation,Parameters::size,answer,grains);
-                connect(go,&Animation::updateRequested,ui->myGLWidget,&MyGLWidget::updateGLWidget);
-                go->animate();
+                while (!start.grains.empty())
+                {
+                    start.Generate_Filling(isAnimation, isWaveGeneration);
+                    QApplication::processEvents();
+                    ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
+                }
             }
-
-            ui->Start->setText("RELOAD");
-            ui->Start->setStyleSheet("background: #282828; border-radius: 8px; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
             qDebug() << "RADIAL";
-        }
     }
     if(selectedAlgorithm == "DLCA")
     {
-        if(std::isdigit(numCubes) == 0 && numCubes <= 0)
-        {
-            QMessageBox::information(nullptr, "Warning!", "Entered cube size is less than or equal to zero!");
-        }
-        else if(std::isdigit(numColors) == 0 && numColors <= 0)
-        {
-            QMessageBox::information(nullptr, "Warning!", "Invalid initial points value entered!\nThis will result in incorrect program operation!");
-        }
-        else
-        {
-            ui->Start->setText("Loading...");
-            ui->Start->setStyleSheet("background: transparent; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
-            QApplication::processEvents();
-
-            DLCA start(numCubes);
-            int16_t*** voxels = start.Generate_Initial_Cube(numCubes);
-            std::vector<Parent_Algorithm::Coordinate> grains = start.Generate_Random_Starting_Points(voxels,numCubes,numColors);
-            bool answer = true;
+            DLCA start(Parameters::size, Parameters::points);
+            Parameters::voxels = start.Generate_Initial_Cube();
+            start.Generate_Random_Starting_Points();
             if (isAnimation == 0)
             {
-                start.Generate_Filling(voxels,numCubes,isAnimation,grains);
-                ui->myGLWidget->setVoxels(voxels, numCubes);
+                start.Generate_Filling(isAnimation, isWaveGeneration);
+                ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
                 ui->myGLWidget->update();
             }
             else
             {
-                Animation* go = new Animation(voxels,&start,ui->myGLWidget,isAnimation,numCubes,answer,grains);
-                connect(go,&Animation::updateRequested,ui->myGLWidget,&MyGLWidget::updateGLWidget);
-                go->animate();
+                while (!start.grains.empty())
+                {
+                    start.Generate_Filling(isAnimation, isWaveGeneration);
+                    QApplication::processEvents();
+                    ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
+                }
             }
-
-            ui->Start->setText("RELOAD");
-            ui->Start->setStyleSheet("background: #282828; border-radius: 8px; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
             qDebug() << "DLCA";
-        }
     }
-
+    ui->Start->setText("RELOAD");
+    ui->Start->setStyleSheet("background: #282828; border-radius: 8px; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
     clock_t end_time = clock(); // Фіксація часу завершення виконання
     double elapsed_time = double(end_time - start_time) / CLOCKS_PER_SEC; // Обчислення часу виконання в секундах
-
     qDebug() << "Total execution time: " << elapsed_time << " seconds";
-
     ui->myGLWidget->calculateSurfaceArea();
-
     startButtonPressed = true;
 }
 
@@ -546,58 +305,14 @@ void MainWindow::setupFileMenu() {
     // Створіть QMenu та QAction для FileMenu
     QMenu *fileMenu = new QMenu(this);
 
-    // Додайте Action для кнопки Project та його підменю
-    //    QAction *projectAction = new QAction("Project", this);
-    //    QMenu *projectMenu = new QMenu(this);
-    //    QAction *newAction = new QAction("New", this);
-    //    QAction *openProjectAction = new QAction("Open", this);
-
-    // Додайте дії до підменю Project
-    //    projectMenu->addAction(newAction);
-    //    projectMenu->addAction(openProjectAction);
-
-    // Додайте підменю до Action "Project"
-    //    projectAction->setMenu(projectMenu);
-    //    fileMenu->addAction(projectAction);
-
     // Додайте інші дії до FileMenu
     QAction *saveAsImageAction = new QAction("Save as image", this);
-    //    QAction *saveAllDataAction = new QAction("Save all data", this);
-    //    QAction *importAction = new QAction("Import", this);
     QAction *exportWRLAction = new QAction("Export to wrl", this);
     QAction *exportCSVAction = new QAction("Export to csv", this);
 
     fileMenu->addAction(saveAsImageAction);
-    //    fileMenu->addAction(saveAllDataAction);
-    //    fileMenu->addAction(importAction);
     fileMenu->addAction(exportWRLAction);
     fileMenu->addAction(exportCSVAction);
-
-    // Кастомізація Project Menu за допомогою CSS
-    //    projectMenu->setStyleSheet("QMenu {"
-    //                               "    width: 140px;"
-    //                               "    height: 45px;"
-    //                               "    background-color: #414141;" // фон меню
-    //                               "    color: rgba(217, 217, 217, 0.70);" // колір тексту
-    //                               "    spacing: 30px;"              // відступи між пунктами меню
-    //                               "    border-radius: 15px;"
-    //                               "}"
-    //                               "QMenu::item {"
-    //                               "    background-color: transparent;"
-    //                               "    border-radius: 15px;"
-    //                               "    color: #969696;"
-    //                               "    font-family: Inter;"
-    //                               "    font-size: 13px;"
-    //                               "}"
-    //                               "QMenu::item:selected {"
-    //                               "    background-color: rgba(40, 40, 40, 0.24);"  // фон для вибраного елемента
-    //                               "}"
-    //                               "QMenu::down-arrow {"
-    //                               "    width: 0; height: 0;"  // Зробити стрілку невидимою
-    //                               "}"
-    //                               "QMenu::indicator {"
-    //                               "    width: 0; height: 0;"  // Зробити стрілку невидимою
-    //                               "}");
 
 
     // Кастомізація FileMenu за допомогою CSS
@@ -635,11 +350,7 @@ void MainWindow::setupFileMenu() {
     // Кастомізація QAction
     QFont actionFont;
     actionFont.setPointSize(14);  // розмір тексту
-    //    newAction->setFont(actionFont);
-    //    openProjectAction->setFont(actionFont);
     saveAsImageAction->setFont(actionFont);
-    //    saveAllDataAction->setFont(actionFont);
-    //    importAction->setFont(actionFont);
     exportWRLAction->setFont(actionFont);
     exportCSVAction->setFont(actionFont);
 
@@ -657,29 +368,24 @@ void MainWindow::setupWindowMenu() {
 
     // Створіть чекбокси для WindowMenu
     QCheckBox *allCheckBox = new QCheckBox("All", this);
-    //QCheckBox *statisticsCheckBox = new QCheckBox("Statistics", this);
-    //QCheckBox *animationCheckBox = new QCheckBox("Animation", this);
     animationCheckBox = new QCheckBox("Animation", this);
     dataCheckBox = new QCheckBox("Data", this);
     consoleCheckBox = new QCheckBox("Console", this);
 
     // Створіть QWidgetAction для кожного чекбоксу
     QWidgetAction *allCheckBoxAction = new QWidgetAction(this);
-    //QWidgetAction *statisticsCheckBoxAction = new QWidgetAction(this);
     QWidgetAction *animationCheckBoxAction = new QWidgetAction(this);
     QWidgetAction *consoleCheckBoxAction = new QWidgetAction(this);
     QWidgetAction *dataCheckBoxAction = new QWidgetAction(this);
 
     // Встановіть віджети для QWidgetAction
     allCheckBoxAction->setDefaultWidget(allCheckBox);
-    //statisticsCheckBoxAction->setDefaultWidget(statisticsCheckBox);
     animationCheckBoxAction->setDefaultWidget(animationCheckBox);
     consoleCheckBoxAction->setDefaultWidget(consoleCheckBox);
     dataCheckBoxAction->setDefaultWidget(dataCheckBox);
 
     // Додайте QWidgetAction до WindowMenu
     windowMenu->addAction(allCheckBoxAction);
-    //windowMenu->addAction(statisticsCheckBoxAction);
     windowMenu->addAction(animationCheckBoxAction);
     windowMenu->addAction(consoleCheckBoxAction);
     windowMenu->addAction(dataCheckBoxAction);
@@ -719,10 +425,8 @@ void MainWindow::setupWindowMenu() {
 
     // Призначте це меню кнопці
     ui->WindowButton->setMenu(windowMenu);
-
     // Приєднайте слоти до зміни стану чекбоксів
     connect(allCheckBox, &QCheckBox::stateChanged, this, &MainWindow::onAllCheckBoxChanged);
-    //connect(statisticsCheckBox, &QCheckBox::stateChanged, this, &MainWindow::onStatisticsCheckBoxChanged);
     connect(animationCheckBox, &QCheckBox::stateChanged, this, &MainWindow::onAnimationCheckBoxChanged);
     connect(consoleCheckBox, &QCheckBox::stateChanged, this, &MainWindow::onConsoleCheckBoxChanged);
     connect(dataCheckBox, &QCheckBox::stateChanged, this, &MainWindow::onDataCheckBoxChanged);

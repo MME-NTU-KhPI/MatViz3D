@@ -13,7 +13,8 @@ class Neumann : public Parent_Algorithm
 {
 public:
     Neumann();
-    std::vector<Coordinate> Generate_Filling(int16_t*** voxels, short int numCubes,int n, std::vector<Coordinate> grains);
+    Neumann(short int numCubes, int numColors);
+    void Generate_Filling(int isAnimation, int isWaveGeneration);
 };
 
 #endif // NEUMANN_H

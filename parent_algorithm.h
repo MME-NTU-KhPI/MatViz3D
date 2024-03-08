@@ -6,8 +6,6 @@
 #include <omp.h>
 #include <cstdint>
 
-//class Probability_Circle;
-
 class Parent_Algorithm
 {
 public:
@@ -19,11 +17,20 @@ public:
     };
     unsigned int counter;
     unsigned int IterationNumber = 0;
+    int16_t*** voxels;
+    short int numCubes;
+    int numColors;
+    short int color = 0;
+    std::vector<Coordinate> grains;
     Parent_Algorithm();
-    virtual std::vector<Coordinate> Generate_Filling(int16_t*** voxels, short int numCubes,int n, std::vector<Coordinate> grains) = 0;
-    int16_t*** Generate_Initial_Cube(short int numCubes);
-    std::vector<Coordinate> Generate_Random_Starting_Points(int16_t*** voxels, short int numCubes, int numColors);
+    virtual void Generate_Filling(int isAnimation, int isWaveGeneration) = 0;
+    int16_t*** Generate_Initial_Cube();
+    void Generate_Random_Starting_Points(int isWaveGeneration);
+    std::vector<Coordinate> Add_New_Points(std::vector<Coordinate> grains, int numPoints);
     std::vector<Coordinate> Delete_Points(std::vector<Coordinate> grains,size_t i);
+    int initialWave;
+    int remainingPoints;
+    int pointsForThisStep;
 };
 
 #endif // PARENT_ALGORITHM_H

@@ -76,8 +76,14 @@ DLCA::DLCA(int cubeSize)
 {
     this->cubeSize = cubeSize;
 }
+DLCA::DLCA(short int numCubes, int numColors)
+{
+    cubeSize = numCubes;
+    this->numCubes = numCubes;
+    this->numColors = numColors;
+}
 
-std::vector<Parent_Algorithm::Coordinate> DLCA::Generate_Random_Starting_Points(int16_t*** voxels,short int numCubes, int numColors)
+void DLCA::Generate_Random_Starting_Points()
 {
     std::random_device rd;
     std::mt19937 generator(rd());
@@ -85,7 +91,6 @@ std::vector<Parent_Algorithm::Coordinate> DLCA::Generate_Random_Starting_Points(
 
     Coordinate a;
 
-    std::vector<Coordinate> grains;
     grains.push_back({0,0,0});
     for (int i = 0; i < numColors; i++)
     {
@@ -97,7 +102,6 @@ std::vector<Parent_Algorithm::Coordinate> DLCA::Generate_Random_Starting_Points(
         aggr.aggr.push_back(a);
         this->aggregates.push_back(aggr);
     }
-    return grains;
 }
 
 bool DLCA::check_collision(size_t _i, size_t _j)
@@ -130,12 +134,11 @@ void DLCA::join_aggregates(size_t _i, size_t _j)
     a2.aggr.clear();
 }
 
-std::vector<Parent_Algorithm::Coordinate> DLCA::Generate_Filling(int16_t*** voxels, short int numCubes,int n,std::vector<Coordinate> grains)
+void DLCA::Generate_Filling(int isAnimation, int isWaveGeneration)
 {
-    std::vector<Coordinate> v;
     if (this->aggregates.size() > 1)
     {
-        v.push_back({0,0,0});
+        grains.push_back({0,0,0});
         qDebug() << this->aggregates.size();
         if (this->aggregates.size() < 5)
             for (size_t i = 0; i < this->aggregates.size(); i++)
@@ -166,6 +169,4 @@ std::vector<Parent_Algorithm::Coordinate> DLCA::Generate_Filling(int16_t*** voxe
     {
         aggregates[i].map_to_voxels(voxels, cubeSize);
     }
-
-    return v;
 }

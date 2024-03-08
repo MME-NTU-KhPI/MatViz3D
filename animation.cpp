@@ -7,23 +7,18 @@ Animation::Animation()
 
 }
 
-Animation::Animation(int16_t*** a,Parent_Algorithm* b,MyGLWidget* c,int d,short int f,bool e,std::vector<Parent_Algorithm::Coordinate> grains)
+Animation::Animation(Parent_Algorithm* b,int d)
 {
-    voxels = a;
     begin = b;
-    myglwidget = c;
     n = d;
-    numCubes = f;
-    answer = e;
-    this->grains = grains;
 }
 
 void Animation::animate()
 {
-    while (!grains.empty())
-    {
-        grains = begin->Generate_Filling(voxels,numCubes,n,grains);
-        QApplication::processEvents();
-        emit updateRequested(voxels,numCubes);
-    }
+//    while (!begin->grains.empty())
+//    {
+//        begin->Generate_Filling(n);
+//        QApplication::processEvents();
+//        emit updateRequested(begin->voxels,begin->numCubes);
+//    }
 }

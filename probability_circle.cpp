@@ -5,9 +5,6 @@
 #include <cmath>
 #include "probability_circle.h"
 #include <myglwidget.h>
-#include "mainwindow.h"
-#include "ui_mainwindow.h"
-#include "probability_ellipse.h"
 #include "parent_algorithm.h"
 
 
@@ -18,9 +15,14 @@ Probability_Circle::Probability_Circle():Parent_Algorithm()
     // Add any initialization code or logic here
 }
 
+Probability_Circle::Probability_Circle(short int numCubes, int numColors)
+{
+    this->numCubes = numCubes;
+    this->numColors = numColors;
+}
 
 //Функция заполнения массива
-std::vector<Parent_Algorithm::Coordinate> Probability_Circle::Generate_Filling(int16_t*** voxels, short int numCubes,int n, std::vector<Coordinate> grains)
+void Probability_Circle::Generate_Filling(int isAnimation, int isWaveGeneration)
 {
     srand(time(NULL));
     unsigned int counter_max = pow(numCubes,3);
@@ -99,10 +101,9 @@ std::vector<Parent_Algorithm::Coordinate> Probability_Circle::Generate_Filling(i
         IterationNumber++;
         double o = (double)counter/counter_max;
         qDebug().nospace() << o << "\t" << IterationNumber << "\t" << grains.size();
-        if (n == 1)
+        if (isAnimation == 1)
         {
             break;
         }
     }
-    return grains;
 }

@@ -22,10 +22,10 @@ class DLCA : public Parent_Algorithm {
     DLCA();
     int cubeSize;
 public:
-
+    DLCA(short int numCubes, int numColors);
     DLCA(int cubeSize);
-    std::vector<Coordinate> Generate_Filling(int16_t*** voxels, short int numCubes,int n,std::vector<Coordinate> grains);
-    std::vector<Coordinate> Generate_Random_Starting_Points(int16_t*** voxels,short int numCubes, int numColors);
+    void Generate_Filling(int isAnimation, int isWaveGeneration);
+    void Generate_Random_Starting_Points();
     void random_walk();
     std::vector<DLCA_Aggregate> aggregates;
     bool check_collision(size_t i, size_t j);

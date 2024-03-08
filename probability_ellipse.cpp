@@ -17,8 +17,14 @@ Probability_Ellipse::Probability_Ellipse()
 
 }
 
+Probability_Ellipse::Probability_Ellipse(short int numCubes, int numColors)
+{
+    this->numCubes = numCubes;
+    this->numColors = numColors;
+}
 
-std::vector<Parent_Algorithm::Coordinate> Probability_Ellipse::Generate_Filling(int16_t*** voxels, short int numCubes,int n, std::vector<Coordinate> grains)
+
+void Probability_Ellipse::Generate_Filling(int isAnimation, int isWaveGeneration)
 {
     srand(time(NULL));
     unsigned int counter_max = pow(numCubes,3);
@@ -98,10 +104,9 @@ std::vector<Parent_Algorithm::Coordinate> Probability_Ellipse::Generate_Filling(
         IterationNumber++;
         double o = (double)counter/counter_max;
         qDebug().nospace() << o << "\t" << IterationNumber << "\t" << grains.size();
-        if (n == 1)
+        if (isAnimation == 1)
         {
             break;
         }
     }
-    return grains;
 }

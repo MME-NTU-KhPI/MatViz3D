@@ -10,7 +10,8 @@ class Radial : public Parent_Algorithm
 {
 public:
     Radial();
-    std::vector<Coordinate> Generate_Filling(int16_t*** voxels, short int numCubes,int n, std::vector<Coordinate> grains);
+    Radial(short int numCubes, int numColors);
+    void Generate_Filling(int isAnimation, int isWaveGeneration);
 };
 
 #endif // RADIAL_H

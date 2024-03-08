@@ -14,7 +14,13 @@ Moore::Moore()
 
 }
 
-std::vector<Parent_Algorithm::Coordinate> Moore::Generate_Filling(int16_t*** voxels, short int numCubes,int n,std::vector<Coordinate> grains)
+Moore::Moore(short int numCubes, int numColors)
+{
+    this->numCubes = numCubes;
+    this->numColors = numColors;
+}
+
+void Moore::Generate_Filling(int isAnimation, int isWaveGeneration)
 {
     unsigned int counter_max = pow(numCubes,3);
     while (!grains.empty())
@@ -54,10 +60,9 @@ std::vector<Parent_Algorithm::Coordinate> Moore::Generate_Filling(int16_t*** vox
         double o = (double)counter/counter_max;
         qDebug().nospace() << o << "\t" << IterationNumber << "\t" << grains.size();
         // Перевірка, чи потрібна анімація
-        if (n == 1)
+        if (isAnimation == 1)
         {
             break;
         }
     }
-    return grains;
 }
