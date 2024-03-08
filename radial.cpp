@@ -1,4 +1,8 @@
 #include "radial.h"
+#include <windows.h>
+#include <ctime>
+#include <list>
+#include <cmath>
 #include "QDebug"
 
 Radial::Radial()
@@ -52,12 +56,23 @@ void Radial::Generate_Filling(int isAnimation, int isWaveGeneration)
         }
         grains.clear();
         grains.insert(grains.end(), newGrains.begin(), newGrains.end());
+        newGrains.clear();
         IterationNumber++;
         double o = (double)counter/counter_max;
         qDebug().nospace() << o << "\t" << IterationNumber << "\t" << grains.size();
         // Перевірка, чи потрібна анімація
         if (isAnimation == 1)
         {
+            if (isWaveGeneration == 1)
+            {
+                if (remainingPoints > 0)
+                {
+                    pointsForThisStep = std::max(1, static_cast<int>(0.1 * remainingPoints));
+                    newGrains = Add_New_Points(newGrains,pointsForThisStep);
+                    grains.insert(grains.end(), newGrains.begin(), newGrains.end());
+                    remainingPoints -= pointsForThisStep;
+                }
+            }
             break;
         }
     }

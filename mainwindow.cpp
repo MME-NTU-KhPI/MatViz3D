@@ -147,6 +147,7 @@ void MainWindow::on_Start_clicked()
             Probability_Circle start(Parameters::size, Parameters::points);
             Parameters::voxels = start.Generate_Initial_Cube();
             start.Generate_Random_Starting_Points(isWaveGeneration);
+            start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
             if (isAnimation == 0)
             {
                 start.Generate_Filling(isAnimation, isWaveGeneration);
@@ -169,6 +170,7 @@ void MainWindow::on_Start_clicked()
             Probability_Ellipse start(Parameters::size, Parameters::points);
             Parameters::voxels = start.Generate_Initial_Cube();
             start.Generate_Random_Starting_Points(isWaveGeneration);
+            start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
             if (isAnimation == 0)
             {
                 start.Generate_Filling(isAnimation, isWaveGeneration);
@@ -191,6 +193,7 @@ void MainWindow::on_Start_clicked()
             Moore start(Parameters::size, Parameters::points);
             Parameters::voxels = start.Generate_Initial_Cube();
             start.Generate_Random_Starting_Points(isWaveGeneration);
+            start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
             if (isAnimation == 0)
             {
                 start.Generate_Filling(isAnimation, isWaveGeneration);
@@ -213,6 +216,7 @@ void MainWindow::on_Start_clicked()
             Radial start(Parameters::size, Parameters::points);
             Parameters::voxels = start.Generate_Initial_Cube();
             start.Generate_Random_Starting_Points(isWaveGeneration);
+            start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
             if (isAnimation == 0)
             {
                 start.Generate_Filling(isAnimation, isWaveGeneration);

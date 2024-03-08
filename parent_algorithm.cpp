@@ -4,6 +4,7 @@
 #include <list>
 #include <cmath>
 #include <myglwidget.h>
+#include <random>
 #include "parent_algorithm.h"
 #include <cstdint>
 #include <new>
