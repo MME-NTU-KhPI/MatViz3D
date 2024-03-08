@@ -13,8 +13,8 @@ public:
     int id;
     std::vector <Parent_Algorithm::Coordinate> aggr;
     void move_aggregate(int dx, int dy, int dz);
-    void map_to_voxels(int16_t*** voxels, short int numCubes);
-
+    void map_to_voxels();
+    bool is_can_move_aggregate(int dx, int dy, int dz);
     DLCA_Aggregate(int16_t*** voxels, int cubeSize);
 };
 

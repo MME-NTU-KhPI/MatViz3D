@@ -4,19 +4,6 @@
 
 using namespace std;
 
-int periodic(int coord, int cubeSize) {
-    // Assume x and y are not too far away for the grid
-    if (coord < 0) {
-        return coord + cubeSize;
-    }
-    else if (coord >= cubeSize) {
-        return coord - cubeSize;
-    }
-    else {
-        return coord;
-    }
-}
-
 DLCA_Aggregate::DLCA_Aggregate(int16_t*** voxels, int cubeSize)
 {
     this->cubeSize = cubeSize;
@@ -36,9 +23,23 @@ void DLCA_Aggregate::move_aggregate(int dx, int dy, int dz)
         //voxels[aggr[i].x][aggr[i].y][aggr[i].z] = this->id; // Update new position
     }
 }
-void DLCA_Aggregate::map_to_voxels(int16_t*** voxels, short int cubeSize)
-{
 
+bool DLCA_Aggregate::is_can_move_aggregate(int dx, int dy, int dz)
+{
+    for (size_t i = 0; i < this->aggr.size(); i++)
+    {
+        int16_t x = (aggr[i].x + dx + cubeSize) % cubeSize; // get new x position
+        int16_t y = (aggr[i].y + dy + cubeSize) % cubeSize; // get new y position
+        int16_t z = (aggr[i].z + dz + cubeSize) % cubeSize; // get new z position
+
+        if (voxels[x][y][z] != 0 && voxels[x][y][z] != this->id) // is this a free cell?
+            return false;
+    }
+    return true;
+}
+
+void DLCA_Aggregate::map_to_voxels()
+{
     for (size_t i = 0; i < aggr.size(); i++)
     {
         DLCA::Coordinate c = aggr[i];
@@ -62,10 +63,14 @@ void DLCA::random_walk()
           dy = int_distro(rand_engine);
           dz = int_distro(rand_engine);
         } while (dx == 0 && dy == 0 && dz == 0);
-        aggregates[i].move_aggregate(dx, dy, dz);
+
+        if (aggregates[i].is_can_move_aggregate(dx, dy, dz))
+            aggregates[i].move_aggregate(dx, dy, dz);
+        else // check in reverse direction after collision
+            if (aggregates[i].is_can_move_aggregate(-dx, -dy, -dz))
+                aggregates[i].move_aggregate(-dx, -dy, -dz);
+
     }
-
-
 }
 
 DLCA::DLCA()
@@ -94,9 +99,24 @@ void DLCA::Generate_Random_Starting_Points()
     grains.push_back({0,0,0});
     for (int i = 0; i < numColors; i++)
     {
-        a.x = distribution(generator);
-        a.y = distribution(generator);
-        a.z = distribution(generator);
+        int num_tries = 5;
+        do
+        {
+            a.x = distribution(generator);
+            a.y = distribution(generator);
+            a.z = distribution(generator);
+            num_tries--;
+        }
+        while (voxels[a.x][a.y][a.z] != 0 && num_tries > 0);
+
+        voxels[a.x][a.y][a.z] = i + 1; // add new cell to voxel array
+
+        if (num_tries == 0) //possible no free space, skip iteration
+        {
+            qDebug() << "Error: cannot find free cell to add new one";
+            qDebug() << a.x << a.y << a.z << i;
+            continue;
+        }
         DLCA_Aggregate aggr(voxels, numCubes);
         aggr.id = i + 1;
         aggr.aggr.push_back(a);
@@ -104,19 +124,32 @@ void DLCA::Generate_Random_Starting_Points()
     }
 }
 
+#include <limits.h>
+
+int16_t my_abs(int16_t a) {
+    int16_t mask = (a >> (sizeof(int16_t) * CHAR_BIT - 1));
+    return (a + mask) ^ mask;
+}
+
 bool DLCA::check_collision(size_t _i, size_t _j)
 {
-    auto a1 = this->aggregates[_i];
-    auto a2 = this->aggregates[_j];
+    auto &a1 = this->aggregates[_i];
+    auto &a2 = this->aggregates[_j];
 
     int dist = cubeSize;
+    int dist_ij = 0;
+    const size_t a1_size = a1.aggr.size();
+    const size_t a2_size = a2.aggr.size();
 
-    for (size_t i = 0; i < a1.aggr.size(); i++)
-        for (size_t j = 0; j < a2.aggr.size(); j++)
+    for (size_t i = 0; i < a1_size; i++)
+        for (size_t j = 0; j < a2_size; j++)
         {
-            int dist_ij = abs(a1.aggr[i].x - a2.aggr[j].x) +
-                          abs(a1.aggr[i].y - a2.aggr[j].y) +
-                          abs(a1.aggr[i].z - a2.aggr[j].z);
+            const DLCA::Coordinate &c1 = a1.aggr[i];
+            const DLCA::Coordinate &c2 = a2.aggr[j];
+
+            dist_ij = my_abs(c1.x - c2.x) +
+                      my_abs(c1.y - c2.y) +
+                      my_abs(c1.z - c2.z);
 
             dist = min(dist, dist_ij);
         }
@@ -127,11 +160,17 @@ void DLCA::join_aggregates(size_t _i, size_t _j)
 {
     auto& a1 = this->aggregates[_i];
     auto& a2 = this->aggregates[_j];
-    for (size_t j = 0; j < a2.aggr.size(); j++)
+
+    if (a1.aggr.size() > a2.aggr.size()) // which aggregate bigger?
     {
-        a1.aggr.push_back(a2.aggr[j]);
+        a1.aggr.insert(a1.aggr.end(), a2.aggr.begin(), a2.aggr.end());
+        a2.aggr.clear();
     }
-    a2.aggr.clear();
+    else
+    {
+        a2.aggr.insert(a2.aggr.end(), a1.aggr.begin(), a1.aggr.end());
+        a1.aggr.clear();
+    }
 }
 
 void DLCA::Generate_Filling(int isAnimation, int isWaveGeneration)
@@ -139,7 +178,7 @@ void DLCA::Generate_Filling(int isAnimation, int isWaveGeneration)
     if (this->aggregates.size() > 1)
     {
         grains.push_back({0,0,0});
-        qDebug() << this->aggregates.size();
+        // qDebug() << this->aggregates.size();
         if (this->aggregates.size() < 5)
             for (size_t i = 0; i < this->aggregates.size(); i++)
                 qDebug() << i << this->aggregates[i].id << this->aggregates[i].aggr.size();
@@ -167,6 +206,6 @@ void DLCA::Generate_Filling(int isAnimation, int isWaveGeneration)
 
     for (size_t i = 0; i < this->aggregates.size(); i++)
     {
-        aggregates[i].map_to_voxels(voxels, cubeSize);
+        aggregates[i].map_to_voxels();
     }
 }
