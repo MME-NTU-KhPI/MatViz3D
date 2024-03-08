@@ -38,7 +38,7 @@ bool DLCA_Aggregate::is_can_move_aggregate(int dx, int dy, int dz)
     return true;
 }
 
-void DLCA_Aggregate::map_to_voxels(int16_t*** voxels, short int cubeSize)
+void DLCA_Aggregate::map_to_voxels()
 {
     for (size_t i = 0; i < aggr.size(); i++)
     {
@@ -120,19 +120,32 @@ std::vector<Parent_Algorithm::Coordinate> DLCA::Generate_Random_Starting_Points(
     return grains;
 }
 
+#include <limits.h>
+
+int16_t my_abs(int16_t a) {
+    int16_t mask = (a >> (sizeof(int16_t) * CHAR_BIT - 1));
+    return (a + mask) ^ mask;
+}
+
 bool DLCA::check_collision(size_t _i, size_t _j)
 {
-    auto a1 = this->aggregates[_i];
-    auto a2 = this->aggregates[_j];
+    auto &a1 = this->aggregates[_i];
+    auto &a2 = this->aggregates[_j];
 
     int dist = cubeSize;
+    int dist_ij = 0;
+    const size_t a1_size = a1.aggr.size();
+    const size_t a2_size = a2.aggr.size();
 
-    for (size_t i = 0; i < a1.aggr.size(); i++)
-        for (size_t j = 0; j < a2.aggr.size(); j++)
+    for (size_t i = 0; i < a1_size; i++)
+        for (size_t j = 0; j < a2_size; j++)
         {
-            int dist_ij = abs(a1.aggr[i].x - a2.aggr[j].x) +
-                          abs(a1.aggr[i].y - a2.aggr[j].y) +
-                          abs(a1.aggr[i].z - a2.aggr[j].z);
+            const DLCA::Coordinate &c1 = a1.aggr[i];
+            const DLCA::Coordinate &c2 = a2.aggr[j];
+
+            dist_ij = my_abs(c1.x - c2.x) +
+                      my_abs(c1.y - c2.y) +
+                      my_abs(c1.z - c2.z);
 
             dist = min(dist, dist_ij);
         }
@@ -190,7 +203,7 @@ std::vector<Parent_Algorithm::Coordinate> DLCA::Generate_Filling(int16_t*** voxe
 
     for (size_t i = 0; i < this->aggregates.size(); i++)
     {
-        aggregates[i].map_to_voxels(voxels, cubeSize);
+        aggregates[i].map_to_voxels();
     }
 
     return v;

@@ -2,21 +2,23 @@
 #ifndef PARENT_ALGORITHM_H
 #define PARENT_ALGORITHM_H
 
-#include <random>
 #include <omp.h>
 #include <cstdint>
+#include <vector>
 
-//class Probability_Circle;
 
 class Parent_Algorithm
 {
 public:
+    #pragma pack(push, 4)
     struct Coordinate
     {
         int16_t x;
         int16_t y;
         int16_t z;
     };
+    #pragma pack(pop)
+
     unsigned int counter;
     unsigned int IterationNumber = 0;
     Parent_Algorithm();
