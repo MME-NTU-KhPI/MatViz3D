@@ -24,6 +24,7 @@
 #include <qgifimage.h>
 #include "statistics.h"
 #include "export.h"
+#include "stressanalysis.h"
 
 int16_t* createVoxelArray(int16_t*** voxels, int numCubes);
 std::unordered_map<int16_t, int> countVoxels(int16_t* voxelArray, int numCubes, int numColors);
@@ -313,16 +314,18 @@ void MainWindow::setupFileMenu() {
     QAction *saveAsImageAction = new QAction("Save as image", this);
     QAction *exportWRLAction = new QAction("Export to wrl", this);
     QAction *exportCSVAction = new QAction("Export to csv", this);
+    QAction *estimateStressWithANSYS = new QAction("Estimate stresses", this);
 
     fileMenu->addAction(saveAsImageAction);
     fileMenu->addAction(exportWRLAction);
     fileMenu->addAction(exportCSVAction);
+    fileMenu->addAction(estimateStressWithANSYS);
 
 
     // Кастомізація FileMenu за допомогою CSS
     fileMenu->setStyleSheet("QMenu {"
                             "    width: 255px;"
-                            "    height: 260px;"
+                            "    height: 350px;"
                             "    background-color: #282828;" // фон меню
                             "    color: rgba(217, 217, 217, 0.70);" // колір тексту
                             "    margin: 0px;"
@@ -357,6 +360,7 @@ void MainWindow::setupFileMenu() {
     saveAsImageAction->setFont(actionFont);
     exportWRLAction->setFont(actionFont);
     exportCSVAction->setFont(actionFont);
+    estimateStressWithANSYS->setFont(actionFont);
 
     // Призначте це меню кнопці
     ui->FileButton->setMenu(fileMenu);
@@ -364,6 +368,7 @@ void MainWindow::setupFileMenu() {
     connect(saveAsImageAction, &QAction::triggered, this, &MainWindow::saveAsImage);
     connect(exportWRLAction, &QAction::triggered, this, &MainWindow::exportToWRL);
     connect(exportCSVAction, &QAction::triggered, this, &MainWindow::exportToCSV);
+    connect(estimateStressWithANSYS, &QAction::triggered, this, &MainWindow::estimateStressWithANSYS);
 }
 
 void MainWindow::setupWindowMenu() {
@@ -480,6 +485,18 @@ void MainWindow::exportToCSV(){
     else
     {
         Export::ExportToCSV(Parameters::size, Parameters::voxels);
+    }
+}
+
+// Estimate elastic stress with ANSYS static structure solver
+void MainWindow::estimateStressWithANSYS(){
+    if(startButtonPressed == false)
+    {
+        QMessageBox::information(nullptr, "Warning!", "The structure was not generated.");
+    }
+    else
+    {
+        StressAnalysis::estimateStressWithANSYS(Parameters::size, Parameters::voxels);
     }
 }
 

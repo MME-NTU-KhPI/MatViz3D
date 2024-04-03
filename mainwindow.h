@@ -43,6 +43,7 @@ private slots:
     void setupFileMenu();
     void saveAsImage();
     void exportToWRL();
+    void estimateStressWithANSYS();
     void setupWindowMenu();
     void onConsoleCheckBoxChanged(int state);
     void onAnimationCheckBoxChanged(int state);
