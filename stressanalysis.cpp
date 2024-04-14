@@ -19,7 +19,7 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, int16_t ***voxe
     //wr.setMaterial(2.1e11, 0.3, 0);
 
     //wr.setMaterial(2.1e11, 0.3, 0);
-    double c11 = 168.40e9, c12=121.40e9, c44=75.40e9;
+    double c11 = 168.40e9, c12=121.40e9, c44=75.40e9; // copper bcc single crystal  https://solidmechanics.org/Text/Chapter3_2/Chapter3_2.php#Sect3_2_17
     wr.setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44) ;
 
     wr.setElemByNum(186);

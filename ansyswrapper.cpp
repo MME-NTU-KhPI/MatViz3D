@@ -949,7 +949,6 @@ void ansysWrapper::generate_random_angles(double *angl, bool in_deg, double epsi
         angl[2] = angl[2] / M_PI * 180.0;
     }
 }
-enum week{ID,X,Y,Z,UX,UY,UZ,SX,SY,SZ,SXY,SYZ,SXZ,EpsX,EpsY,EpsZ,EpsXY,EpsYZ,EpsXZ};
 
 void ansysWrapper::load_loadstep(int num)
 {
@@ -963,8 +962,6 @@ void ansysWrapper::load_loadstep(int num)
     }
     int i = 0;
     QByteArray parts[num_columns]; // ID;X;Y;Z;UX;UY;UZ;SX;SY;SZ;SXY;SYZ;SXZ;EpsX;EpsY;EpsZ;EpsXY;EpsYZ;EpsXZ
-
-
 
     this->loadstep_results.clear();
 
