@@ -5,6 +5,8 @@
 #include <QString>
 #include <QTemporaryDir>
 
+enum tensor_components{ID,X,Y,Z,UX,UY,UZ,SX,SY,SZ,SXY,SYZ,SXZ,EpsX,EpsY,EpsZ,EpsXY,EpsYZ,EpsXZ};
+
 class ansysWrapper
 {
 protected:
@@ -39,6 +41,7 @@ public:
     int spline(std::vector<int> kps, int left_boundary, int right_boundary);
     int spline(std::vector<double> x, std::vector<double> y, int left_boundary = 1, int right_boundary = 1);
     void setMaterial(double E, double nu, double rho );
+    void setAnisoMaterial(double c11, double c12, double c13, double c22, double c23, double c33, double c44, double c55, double c66);
 
     void setSectionASEC(double area, double Ix, double r_out);
     void setSectionCTUBE(double r_Out, double r_In);
@@ -97,11 +100,13 @@ public:
     void saveAll();
     void load_loadstep(int num);
 
-    QVector<float> x, y, z, ux, uy, uz, sx, sy, sz, sxy, syz, sxz, epsx, epsy, epsz, epsxy, epsyz, epsxz;
-    float avg_x, avg_y, avg_z,
+    QVector<QVector<float>> loadstep_results;
+    QVector<float> loadstep_results_avg;
+
+    /*float avg_x, avg_y, avg_z,
         avg_ux, avg_uy, avg_uz,
         avg_sx, avg_sy, avg_sz, avg_sxy, avg_syz, avg_sxz,
-        avg_epsx, avg_epsy, avg_epsz, avg_epsxy, avg_epsyz, avg_epsxz;
+        avg_epsx, avg_epsy, avg_epsz, avg_epsxy, avg_epsyz, avg_epsxz;*/
 };
 
 

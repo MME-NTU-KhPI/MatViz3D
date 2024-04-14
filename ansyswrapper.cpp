@@ -623,6 +623,20 @@ void ansysWrapper::setMaterial(double E, double nu, double rho = 0)
     m_apdl += "MPTEMP,,,,,,,,\n";
     m_apdl += "MPTEMP,1,0\n";
     m_apdl += QString::asprintf("MPDATA,EX,1,,%g \nMPDATA,PRXY,1,,%g \nMPDATA,DENS,1,,%g \n", E, nu, rho);
+
+}
+
+void ansysWrapper::setAnisoMaterial(double c11, double c12, double c13, double c22, double c23, double c33, double c44, double c55, double c66)
+{
+    m_apdl += QString::asprintf(R"(
+        !*
+        TB,ANEL,1,1,21,0
+        TBTEMP,0
+        TBDATA,, %g, %g, %g, 0, 0, 0
+        TBDATA,, %g, %g, 0, 0, 0, %g
+        TBDATA,, 0, 0, 0, %g, 0, 0
+        TBDATA,, %g, 0, %g,,,
+        )", c11, c12, c13, c22, c23, c33, c44, c55, c66);
 }
 
 void ansysWrapper::setSectionASEC(double area, double Ix, double r_out)
@@ -935,10 +949,11 @@ void ansysWrapper::generate_random_angles(double *angl, bool in_deg, double epsi
         angl[2] = angl[2] / M_PI * 180.0;
     }
 }
-
+enum week{ID,X,Y,Z,UX,UY,UZ,SX,SY,SZ,SXY,SYZ,SXZ,EpsX,EpsY,EpsZ,EpsXY,EpsYZ,EpsXZ};
 
 void ansysWrapper::load_loadstep(int num)
 {
+    const int num_columns = 19; // ID;X;Y;Z;UX;UY;UZ;SX;SY;SZ;SXY;SYZ;SXZ;EpsX;EpsY;EpsZ;EpsXY;EpsYZ;EpsXZ
     QString path_to_file = tempDir.filePath(QString("ls_")+QString::number(num)+".csv");
     QFile file(path_to_file);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
@@ -947,25 +962,11 @@ void ansysWrapper::load_loadstep(int num)
         return;
     }
     int i = 0;
-    QByteArray parts[18]; // X;Y;Z;UX;UY;UZ;SX;SY;SZ;SXY;SYZ;SXZ;EpsX;EpsY;EpsZ;EpsXY;EpsYZ;EpsXZ
+    QByteArray parts[num_columns]; // ID;X;Y;Z;UX;UY;UZ;SX;SY;SZ;SXY;SYZ;SXZ;EpsX;EpsY;EpsZ;EpsXY;EpsYZ;EpsXZ
 
-    x.clear();
-    y.clear();
-    z.clear();
 
-    sx.clear();
-    sy.clear();
-    sz.clear();
-    sxy.clear();
-    syz.clear();
-    sxz.clear();
 
-    epsx.clear();
-    epsy.clear();
-    epsz.clear();
-    epsxy.clear();
-    epsyz.clear();
-    epsxz.clear();
+    this->loadstep_results.clear();
 
     while (!file.atEnd()) {
         i++;
@@ -973,64 +974,39 @@ void ansysWrapper::load_loadstep(int num)
         if (i == 1) //skip header line
             continue;
 
-        for (int j = 0; j < 18; j++)
+        this->loadstep_results.append(QVector<float>(num_columns));
+        for (int j = 0; j < num_columns; j++)
         {
             parts[j] = line.sliced(j*17, 16).trimmed();
+            this->loadstep_results[i-2][j] = parts[j].toFloat();
         }
-
-        x.push_back(parts[0].toFloat());
-        y.push_back(parts[1].toFloat());
-        z.push_back(parts[2].toFloat());
-
-        ux.push_back(parts[3].toFloat());
-        uy.push_back(parts[4].toFloat());
-        uz.push_back(parts[5].toFloat());
-
-        sx.push_back(parts[6].toFloat());
-        sy.push_back(parts[7].toFloat());
-        sz.push_back(parts[8].toFloat());
-        sxy.push_back(parts[9].toFloat());
-        syz.push_back(parts[10].toFloat());
-        sxz.push_back(parts[11].toFloat());
-
-        epsx.push_back(parts[12].toFloat());
-        epsy.push_back(parts[13].toFloat());
-        epsz.push_back(parts[14].toFloat());
-        epsxy.push_back(parts[15].toFloat());
-        epsyz.push_back(parts[16].toFloat());
-        epsxz.push_back(parts[17].toFloat());
     }
-    avg_x = calc_avg(x);
-    avg_y = calc_avg(y);
-    avg_z = calc_avg(z);
+    this->loadstep_results_avg.clear();
+    this->loadstep_results_avg.resize(num_columns);
 
-    avg_ux = calc_avg(ux);
-    avg_uy = calc_avg(uy);
-    avg_uz = calc_avg(uz);
 
-    avg_sx = calc_avg(sx);
-    avg_sy = calc_avg(sy);
-    avg_sz = calc_avg(sz);
-    avg_sxy = calc_avg(sxy);
-    avg_syz = calc_avg(syz);
-    avg_sxz = calc_avg(sxz);
-
-    avg_epsx = calc_avg(epsx);
-    avg_epsy = calc_avg(epsy);
-    avg_epsz = calc_avg(epsz);
-    avg_epsxy = calc_avg(epsxy);
-    avg_epsyz = calc_avg(epsyz);
-    avg_epsxz = calc_avg(epsxz);
+    for (int i = 0; i < this->loadstep_results.size(); i++)
+    {
+        for (int j = 0; j < num_columns; j++)
+        {
+            this->loadstep_results_avg[j] += this->loadstep_results[i][j];
+        }
+    }
+    for (int j = 0; j < num_columns; j++)
+    {
+        this->loadstep_results_avg[j] /= (float)this->loadstep_results.size();
+    }
+    auto &avg = this->loadstep_results_avg;
 
     qDebug() << "AVG Stress tensor: ";
-    qDebug() << "  "<< avg_sx  << avg_sxy << avg_sxz;
-    qDebug() << "  "<< avg_sxy << avg_sy  << avg_syz;
-    qDebug() << "  "<< avg_sxz << avg_syz << avg_sz;
+    qDebug() << "  "<< avg[SX]  << avg[SXY] << avg[SXZ];
+    qDebug() << "  "<< avg[SXY] << avg[SY]  << avg[SYZ];
+    qDebug() << "  "<< avg[SXZ] << avg[SYZ] << avg[SZ];
 
     qDebug() << "AVG Strain tensor: ";
-    qDebug() << "  "<< avg_epsx  << avg_epsxy << avg_epsxz;
-    qDebug() << "  "<< avg_epsxy << avg_epsy  << avg_epsyz;
-    qDebug() << "  "<< avg_epsxz << avg_epsyz << avg_epsz;
+    qDebug() << "  "<< avg[EpsX]  << avg[EpsXY] << avg[EpsXZ];
+    qDebug() << "  "<< avg[EpsXY] << avg[EpsY]  << avg[EpsYZ];
+    qDebug() << "  "<< avg[EpsXZ] << avg[EpsYZ] << avg[EpsZ];
 }
 
 float ansysWrapper::calc_avg(QVector<float> &x)
@@ -1156,7 +1132,7 @@ NSEL,S,S,EQV,,, ,0 !- Select nodes with results
 %C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C
 
 *vwrite,nodeid_comp(1),nodal_data_comp(1,1),nodal_data_comp(1,2),nodal_data_comp(1,3),nodal_data_comp(1,4), nodal_data_comp(1,5), nodal_data_comp(1,6), nodal_data_comp(1,7), nodal_data_comp(1,8), nodal_data_comp(1,9), nodal_data_comp(1,10), nodal_data_comp(1,11), nodal_data_comp(1,12), nodal_data_comp(1,13),  nodal_data_comp(1,14), nodal_data_comp(1,15), nodal_data_comp(1,16), nodal_data_comp(1,17), nodal_data_comp(1,18)
-(F9.0";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8)
+(F16.0";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8)
 *cfclos
 !(18E16.8)
 !%E16.8;%E16.8;%E16.8;%E16.8;%E16.8;%E16.8;%E16.8;%E16.8;%E16.8;%E16.8;%E16.8;%E16.8;%E16.8;%E16.8;%E16.8;%E16.8;%E16.8;%E16.8
