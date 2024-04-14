@@ -31,30 +31,37 @@ void MessageHandler::messageHandlerFunction(QtMsgType type, const QMessageLogCon
         logType = "Debug";
         textColor = m_textEdit->palette().text().color(); // Колір для Debug
         bracketColor = Qt::darkGreen; // Колір для тексту в квадратних дужках
+        printf("%s", GREEN);
         break;
     case QtInfoMsg:
         logType = "Info";
         textColor = m_textEdit->palette().text().color(); // Колір для Info
         bracketColor = Qt::blue; // Колір для тексту в квадратних дужках
+        printf("%s", BLUE);
         break;
     case QtWarningMsg:
         logType = "Warning";
         textColor = m_textEdit->palette().text().color(); // Колір для Warning
         bracketColor = Qt::darkRed; // Колір для тексту в квадратних дужках
+        printf("%s", RED);
         break;
     case QtCriticalMsg:
         logType = "Critical";
         textColor = m_textEdit->palette().text().color(); // Колір для Critical
         bracketColor = Qt::darkMagenta; // Колір для тексту в квадратних дужках
+        printf("%s", MAGENTA);
         break;
     case QtFatalMsg:
         logType = "Fatal";
         textColor = m_textEdit->palette().text().color(); // Колір для Fatal
         bracketColor = Qt::darkYellow; // Колір для тексту в квадратних дужках
+        printf("%s", YELLOW);
         break;
     }
 
     QString message = QString("[%1] %2").arg(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz")).arg(msg);
+    printf("[%s]%s:%s\n", qPrintable(logType), RESET, qPrintable(msg));
+    fflush(stdout);
 
     if (m_instance) {
         emit m_instance->messageWrittenSignal(message);
