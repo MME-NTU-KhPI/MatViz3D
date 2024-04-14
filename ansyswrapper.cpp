@@ -86,10 +86,10 @@ void ansysWrapper::run(QString apdl)
     qDebug() << "Ansys process finished with code: " << pr.exitCode() << " Status: " << exitCodeToText(pr.exitCode());
 
     QFile ans_output(tempDir.filePath(m_jobName+".err"));
-    if(ans_output.open(QFile::ReadOnly|QFile::Text))
+    if(ans_output.open(QFile::ReadOnly | QFile::Text))
     {
-       qDebug() << ans_output.readAll();
-       ans_output.close();
+        qDebug().nospace().noquote() << ans_output.readAll();
+        ans_output.close();
     }
 
 }
@@ -163,7 +163,7 @@ void ansysWrapper::defaultArgs()
 
 void ansysWrapper::createFEfromArray(int16_t*** voxels, short int numCubes, int numSeeds)
 {
-    for (int i = 0; i < numSeeds; i++)
+    for (int i = 0; i < numSeeds + 1; i++)
         this->createLocalCS();
 
     static const float node_coordinates[21][3] =
@@ -476,33 +476,38 @@ void ansysWrapper::applyComplexLoads(double x1, double y1, double z1,
                                      double eps_xy, double eps_xz, double eps_yz)
 {
     this->prep7();
-    this->clearBC();
-
     QTextStream apdl(&m_apdl);
     QVarLengthArray<float> displacement(3);
 
+    apdl << "!-----Apply BC for 3D case -------" << Qt::endl;
     for (auto ni = nodes.begin(); ni!=nodes.end(); ni++)
     {
         bool is_on_face = ansysWrapper::IsFaceNode(ni.key(), x1, y1, z1, x2, y2, z2);
+        int node_id = ni.value() + 1;
 
         if (is_on_face)
         {
             displacement = EstimateDisplacement(ni.key(), x1, y1, z1, eps_x, eps_y, eps_z, eps_xy, eps_xz, eps_yz);
-            apdl << "ALLSEL,ALL" << Qt::endl;
-            apdl << "NSEL,S,NODE,," << ni.value() << Qt::endl;
-            apdl << "D, ALL, UX, " << displacement[0] << Qt::endl;
-            apdl << "D, ALL, UY, " << displacement[1] << Qt::endl;
-            apdl << "D, ALL, UZ, " << displacement[2] << Qt::endl;
+            apdl << "D, "<< node_id <<", UX, " << displacement[0] << Qt::endl;
+            apdl << "D, "<< node_id <<", UY, " << displacement[1] << Qt::endl;
+            apdl << "D, "<< node_id <<", UZ, " << displacement[2] << Qt::endl;
 
         }
 
     }
+    apdl << "!-----END Apply BC for 3D case -------" << Qt::endl;
     apdl << "NSEL,S, , ,all" << Qt::endl;
     apdl << "LSWRITE," << Qt::endl;
 
     qDebug() << "nodes size:" << nodes.size();
 
 }
+
+//void ansysWrapper::applyLoadsAsStrainTensor(int cubeSize, double epsxx, )
+//{
+
+//}
+
 void ansysWrapper::prep7()
 {
     QTextStream(&m_apdl) << "FINISH" << Qt::endl;
@@ -1147,11 +1152,11 @@ NSEL,S,S,EQV,,, ,0 !- Select nodes with results
 
 *cfopen,ls_%current_time%,CSV
 
-*vwrite,'X','Y','Z','UX','UY','UZ','SX','SY','SZ','SXY','SYZ','SXZ','EpsX','EpsY','EpsZ','EpsXY','EpsYZ','EpsXZ'
-%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C
+*vwrite,'ID','X','Y','Z','UX','UY','UZ','SX','SY','SZ','SXY','SYZ','SXZ','EpsX','EpsY','EpsZ','EpsXY','EpsYZ','EpsXZ'
+%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C
 
-*vwrite,nodal_data_comp(1,1),nodal_data_comp(1,2),nodal_data_comp(1,3),nodal_data_comp(1,4), nodal_data_comp(1,5), nodal_data_comp(1,6), nodal_data_comp(1,7), nodal_data_comp(1,8), nodal_data_comp(1,9), nodal_data_comp(1,10), nodal_data_comp(1,11), nodal_data_comp(1,12), nodal_data_comp(1,13),  nodal_data_comp(1,14), nodal_data_comp(1,15), nodal_data_comp(1,16), nodal_data_comp(1,17), nodal_data_comp(1,18)
-(E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8)
+*vwrite,nodeid_comp(1),nodal_data_comp(1,1),nodal_data_comp(1,2),nodal_data_comp(1,3),nodal_data_comp(1,4), nodal_data_comp(1,5), nodal_data_comp(1,6), nodal_data_comp(1,7), nodal_data_comp(1,8), nodal_data_comp(1,9), nodal_data_comp(1,10), nodal_data_comp(1,11), nodal_data_comp(1,12), nodal_data_comp(1,13),  nodal_data_comp(1,14), nodal_data_comp(1,15), nodal_data_comp(1,16), nodal_data_comp(1,17), nodal_data_comp(1,18)
+(F9.0";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8)
 *cfclos
 !(18E16.8)
 !%E16.8;%E16.8;%E16.8;%E16.8;%E16.8;%E16.8;%E16.8;%E16.8;%E16.8;%E16.8;%E16.8;%E16.8;%E16.8;%E16.8;%E16.8;%E16.8;%E16.8;%E16.8
