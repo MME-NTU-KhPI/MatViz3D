@@ -23,7 +23,7 @@ public:
     explicit Statistics(QWidget *parent = nullptr);
     Statistics(const QVector<int>& colorCounts, QWidget *parent = nullptr);
     ~Statistics();
-    void setVoxelCounts(const QVector<int>& counts); // Функція для встановлення кількості вокселей кожного кольору
+    void setVoxelCounts(const QVector<int>& counts);
 
 private:
     Ui::Statistics *ui;
