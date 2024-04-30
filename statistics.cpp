@@ -15,13 +15,14 @@ Statistics::Statistics(QWidget *parent)
     ui->setupUi(this);
 }
 
-Statistics::Statistics(const QVector<int>& colorCounts, QWidget *parent)
-    : QWidget(parent), ui(new Ui::Statistics), m_colorCounts(colorCounts)
-{
-    ui->setupUi(this);
+//Statistics::Statistics(int16_t*** voxels, int numCubes, QWidget *parent)
+//    : QWidget(parent), ui(new Ui::Statistics)
+//{
+//    ui->setupUi(this);
 
-    setVoxelCounts(m_colorCounts);
-}
+//    setVoxelCounts(voxels, numCubes);
+//}
+
 
 Statistics::~Statistics()
 {
@@ -37,10 +38,35 @@ Statistics::~Statistics()
 
 //Functions for 2D properties
 
-void Statistics::setVoxelCounts(const QVector<int>& counts)
-{
 
+void Statistics::setVoxelCounts(int16_t*** voxels, int numCubes)
+{
+    // Отримання розмірів масиву
+    int sizeX = numCubes;
+    int sizeY = numCubes;
+    int sizeZ = numCubes;
+
+    // Розділення масиву на шари по координаті Z
+    for (int z = 0; z < sizeZ; ++z) {
+        // Вивід номеру шару
+        qDebug() << "Layer" << z;
+
+        // Вивід значень шару
+        for (int y = 0; y < sizeY; ++y) {
+            QString row;
+            for (int x = 0; x < sizeX; ++x) {
+                // Додавання числа до рядка
+                row.append(QString::number(voxels[x][y][z]) + " ");
+            }
+            // Вивід рядка в QDebug
+            qDebug() << row;
+        }
+
+        // Розділювач між шарами
+        qDebug() << "-------------------------";
+    }
 }
+
 
 
 

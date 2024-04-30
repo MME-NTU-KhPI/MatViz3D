@@ -27,9 +27,87 @@
    <string notr="true">background-color: rgba(40, 40, 40, 1);</string>
   </property>
   <layout class="QGridLayout" name="gridLayout">
-   <item row="0" column="0">
+   <item row="0" column="1">
     <widget class="QFrame" name="horizontalFrame">
      <layout class="QHBoxLayout" name="horizontalLayout"/>
+    </widget>
+   </item>
+   <item row="0" column="0">
+    <widget class="QFrame" name="gridFrame">
+     <property name="maximumSize">
+      <size>
+       <width>300</width>
+       <height>16777215</height>
+      </size>
+     </property>
+     <layout class="QGridLayout" name="gridLayout_2">
+      <item row="0" column="0">
+       <widget class="QComboBox" name="propertyBox">
+        <property name="maximumSize">
+         <size>
+          <width>250</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <property name="styleSheet">
+         <string notr="true">QComboBox {
+    background: #282828;
+    border: 1px solid #969696;
+    border-radius: 5px;
+    color: #969696;
+    padding: 4px 0;
+    padding-left: 4px;
+}
+
+QComboBox QAbstractItemView {
+    width: 140px;
+    background-color: rgba(65, 65, 65, 1);
+    color: #969696;
+    font-family: Montserrat;
+    font-size: 13px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: normal;
+	border-top-right-radius: 0; 
+	border-top-left-radius: 0;
+    border-bottom-right-radius: 5px; 
+	border-bottom-left-radius: 5px;
+}
+
+QComboBox::drop-down {
+    width: 15px;  
+    height: 10px;
+    subcontrol-origin: padding;
+    border: none;
+	top: 8px;  /* Відстань від верхнього краю */
+	right: 5px;
+}
+
+QComboBox::down-arrow {
+    image: url(:/icon/roll.png);
+    width: 15px;  
+    height: 10px;
+}
+
+
+QComboBox QAbstractItemView:hover {
+    color: #FFF;
+    font-family: Montserrat;
+    font-size: 13px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: normal;
+}
+</string>
+        </property>
+        <item>
+         <property name="text">
+          <string>Norm Area</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+     </layout>
     </widget>
    </item>
   </layout>

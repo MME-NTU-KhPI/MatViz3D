@@ -21,13 +21,12 @@ class Statistics : public QWidget
 
 public:
     explicit Statistics(QWidget *parent = nullptr);
-    Statistics(const QVector<int>& colorCounts, QWidget *parent = nullptr);
+    // Statistics(int16_t*** voxels, int numCubes, QWidget *parent = nullptr);
     ~Statistics();
-    void setVoxelCounts(const QVector<int>& counts);
+    void setVoxelCounts(int16_t ***voxels, int numCubes);
 
 private:
     Ui::Statistics *ui;
-    QVector<int> m_colorCounts;
 
 };
 

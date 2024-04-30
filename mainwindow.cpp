@@ -37,7 +37,7 @@ MainWindow::MainWindow(QWidget *parent)
     setupFileMenu();
     setupWindowMenu();
 
-    connect(ui->statistics, &QPushButton::clicked, this, &MainWindow::on_statistics_clicked);
+    // connect(ui->statistics, &QPushButton::clicked, this, &MainWindow::on_statistics_clicked);
     connect(this, &MainWindow::on_Start_clicked, this, &MainWindow::on_Start_clicked);
 
 
@@ -261,19 +261,19 @@ void MainWindow::on_Start_clicked()
     clock_t end_time = clock(); // Фіксація часу завершення виконання
     double elapsed_time = double(end_time - start_time) / CLOCKS_PER_SEC; // Обчислення часу виконання в секундах
     qDebug() << "Total execution time: " << elapsed_time << " seconds";
-    ui->myGLWidget->calculateSurfaceArea();
+    // ui->myGLWidget->calculateSurfaceArea();
     startButtonPressed = true;
 }
 
 void MainWindow::on_statistics_clicked()
 {
+    QMessageBox::information(nullptr, "Warning!", "The structure was not generated.");
     if(startButtonPressed == false)
     {
         QMessageBox::information(nullptr, "Warning!", "The structure was not generated.");
     }
     else{
-        QVector<int> colorCounts = ui->myGLWidget->countVoxelColors();
-        form.setVoxelCounts(colorCounts);
+        form.setVoxelCounts(Parameters::voxels, Parameters::size);
 
         QString selectedAlgorithm = ui->AlgorithmsBox->currentText();
 
