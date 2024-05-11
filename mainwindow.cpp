@@ -144,117 +144,117 @@ void MainWindow::on_Start_clicked()
     }
     else if (selectedAlgorithm == "Probability Circle")
     {
-            Probability_Circle start(Parameters::size, Parameters::points);
-            Parameters::voxels = start.Generate_Initial_Cube();
-            start.Generate_Random_Starting_Points(isWaveGeneration);
-            start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
-            if (isAnimation == 0)
+        Probability_Circle start(Parameters::size, Parameters::points);
+        Parameters::voxels = start.Generate_Initial_Cube();
+        start.Generate_Random_Starting_Points(isWaveGeneration);
+        start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
+        if (isAnimation == 0)
+        {
+            start.Generate_Filling(isAnimation, isWaveGeneration);
+            ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
+            ui->myGLWidget->update();
+        }
+        else
+        {
+            while (!start.grains.empty())
             {
                 start.Generate_Filling(isAnimation, isWaveGeneration);
-                ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
-                ui->myGLWidget->update();
+                QApplication::processEvents();
+                ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
             }
-            else
-            {
-                while (!start.grains.empty())
-                {
-                    start.Generate_Filling(isAnimation, isWaveGeneration);
-                    QApplication::processEvents();
-                    ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
-                }
-            }
-            qDebug() << "PROBABILITY CIRCLE";
+        }
+        qDebug() << "PROBABILITY CIRCLE";
     }
     else if (selectedAlgorithm == "Probability Ellipse")
     {
-            Probability_Ellipse start(Parameters::size, Parameters::points);
-            Parameters::voxels = start.Generate_Initial_Cube();
-            start.Generate_Random_Starting_Points(isWaveGeneration);
-            start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
-            if (isAnimation == 0)
+        Probability_Ellipse start(Parameters::size, Parameters::points);
+        Parameters::voxels = start.Generate_Initial_Cube();
+        start.Generate_Random_Starting_Points(isWaveGeneration);
+        start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
+        if (isAnimation == 0)
+        {
+            start.Generate_Filling(isAnimation, isWaveGeneration);
+            ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
+            ui->myGLWidget->update();
+        }
+        else
+        {
+            while (!start.grains.empty())
             {
                 start.Generate_Filling(isAnimation, isWaveGeneration);
-                ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
-                ui->myGLWidget->update();
+                QApplication::processEvents();
+                ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
             }
-            else
-            {
-                while (!start.grains.empty())
-                {
-                    start.Generate_Filling(isAnimation, isWaveGeneration);
-                    QApplication::processEvents();
-                    ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
-                }
-            }
-            qDebug() << "PROBABILITY ELLIPSE";
+        }
+        qDebug() << "PROBABILITY ELLIPSE";
     }
     else if (selectedAlgorithm == "Moore")
     {
-            Moore start(Parameters::size, Parameters::points);
-            Parameters::voxels = start.Generate_Initial_Cube();
-            start.Generate_Random_Starting_Points(isWaveGeneration);
-            start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
-            if (isAnimation == 0)
+        Moore start(Parameters::size, Parameters::points);
+        Parameters::voxels = start.Generate_Initial_Cube();
+        start.Generate_Random_Starting_Points(isWaveGeneration);
+        start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
+        if (isAnimation == 0)
+        {
+            start.Generate_Filling(isAnimation, isWaveGeneration);
+            ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
+            ui->myGLWidget->update();
+        }
+        else
+        {
+            while (!start.grains.empty())
             {
                 start.Generate_Filling(isAnimation, isWaveGeneration);
-                ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
-                ui->myGLWidget->update();
+                QApplication::processEvents();
+                ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
             }
-            else
-            {
-                while (!start.grains.empty())
-                {
-                    start.Generate_Filling(isAnimation, isWaveGeneration);
-                    QApplication::processEvents();
-                    ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
-                }
-            }
-            qDebug() << "MOORE";
+        }
+        qDebug() << "MOORE";
     }
     else if(selectedAlgorithm == "Radial")
     {
-            Radial start(Parameters::size, Parameters::points);
-            Parameters::voxels = start.Generate_Initial_Cube();
-            start.Generate_Random_Starting_Points(isWaveGeneration);
-            start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
-            if (isAnimation == 0)
+        Radial start(Parameters::size, Parameters::points);
+        Parameters::voxels = start.Generate_Initial_Cube();
+        start.Generate_Random_Starting_Points(isWaveGeneration);
+        start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
+        if (isAnimation == 0)
+        {
+            start.Generate_Filling(isAnimation, isWaveGeneration);
+            ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
+            ui->myGLWidget->update();
+        }
+        else
+        {
+            while (!start.grains.empty())
             {
                 start.Generate_Filling(isAnimation, isWaveGeneration);
-                ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
-                ui->myGLWidget->update();
+                QApplication::processEvents();
+                ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
             }
-            else
-            {
-                while (!start.grains.empty())
-                {
-                    start.Generate_Filling(isAnimation, isWaveGeneration);
-                    QApplication::processEvents();
-                    ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
-                }
-            }
-            qDebug() << "RADIAL";
+        }
+        qDebug() << "RADIAL";
     }
     if(selectedAlgorithm == "DLCA")
     {
-            DLCA start(Parameters::size, Parameters::points);
-            Parameters::voxels = start.Generate_Initial_Cube();
-            start.Generate_Random_Starting_Points();
-            if (isAnimation == 0)
+        DLCA start(Parameters::size, Parameters::points);
+        Parameters::voxels = start.Generate_Initial_Cube();
+        start.Generate_Random_Starting_Points();
+        if (isAnimation == 0)
+        {
+            start.Generate_Filling(isAnimation, isWaveGeneration);
+            ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
+            ui->myGLWidget->update();
+        }
+        else
+        {
+            while (!start.grains.empty())
             {
                 start.Generate_Filling(isAnimation, isWaveGeneration);
-                ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
-                ui->myGLWidget->update();
+                QApplication::processEvents();
+                ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
             }
-            else
-            {
-                while (!start.grains.empty())
-                {
-                    start.Generate_Filling(isAnimation, isWaveGeneration);
-                    QApplication::processEvents();
-                    ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
-                }
-            }
-            qDebug() << "DLCA";
+        }
+        qDebug() << "DLCA";
     }
     ui->Start->setText("RELOAD");
     ui->Start->setStyleSheet("background: #282828; border-radius: 8px; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
@@ -267,7 +267,6 @@ void MainWindow::on_Start_clicked()
 
 void MainWindow::on_statistics_clicked()
 {
-    QMessageBox::information(nullptr, "Warning!", "The structure was not generated.");
     if(startButtonPressed == false)
     {
         QMessageBox::information(nullptr, "Warning!", "The structure was not generated.");

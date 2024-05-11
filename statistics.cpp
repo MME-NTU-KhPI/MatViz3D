@@ -7,6 +7,9 @@
 #include <vector>
 #include <QSet>
 #include <cmath>
+#include <vector>
+#include <queue>
+#include <unordered_map>
 
 
 Statistics::Statistics(QWidget *parent)
@@ -39,6 +42,100 @@ Statistics::~Statistics()
 //Functions for 2D properties
 
 
+//void Statistics::setVoxelCounts(int16_t*** voxels, int numCubes)
+//{
+//    // Отримання розмірів масиву
+//    int sizeX = numCubes;
+//    int sizeY = numCubes;
+//    int sizeZ = numCubes;
+
+//    // Розділення масиву на шари по координаті Z
+//    for (int z = 0; z < sizeZ; ++z) {
+//        // Вивід номеру шару
+//        qDebug() << "Layer" << z;
+
+//        // Вивід значень шару
+//        for (int y = 0; y < sizeY; ++y) {
+//            QString row;
+//            for (int x = 0; x < sizeX; ++x) {
+//                // Додавання числа до рядка
+//                row.append(QString::number(voxels[x][y][z]) + " ");
+//            }
+//            // Вивід рядка в QDebug
+//            qDebug() << row;
+//        }
+
+//        // Розділювач між шарами
+//        qDebug() << "-------------------------";
+//    }
+//}
+
+
+
+
+// Структура для представлення координати пікселя
+struct Point {
+    int x, y;
+    Point(int _x, int _y) : x(_x), y(_y) {}
+};
+
+// Структура для представлення об'єкта
+struct Object {
+    int label;
+    int size;
+    Object(int _label, int _size) : label(_label), size(_size) {}
+};
+
+std::vector<Object> label_connected_regions(const std::vector<std::vector<int>>& image) {
+    int rows = image.size();
+    int cols = image[0].size();
+    std::vector<std::vector<bool>> visited(rows, std::vector<bool>(cols, false)); // Масив для відстеження відвіданих пікселів
+    std::unordered_map<int, int> grainAreas; // Мапа для зберігання площі кожного зерна
+
+    std::vector<Object> objects; // Вектор для зберігання об'єктів
+
+    // Проходження по зображенню
+    for (int i = 0; i < rows; ++i) {
+        for (int j = 0; j < cols; ++j) {
+            if (image[i][j] && !visited[i][j]) { // Якщо поточний піксель належить об'єкту та ще не відвіданий
+                int size = 0; // Ініціалізуємо розмір об'єкту
+                int color = image[i][j]; // Колір поточного зерна
+                std::queue<Point> q; // Черга для обходу об'єкту
+
+                q.push(Point(i, j)); // Додаємо поточний піксель у чергу
+                visited[i][j] = true; // Позначаємо його як відвіданий
+
+                // Обхід об'єкту в ширину
+                while (!q.empty()) {
+                    Point p = q.front();
+                    q.pop();
+                    size++; // Збільшуємо розмір об'єкту
+                    // Перевірка сусідніх пікселів
+                    std::vector<Point> neighbors = {{p.x - 1, p.y}, {p.x + 1, p.y}, {p.x, p.y - 1}, {p.x, p.y + 1}};
+                    for (const auto& neighbor : neighbors) {
+                        int ni = neighbor.x;
+                        int nj = neighbor.y;
+                        if (ni >= 0 && ni < rows && nj >= 0 && nj < cols && image[ni][nj] == color && !visited[ni][nj]) {
+                            q.push(neighbor);
+                            visited[ni][nj] = true;
+                        }
+                    }
+                }
+
+                // Зберігаємо площу кожного зерна за його кольором
+                grainAreas[color] += size;
+            }
+        }
+    }
+
+    // Додаємо знайдені зерна до вектора об'єктів
+    for (const auto& pair : grainAreas) {
+        objects.emplace_back(pair.first, pair.second);
+    }
+
+    return objects;
+}
+
 void Statistics::setVoxelCounts(int16_t*** voxels, int numCubes)
 {
     // Отримання розмірів масиву
@@ -46,26 +143,48 @@ void Statistics::setVoxelCounts(int16_t*** voxels, int numCubes)
     int sizeY = numCubes;
     int sizeZ = numCubes;
 
-    // Розділення масиву на шари по координаті Z
-    for (int z = 0; z < sizeZ; ++z) {
-        // Вивід номеру шару
-        qDebug() << "Layer" << z;
+    // Створення масиву для зберігання площі кожного зерна на кожному шарі
+    std::vector<std::unordered_map<int, int>> grainAreasByLayer(sizeZ);
 
-        // Вивід значень шару
+    // Виконання обробки кожного шару
+    for (int z = 0; z < sizeZ; ++z) {
+        // Створення масиву для поточного шару
+        std::vector<std::vector<int>> layerImage(sizeY, std::vector<int>(sizeX));
+
+        // Заповнення масиву значеннями з масиву voxels
         for (int y = 0; y < sizeY; ++y) {
-            QString row;
             for (int x = 0; x < sizeX; ++x) {
-                // Додавання числа до рядка
-                row.append(QString::number(voxels[x][y][z]) + " ");
+                // Просто копіюємо значення з масиву voxels
+                layerImage[y][x] = voxels[x][y][z];
             }
-            // Вивід рядка в QDebug
-            qDebug() << row;
         }
 
-        // Розділювач між шарами
-        qDebug() << "-------------------------";
+        // Вивід поточного шару у консоль для перевірки
+        qDebug() << "Layer" << z << "Contents:";
+        for (int y = 0; y < sizeY; ++y) {
+            QString line;
+            for (int x = 0; x < sizeX; ++x) {
+                line += QString::number(layerImage[y][x]) + " ";
+            }
+            qDebug() << line;
+        }
+
+        // Застосування функції маркування з'єднаних областей для поточного шару
+        std::vector<Object> objects = label_connected_regions(layerImage);
+
+        // Вивід площі кожного нового зерна у консоль
+        for (const auto& obj : objects) {
+            // Перевірка, чи мітка об'єкта вже була розглянута на попередніх шарах
+            if (grainAreasByLayer[z].find(obj.label) == grainAreasByLayer[z].end()) {
+                // Якщо мітка об'єкта нова для поточного шару, виводимо її площу
+                qDebug() << "Layer" << z << ", Grain" << obj.label << "Area:" << obj.size;
+                // Додаємо мітку та площу до мапи поточного шару
+                grainAreasByLayer[z][obj.label] = obj.size;
+            }
+        }
     }
 }
+
 
 
 
