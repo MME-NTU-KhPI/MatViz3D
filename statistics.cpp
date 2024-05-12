@@ -4,13 +4,14 @@
 #include <QtCharts>
 #include <QVector>
 #include <algorithm>
+#include <fstream>
 #include <vector>
 #include <QSet>
 #include <cmath>
 #include <vector>
 #include <queue>
 #include <unordered_map>
-
+#include <unordered_set>
 
 Statistics::Statistics(QWidget *parent)
     : QWidget(parent), ui(new Ui::Statistics)
@@ -18,60 +19,10 @@ Statistics::Statistics(QWidget *parent)
     ui->setupUi(this);
 }
 
-//Statistics::Statistics(int16_t*** voxels, int numCubes, QWidget *parent)
-//    : QWidget(parent), ui(new Ui::Statistics)
-//{
-//    ui->setupUi(this);
-
-//    setVoxelCounts(voxels, numCubes);
-//}
-
-
 Statistics::~Statistics()
 {
     delete ui;
 }
-
-//Functions for 3D properties
-
-
-
-
-
-
-//Functions for 2D properties
-
-
-//void Statistics::setVoxelCounts(int16_t*** voxels, int numCubes)
-//{
-//    // Отримання розмірів масиву
-//    int sizeX = numCubes;
-//    int sizeY = numCubes;
-//    int sizeZ = numCubes;
-
-//    // Розділення масиву на шари по координаті Z
-//    for (int z = 0; z < sizeZ; ++z) {
-//        // Вивід номеру шару
-//        qDebug() << "Layer" << z;
-
-//        // Вивід значень шару
-//        for (int y = 0; y < sizeY; ++y) {
-//            QString row;
-//            for (int x = 0; x < sizeX; ++x) {
-//                // Додавання числа до рядка
-//                row.append(QString::number(voxels[x][y][z]) + " ");
-//            }
-//            // Вивід рядка в QDebug
-//            qDebug() << row;
-//        }
-
-//        // Розділювач між шарами
-//        qDebug() << "-------------------------";
-//    }
-//}
-
-
-
 
 // Структура для представлення координати пікселя
 struct Point {
@@ -83,34 +34,91 @@ struct Point {
 struct Object {
     int label;
     int size;
-    Object(int _label, int _size) : label(_label), size(_size) {}
+    int perimeter;
+    float normalizedArea; // Нормалізована площа
+    Object(int _label, int _size, int _perimeter, float _normalizedArea) : label(_label), size(_size), perimeter(_perimeter), normalizedArea(_normalizedArea) {}
 };
 
+// Функція для збереження властивостей у CSV файл
+void saveToCSV(const std::vector<Object>& objects, const std::string& filename) {
+    std::ofstream file(filename); // Відкриття файлу для запису
+    if (!file.is_open()) {
+        qDebug() << "Error: Unable to open file for writing";
+        return;
+    }
+
+    // Запис заголовка CSV файлу
+    file << "NormArea,Perimeter\n";
+
+    // Запис даних про об'єкти у CSV файл
+    for (const auto& obj : objects) {
+        file << obj.normalizedArea << "," << obj.perimeter << "\n";
+    }
+
+    file.close(); // Закриття файлу
+}
+
+// Обчислення периметру для об'єкта
+int compute_perimeter(const std::vector<std::vector<int>>& image, int i, int j) {
+    int rows = image.size();
+    int cols = image[0].size();
+    int perimeter = 0;
+    int color = image[i][j];
+    bool onEdge = false;
+
+    // Перевірка сусідніх пікселів
+    std::vector<Point> neighbors = {{i - 1, j}, {i + 1, j}, {i, j - 1}, {i, j + 1}};
+    for (const auto& neighbor : neighbors) {
+        int ni = neighbor.x;
+        int nj = neighbor.y;
+        if (ni < 0 || ni >= rows || nj < 0 || nj >= cols || image[ni][nj] != color) {
+            // Якщо сусід виходить за межі зображення або має протилежний колір,
+            // це зовнішній піксель, який додається до периметру
+            perimeter++;
+            onEdge = true;
+        }
+    }
+
+    // Враховуємо тільки один раз кожен піксель на краю зерна
+    if (onEdge) {
+        perimeter = 1;
+    } else {
+        perimeter = 0;
+    }
+
+    return perimeter;
+}
+
+
+// Маркування з'єднаних областей та обчислення їх площі та периметру
 std::vector<Object> label_connected_regions(const std::vector<std::vector<int>>& image) {
     int rows = image.size();
     int cols = image[0].size();
-    std::vector<std::vector<bool>> visited(rows, std::vector<bool>(cols, false)); // Масив для відстеження відвіданих пікселів
-    std::unordered_map<int, int> grainAreas; // Мапа для зберігання площі кожного зерна
+    double totalArea = rows * cols;
 
-    std::vector<Object> objects; // Вектор для зберігання об'єктів
+    std::vector<std::vector<bool>> visited(rows, std::vector<bool>(cols, false));
+    std::unordered_map<int, std::tuple<int, int, double>> grainData;
 
-    // Проходження по зображенню
+    std::vector<Object> objects;
+
     for (int i = 0; i < rows; ++i) {
         for (int j = 0; j < cols; ++j) {
-            if (image[i][j] && !visited[i][j]) { // Якщо поточний піксель належить об'єкту та ще не відвіданий
-                int size = 0; // Ініціалізуємо розмір об'єкту
-                int color = image[i][j]; // Колір поточного зерна
-                std::queue<Point> q; // Черга для обходу об'єкту
+            if (image[i][j] && !visited[i][j]) {
+                int size = 0;
+                int perimeter = 0;
+                int color = image[i][j];
+                std::queue<Point> q;
 
-                q.push(Point(i, j)); // Додаємо поточний піксель у чергу
-                visited[i][j] = true; // Позначаємо його як відвіданий
+                q.push(Point(i, j));
+                visited[i][j] = true;
 
-                // Обхід об'єкту в ширину
                 while (!q.empty()) {
                     Point p = q.front();
                     q.pop();
-                    size++; // Збільшуємо розмір об'єкту
-                    // Перевірка сусідніх пікселів
+                    size++;
+
+                    perimeter += compute_perimeter(image, p.x, p.y);
+
                     std::vector<Point> neighbors = {{p.x - 1, p.y}, {p.x + 1, p.y}, {p.x, p.y - 1}, {p.x, p.y + 1}};
                     for (const auto& neighbor : neighbors) {
                         int ni = neighbor.x;
@@ -122,19 +130,24 @@ std::vector<Object> label_connected_regions(const std::vector<std::vector<int>>&
                     }
                 }
 
-                // Зберігаємо площу кожного зерна за його кольором
-                grainAreas[color] += size;
+                double normalizedArea = static_cast<double>(size) / totalArea;
+
+                grainData[color] = std::make_tuple(size, perimeter, normalizedArea);
             }
         }
     }
 
-    // Додаємо знайдені зерна до вектора об'єктів
-    for (const auto& pair : grainAreas) {
-        objects.emplace_back(pair.first, pair.second);
+    for (const auto& pair : grainData) {
+        int label = pair.first;
+        int size = std::get<0>(pair.second);
+        int perimeter = std::get<1>(pair.second);
+        double normalizedArea = std::get<2>(pair.second);
+        objects.emplace_back(label, size, perimeter, normalizedArea);
     }
 
     return objects;
 }
+
 
 void Statistics::setVoxelCounts(int16_t*** voxels, int numCubes)
 {
@@ -143,8 +156,8 @@ void Statistics::setVoxelCounts(int16_t*** voxels, int numCubes)
     int sizeY = numCubes;
     int sizeZ = numCubes;
 
-    // Створення масиву для зберігання площі кожного зерна на кожному шарі
-    std::vector<std::unordered_map<int, int>> grainAreasByLayer(sizeZ);
+    // Вектор для зберігання всіх об'єктів для всіх шарів
+    std::vector<Object> allObjects;
 
     // Виконання обробки кожного шару
     for (int z = 0; z < sizeZ; ++z) {
@@ -172,26 +185,18 @@ void Statistics::setVoxelCounts(int16_t*** voxels, int numCubes)
         // Застосування функції маркування з'єднаних областей для поточного шару
         std::vector<Object> objects = label_connected_regions(layerImage);
 
-        // Вивід площі кожного нового зерна у консоль
+        // Вивід площі та периметру кожного нового зерна у консоль
         for (const auto& obj : objects) {
-            // Перевірка, чи мітка об'єкта вже була розглянута на попередніх шарах
-            if (grainAreasByLayer[z].find(obj.label) == grainAreasByLayer[z].end()) {
-                // Якщо мітка об'єкта нова для поточного шару, виводимо її площу
-                qDebug() << "Layer" << z << ", Grain" << obj.label << "Area:" << obj.size;
-                // Додаємо мітку та площу до мапи поточного шару
-                grainAreasByLayer[z][obj.label] = obj.size;
-            }
+            qDebug() << "Layer" << z << ", Grain" << obj.label << "Area:" << obj.size << "Perimeter:" << obj.perimeter << "NormArea:" << obj.normalizedArea;
         }
+        // Додавання властивостей об'єктів для поточного шару до загального вектору
+        allObjects.insert(allObjects.end(), objects.begin(), objects.end());
     }
+
+    // Збереження властивостей у CSV файл
+    std::string filename = "All_Layers_Properties.csv";
+    saveToCSV(allObjects, filename);
 }
-
-
-
-
-
-
-
-
 
 
 
