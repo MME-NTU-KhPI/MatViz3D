@@ -35,8 +35,9 @@ struct Object {
     int label;
     int size;
     int perimeter;
-    float normalizedArea; // Нормалізована площа
-    Object(int _label, int _size, int _perimeter, float _normalizedArea) : label(_label), size(_size), perimeter(_perimeter), normalizedArea(_normalizedArea) {}
+    float normArea; // Нормалізована площа
+    float ecr; // Нормалізована площа
+    Object(int _label, int _size, int _perimeter, float _normArea, float _ecr) : label(_label), size(_size), perimeter(_perimeter), normArea(_normArea), ecr(_ecr) {}
 };
 
 // Функція для збереження властивостей у CSV файл
@@ -48,11 +49,11 @@ void saveToCSV(const std::vector<Object>& objects, const std::string& filename) 
     }
 
     // Запис заголовка CSV файлу
-    file << "NormArea,Perimeter\n";
+    file << "NormArea,Perimeter,ECR\n";
 
     // Запис даних про об'єкти у CSV файл
     for (const auto& obj : objects) {
-        file << obj.normalizedArea << "," << obj.perimeter << "\n";
+        file << obj.normArea << "," << obj.perimeter<< "," << obj.ecr << "\n";
     }
 
     file.close(); // Закриття файлу
@@ -89,6 +90,7 @@ int compute_perimeter(const std::vector<std::vector<int>>& image, int i, int j) 
     return perimeter;
 }
 
+const double pi = 3.14159;
 
 // Маркування з'єднаних областей та обчислення їх площі та периметру
 std::vector<Object> label_connected_regions(const std::vector<std::vector<int>>& image) {
@@ -97,7 +99,7 @@ std::vector<Object> label_connected_regions(const std::vector<std::vector<int>>&
     double totalArea = rows * cols;
 
     std::vector<std::vector<bool>> visited(rows, std::vector<bool>(cols, false));
-    std::unordered_map<int, std::tuple<int, int, double>> grainData;
+    std::unordered_map<int, std::tuple<int, int, double, double>> grainData;
 
     std::vector<Object> objects;
 
@@ -130,9 +132,10 @@ std::vector<Object> label_connected_regions(const std::vector<std::vector<int>>&
                     }
                 }
 
-                double normalizedArea = static_cast<double>(size) / totalArea;
+                double normArea = static_cast<double>(size) / totalArea;
+                double ecr = sqrt(normArea/pi);
 
-                grainData[color] = std::make_tuple(size, perimeter, normalizedArea);
+                grainData[color] = std::make_tuple(size, perimeter, normArea, ecr);
             }
         }
     }
@@ -141,8 +144,9 @@ std::vector<Object> label_connected_regions(const std::vector<std::vector<int>>&
         int label = pair.first;
         int size = std::get<0>(pair.second);
         int perimeter = std::get<1>(pair.second);
-        double normalizedArea = std::get<2>(pair.second);
-        objects.emplace_back(label, size, perimeter, normalizedArea);
+        double normArea = std::get<2>(pair.second);
+        double ecr = std::get<3>(pair.second);
+        objects.emplace_back(label, size, perimeter, normArea, ecr);
     }
 
     return objects;
@@ -187,7 +191,7 @@ void Statistics::setVoxelCounts(int16_t*** voxels, int numCubes)
 
         // Вивід площі та периметру кожного нового зерна у консоль
         for (const auto& obj : objects) {
-            qDebug() << "Layer" << z << ", Grain" << obj.label << "Area:" << obj.size << "Perimeter:" << obj.perimeter << "NormArea:" << obj.normalizedArea;
+            qDebug() << "Layer" << z << ", Grain" << obj.label << "Area:" << obj.size << "Perimeter:" << obj.perimeter << "NormArea:" << obj.normArea;
         }
         // Додавання властивостей об'єктів для поточного шару до загального вектору
         allObjects.insert(allObjects.end(), objects.begin(), objects.end());
