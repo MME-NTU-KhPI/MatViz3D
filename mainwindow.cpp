@@ -272,7 +272,7 @@ void MainWindow::on_statistics_clicked()
         QMessageBox::information(nullptr, "Warning!", "The structure was not generated.");
     }
     else{
-        form.setVoxelCounts(Parameters::voxels, Parameters::size);
+        form.layersProcessing(Parameters::voxels, Parameters::size);
 
         QString selectedAlgorithm = ui->AlgorithmsBox->currentText();
 

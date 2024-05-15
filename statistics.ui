@@ -105,6 +105,26 @@ QComboBox QAbstractItemView:hover {
           <string>Norm Area</string>
          </property>
         </item>
+        <item>
+         <property name="text">
+          <string>Area</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Perimeter</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>ECR</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Shape factor</string>
+         </property>
+        </item>
        </widget>
       </item>
      </layout>

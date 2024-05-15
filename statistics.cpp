@@ -17,6 +17,13 @@ Statistics::Statistics(QWidget *parent)
     : QWidget(parent), ui(new Ui::Statistics)
 {
     ui->setupUi(this);
+    // Ініціалізуємо allObjects
+    allObjects = QList<Object>();
+    connect(ui->propertyBox, QOverload<int>::of(&QComboBox::activated), [this](int index){
+        Q_UNUSED(index);
+        this->selectProperty();
+    });
+
 }
 
 Statistics::~Statistics()
@@ -30,18 +37,175 @@ struct Point {
     Point(int _x, int _y) : x(_x), y(_y) {}
 };
 
-// Структура для представлення об'єкта
-struct Object {
-    int label;
-    int size;
-    int perimeter;
-    float normArea; // Нормалізована площа
-    float ecr; // Нормалізована площа
-    Object(int _label, int _size, int _perimeter, float _normArea, float _ecr) : label(_label), size(_size), perimeter(_perimeter), normArea(_normArea), ecr(_ecr) {}
-};
+// Функція для побудови гістограми
+void Statistics::buildHistogram(const QVector<float>& counts)
+{
+    // Створення нового Area Chart
+    QAreaSeries *series = new QAreaSeries();
 
-// Функція для збереження властивостей у CSV файл
-void saveToCSV(const std::vector<Object>& objects, const std::string& filename) {
+    // Визначення мінімального та максимального значень даних
+    float minValue = *std::min_element(counts.constBegin(), counts.constEnd());
+    float maxValue = *std::max_element(counts.constBegin(), counts.constEnd());
+
+    int numberOfBins = static_cast<int>(std::round(std::sqrt(counts.size())));
+
+    // Визначення розміру біна (ширини стовпця)
+    float binSize = (maxValue - minValue) / numberOfBins;
+
+    // Створення вектора для зберігання кількості значень у кожному біні
+    QVector<int> binCounts(numberOfBins, 0);
+
+    // Обчислення кількості значень у кожному біні
+    for (float value : counts) {
+        int binIndex = static_cast<int>((value - minValue) / binSize);
+        if (binIndex >= 0 && binIndex < numberOfBins) {
+            binCounts[binIndex]++;
+        }
+    }
+
+    int maxBinCount = *std::max_element(binCounts.constBegin(), binCounts.constEnd());
+    int maxAxisValue = (maxBinCount + 9) / 10 * 10; // Заокруглення вгору до ближчого кратного 10
+
+    // Додавання точок до Area Chart
+    QVector<QPointF> lowerPoints;
+    QVector<QPointF> upperPoints;
+    for (int i = 0; i < numberOfBins; ++i) {
+        float binStart = minValue + i * binSize;
+        float binEnd = minValue + (i + 1) * binSize;
+        lowerPoints.append(QPointF(binStart, 0));
+        lowerPoints.append(QPointF(binEnd, 0));
+        upperPoints.append(QPointF(binStart, binCounts[i]));
+        upperPoints.append(QPointF(binEnd, binCounts[i]));
+    }
+
+    // Встановлення точок для нижньої та верхньої межі області
+    QLineSeries *lowerSeries = new QLineSeries();
+    QLineSeries *upperSeries = new QLineSeries();
+    lowerSeries->append(lowerPoints);
+    upperSeries->append(upperPoints);
+    series->setLowerSeries(lowerSeries);
+    series->setUpperSeries(upperSeries);
+
+    // Встановлення кольорів графіки та фону графіку
+    QBrush areaBrush(QColor(0, 86, 77, 128)); // Колір графіки з напівпрозорістю
+    QPen areaPen(QColor(0, 86, 77, 255)); // Колір обводки графіки з напівпрозорістю
+    areaPen.setWidth(2); // Ширина обводки
+
+    series->setBrush(areaBrush);
+    series->setPen(areaPen);
+
+    // Створення графіка та налаштування властивостей
+    QChart *chart = new QChart();
+    chart->addSeries(series);
+    chart->setTitle(""); // Заголовок гістограми
+    chart->setAnimationOptions(QChart::SeriesAnimations);
+
+    // Зміна кольорів фону, сітки та вісей
+    chart->setBackgroundBrush(QColor(54, 54, 54)); // Колір фону
+    chart->setPlotAreaBackgroundBrush(QColor(54, 54, 54)); // Колір фону області графіку
+    chart->setPlotAreaBackgroundVisible(true);
+
+    QValueAxis *axisX = new QValueAxis();
+    axisX->setLabelsColor(QColor(150, 150, 150)); // Колір міток на осі X
+    axisX->setLinePenColor(QColor(150, 150, 150)); // Колір лінії осі X
+    axisX->setGridLineColor(QColor(150, 150, 150, 77)); // Колір сітки осі X з напівпрозорістю
+
+    chart->addAxis(axisX, Qt::AlignBottom);
+    lowerSeries->attachAxis(axisX);
+
+    // Отримуємо мінімальне та максимальне значення для відображення на осі X
+    float tickMinValue = minValue - binSize;
+    float tickMaxValue = maxValue + binSize;
+
+    // мінімальне значення на осі X не менше нуля
+    tickMinValue = qMax(0.0f, tickMinValue);
+
+    // Кількість міток на вісі X
+    int tickCount = qMin(10, numberOfBins); // Задаємо максимальну кількість міток, наприклад, 10
+    axisX->setTickCount(tickCount);
+
+    // Функція для генерації тексту мітки вісі X
+    axisX->setLabelFormat("%.1f"); // Відображення чисел з плаваючою комою
+
+    // Встановлюємо мінімальне та максимальне значення осі X
+    axisX->setMin(tickMinValue);
+    axisX->setMax(tickMaxValue);
+
+    // Налаштування осі Y
+    QValueAxis *axisY = new QValueAxis();
+    axisY->setLabelFormat("%d"); // Формат міток на осі Y (цілі числа)
+    axisY->setLinePenColor(QColor(150, 150, 150)); // Колір лінії осі Y
+    axisY->setGridLineColor(QColor(150, 150, 150, 77)); // Колір сітки осі Y з напівпрозорістю
+    axisY->setRange(0, maxAxisValue + 10);
+    axisY->setLabelsColor(QColor(150, 150, 150)); // Колір міток на осі Y
+
+    chart->addAxis(axisY, Qt::AlignLeft);
+    lowerSeries->attachAxis(axisY);
+
+    // Приховати легенду (підпис "Counts")
+    chart->legend()->hide();
+
+    // Очистити horizontalFrame
+    QLayoutItem *item;
+    while ((item = ui->horizontalFrame->layout()->takeAt(0)) != nullptr) {
+        delete item->widget();
+        delete item;
+    }
+
+    // Відображення графіка
+    QChartView *chartView = new QChartView(chart);
+    chartView->setRenderHint(QPainter::Antialiasing);
+    ui->horizontalFrame->layout()->addWidget(chartView);
+}
+
+
+void Statistics::clearLayout(QLayout *layout)
+{
+    QLayoutItem *item;
+    while ((item = layout->takeAt(0)) != nullptr) {
+        delete item->widget();
+        delete item;
+    }
+}
+
+void Statistics::selectProperty() {
+    // Створення вектора для зберігання значень властивості
+    QVector<float> propertyValues;
+
+    QString selectedProperty = ui->propertyBox->currentText();
+
+    // Додаємо значення відповідно до вибраної властивості
+    if (selectedProperty == "Norm Area") {
+        for (const auto& obj : allObjects) {
+            propertyValues.push_back(obj.normArea);
+        }
+    } else if (selectedProperty == "Perimeter") {
+        for (const auto& obj : allObjects) {
+            propertyValues.push_back(obj.perimeter);
+        }
+    } else if (selectedProperty == "ECR") {
+        for (const auto& obj : allObjects) {
+            propertyValues.push_back(obj.ecr);
+        }
+    } else if (selectedProperty == "Shape factor") {
+        for (const auto& obj : allObjects) {
+            propertyValues.push_back(obj.shape_factor);
+        }
+    } else if (selectedProperty == "Area") {
+        for (const auto& obj : allObjects) {
+            propertyValues.push_back(obj.size);
+        }
+    }
+
+    qDebug() << propertyValues;
+
+    clearLayout(ui->horizontalFrame->layout());
+    // Викликаємо функцію для побудови гістограми з оновленими значеннями властивостей
+    buildHistogram(propertyValues);
+}
+
+
+void saveToCSV(const QList<Object>& objects, const std::string& filename) {
     std::ofstream file(filename); // Відкриття файлу для запису
     if (!file.is_open()) {
         qDebug() << "Error: Unable to open file for writing";
@@ -49,15 +213,16 @@ void saveToCSV(const std::vector<Object>& objects, const std::string& filename) 
     }
 
     // Запис заголовка CSV файлу
-    file << "NormArea,Perimeter,ECR\n";
+    file << "NormArea,Perimeter,Shape Factor,ECR\n";
 
     // Запис даних про об'єкти у CSV файл
     for (const auto& obj : objects) {
-        file << obj.normArea << "," << obj.perimeter<< "," << obj.ecr << "\n";
+        file << obj.normArea << "," << obj.perimeter << "," << obj.shape_factor << "," << obj.ecr << "\n";
     }
 
     file.close(); // Закриття файлу
 }
+
 
 // Обчислення периметру для об'єкта
 int compute_perimeter(const std::vector<std::vector<int>>& image, int i, int j) {
@@ -99,7 +264,7 @@ std::vector<Object> label_connected_regions(const std::vector<std::vector<int>>&
     double totalArea = rows * cols;
 
     std::vector<std::vector<bool>> visited(rows, std::vector<bool>(cols, false));
-    std::unordered_map<int, std::tuple<int, int, double, double>> grainData;
+    std::unordered_map<int, std::tuple<int, int, double, double, double>> grainData;
 
     std::vector<Object> objects;
 
@@ -134,8 +299,9 @@ std::vector<Object> label_connected_regions(const std::vector<std::vector<int>>&
 
                 double normArea = static_cast<double>(size) / totalArea;
                 double ecr = sqrt(normArea/pi);
+                double shape_factor = 4 * pi * static_cast<double>(size) / (perimeter^2);
 
-                grainData[color] = std::make_tuple(size, perimeter, normArea, ecr);
+                grainData[color] = std::make_tuple(size, perimeter, normArea, shape_factor, ecr);
             }
         }
     }
@@ -145,23 +311,21 @@ std::vector<Object> label_connected_regions(const std::vector<std::vector<int>>&
         int size = std::get<0>(pair.second);
         int perimeter = std::get<1>(pair.second);
         double normArea = std::get<2>(pair.second);
-        double ecr = std::get<3>(pair.second);
-        objects.emplace_back(label, size, perimeter, normArea, ecr);
+        double shape_factor = std::get<3>(pair.second);
+        double ecr = std::get<4>(pair.second);
+        objects.emplace_back(label, size, perimeter, normArea, shape_factor, ecr);
     }
 
     return objects;
 }
 
 
-void Statistics::setVoxelCounts(int16_t*** voxels, int numCubes)
+void Statistics::layersProcessing(int16_t*** voxels, int numCubes)
 {
     // Отримання розмірів масиву
     int sizeX = numCubes;
     int sizeY = numCubes;
     int sizeZ = numCubes;
-
-    // Вектор для зберігання всіх об'єктів для всіх шарів
-    std::vector<Object> allObjects;
 
     // Виконання обробки кожного шару
     for (int z = 0; z < sizeZ; ++z) {
@@ -194,12 +358,14 @@ void Statistics::setVoxelCounts(int16_t*** voxels, int numCubes)
             qDebug() << "Layer" << z << ", Grain" << obj.label << "Area:" << obj.size << "Perimeter:" << obj.perimeter << "NormArea:" << obj.normArea;
         }
         // Додавання властивостей об'єктів для поточного шару до загального вектору
-        allObjects.insert(allObjects.end(), objects.begin(), objects.end());
+        QList<Object> objectList(objects.begin(), objects.end());
+        allObjects.append(objectList);
     }
 
     // Збереження властивостей у CSV файл
-    std::string filename = "All_Layers_Properties.csv";
+    std::string filename = "All_Layers_Properties_3.csv";
     saveToCSV(allObjects, filename);
+//    selectProperty();
 }
 
 
