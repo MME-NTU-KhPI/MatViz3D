@@ -24,12 +24,19 @@ class Statistics : public QWidget
 
 public:
     explicit Statistics(QWidget *parent = nullptr);
-    // Statistics(int16_t*** voxels, int numCubes, QWidget *parent = nullptr);
     ~Statistics();
     void layersProcessing(int16_t ***voxels, int numCubes);
-    void buildHistogram(const QVector<float>& counts);
+    void buildHistogram(const QVector<float>& counts, QString selectedTitleProperty);
     void selectProperty();
     void clearLayout(QLayout *layout);
+    QChart* createChart(const QString& selectedTitleProperty);
+    QValueAxis* createAxisX();
+    QValueAxis* createAxisY();
+    void adjustAxisX(QValueAxis *axisX, const QVector<float>& counts);
+    QAreaSeries* createHistogramSeries(const QVector<float>& counts);
+
+private slots:
+    void on_saveChartAsIMGButton_clicked();
 
 private:
     Ui::Statistics *ui;

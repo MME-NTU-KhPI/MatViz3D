@@ -19,6 +19,8 @@ Statistics::Statistics(QWidget *parent)
     ui->setupUi(this);
     // Ініціалізуємо allObjects
     allObjects = QList<Object>();
+    ui->propertyBox->setCurrentText("-----");
+    selectProperty();
     connect(ui->propertyBox, QOverload<int>::of(&QComboBox::activated), [this](int index){
         Q_UNUSED(index);
         this->selectProperty();
@@ -38,24 +40,72 @@ struct Point {
 };
 
 // Функція для побудови гістограми
-void Statistics::buildHistogram(const QVector<float>& counts)
-{
-    // Створення нового Area Chart
-    QAreaSeries *series = new QAreaSeries();
+QChart* Statistics::createChart(const QString& selectedTitleProperty) {
+    QChart *chart = new QChart();
+    chart->setTitle(selectedTitleProperty);
+    chart->setTitleFont(QFont("Arial", 20));
+    chart->setTitleBrush(QBrush(QColor(0, 0, 0)));
+    chart->setAnimationOptions(QChart::SeriesAnimations);
 
-    // Визначення мінімального та максимального значень даних
+    chart->setBackgroundBrush(QColor(170, 170, 170));
+    chart->setPlotAreaBackgroundBrush(QColor(170, 170, 170));
+    chart->setPlotAreaBackgroundVisible(true);
+
+    return chart;
+}
+
+QValueAxis* Statistics::createAxisX() {
+    QValueAxis *axisX = new QValueAxis();
+    axisX->setTitleText("Value"); // Підпис осі X
+    axisX->setTitleBrush(QBrush(QColor(0, 0, 0)));
+    axisX->setTitleFont(QFont("Arial", 14));
+    axisX->setLabelsColor(QColor(0, 0, 0)); // Колір міток на осі X
+    axisX->setLinePenColor(QColor(0, 0, 0)); // Колір лінії осі X
+    axisX->setGridLineColor(QColor(0, 0, 0, 90)); // Колір сітки осі X з напівпрозорістю
+    return axisX;
+}
+
+QValueAxis* Statistics::createAxisY() {
+    QValueAxis *axisY = new QValueAxis();
+    axisY->setTitleText("Frequency");
+    axisY->setLabelFormat("%.1f");
+    axisY->setTitleBrush(QBrush(QColor(0, 0, 0)));
+    axisY->setTitleFont(QFont("Arial", 14));
+    axisY->setLinePenColor(QColor(0, 0, 0));
+    axisY->setGridLineColor(QColor(0, 0, 0, 90));
+    axisY->setLabelsColor(QColor(0, 0, 0));
+    return axisY;
+}
+
+void Statistics::adjustAxisX(QValueAxis *axisX, const QVector<float>& counts) {
     float minValue = *std::min_element(counts.constBegin(), counts.constEnd());
     float maxValue = *std::max_element(counts.constBegin(), counts.constEnd());
-
     int numberOfBins = static_cast<int>(std::round(std::sqrt(counts.size())));
-
-    // Визначення розміру біна (ширини стовпця)
     float binSize = (maxValue - minValue) / numberOfBins;
 
-    // Створення вектора для зберігання кількості значень у кожному біні
+    float tickMinValue = minValue - binSize;
+    float tickMaxValue = maxValue + binSize;
+
+    // Мінімальне значення на осі X не менше нуля
+    tickMinValue = qMax(0.0f, tickMinValue);
+
+    int tickCount = qMin(10, numberOfBins); // Задаємо максимальну кількість міток
+    axisX->setTickCount(tickCount);
+    axisX->setLabelFormat("%.4f"); // Відображення чисел з плаваючою комою
+    axisX->setMin(tickMinValue);
+    axisX->setMax(tickMaxValue);
+}
+
+QAreaSeries* Statistics::createHistogramSeries(const QVector<float>& counts) {
+    QAreaSeries *series = new QAreaSeries();
+
+    float minValue = *std::min_element(counts.constBegin(), counts.constEnd());
+    float maxValue = *std::max_element(counts.constBegin(), counts.constEnd());
+    int numberOfBins = static_cast<int>(std::round(std::sqrt(counts.size())));
+    float binSize = (maxValue - minValue) / numberOfBins;
+
     QVector<int> binCounts(numberOfBins, 0);
 
-    // Обчислення кількості значень у кожному біні
     for (float value : counts) {
         int binIndex = static_cast<int>((value - minValue) / binSize);
         if (binIndex >= 0 && binIndex < numberOfBins) {
@@ -63,10 +113,6 @@ void Statistics::buildHistogram(const QVector<float>& counts)
         }
     }
 
-    int maxBinCount = *std::max_element(binCounts.constBegin(), binCounts.constEnd());
-    int maxAxisValue = (maxBinCount + 9) / 10 * 10; // Заокруглення вгору до ближчого кратного 10
-
-    // Додавання точок до Area Chart
     QVector<QPointF> lowerPoints;
     QVector<QPointF> upperPoints;
     for (int i = 0; i < numberOfBins; ++i) {
@@ -78,7 +124,6 @@ void Statistics::buildHistogram(const QVector<float>& counts)
         upperPoints.append(QPointF(binEnd, binCounts[i]));
     }
 
-    // Встановлення точок для нижньої та верхньої межі області
     QLineSeries *lowerSeries = new QLineSeries();
     QLineSeries *upperSeries = new QLineSeries();
     lowerSeries->append(lowerPoints);
@@ -86,73 +131,50 @@ void Statistics::buildHistogram(const QVector<float>& counts)
     series->setLowerSeries(lowerSeries);
     series->setUpperSeries(upperSeries);
 
-    // Встановлення кольорів графіки та фону графіку
-    QBrush areaBrush(QColor(0, 86, 77, 128)); // Колір графіки з напівпрозорістю
-    QPen areaPen(QColor(0, 86, 77, 255)); // Колір обводки графіки з напівпрозорістю
-    areaPen.setWidth(2); // Ширина обводки
+    QBrush areaBrush(QColor(0, 86, 77, 150));
+    QPen areaPen(QColor(0, 86, 77, 255));
+    areaPen.setWidth(2);
 
     series->setBrush(areaBrush);
     series->setPen(areaPen);
 
-    // Створення графіка та налаштування властивостей
-    QChart *chart = new QChart();
-    chart->addSeries(series);
-    chart->setTitle(""); // Заголовок гістограми
-    chart->setAnimationOptions(QChart::SeriesAnimations);
+    return series;
+}
 
-    // Зміна кольорів фону, сітки та вісей
-    chart->setBackgroundBrush(QColor(54, 54, 54)); // Колір фону
-    chart->setPlotAreaBackgroundBrush(QColor(54, 54, 54)); // Колір фону області графіку
-    chart->setPlotAreaBackgroundVisible(true);
 
-    QValueAxis *axisX = new QValueAxis();
-    axisX->setLabelsColor(QColor(150, 150, 150)); // Колір міток на осі X
-    axisX->setLinePenColor(QColor(150, 150, 150)); // Колір лінії осі X
-    axisX->setGridLineColor(QColor(150, 150, 150, 77)); // Колір сітки осі X з напівпрозорістю
+void Statistics::buildHistogram(const QVector<float>& counts, QString selectedTitleProperty)
+{
+    QChart *chart = createChart(selectedTitleProperty);
+
+    QValueAxis *axisX = createAxisX();
+    QValueAxis *axisY = createAxisY();
 
     chart->addAxis(axisX, Qt::AlignBottom);
-    lowerSeries->attachAxis(axisX);
-
-    // Отримуємо мінімальне та максимальне значення для відображення на осі X
-    float tickMinValue = minValue - binSize;
-    float tickMaxValue = maxValue + binSize;
-
-    // мінімальне значення на осі X не менше нуля
-    tickMinValue = qMax(0.0f, tickMinValue);
-
-    // Кількість міток на вісі X
-    int tickCount = qMin(10, numberOfBins); // Задаємо максимальну кількість міток, наприклад, 10
-    axisX->setTickCount(tickCount);
-
-    // Функція для генерації тексту мітки вісі X
-    axisX->setLabelFormat("%.1f"); // Відображення чисел з плаваючою комою
-
-    // Встановлюємо мінімальне та максимальне значення осі X
-    axisX->setMin(tickMinValue);
-    axisX->setMax(tickMaxValue);
-
-    // Налаштування осі Y
-    QValueAxis *axisY = new QValueAxis();
-    axisY->setLabelFormat("%d"); // Формат міток на осі Y (цілі числа)
-    axisY->setLinePenColor(QColor(150, 150, 150)); // Колір лінії осі Y
-    axisY->setGridLineColor(QColor(150, 150, 150, 77)); // Колір сітки осі Y з напівпрозорістю
-    axisY->setRange(0, maxAxisValue + 10);
-    axisY->setLabelsColor(QColor(150, 150, 150)); // Колір міток на осі Y
-
     chart->addAxis(axisY, Qt::AlignLeft);
-    lowerSeries->attachAxis(axisY);
 
-    // Приховати легенду (підпис "Counts")
-    chart->legend()->hide();
+    if (!counts.isEmpty()) {
+        QAreaSeries *series = createHistogramSeries(counts);
+        chart->addSeries(series);
 
-    // Очистити horizontalFrame
-    QLayoutItem *item;
-    while ((item = ui->horizontalFrame->layout()->takeAt(0)) != nullptr) {
-        delete item->widget();
-        delete item;
+        // Прив'язка серій до осей
+        QLineSeries *lowerSeries = static_cast<QLineSeries*>(series->lowerSeries());
+        lowerSeries->attachAxis(axisX);
+        lowerSeries->attachAxis(axisY);
+
+        // Налаштування осі X з урахуванням мінімального та максимального значень
+        adjustAxisX(axisX, counts);
+
+        // Встановлення діапазону осі Y
+        int maxBinCount = *std::max_element(counts.constBegin(), counts.constEnd());
+        int maxAxisValue = (maxBinCount + 9) / 10 * 10;
+        axisY->setRange(0, maxAxisValue + 10);
     }
 
-    // Відображення графіка
+    // Вимкнення легенди
+    chart->legend()->hide();
+
+    clearLayout(ui->horizontalFrame->layout());
+
     QChartView *chartView = new QChartView(chart);
     chartView->setRenderHint(QPainter::Antialiasing);
     ui->horizontalFrame->layout()->addWidget(chartView);
@@ -173,28 +195,37 @@ void Statistics::selectProperty() {
     QVector<float> propertyValues;
 
     QString selectedProperty = ui->propertyBox->currentText();
+    QString selectedTitleProperty;
 
     // Додаємо значення відповідно до вибраної властивості
     if (selectedProperty == "Norm Area") {
+        selectedTitleProperty = "Distribution of normalized grain area";
         for (const auto& obj : allObjects) {
             propertyValues.push_back(obj.normArea);
         }
     } else if (selectedProperty == "Perimeter") {
+        selectedTitleProperty = "Distribution of grain perimeter";
         for (const auto& obj : allObjects) {
             propertyValues.push_back(obj.perimeter);
         }
     } else if (selectedProperty == "ECR") {
+        selectedTitleProperty = "Distribution of ECR";
         for (const auto& obj : allObjects) {
             propertyValues.push_back(obj.ecr);
         }
     } else if (selectedProperty == "Shape factor") {
+        selectedTitleProperty = "Distribution of Shape factor";
         for (const auto& obj : allObjects) {
             propertyValues.push_back(obj.shape_factor);
         }
     } else if (selectedProperty == "Area") {
+        selectedTitleProperty = "Distribution of grain area";
         for (const auto& obj : allObjects) {
             propertyValues.push_back(obj.size);
         }
+    } else {
+        selectedTitleProperty = "Choose a grain property";
+        propertyValues.clear();
     }
 
     // Видалення Inf та -Inf з propertyValues
@@ -206,7 +237,7 @@ void Statistics::selectProperty() {
 
     clearLayout(ui->horizontalFrame->layout());
     // Викликаємо функцію для побудови гістограми з оновленими значеннями властивостей
-    buildHistogram(propertyValues);
+    buildHistogram(propertyValues, selectedTitleProperty);
 }
 
 
@@ -243,8 +274,6 @@ int compute_perimeter(const std::vector<std::vector<int>>& image, int i, int j) 
         int ni = neighbor.x;
         int nj = neighbor.y;
         if (ni < 0 || ni >= rows || nj < 0 || nj >= cols || image[ni][nj] != color) {
-            // Якщо сусід виходить за межі зображення або має протилежний колір,
-            // це зовнішній піксель, який додається до периметру
             perimeter++;
             onEdge = true;
         }
@@ -345,23 +374,23 @@ void Statistics::layersProcessing(int16_t*** voxels, int numCubes)
             }
         }
 
-        // Вивід поточного шару у консоль для перевірки
-        qDebug() << "Layer" << z << "Contents:";
-        for (int y = 0; y < sizeY; ++y) {
-            QString line;
-            for (int x = 0; x < sizeX; ++x) {
-                line += QString::number(layerImage[y][x]) + " ";
-            }
-            qDebug() << line;
-        }
+//        // Вивід поточного шару у консоль для перевірки
+//        qDebug() << "Layer" << z << "Contents:";
+//        for (int y = 0; y < sizeY; ++y) {
+//            QString line;
+//            for (int x = 0; x < sizeX; ++x) {
+//                line += QString::number(layerImage[y][x]) + " ";
+//            }
+//            qDebug() << line;
+//        }
 
         // Застосування функції маркування з'єднаних областей для поточного шару
         std::vector<Object> objects = label_connected_regions(layerImage);
 
-        // Вивід площі та периметру кожного нового зерна у консоль
-        for (const auto& obj : objects) {
-            qDebug() << "Layer" << z << ", Grain" << obj.label << "Area:" << obj.size << "Perimeter:" << obj.perimeter << "NormArea:" << obj.normArea;
-        }
+//        // Вивід площі та периметру кожного нового зерна у консоль
+//        for (const auto& obj : objects) {
+//            qDebug() << "Layer" << z << ", Grain" << obj.label << "Area:" << obj.size << "Perimeter:" << obj.perimeter << "NormArea:" << obj.normArea;
+//        }
         // Додавання властивостей об'єктів для поточного шару до загального вектору
         QList<Object> objectList(objects.begin(), objects.end());
         allObjects.append(objectList);
@@ -370,5 +399,21 @@ void Statistics::layersProcessing(int16_t*** voxels, int numCubes)
     // Збереження властивостей у CSV файл
     std::string filename = "All_Layers_Properties_3.csv";
     saveToCSV(allObjects, filename);
+}
+
+
+void Statistics::on_saveChartAsIMGButton_clicked()
+{
+    QRect rect = ui->horizontalFrame->geometry();
+    int width = rect.width();
+    int height = rect.height();
+
+    QPixmap pixmap(width, height);
+    ui->horizontalFrame->render(&pixmap);
+
+    QString fileName = QFileDialog::getSaveFileName(this, "Save Image", "", "Image Files (*.png);;All Files (*.*)");
+    if (!fileName.isEmpty()) {
+        pixmap.save(fileName);
+    }
 }
 
