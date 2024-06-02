@@ -362,7 +362,7 @@ QPushButton:pressed {
         <widget class="QLabel" name="MaterialVis">
          <property name="minimumSize">
           <size>
-           <width>190</width>
+           <width>200</width>
            <height>44</height>
           </size>
          </property>
@@ -1022,10 +1022,10 @@ padding-left: 4px;</string>
                  </widget>
                 </item>
                 <item row="4" column="0">
-                 <widget class="QLabel" name="label">
+                 <widget class="QLabel" name="AlgorithmsLabel">
                   <property name="minimumSize">
                    <size>
-                    <width>104</width>
+                    <width>115</width>
                     <height>24</height>
                    </size>
                   </property>
@@ -1207,7 +1207,7 @@ line-height: normal;</string>
                  <widget class="QLabel" name="Number_of_points">
                   <property name="minimumSize">
                    <size>
-                    <width>178</width>
+                    <width>185</width>
                     <height>24</height>
                    </size>
                   </property>

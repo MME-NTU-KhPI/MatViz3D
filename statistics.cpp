@@ -80,7 +80,7 @@ QValueAxis* Statistics::createAxisY() {
 void Statistics::adjustAxisX(QValueAxis *axisX, const QVector<float>& counts) {
     float minValue = *std::min_element(counts.constBegin(), counts.constEnd());
     float maxValue = *std::max_element(counts.constBegin(), counts.constEnd());
-    int numberOfBins = static_cast<int>(std::round(std::sqrt(counts.size())));
+    int numberOfBins = static_cast<int>(std::round(std::sqrt(counts.size()))/2);
     float binSize = (maxValue - minValue) / numberOfBins;
 
     float tickMinValue = minValue - binSize;
@@ -101,7 +101,7 @@ QAreaSeries* Statistics::createHistogramSeries(const QVector<float>& counts) {
 
     float minValue = *std::min_element(counts.constBegin(), counts.constEnd());
     float maxValue = *std::max_element(counts.constBegin(), counts.constEnd());
-    int numberOfBins = static_cast<int>(std::round(std::sqrt(counts.size())));
+    int numberOfBins = static_cast<int>(std::round(std::sqrt(counts.size()))/2);
     float binSize = (maxValue - minValue) / numberOfBins;
 
     QVector<int> binCounts(numberOfBins, 0);
