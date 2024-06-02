@@ -1,7 +1,7 @@
 
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
-
+#define H5_BUILT_AS_DYNAMIC_LIB
 #include <QMainWindow>
 #include <QButtonGroup>
 #include <QPushButton>
@@ -11,6 +11,7 @@
 #include "statistics.h"
 #include "messagehandler.h"
 #include "about.h"
+#include <hdf5handler.h>
 
 
 QT_BEGIN_NAMESPACE
@@ -49,7 +50,8 @@ private slots:
     void onDataCheckBoxChanged(int state);
     void onAllCheckBoxChanged(int state);
     void exportToCSV();
-
+    void saveHDF();
+    void openHDF();
     void on_Start_clicked();
 
     void on_statistics_clicked();
@@ -73,8 +75,7 @@ private:
     QCheckBox *consoleCheckBox;
     QCheckBox *animationCheckBox;
     bool startButtonPressed;
-
-
+    HDF5Handler m_h5handler;
 };
 
 #endif // MAINWINDOW_H

@@ -11,6 +11,19 @@ QT += openglwidgets
 
 CONFIG += c++17
 
+
+
+LIBS += -L$$PWD/libs/hdf5_1.14.3/lib/ -lhdf5 -lhdf5_cpp
+
+INCLUDEPATH += $$PWD/libs/hdf5_1.14.3/include
+DEPENDPATH += $$PWD/libs/hdf5_1.14.3/include
+
+
+#-lszaec -laec -lzlib -lhdf5 -lhdf5_cpp   #for static linking
+# -lhdf5 -lhdf5_cpp                       #for dynamic linking
+
+
+
 include(3rdparty/qtgifimage/src/gifimage/qtgifimage.pri)
 
 # You can make your code fail to compile if it uses deprecated APIs.
@@ -23,6 +36,7 @@ SOURCES += \
     console.cpp \
     export.cpp \
     dlca.cpp \
+    hdf5handler.cpp \
     main.cpp \
     mainwindow.cpp \
     messagehandler.cpp \
@@ -42,6 +56,7 @@ HEADERS += \
     console.h \
     export.h \
     dlca.h \
+    hdf5handler.h \
     mainwindow.h \
     messagehandler.h \
     moore.h \
