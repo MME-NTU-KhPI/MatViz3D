@@ -431,15 +431,8 @@ void MyGLWidget::paintGL()
     f->glBindBuffer(GL_ARRAY_BUFFER, vboIds[0]);
     f->glBufferData(GL_ARRAY_BUFFER, voxelScene.size() * sizeof(Voxel), &voxelScene[0], GL_STATIC_DRAW);
     glVertexPointer(3, GL_SHORT, sizeof(Voxel), 0);
+    plotWireFrame = true;
 
-    if (plotWireFrame == true)
-    {
-        glColor3f(0.5f, 0.5f, 0.5f);
-        for (size_t i = 0; i < voxelScene.size() * 6; i += 4)
-        {
-            glDrawArrays(GL_LINE_LOOP, i, 4); // plot 4 lines for each face
-        }
-    }
     // Bind the color buffer
     f->glBindBuffer(GL_ARRAY_BUFFER, vboIds[1]);
     f->glBufferData(GL_ARRAY_BUFFER, voxelScene.size() * sizeof(Voxel), &voxelScene[0].r, GL_STATIC_DRAW);
@@ -452,7 +445,14 @@ void MyGLWidget::paintGL()
 
     // Draw the voxel scene using the VBOs
     glDrawArrays(GL_QUADS, 0, voxelScene.size()); // 24 vertices per voxel (6 faces * 4 vertices)
-
+    if (plotWireFrame == true)
+    {
+        glColor3f(0.5f, 0.5f, 0.5f);
+        for (size_t i = 0; i < voxelScene.size(); i += 4)
+        {
+            glDrawArrays(GL_LINE_LOOP, i, 4); // plot 4 lines for each face
+        }
+    }
 
     // Unbind the buffers and disable client-side capabilities
     f->glBindBuffer(GL_ARRAY_BUFFER, 0);

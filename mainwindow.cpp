@@ -267,13 +267,20 @@ void MainWindow::on_Start_clicked()
 
 void MainWindow::on_statistics_clicked()
 {
-    QMessageBox::information(nullptr, "Warning!", "The structure was not generated.");
+    clock_t start_time = clock();
+    //QMessageBox::information(nullptr, "Warning!", "The structure was not generated.");
     if(startButtonPressed == false)
     {
         QMessageBox::information(nullptr, "Warning!", "The structure was not generated.");
     }
-    else{
-        form.setVoxelCounts(Parameters::voxels, Parameters::size);
+    else
+    {
+        //form.setVoxelCounts(Parameters::voxels, Parameters::size);
+        form.calcVolume3D(Parameters::voxels, Parameters::size);
+        form.surfaceArea3D(Parameters::voxels, Parameters::size);
+        form.calcESR();
+        form.calcMomentInertia();
+        form.calcNormVolume3D();
 
         QString selectedAlgorithm = ui->AlgorithmsBox->currentText();
 
@@ -302,6 +309,9 @@ void MainWindow::on_statistics_clicked()
         // Показати вікно
         form.show();
     }
+    clock_t end_time = clock(); // Фіксація часу завершення виконання
+    double elapsed_time = double(end_time - start_time) / CLOCKS_PER_SEC; // Обчислення часу виконання в секундах
+    qDebug() << "Total execution time: " << elapsed_time << " seconds";
 }
 
 
