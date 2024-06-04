@@ -27,8 +27,8 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, int16_t ***voxe
     wr.createFEfromArray(voxels, N, N);
 
     wr.applyComplexLoads(0, 0, 0, N, N, N,
-                         0.001, 0, 0,
-                         0, 0, 0);
+                         0.001, 0.002, 0.003,
+                         0.004, 0.005, 0.006);
     wr.solveLS(1, 1);
     wr.saveAll();
     wr.run();
