@@ -78,11 +78,9 @@ struct Object {
         surface_area_3D(0.0), moment_inertia_3D(0.0), ESR_3D(0.0) {}
 
     // Parameterized constructor
-    Object(int _label, int _size, int _perimeter, double _normArea, double _shape_factor,
-           double _ecr, int _volume3d, double _normvolume3d, double _surfacearea3d,
+    Object(int _volume3d, double _normvolume3d, double _surfacearea3d,
            double _momentinertia3d, double _esr3d)
-        : label(_label), size(_size), perimeter(_perimeter), normArea(_normArea),
-        shape_factor(_shape_factor), ecr(_ecr), volume_3D(_volume3d),
+        : volume_3D(_volume3d),
         norm_volume_3D(_normvolume3d), surface_area_3D(_surfacearea3d),
         moment_inertia_3D(_momentinertia3d), ESR_3D(_esr3d) {}
 

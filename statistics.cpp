@@ -276,9 +276,9 @@ void Statistics::selectProperty() {
         propertyValues.clear();
     }
 
-    // Видалення Inf та -Inf з propertyValues
+    // Видалення Inf, -Inf, NaN та нульових значень з propertyValues
     propertyValues.erase(std::remove_if(propertyValues.begin(), propertyValues.end(), [](float value) {
-                             return std::isinf(value);
+                             return std::isinf(value) || std::isnan(value) || value == 0.0f;
                          }), propertyValues.end());
 
     qDebug() << propertyValues;
@@ -297,11 +297,11 @@ void saveToCSV(const QList<Object>& objects, const std::string& filename) {
     }
 
     // Запис заголовка CSV файлу
-    file << "NormArea,Perimeter,Shape Factor,ECR\n";
+    file << "NormArea,Perimeter,Shape Factor,ECR,Volume,NormVolume,SurfaceArea,MomentInertia3D,ESR\n";
 
     // Запис даних про об'єкти у CSV файл
     for (const auto& obj : objects) {
-        file << obj.normArea << "," << obj.perimeter << "," << obj.shape_factor << "," << obj.ecr << "\n";
+        file << obj.normArea << "," << obj.perimeter << "," << obj.shape_factor << "," << obj.ecr << "," << obj.volume_3D << "," << obj.norm_volume_3D << "," << obj.surface_area_3D << "," << obj.moment_inertia_3D << "," << obj.ESR_3D << "\n";
     }
 
     file.close(); // Закриття файлу
@@ -482,38 +482,41 @@ void Statistics::surfaceArea3D(int16_t ***voxels, int numCubes) {
     // Очищення попередніх даних
     surface_area_3D.clear();
 
-    #pragma omp parallel for
-    for (int z = 0; z < numCubes; ++z) {
+    #pragma omp parallel
+    {
         std::map<int, int> local_surface_area;
 
-        for (int y = 0; y < numCubes; ++y) {
-            for (int x = 0; x < numCubes; ++x) {
-                int current = voxels[z][y][x];
-                if (current != 0) {
-                    int face_count = 0;
-                    face_count += (x == 0 || voxels[z][y][x-1] != current) ? 1 : 0;
-                    face_count += (x == numCubes-1 || voxels[z][y][x+1] != current) ? 1 : 0;
-                    face_count += (y == 0 || voxels[z][y-1][x] != current) ? 1 : 0;
-                    face_count += (y == numCubes-1 || voxels[z][y+1][x] != current) ? 1 : 0;
-                    face_count += (z == 0 || voxels[z-1][y][x] != current) ? 1 : 0;
-                    face_count += (z == numCubes-1 || voxels[z+1][y][x] != current) ? 1 : 0;
+    #pragma omp for nowait // Распределение работы по z без ожидания
+        for (int z = 0; z < numCubes; ++z) {
+            for (int y = 0; y < numCubes; ++y) {
+                for (int x = 0; x < numCubes; ++x) {
+                    int current = voxels[z][y][x];
+                    if (current != 0) {
+                        int face_count = 0;
+                        face_count += (x == 0 || voxels[z][y][x-1] != current) ? 1 : 0;
+                        face_count += (x == numCubes-1 || voxels[z][y][x+1] != current) ? 1 : 0;
+                        face_count += (y == 0 || voxels[z][y-1][x] != current) ? 1 : 0;
+                        face_count += (y == numCubes-1 || voxels[z][y+1][x] != current) ? 1 : 0;
+                        face_count += (z == 0 || voxels[z-1][y][x] != current) ? 1 : 0;
+                        face_count += (z == numCubes-1 || voxels[z+1][y][x] != current) ? 1 : 0;
 
-                    local_surface_area[current] += face_count;
+                        local_surface_area[current] += face_count;
+                    }
                 }
             }
         }
 
-        // Синхронізація локальних карт з глобальною карткою
+        // Объединение локальных данных в глобальную карту
     #pragma omp critical
         for (auto &entry : local_surface_area) {
             surface_area_3D[entry.first] += entry.second;
         }
     }
 
-    // Виведення результатів обчислення в консоль
-    for (const auto& pair : surface_area_3D) {
-        qDebug() << "Grain ID " << pair.first << " has a surface area of " << pair.second << " square units.";
-    }
+//    // Виведення результатів обчислення в консоль
+//    for (const auto& pair : surface_area_3D) {
+//        qDebug() << "Grain ID " << pair.first << " has a surface area of " << pair.second << " square units.";
+//    }
 
     // Оновлення значень властивостей у списку об'єктів
     for (const auto& pair : surface_area_3D) {
@@ -526,30 +529,31 @@ void Statistics::calcVolume3D(int16_t ***voxels, int numCubes) {
     // Очищення попередніх даних
     volume_3D.clear();
 
-    #pragma omp parallel for
-    for (int z = 0; z < numCubes; ++z) {
-        std::map<int, int> local_volume_counts;
-
-        for (int y = 0; y < numCubes; ++y) {
-            for (int x = 0; x < numCubes; ++x) {
-                int grain_id = voxels[z][y][x];
-                if (grain_id > 0) {
-                    local_volume_counts[grain_id]++;
+    #pragma omp parallel
+    {
+        std::map<int, int> local_volume_counts; // Локальная карта для каждого потока
+        #pragma omp for nowait // Распределяем циклы по потокам
+            for (int z = 0; z < numCubes; ++z) {
+                for (int y = 0; y < numCubes; ++y) {
+                    for (int x = 0; x < numCubes; ++x) {
+                        int grain_id = voxels[z][y][x];
+                        if (grain_id > 0) {
+                            local_volume_counts[grain_id]++;
+                        }
+                    }
                 }
             }
-        }
-
-        // Синхронізація локальних карт з глобальною карткою
-    #pragma omp critical
-        for (const auto& pair : local_volume_counts) {
-            volume_3D[pair.first] += pair.second;
-        }
+        // Синхронизируем локальные карты с глобальной картой
+        #pragma omp critical
+            for (const auto& pair : local_volume_counts) {
+                volume_3D[pair.first] += pair.second;
+            }
     }
 
     // Виведення результатів обчислення в консоль
-    for (const auto& pair : volume_3D) {
-        qDebug() << "Grain ID " << pair.first << " has a volume of " << pair.second << " voxels.";
-    }
+//    for (const auto& pair : volume_3D) {
+//        qDebug() << "Grain ID " << pair.first << " has a volume of " << pair.second << " voxels.";
+//    }
 
     // Оновлення значень властивостей у списку об'єктів
     for (const auto& pair : volume_3D) {
@@ -562,18 +566,19 @@ void Statistics::calcNormVolume3D() {
     // Очищення попередніх даних
     norm_volume_3D.clear();
 
-    double volume_scale = 0.0;
-    // Знаходження максимального об'єму
-    for (const auto& pair : volume_3D) {
-        if (pair.second > volume_scale) {
-            volume_scale = pair.second;
+    double volume_scale;
+    for (const auto& pair : volume_3D)
+    {
+        volume_scale = pair.second;
+        if (pair.second > volume_scale)
+        {
+                volume_scale = pair.second;
         }
     }
-
-    // Обчислення нормованого об'єму для кожного зерна
-    for (const auto& pair : volume_3D) {
+    for (const auto& pair : volume_3D)
+    {
         norm_volume_3D[pair.first] = pair.second / volume_scale;
-        qDebug() << "Grain ID " << pair.first << " has a norm volume of " << pair.second << " voxels.";
+        // qDebug() << "Grain ID " << pair.first << " has a norm volume of " << pair.second << " voxels.\n";
     }
 
     // Оновлення значень властивостей у списку об'єктів
@@ -588,10 +593,11 @@ void Statistics::calcESR() {
     ESR_3D.clear();
 
     // Обчислення ESR для кожного зерна
-    for (const auto& pair : volume_3D) {
+    for (const auto& pair : volume_3D)
+    {
         double esr = std::pow((3.0 / (4.0 * M_PI)) * pair.second, 1.0 / 3.0);
         ESR_3D[pair.first] = esr;
-        qDebug() << "Grain ID " << pair.first << " has a ESR of " << esr;
+        //qDebug() << "Grain ID " << pair.first << " has a ESR of " << pair.second << " voxels.\n";
     }
 
     // Оновлення значень властивостей у списку об'єктів
@@ -608,9 +614,9 @@ void Statistics::calcMomentInertia()
 
     for (const auto& pair : ESR_3D)
     {
-        double momentinertia = (2.0/5.0) * 1.0 * std::pow(pair.second, 2); // зміна integer division на double division
+        double momentinertia = (2/5)*1*std::pow(pair.second,2);
         moment_inertia_3D[pair.first] = momentinertia;
-        qDebug() << "Grain ID " << pair.first << " has a moment of inertia of " << pair.second << " voxels.\n";
+        //qDebug() << "Grain ID " << pair.first << " has a moment of inertia of " << pair.second << " voxels.\n";
     }
 
     for (const auto& pair : moment_inertia_3D) {
