@@ -28,7 +28,7 @@ protected:
     void resizeGL(int width, int height);
     void paintSphere(float radius, int numStacks, int numSlices);
     void drawCube(float cubeSize, GLenum type = GL_QUADS);
-    void drawCube(short cubeSize, Voxel v);
+    void drawCube(short cubeSize, Voxel v, bool* neighbors);
     QSize minimumSizeHint() const;
     QSize sizeHint() const;
     void mousePressEvent(QMouseEvent *event);
@@ -75,7 +75,7 @@ protected:
 
     struct Voxel
     {
-        GLshort x, y, z;
+        GLfloat x, y, z;
         GLubyte r, g, b, a; // Color attributes
         GLbyte nx, ny, nz; // Normal attributes
     };

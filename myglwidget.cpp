@@ -11,8 +11,7 @@
 #include <array>
 #include <QFileDialog>
 #include <QTextStream>
-#include <set>
-
+#include <QDebug>
 
 MyGLWidget::MyGLWidget(QWidget *parent)
     : QOpenGLWidget(parent)
@@ -113,33 +112,75 @@ void MyGLWidget::setDistanceFactor(int factor)
 }
 
 
+void inline initLights()
+{
+
+    // set up light colors (ambient, diffuse, specular)
+    GLfloat lightKa[] = {.2f, .2f, .2f, 1.0f};  // ambient light
+    GLfloat lightKd[] = {.7f, .7f, .7f, 1.0f};  // diffuse light
+    GLfloat lightKs[] = {.75f, .75f, .75f, 1.0f};  // specular light
+    glLightfv(GL_LIGHT0, GL_AMBIENT, lightKa);
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, lightKd);
+    glLightfv(GL_LIGHT0, GL_SPECULAR, lightKs);
+
+    glLightfv(GL_LIGHT1, GL_AMBIENT, lightKa);
+    glLightfv(GL_LIGHT1, GL_DIFFUSE, lightKd);
+    glLightfv(GL_LIGHT1, GL_SPECULAR, lightKs);
+
+    glLightfv(GL_LIGHT2, GL_AMBIENT, lightKa);
+    glLightfv(GL_LIGHT2, GL_DIFFUSE, lightKd);
+    glLightfv(GL_LIGHT2, GL_SPECULAR, lightKs);
+
+
+    // position the light
+    float lightPosZ[4] = {1, 0, 1, 0}; // directional light
+    float lightPosX[4] = {1, 1, 0, 0}; // directional light
+    float lightPosY[4] = {1, 1, 0, 0}; // directional light
+
+    glLightfv(GL_LIGHT0, GL_POSITION, lightPosZ);
+    glLightfv(GL_LIGHT1, GL_POSITION, lightPosX);
+    glLightfv(GL_LIGHT2, GL_POSITION, lightPosY);
+
+    glEnable(GL_LIGHT0);                        // MUST enable each light source after configuration
+    glEnable(GL_LIGHT1);                        // MUST enable each light source after configuration
+    glEnable(GL_LIGHT2);                        // MUST enable each light source after configuration
+
+}
+
 void MyGLWidget::initializeGL()
 {
 
-    QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
-    f->glClearColor(0.21f, 0.21f, 0.21f, 1.0f);
+    //QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
 
-    f->glEnable(GL_LINE_SMOOTH);
-
-
-    f->glEnable(GL_DEPTH_TEST);
-    f->glEnable(GL_CULL_FACE);
     glShadeModel(GL_SMOOTH);
-    f->glEnable(GL_COLOR_MATERIAL);
-    f->glEnable(GL_LIGHTING);
-    f->glEnable(GL_LIGHT0);
 
-    f->glEnable(GL_BLEND);
-    f->glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    // enable /disable features
+    glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
+    //glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
+    //glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_LIGHTING);
+    glEnable(GL_TEXTURE_2D);
+    glEnable(GL_CULL_FACE);
 
-    GLfloat lightPos[] = { 0.0f, 0.0f, 0.0f, 0.0f };
-    GLfloat lightAmb[] = { 0.7f, 0.7f, 0.7f, 1.0f };
-    GLfloat lightDif[] = { 0.5f, 0.5f, 0.5f, 1.0f };
-    GLfloat lightSpc[] = { 0.1f, 0.1f, 0.1f, 1.0f };
-    glLightfv(GL_LIGHT0, GL_POSITION, lightPos);
-    glLightfv(GL_LIGHT0, GL_AMBIENT, lightAmb);
-    glLightfv(GL_LIGHT0, GL_DIFFUSE, lightDif);
-    glLightfv(GL_LIGHT0, GL_SPECULAR, lightSpc);
+    glEnable(GL_NORMALIZE); // normalize normals length to 1
+
+    // track material ambient and diffuse from surface color, call it before glEnable(GL_COLOR_MATERIAL)
+    glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
+    glEnable(GL_COLOR_MATERIAL);
+
+    glClearColor(0.21f, 0.21f, 0.21f, 1.0);     // background color
+    glClearStencil(0);                          // clear stencil buffer
+    glClearDepth(numCubes);                         // 0 is near, 1 is far
+    glDepthFunc(GL_LESS);
+
+
+    // TODO: fix transperancy
+//    glEnable(GL_ALPHA_TEST);
+//    glEnable(GL_BLEND); // enbale blending
+//    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    initLights(); // introduce light sources
 
     // set the material properties
     GLfloat matAmb[] = { 1.0f, 1.0f, 1.0f, 1.0f };
@@ -152,6 +193,7 @@ void MyGLWidget::initializeGL()
     glMaterialfv(GL_FRONT, GL_SPECULAR, matSpc);
     glMaterialfv(GL_FRONT, GL_SHININESS, matShn);
 
+
 }
 
 std::vector<std::array<GLubyte, 4>> MyGLWidget::generateDistinctColors()
@@ -163,7 +205,7 @@ std::vector<std::array<GLubyte, 4>> MyGLWidget::generateDistinctColors()
         float hue = i * hueIncrement;
         float saturation = 1.0f;
         float value = 1.0f;
-        float alpha = 0.8f;
+        float alpha = 0.7f;
 
         // Convert HSV to RGB
         float chroma = saturation * value;
@@ -218,9 +260,9 @@ void MyGLWidget::calculateScene()
 {
     voxelScene.clear();
     float cubeSize = 1.0; // numCubes;
-    for (int i = 0; i < numCubes; i++) {
-        for (int j = 0; j < numCubes; j++) {
-            for (int k = 0; k < numCubes; k++) {
+    for (int i = 0; i < numCubes; i++) { // y
+        for (int j = 0; j < numCubes; j++) { // z
+            for (int k = 0; k < numCubes; k++) { // x
 
                 assert(voxels[k][i][j] >= 0 );
 
@@ -229,14 +271,22 @@ void MyGLWidget::calculateScene()
                     continue;
                 }
 
-                bool condition1 = i > 0 && j > 0 && k > 0;
-                bool condition2 = i < numCubes -1 && j < numCubes -1 && k < numCubes -1;
-                if (condition1 && condition2)
+                bool neighbors[6] = {false};  // check for the same type voxels
                 {
                     auto vx = voxels[k][i][j];
-                    bool c1 = voxels[k - 1][i][j] == vx && voxels[k + 1][i][j] == vx;
-                    bool c2 = voxels[k][i - 1][j] == vx && voxels[k][i + 1][j] == vx;
-                    bool c3 = voxels[k][i][j - 1] == vx && voxels[k][i][j + 1] == vx;
+                    neighbors[2] = (k > 0) ? (voxels[k - 1][i][j] == vx) : false; // -x
+                    neighbors[0] = (k < numCubes - 1) ? (voxels[k + 1][i][j] == vx) : false; // +x
+
+                    neighbors[3] = (i < numCubes - 1) ? (voxels[k][i + 1][j] == vx): false; // +y
+                    neighbors[1] = (i > 0) ? (voxels[k][i - 1][j] == vx): false; // -y
+
+
+                    neighbors[5] = (j < numCubes - 1) ? (voxels[k][i][j + 1] == vx) : false; // +z
+                    neighbors[4] = (j > 0) ? (voxels[k][i][j - 1] == vx): false; // -z
+
+                    bool c1 = neighbors[0] && neighbors[1];
+                    bool c2 = neighbors[2] && neighbors[3];
+                    bool c3 = neighbors[4] && neighbors[5];
                     if (c1 && c2 && c3)
                         continue;
                 }
@@ -259,19 +309,22 @@ void MyGLWidget::calculateScene()
                                     directionFactor * diff[2] * distanceFactor};
 
                 Voxel v;
-                v.x = (numCubes/2 - i) * cubeSize + ceil(offset[0]);
-                v.y = (numCubes/2 - j) * cubeSize + ceil(offset[1]);
-                v.z = (numCubes/2 - k) * cubeSize + ceil(offset[2]);
+                v.x = (numCubes/2 - k) * cubeSize + ceil(offset[0]);
+                v.y = (numCubes/2 - i) * cubeSize + ceil(offset[1]);
+                v.z = (numCubes/2 - j) * cubeSize + ceil(offset[2]);
 
                 v.r = color[0];
                 v.g = color[1];
                 v.b = color[2];
                 v.a = color[3];
 
-                drawCube(cubeSize, v);
+
+
+                drawCube(cubeSize, v, neighbors);
             }
         }
     }
+
 }
 
 void MyGLWidget::setVoxels(int16_t*** voxels, short int numCubes)
@@ -281,18 +334,19 @@ void MyGLWidget::setVoxels(int16_t*** voxels, short int numCubes)
     calculateScene();
 }
 
-void MyGLWidget::drawCube(short cubeSize, Voxel vox)
+void MyGLWidget::drawCube(short cubeSize, Voxel vox, bool* neighbors)
 {
 
     static const GLfloat n[6][3] =
         {
-            {-1.0, 0.0, 0.0},
-            {0.0, 1.0, 0.0},
-            {1.0, 0.0, 0.0},
-            {0.0, -1.0, 0.0},
-            {0.0, 0.0, 1.0},
-            {0.0, 0.0, -1.0}
+            {-1.0, 0.0, 0.0}, // -x
+            {0.0, 1.0, 0.0},  // y
+            {1.0, 0.0, 0.0},  // x
+            {0.0, -1.0, 0.0}, // -y
+            {0.0, 0.0, 1.0},  // z
+            {0.0, 0.0, -1.0}  // -z
         };
+
     static const GLint faces[6][4] =
         {
             {0, 1, 2, 3},
@@ -304,17 +358,21 @@ void MyGLWidget::drawCube(short cubeSize, Voxel vox)
         };
     float v[8][3];
 
+    float offset = 1e-6f; // offset to help z-buffer distinc same quads
 
-    v[0][0] = v[1][0] = v[2][0] = v[3][0] = vox.x;
-    v[4][0] = v[5][0] = v[6][0] = v[7][0] = vox.x + cubeSize ;
-    v[0][1] = v[1][1] = v[4][1] = v[5][1] = vox.y;
-    v[2][1] = v[3][1] = v[6][1] = v[7][1] = vox.y + cubeSize;
-    v[0][2] = v[3][2] = v[4][2] = v[7][2] = vox.z;
-    v[1][2] = v[2][2] = v[5][2] = v[6][2] = vox.z + cubeSize;
+    v[0][0] = v[1][0] = v[2][0] = v[3][0] = vox.x + offset;
+    v[4][0] = v[5][0] = v[6][0] = v[7][0] = vox.x + cubeSize - offset;
+    v[0][1] = v[1][1] = v[4][1] = v[5][1] = vox.y + offset;
+    v[2][1] = v[3][1] = v[6][1] = v[7][1] = vox.y + cubeSize - offset;
+    v[0][2] = v[3][2] = v[4][2] = v[7][2] = vox.z + offset;
+    v[1][2] = v[2][2] = v[5][2] = v[6][2] = vox.z + cubeSize - offset;
 
     Voxel v1, v2, v3, v4;
     for (int i = 5; i >= 0; i--)
     {
+        if (neighbors[i] )
+            continue;
+
         v1.nx = v2.nx = v3.nx = v4.nx = n[i][0];
         v1.ny = v2.ny = v3.ny = v4.ny = n[i][1];
         v1.nz = v2.nz = v3.nz = v4.nz = n[i][2];
@@ -323,6 +381,14 @@ void MyGLWidget::drawCube(short cubeSize, Voxel vox)
         v1.g = v2.g = v3.g = v4.g = vox.g;
         v1.b = v2.b = v3.b = v4.b = vox.b;
         v1.a = v2.a = v3.a = v4.a = vox.a;
+
+        if  (neighbors[i] == true) // plot hidden faces with gray (50.50.50) color for debug
+        {
+            v1.r = v2.r = v3.r = v4.r = 50;
+            v1.g = v2.g = v3.g = v4.g = 50;
+            v1.b = v2.b = v3.b = v4.b = 50;
+            v1.a = v2.a = v3.a = v4.a = vox.a;
+        }
 
         v1.x = v[faces[i][0]][0];
         v1.y = v[faces[i][0]][1];
@@ -400,10 +466,11 @@ void MyGLWidget::paintGL()
 {
 
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    // clear buffer
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LESS);
+    // save the initial ModelView matrix before modifying ModelView matrix
+    glPushMatrix();
 
     glLoadIdentity();
     glTranslatef(0.0, 0.0, -distance);
@@ -411,13 +478,6 @@ void MyGLWidget::paintGL()
     glRotatef(yRot / 16.0, 0.0, 1.0, 0.0);
     glRotatef(zRot / 16.0, 0.0, 0.0, 1.0);
 
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);
-
-    glEnable(GL_NORMALIZE);
 
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_COLOR_ARRAY);
@@ -430,16 +490,9 @@ void MyGLWidget::paintGL()
     // Bind the vertex buffer
     f->glBindBuffer(GL_ARRAY_BUFFER, vboIds[0]);
     f->glBufferData(GL_ARRAY_BUFFER, voxelScene.size() * sizeof(Voxel), &voxelScene[0], GL_STATIC_DRAW);
-    glVertexPointer(3, GL_SHORT, sizeof(Voxel), 0);
+    glVertexPointer(3, GL_FLOAT, sizeof(Voxel), 0);
 
-    if (plotWireFrame == true)
-    {
-        glColor3f(0.5f, 0.5f, 0.5f);
-        for (size_t i = 0; i < voxelScene.size() * 6; i += 4)
-        {
-            glDrawArrays(GL_LINE_LOOP, i, 4); // plot 4 lines for each face
-        }
-    }
+
     // Bind the color buffer
     f->glBindBuffer(GL_ARRAY_BUFFER, vboIds[1]);
     f->glBufferData(GL_ARRAY_BUFFER, voxelScene.size() * sizeof(Voxel), &voxelScene[0].r, GL_STATIC_DRAW);
@@ -453,6 +506,14 @@ void MyGLWidget::paintGL()
     // Draw the voxel scene using the VBOs
     glDrawArrays(GL_QUADS, 0, voxelScene.size()); // 24 vertices per voxel (6 faces * 4 vertices)
 
+    if (plotWireFrame == true)
+    {
+        glColor3f(0.5f, 0.5f, 0.5f);
+        for (size_t i = 0; i < voxelScene.size() ; i += 4)
+        {
+            glDrawArrays(GL_LINE_LOOP, i, 4); // plot 4 lines for each face
+        }
+    }
 
     // Unbind the buffers and disable client-side capabilities
     f->glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -463,7 +524,7 @@ void MyGLWidget::paintGL()
     // Delete the VBOs
     f->glDeleteBuffers(3, vboIds);
 
-    glDisable(GL_CULL_FACE);
+    glPopMatrix();
 }
 
 
