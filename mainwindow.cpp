@@ -273,6 +273,8 @@ void MainWindow::on_statistics_clicked()
     }
     else{
         form.layersProcessing(Parameters::voxels, Parameters::size);
+        form.setPropertyBoxText("-----");
+        form.selectProperty();
 
         QString selectedAlgorithm = ui->AlgorithmsBox->currentText();
 
