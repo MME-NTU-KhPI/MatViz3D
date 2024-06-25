@@ -949,7 +949,7 @@ border: none;
 background-color: transparent;</string>
                    </property>
                    <property name="text">
-                    <string>Wire grid on/off</string>
+                    <string>Wireframe on/off</string>
                    </property>
                   </widget>
                  </item>
