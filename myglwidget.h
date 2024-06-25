@@ -18,6 +18,7 @@ public:
     QVector<int> countVoxelColors(); // Функція для підрахунку кількості вокселей кожного кольору
     std::vector<std::array<GLubyte, 4>> generateDistinctColors();
     void calculateSurfaceArea();
+    void setPlotWireFrame(bool status);
     ~MyGLWidget();
     int cubeSize = 1;
 signals:

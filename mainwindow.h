@@ -62,6 +62,8 @@ private slots:
 
     void on_SliderAnimationSpeed_valueChanged(int value);
 
+    void on_checkBoxWiregrid_stateChanged(int arg1);
+
 protected:
     void keyPressEvent(QKeyEvent *event);
 

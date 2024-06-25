@@ -965,3 +965,10 @@ void MainWindow::openHDF()
     ui->myGLWidget->calculateSurfaceArea();
     startButtonPressed = true;
 }
+
+void MainWindow::on_checkBoxWiregrid_stateChanged(int arg1)
+{
+    ui->myGLWidget->setPlotWireFrame((bool)arg1);
+    ui->myGLWidget->repaint();
+}
+

@@ -112,6 +112,11 @@ void MyGLWidget::setDistanceFactor(int factor)
 }
 
 
+void MyGLWidget::setPlotWireFrame(bool status)
+{
+    this->plotWireFrame = status;
+}
+
 void inline initLights()
 {
 
@@ -156,7 +161,7 @@ void MyGLWidget::initializeGL()
 
     // enable /disable features
     glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
-    //glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
+    glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
     //glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_LIGHTING);
@@ -174,11 +179,12 @@ void MyGLWidget::initializeGL()
     glClearDepth(numCubes);                         // 0 is near, 1 is far
     glDepthFunc(GL_LESS);
 
+    glEnable(GL_LINE_SMOOTH); //smooth line drawing
 
     // TODO: fix transperancy
-//    glEnable(GL_ALPHA_TEST);
-//    glEnable(GL_BLEND); // enbale blending
-//    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_ALPHA_TEST);
+    glEnable(GL_BLEND); // enbale blending
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     initLights(); // introduce light sources
 
@@ -205,7 +211,7 @@ std::vector<std::array<GLubyte, 4>> MyGLWidget::generateDistinctColors()
         float hue = i * hueIncrement;
         float saturation = 1.0f;
         float value = 1.0f;
-        float alpha = 0.7f;
+        float alpha = 0.85f;
 
         // Convert HSV to RGB
         float chroma = saturation * value;
@@ -491,7 +497,23 @@ void MyGLWidget::paintGL()
     f->glBindBuffer(GL_ARRAY_BUFFER, vboIds[0]);
     f->glBufferData(GL_ARRAY_BUFFER, voxelScene.size() * sizeof(Voxel), &voxelScene[0], GL_STATIC_DRAW);
     glVertexPointer(3, GL_FLOAT, sizeof(Voxel), 0);
+    \
 
+    if (plotWireFrame == true)
+    {
+
+        glEnable(GL_POLYGON_OFFSET_LINE); // Enable polygon offset for lines
+        glPolygonOffset(-1.0f, -1.0f); // Set the polygon offset factor and units
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        glLineWidth(0.1);
+
+        for (size_t i = 0; i < voxelScene.size() ; i += 4)
+        {
+            glColor4f(0.5f, 0.5f, 0.5f, 0.5f);
+            glDrawArrays(GL_POLYGON, i, 4); // plot 4 lines for each face
+        }
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    }
 
     // Bind the color buffer
     f->glBindBuffer(GL_ARRAY_BUFFER, vboIds[1]);
@@ -506,14 +528,7 @@ void MyGLWidget::paintGL()
     // Draw the voxel scene using the VBOs
     glDrawArrays(GL_QUADS, 0, voxelScene.size()); // 24 vertices per voxel (6 faces * 4 vertices)
 
-    if (plotWireFrame == true)
-    {
-        glColor3f(0.5f, 0.5f, 0.5f);
-        for (size_t i = 0; i < voxelScene.size() ; i += 4)
-        {
-            glDrawArrays(GL_LINE_LOOP, i, 4); // plot 4 lines for each face
-        }
-    }
+
 
     // Unbind the buffers and disable client-side capabilities
     f->glBindBuffer(GL_ARRAY_BUFFER, 0);
