@@ -1,0 +1,113 @@
+#ifndef ANSYSWRAPPER_H_INCLUDED
+#define ANSYSWRAPPER_H_INCLUDED
+
+#include <vector>
+#include <QString>
+#include <QTemporaryDir>
+
+enum tensor_components{ID,X,Y,Z,UX,UY,UZ,SX,SY,SZ,SXY,SYZ,SXZ,EpsX,EpsY,EpsZ,EpsXY,EpsYZ,EpsXZ};
+
+class ansysWrapper
+{
+protected:
+    int m_ansVersion;
+    QString m_pathToAns;
+    QStringList m_arg;
+    QString m_projectPath;
+    QString m_jobName;
+    int m_np;
+    int m_kpid;
+    int m_lcs = 11;
+    bool m_isBatch;
+    QString m_apdl;
+
+    void findPathVersion();
+    void findNp();
+    void defaultArgs();
+
+    QString mergeVector(QString prefix, std::vector<double> vec);
+
+    QTemporaryDir tempDir;
+    QString exitCodeToText(int retcode);
+    float calc_avg(QVector<float> &x);
+
+    QMap< QVarLengthArray<float>, int> nodes;
+
+public:
+    ansysWrapper(bool isBatch);
+    void run(QString apdl);
+    void run();
+    int kp(double x, double y);
+    int spline(std::vector<int> kps, int left_boundary, int right_boundary);
+    int spline(std::vector<double> x, std::vector<double> y, int left_boundary = 1, int right_boundary = 1);
+    void setMaterial(double E, double nu, double rho );
+    void setAnisoMaterial(double c11, double c12, double c13, double c22, double c23, double c33, double c44, double c55, double c66);
+
+    void setSectionASEC(double area, double Ix, double r_out);
+    void setSectionCTUBE(double r_Out, double r_In);
+
+    void DKAll(int kp_num);
+    void setAccelGlobal(double gx, double gy, double gz);
+
+    void setLDiv(int ndiv);
+    void setElem(bool linear = false);
+    void setElemByNum(int num);
+
+    void setSeismicSpectrum(std::vector<double> freq, std::vector<double> ax, std::vector<double> ay, std::vector<double> az);
+
+    void mesh();
+
+    void solve();
+    void solveLS(int start, int end);
+
+    void clear();
+
+    QString getAnsExec();
+    void setAnsExec(QString exec);
+
+    QString getJobName();
+    void setJobName(QString jobName);
+
+    QString getProjectPath();
+    void setProjectPath(QString path);
+
+    void setNP(int np);
+
+    void createFEfromArray(int16_t*** voxels, short int numCubes,int numSeeds);
+    int createLocalCS();
+    static void generate_random_angles(double *angl, bool in_deg=false, double epsilon=1e-6);
+    void applyTensBC(double x1, double y1, double z1,
+                     double x2, double y2, double z2,
+                     double epsx, double epsy, double epsz);
+    void applyPureShearBC(double x1, double y1, double z1,
+                          double x2, double y2, double z2,
+                          const QString& shear_plane, double shear_disp);
+
+    QVarLengthArray<float> EstimateDisplacement(const QVarLengthArray<float>& node,
+                                                double x_origin, double y_origin, double z_origin,
+                                                double epsilon_x, double epsilon_y, double epsilon_z,
+                                                double epsilon_xy, double epsilon_xz, double epsilon_yz);
+    void applyComplexLoads(double x1, double y1, double z1,
+                           double x2, double y2, double z2,
+                           double eps_x, double eps_y, double eps_z,
+                           double eps_xy, double eps_xz, double eps_yz);
+    bool IsFaceNode(const QVarLengthArray<float>& node,
+                    double x1, double y1, double z1,
+                    double x2, double y2, double z2);
+
+    void prep7();
+    void clearBC();
+    void saveAll();
+    void load_loadstep(int num);
+
+    QVector<QVector<float>> loadstep_results;
+    QVector<float> loadstep_results_avg;
+
+    /*float avg_x, avg_y, avg_z,
+        avg_ux, avg_uy, avg_uz,
+        avg_sx, avg_sy, avg_sz, avg_sxy, avg_syz, avg_sxz,
+        avg_epsx, avg_epsy, avg_epsz, avg_epsxy, avg_epsyz, avg_epsxz;*/
+};
+
+
+#endif // ANSYSWRAPPER_H_INCLUDED

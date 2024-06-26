@@ -33,6 +33,7 @@ include(3rdparty/qtgifimage/src/gifimage/qtgifimage.pri)
 SOURCES += \
     about.cpp \
     animation.cpp \
+    ansyswrapper.cpp \
     console.cpp \
     export.cpp \
     dlca.cpp \
@@ -48,11 +49,13 @@ SOURCES += \
     probability_circle.cpp \
     probability_ellipse.cpp \
     radial.cpp \
-    statistics.cpp
+    statistics.cpp \
+    stressanalysis.cpp
 
 HEADERS += \
     about.h \
     animation.h \
+    ansyswrapper.h \
     console.h \
     export.h \
     dlca.h \
@@ -67,7 +70,8 @@ HEADERS += \
     probability_circle.h \
     probability_ellipse.h \
     radial.h \
-    statistics.h
+    statistics.h \
+    stressanalysis.h
 
 FORMS += \
     about.ui \

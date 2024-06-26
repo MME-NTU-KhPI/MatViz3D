@@ -25,7 +25,7 @@
 #include "statistics.h"
 #include "export.h"
 #include <hdf5.h>
-
+#include "stressanalysis.h"
 
 
 int16_t* createVoxelArray(int16_t*** voxels, int numCubes);
@@ -74,7 +74,6 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow()
 {
-   // saveHDF();
     delete ui;
 }
 
@@ -319,18 +318,19 @@ void MainWindow::setupFileMenu() {
     QAction *exportWRLAction = new QAction("Export to wrl", this);
     QAction *exportCSVAction = new QAction("Export to csv", this);
     QAction *saveAsHDF = new QAction("Save as hdf5 file" , this);
+    QAction *estimateStressWithANSYS = new QAction("Estimate stresses", this);
 
-    fileMenu->addAction(openHDF);
     fileMenu->addAction(saveAsImageAction);
     fileMenu->addAction(exportWRLAction);
     fileMenu->addAction(exportCSVAction);
     fileMenu->addAction(saveAsHDF);
+    fileMenu->addAction(estimateStressWithANSYS);
 
 
     // Кастомізація FileMenu за допомогою CSS
     fileMenu->setStyleSheet("QMenu {"
                             "    width: 255px;"
-                            "    height: 430px;"
+                            "    height: 260px;"
                             "    background-color: #282828;" // фон меню
                             "    color: rgba(217, 217, 217, 0.70);" // колір тексту
                             "    margin: 0px;"
@@ -357,9 +357,7 @@ void MainWindow::setupFileMenu() {
                             "}"
                             "QMenu::indicator {"
                             "    width: 0; height: 0;"  // Зробити стрілку невидимою
-                            "}"
-
-                    );
+                            "}");
 
     // Кастомізація QAction
     QFont actionFont;
@@ -369,6 +367,7 @@ void MainWindow::setupFileMenu() {
     exportWRLAction->setFont(actionFont);
     exportCSVAction->setFont(actionFont);
     saveAsHDF->setFont(actionFont);
+    estimateStressWithANSYS->setFont(actionFont);
 
     // Призначте це меню кнопці
     ui->FileButton->setMenu(fileMenu);
@@ -377,6 +376,7 @@ void MainWindow::setupFileMenu() {
     connect(exportWRLAction, &QAction::triggered, this, &MainWindow::exportToWRL);
     connect(exportCSVAction, &QAction::triggered, this, &MainWindow::exportToCSV);
     connect(saveAsHDF , &QAction::triggered , this , &MainWindow::saveHDF);
+    connect(estimateStressWithANSYS, &QAction::triggered, this, &MainWindow::estimateStressWithANSYS);
 }
 
 void MainWindow::setupWindowMenu() {
@@ -493,6 +493,18 @@ void MainWindow::exportToCSV(){
     else
     {
         Export::ExportToCSV(Parameters::size, Parameters::voxels);
+    }
+}
+
+// Estimate elastic stress with ANSYS static structure solver
+void MainWindow::estimateStressWithANSYS(){
+    if(startButtonPressed == false)
+    {
+        QMessageBox::information(nullptr, "Warning!", "The structure was not generated.");
+    }
+    else
+    {
+        StressAnalysis::estimateStressWithANSYS(Parameters::size, Parameters::voxels);
     }
 }
 
