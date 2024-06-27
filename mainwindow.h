@@ -49,6 +49,7 @@ private slots:
     void onDataCheckBoxChanged(int state);
     void onAllCheckBoxChanged(int state);
     void exportToCSV();
+    void onInitialConditionSelectionChanged();
 
     void on_Start_clicked();
 

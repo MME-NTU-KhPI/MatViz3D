@@ -37,9 +37,10 @@ MainWindow::MainWindow(QWidget *parent)
     setupFileMenu();
     setupWindowMenu();
 
-    // connect(ui->statistics, &QPushButton::clicked, this, &MainWindow::on_statistics_clicked);
-    connect(this, &MainWindow::on_Start_clicked, this, &MainWindow::on_Start_clicked);
+    connect(ui->numOfPointsRadioButton, &QRadioButton::clicked, this, &MainWindow::onInitialConditionSelectionChanged);
+    connect(ui->concentrationRadioButton, &QRadioButton::clicked, this, &MainWindow::onInitialConditionSelectionChanged);
 
+    connect(this, &MainWindow::on_Start_clicked, this, &MainWindow::on_Start_clicked);
 
     connect(ui->Rectangle8, &QLineEdit::editingFinished, this, [=]() {
         bool ok;
@@ -77,6 +78,16 @@ MainWindow::~MainWindow()
 void MainWindow::onLogMessageWritten(const QString &message)
 {
     ui->textEdit->append(message); // Вивід повідомлень в textEdit
+}
+
+// Вибір між кількістю початкових точок та концентрацією
+void MainWindow::onInitialConditionSelectionChanged()
+{
+    if (ui->numOfPointsRadioButton->isChecked()) {
+        qDebug() << "Number of points is checked";
+    } else if (ui->concentrationRadioButton->isChecked()) {
+        qDebug() << "Concentration is checked";
+    }
 }
 
 // Функція перевірки для старт
@@ -505,13 +516,22 @@ void MainWindow::onDataCheckBoxChanged(int state) {
     }
 }
 
+//void MainWindow::onConsoleCheckBoxChanged(int state) {
+//    if (state == Qt::Checked) {
+//        ui->ConsoleWidget->show();
+//    } else {
+//        ui->ConsoleWidget->hide();
+//    }
+//}
+
 void MainWindow::onConsoleCheckBoxChanged(int state) {
     if (state == Qt::Checked) {
-        ui->ConsoleWidget->show();
+        ui->ConsoleWidget->setVisible(true);
     } else {
-        ui->ConsoleWidget->hide();
+        ui->ConsoleWidget->setVisible(false);
     }
 }
+
 
 void MainWindow::onAnimationCheckBoxChanged(int state) {
     // Обробка зміни стану чекбоксу All
