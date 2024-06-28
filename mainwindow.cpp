@@ -86,6 +86,8 @@ void MainWindow::onInitialConditionSelectionChanged()
     if (ui->numOfPointsRadioButton->isChecked()) {
         qDebug() << "Number of points is checked";
     } else if (ui->concentrationRadioButton->isChecked()) {
+        float PercentOfConcentraion = Parameters::points/100;
+        Parameters::points = PercentOfConcentraion*std::pow(Parameters::size,3);
         qDebug() << "Concentration is checked";
     }
 }
@@ -126,6 +128,10 @@ void MainWindow::on_Start_clicked()
     else if(std::isdigit(Parameters::points) == 0 && Parameters::points <= 0)
     {
         QMessageBox::warning(nullptr, "Warning!", "Invalid initial points value entered!\nThis will result in incorrect program operation!");
+    }
+    else if(Parameters::points > std::pow(Parameters::size,3))
+    {
+        QMessageBox::warning(nullptr, "Warning!", "The entered value of the initial points exceeds the number of points in the cube! This may lead to incorrect operation of the programme. Please make sure that the number of starting points does not exceed the volume of the cube!");
     }
     ui->Start->setText("Loading...");
     ui->Start->setStyleSheet("background: transparent; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
