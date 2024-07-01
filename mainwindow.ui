@@ -55,6 +55,9 @@ background-color: rgb(40, 40, 40);</string>
     </property>
     <item row="0" column="1">
      <widget class="QWidget" name="widget" native="true">
+      <property name="enabled">
+       <bool>true</bool>
+      </property>
       <property name="sizePolicy">
        <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
         <horstretch>0</horstretch>
@@ -409,6 +412,9 @@ color: #00897B;
     </item>
     <item row="1" column="1">
      <widget class="QFrame" name="Rectangle1">
+      <property name="enabled">
+       <bool>true</bool>
+      </property>
       <property name="minimumSize">
        <size>
         <width>1012</width>
@@ -416,11 +422,7 @@ color: #00897B;
        </size>
       </property>
       <property name="styleSheet">
-       <string notr="true">position: absolute;
-width: 1012px;
-height: 791px;
-left: 268px;
-top: 41px;
+       <string notr="true">
 border: none;
 background: #363636;</string>
       </property>
@@ -432,7 +434,7 @@ background: #363636;</string>
       </property>
       <layout class="QGridLayout" name="gridLayout_3">
        <property name="sizeConstraint">
-        <enum>QLayout::SetMaximumSize</enum>
+        <enum>QLayout::SetDefaultConstraint</enum>
        </property>
        <property name="leftMargin">
         <number>0</number>
@@ -466,7 +468,7 @@ padding: 0px;</string>
          </property>
          <layout class="QGridLayout" name="gridLayout">
           <property name="sizeConstraint">
-           <enum>QLayout::SetMaximumSize</enum>
+           <enum>QLayout::SetDefaultConstraint</enum>
           </property>
           <property name="leftMargin">
            <number>0</number>

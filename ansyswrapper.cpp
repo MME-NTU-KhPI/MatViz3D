@@ -2,6 +2,7 @@
 #include <QDateTime>
 #include <QFile>
 #include <QProcess>
+#include <cfloat>
 #include <random>
 
 #include "ansysWrapper.h"
@@ -219,7 +220,9 @@ void ansysWrapper::createFEfromArray(int16_t*** voxels, short int numCubes, int 
     QVector<int> elemets;
     QVector<int> tmp_elemets(20);
     int node_number = 0;
+    qDebug() << "Creating nodes";
     for (int i = 0; i < numCubes; i++)
+    {
         for (int j = 0; j < numCubes; j++)
             for (int k = 0; k < numCubes; k++)
             {
@@ -243,11 +246,20 @@ void ansysWrapper::createFEfromArray(int16_t*** voxels, short int numCubes, int 
                 node_number += 20;
                 elemets.append(tmp_elemets);
             }
-    QTextStream apdl(&m_apdl);
+        if (i%3 == 0)
+            qDebug() << "Progress: " << i * 100 / numCubes <<"%";
+    }
+
+
+    QFile data("output.txt");
+    data.open(QFile::WriteOnly | QFile::Truncate);
+    QTextStream apdl(&data);
+    //QByteArray apdl_arr;
+    //QTextStream apdl(apdl_arr);
 
     apdl << "NBLOCK,6,SOLID,"/*<< nodes.size() <<", "<<nodes.size()*/ << Qt::endl;
     apdl <<"(3i9,6e21.13e3)" << Qt::endl ;
-
+    qDebug() << "Adding apdl for nodes";
     for (auto ni = nodes.begin(); ni!=nodes.end(); ni++)
     {
         apdl.setFieldWidth(9);
@@ -261,17 +273,20 @@ void ansysWrapper::createFEfromArray(int16_t*** voxels, short int numCubes, int 
     }
     apdl <<"N,R5.3,LOC,-1," << Qt::endl;
 
+    qDebug() << "Adding apdl for elements";
     apdl << "EBLOCK,19,SOLID" << Qt::endl;
     apdl << "(19i10)" << Qt::endl;
-    for (int ei = 0; ei < elemets.size(); ei+=20)
+    size_t el_size = elemets.size();
+
+    for (size_t ei = 0; ei < el_size; ei+=20)
     {
-        key = nodes.key(elemets[ei]);
-        int kx = (int)key[0], ky = (int)key[1], kz = (int)key[2];
+        //key = nodes.key(elemets[ei]);
+        //int kx = (int)key[0], ky = (int)key[1], kz = (int)key[2];
         int mat_id = 1;
         int el_id = 1;
         int real_const = 1;
         int sec_id = 1;
-        int coord_sys_id = voxels[kx][ky][kz] + 11; // 11 - first ansys user-def coord sys
+        //int coord_sys_id = voxels[kx][ky][kz] + 11; // 11 - first ansys user-def coord sys
         int bd_flag = 0;
         int sld_ref = 0;
         int el_shape = 0;
@@ -279,21 +294,25 @@ void ansysWrapper::createFEfromArray(int16_t*** voxels, short int numCubes, int 
         int exclude_key = 0;
         int el_number = ei / el_num_nodes + 1;
 
-        apdl.setFieldWidth(10);
-        apdl << mat_id << el_id << real_const << sec_id << coord_sys_id << bd_flag << sld_ref
-             << el_shape << el_num_nodes << exclude_key << el_number;
-        for (int j = ei; j < ei+20; j++)
+        //apdl.setFieldWidth(10);
+        //apdl << mat_id << el_id << real_const << sec_id << coord_sys_id << bd_flag << sld_ref
+        //     << el_shape << el_num_nodes << exclude_key << el_number;
+        for (size_t j = ei; j < ei+20; j++)
         {
-            apdl << elemets[j] + 1;
+        //    apdl << elemets[j] + 1;
             if (j - ei == 7)
             {
-                apdl.setFieldWidth(0);
-                apdl << Qt::endl;
-                apdl.setFieldWidth(10);
+          //      apdl.setFieldWidth(0);
+          //      apdl << Qt::endl;
+          //      apdl.setFieldWidth(10);
             }
         }
-        apdl.setFieldWidth(0);
-        apdl << Qt::endl;
+        //apdl.setFieldWidth(0);
+        //apdl << Qt::endl;
+
+        if (ei%(el_size/100) == 0)
+            qDebug() << "Progress: " << ei * 100 / el_size <<"%";
+
     }
     apdl << -1 << Qt::endl; // indicate end of the list
     apdl << Qt::endl;
@@ -981,19 +1000,38 @@ void ansysWrapper::load_loadstep(int num)
     this->loadstep_results_avg.clear();
     this->loadstep_results_avg.resize(num_columns);
 
+    this->loadstep_results_max.clear();
+    this->loadstep_results_max.resize(num_columns);
+    this->loadstep_results_max.fill(-FLT_MAX);
+
+    this->loadstep_results_min.clear();
+    this->loadstep_results_min.resize(num_columns);
+    this->loadstep_results_min.fill(FLT_MAX);
+
 
     for (int i = 0; i < this->loadstep_results.size(); i++)
     {
         for (int j = 0; j < num_columns; j++)
         {
             this->loadstep_results_avg[j] += this->loadstep_results[i][j];
+            this->loadstep_results_min[j] = std::min(this->loadstep_results_min[j], this->loadstep_results[i][j]);
+            this->loadstep_results_max[j] = std::max(this->loadstep_results_max[j], this->loadstep_results[i][j]);
         }
+        QVarLengthArray<float> key(3);
+        key[0] = this->loadstep_results[i][X];
+        key[1] = this->loadstep_results[i][Y];
+        key[2] = this->loadstep_results[i][Z];
+        int line_id = i;
+        this->result_nodes.insert(key, line_id);
+
     }
     for (int j = 0; j < num_columns; j++)
     {
         this->loadstep_results_avg[j] /= (float)this->loadstep_results.size();
     }
     auto &avg = this->loadstep_results_avg;
+    auto &max = this->loadstep_results_max;
+    auto &min = this->loadstep_results_min;
 
     qDebug() << "AVG Stress tensor: ";
     qDebug() << "  "<< avg[SX]  << avg[SXY] << avg[SXZ];
@@ -1004,7 +1042,60 @@ void ansysWrapper::load_loadstep(int num)
     qDebug() << "  "<< avg[EpsX]  << avg[EpsXY] << avg[EpsXZ];
     qDebug() << "  "<< avg[EpsXY] << avg[EpsY]  << avg[EpsYZ];
     qDebug() << "  "<< avg[EpsXZ] << avg[EpsYZ] << avg[EpsZ];
+
+    qDebug() << "MAX Stress tensor: ";
+    qDebug() << "  "<< max[SX]  << max[SXY] << max[SXZ];
+    qDebug() << "  "<< max[SXY] << max[SY]  << max[SYZ];
+    qDebug() << "  "<< max[SXZ] << max[SYZ] << max[SZ];
+
+    qDebug() << "MIN Stress tensor: ";
+    qDebug() << "  "<< min[SX]  << min[SXY] << min[SXZ];
+    qDebug() << "  "<< min[SXY] << min[SY]  << min[SYZ];
+    qDebug() << "  "<< min[SXZ] << min[SYZ] << min[SZ];
 }
+
+float ansysWrapper::scaleValue01(float val, int component)
+{
+    auto &maxVal = this->loadstep_results_max;
+    auto &minVal = this->loadstep_results_min;
+    // Scale each value in the vector to the range [0, 1]
+
+    if (fabs(maxVal[component] - minVal[component]) > 0)
+    {
+        return (val - minVal[component]) / (maxVal[component] - minVal[component]);
+    }
+
+    return 1; // return 1 for case max == min
+}
+
+float ansysWrapper::getValByCoord(float x, float y, float z, int component)
+{
+    QVarLengthArray<float> key(3);
+    key[0] = x;
+    key[1] = y;
+    key[2] = z;
+    if (this->result_nodes.contains(key))
+    {
+        int line_id = this->result_nodes[key];
+        float res = this->loadstep_results[line_id][component];
+        return res;
+    }
+    qDebug() << "Coord not found : "<< x << y << z;
+    return 0;
+}
+
+float ansysWrapper::getValByCoord(QVarLengthArray<float> &key, int component)
+{
+    if (this->result_nodes.contains(key))
+    {
+        int line_id = this->result_nodes[key];
+        float res = this->loadstep_results[line_id][component];
+        return res;
+    }
+    qDebug() << "Coord not found : "<< key[0] << key[1] << key[2];
+    return 0;
+}
+
 
 float ansysWrapper::calc_avg(QVector<float> &x)
 {

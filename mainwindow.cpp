@@ -329,8 +329,6 @@ void MainWindow::setupFileMenu() {
 
     // Кастомізація FileMenu за допомогою CSS
     fileMenu->setStyleSheet("QMenu {"
-                            "    width: 255px;"
-                            "    height: 260px;"
                             "    background-color: #282828;" // фон меню
                             "    color: rgba(217, 217, 217, 0.70);" // колір тексту
                             "    margin: 0px;"
@@ -346,8 +344,10 @@ void MainWindow::setupFileMenu() {
                             "    font-size: 20px;"
                             "    padding-top: 5px;"
                             "    padding-left: 30px;"
-                            "    margin-top: 15px;"
+                            "    margin-top: 7px;"
                             "    margin-left: 20px;"
+                            "    margin-right: 20px;"
+                            "    margin-bottom: 7px;"
                             "}"
                             "QMenu::item:selected {"
                             "    background-color: rgba(217, 217, 217, 0.30);"  // фон для вибраного елемента
@@ -495,16 +495,20 @@ void MainWindow::exportToCSV(){
         Export::ExportToCSV(Parameters::size, Parameters::voxels);
     }
 }
-
+StressAnalysis sa;
 // Estimate elastic stress with ANSYS static structure solver
 void MainWindow::estimateStressWithANSYS(){
+
     if(startButtonPressed == false)
     {
         QMessageBox::information(nullptr, "Warning!", "The structure was not generated.");
     }
     else
     {
-        StressAnalysis::estimateStressWithANSYS(Parameters::size, Parameters::voxels);
+        sa.estimateStressWithANSYS(Parameters::size, Parameters::points, Parameters::voxels);
+        ui->myGLWidget->setAnsysWrapper(sa.wr);
+        ui->myGLWidget->update();
+
     }
 }
 

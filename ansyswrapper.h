@@ -33,6 +33,8 @@ protected:
 
     QMap< QVarLengthArray<float>, int> nodes;
 
+    QMap< QVarLengthArray<float>, int> result_nodes;
+
 public:
     ansysWrapper(bool isBatch);
     void run(QString apdl);
@@ -100,7 +102,14 @@ public:
     void saveAll();
     void load_loadstep(int num);
 
+    float scaleValue01(float val, int component);
+    float getValByCoord(float x, float y, float z, int component);
+    float getValByCoord(QVarLengthArray<float> &key, int component);
+
     QVector<QVector<float>> loadstep_results;
+
+    QVector<float> loadstep_results_max;
+    QVector<float> loadstep_results_min;
     QVector<float> loadstep_results_avg;
 
     /*float avg_x, avg_y, avg_z,

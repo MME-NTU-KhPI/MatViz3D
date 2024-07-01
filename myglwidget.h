@@ -4,7 +4,7 @@
 #include <QtOpenGLWidgets/QOpenGLWidget>
 #include <QMatrix4x4>
 #include <QOpenGLFunctions>
-
+#include "ansysWrapper.h"
 
 
 class MyGLWidget : public QOpenGLWidget
@@ -29,7 +29,7 @@ protected:
     void resizeGL(int width, int height);
     void paintSphere(float radius, int numStacks, int numSlices);
     void drawCube(float cubeSize, GLenum type = GL_QUADS);
-    void drawCube(short cubeSize, Voxel v, bool* neighbors);
+    void drawCube(short cubeSize, Voxel vox, bool* neighbors, std::vector<std::array<GLubyte, 4>> &node_colors);
     QSize minimumSizeHint() const;
     QSize sizeHint() const;
     void mousePressEvent(QMouseEvent *event);
@@ -37,6 +37,11 @@ protected:
     void wheelEvent(QWheelEvent *event);
 
     void calculateScene();
+
+    std::vector<std::array<GLubyte, 4>> createColorMap(int numLevels);
+    std::array<GLubyte, 4> scalarToColor(float value, const std::vector<std::array<GLubyte, 4>>& colorMap);
+    ansysWrapper *wr;
+
 public slots:
     // slots for xyz-rotation slider
     void setXRotation(int angle);
@@ -46,6 +51,7 @@ public slots:
     void setNumColors(int numColors);
     void setDistanceFactor(int factor);
     void setDelayAnimation(int delayAnimation);
+    void setAnsysWrapper(ansysWrapper *wr);
     void update_function();
     void updateGLWidget(int16_t*** voxels, short int numCubes);
 signals:
@@ -73,6 +79,8 @@ protected:
 
     std::vector<std::array<GLubyte, 4>> colors;
     std::vector<float> directionFactors;
+
+    void updateVoxelColor(Voxel &v1);
 
     struct Voxel
     {

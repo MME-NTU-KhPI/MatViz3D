@@ -11,26 +11,26 @@
 #include <QParallelAnimationGroup>
 #include <QSequentialAnimationGroup>
 
-void StressAnalysis::estimateStressWithANSYS(short int numCubes, int16_t ***voxels)
+void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPoints, int16_t ***voxels)
 {
     const auto N = numCubes;
-    ansysWrapper wr(true);
-    wr.setNP(1);
+    wr = new ansysWrapper(true);
+    wr->setNP(1);
     //wr.setMaterial(2.1e11, 0.3, 0);
 
     //wr.setMaterial(2.1e11, 0.3, 0);
     double c11 = 168.40e9, c12=121.40e9, c44=75.40e9; // copper bcc single crystal  https://solidmechanics.org/Text/Chapter3_2/Chapter3_2.php#Sect3_2_17
-    wr.setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44) ;
+    wr->setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44) ;
 
-    wr.setElemByNum(186);
+    wr->setElemByNum(186);
 
-    wr.createFEfromArray(voxels, N, N);
+    wr->createFEfromArray(voxels, N, numPoints);
 
-    wr.applyComplexLoads(0, 0, 0, N, N, N,
-                         0.001, 0.002, 0.003,
-                         0.004, 0.005, 0.006);
-    wr.solveLS(1, 1);
-    wr.saveAll();
-    wr.run();
-    wr.load_loadstep(1);
+    wr->applyComplexLoads(0, 0, 0, N, N, N,
+                         0.001, 0.000, 0.000,
+                         0.000, 0.000, 0.000);
+    wr->solveLS(1, 1);
+    wr->saveAll();
+    wr->run();
+    wr->load_loadstep(1);
 }

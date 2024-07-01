@@ -21,6 +21,7 @@ MyGLWidget::MyGLWidget(QWidget *parent)
     zRot = 0;
     distance = 2.0f;
     voxels = nullptr;
+    wr = nullptr;
     timer = new QTimer(this);
 }
 
@@ -82,6 +83,7 @@ void MyGLWidget::setNumCubes(int numCubes)
 {
     distance = 2 * numCubes;
     this->numCubes = numCubes;
+    this->wr = nullptr;
     update();
 }
 
@@ -96,6 +98,7 @@ void MyGLWidget::setNumColors(int numColors)
     for (int i = 0; i < numColors; i++) {
         directionFactors[i] = ((rand() % 2) == 0) ? 1.0f : -1.0f;
     }
+    this->wr = nullptr;
 }
 
 void MyGLWidget::setDelayAnimation(int delayAnimation)
@@ -202,6 +205,43 @@ void MyGLWidget::initializeGL()
 
 }
 
+std::vector<std::array<GLubyte, 4>> MyGLWidget::createColorMap(int numLevels)
+{
+    std::vector<std::array<GLubyte, 4>> colorMap(9);
+
+    colorMap[8] = {255, 0,      0,   255};
+    colorMap[7] = {255, 178,    0,   255};
+    colorMap[6] = {255, 255,    0,   255};
+    colorMap[5] = {178, 255,    0,   255};
+    colorMap[4] = {0,   255,    0,   255};
+    colorMap[3] = {0,   255,    178, 255};
+    colorMap[2] = {0,   255,    255, 255};
+    colorMap[1] = {0,   178,    255, 255};
+    colorMap[0] = {0,   0,      255, 255};
+
+
+    /*
+    for (int i = 0; i < numLevels; ++i) {
+        GLubyte t = 255 * i / (numLevels - 1);
+        std::array<GLubyte, 4> arr({t, 0, static_cast<GLubyte>((255 - t)), 255});
+        colorMap[i] = arr;
+    }*/
+
+    return colorMap;
+}
+
+std::array<GLubyte, 4> MyGLWidget::scalarToColor(float value, const std::vector<std::array<GLubyte, 4>>& colorMap)
+{
+    int index = static_cast<int>(value * (colorMap.size() - 1));
+    return colorMap[index];
+}
+
+void MyGLWidget::setAnsysWrapper(ansysWrapper *wr)
+{
+    this->wr = wr;
+    this->calculateScene();
+}
+
 std::vector<std::array<GLubyte, 4>> MyGLWidget::generateDistinctColors()
 {
     std::vector<std::array<GLubyte, 4>> colors;
@@ -264,6 +304,19 @@ std::vector<std::array<GLubyte, 4>> MyGLWidget::generateDistinctColors()
 
 void MyGLWidget::calculateScene()
 {
+
+    static const float node_coordinates[8][3] =
+        {
+            {0, 0, 0}, // 1
+            {0, 0, 1}, // 5
+            {0, 1, 1}, // 8
+            {0, 1, 0}, // 4
+            {1, 0, 0}, // 2
+            {1, 0, 1}, // 6
+            {1, 1, 1}, // 7
+            {1, 1, 0}, // 3
+        };
+
     voxelScene.clear();
     float cubeSize = 1.0; // numCubes;
     for (int i = 0; i < numCubes; i++) { // y
@@ -280,15 +333,15 @@ void MyGLWidget::calculateScene()
                 bool neighbors[6] = {false};  // check for the same type voxels
                 {
                     auto vx = voxels[k][i][j];
-                    neighbors[2] = (k > 0) ? (voxels[k - 1][i][j] == vx) : false; // -x
-                    neighbors[0] = (k < numCubes - 1) ? (voxels[k + 1][i][j] == vx) : false; // +x
+                    neighbors[0] = (k > 0) ? (voxels[k - 1][i][j] == vx) : false; // -x
+                    neighbors[2] = (k < numCubes - 1) ? (voxels[k + 1][i][j] == vx) : false; // +x
 
-                    neighbors[3] = (i < numCubes - 1) ? (voxels[k][i + 1][j] == vx): false; // +y
-                    neighbors[1] = (i > 0) ? (voxels[k][i - 1][j] == vx): false; // -y
+                    neighbors[1] = (i < numCubes - 1) ? (voxels[k][i + 1][j] == vx): false; // +y
+                    neighbors[3] = (i > 0) ? (voxels[k][i - 1][j] == vx): false; // -y
 
 
-                    neighbors[5] = (j < numCubes - 1) ? (voxels[k][i][j + 1] == vx) : false; // +z
-                    neighbors[4] = (j > 0) ? (voxels[k][i][j - 1] == vx): false; // -z
+                    neighbors[4] = (j < numCubes - 1) ? (voxels[k][i][j + 1] == vx) : false; // +z
+                    neighbors[5] = (j > 0) ? (voxels[k][i][j - 1] == vx): false; // -z
 
                     bool c1 = neighbors[0] && neighbors[1];
                     bool c2 = neighbors[2] && neighbors[3];
@@ -315,18 +368,40 @@ void MyGLWidget::calculateScene()
                                     directionFactor * diff[2] * distanceFactor};
 
                 Voxel v;
-                v.x = (numCubes/2 - k) * cubeSize + ceil(offset[0]);
-                v.y = (numCubes/2 - i) * cubeSize + ceil(offset[1]);
-                v.z = (numCubes/2 - j) * cubeSize + ceil(offset[2]);
+                v.x = -(numCubes/2 - k) * cubeSize + offset[0];
+                v.y = -(numCubes/2 - i) * cubeSize + offset[1];
+                v.z = -(numCubes/2 - j) * cubeSize + offset[2];
 
                 v.r = color[0];
                 v.g = color[1];
                 v.b = color[2];
                 v.a = color[3];
 
+                std::vector<std::array<GLubyte, 4>> node_colors(8);
+                if (wr)
+                {
+                    auto cmap = this->createColorMap(0);
+                    for (int l = 0; l < 8; l++)
+                    {
+                        QVarLengthArray<float> key(3);
+                        key[0] = node_coordinates[l][0] + k;
+                        key[1] = node_coordinates[l][1] + i;
+                        key[2] = node_coordinates[l][2] + j;
 
+                        float val = wr->getValByCoord(key, SX);
+                        float val01 = wr->scaleValue01(val, SX);
+                        node_colors[l] = this->scalarToColor(val01, cmap);
+                       /* node_colors[l][0] = key[0];
+                        node_colors[l][1] = key[1];
+                        node_colors[l][2] = key[2];*/
+                    }
+                }
+                else
+                {
+                    std::fill(node_colors.begin(), node_colors.end(), colors[index]);
+                }
 
-                drawCube(cubeSize, v, neighbors);
+                drawCube(cubeSize, v, neighbors, node_colors);
             }
         }
     }
@@ -340,7 +415,21 @@ void MyGLWidget::setVoxels(int16_t*** voxels, short int numCubes)
     calculateScene();
 }
 
-void MyGLWidget::drawCube(short cubeSize, Voxel vox, bool* neighbors)
+void MyGLWidget::updateVoxelColor(Voxel &v1)
+{
+    if (wr)
+    {
+        float val = wr->getValByCoord(v1.x, v1.y, v1.z, SX);
+        float val01 = wr->scaleValue01(val, SX);
+        auto cmap = this->createColorMap(8);
+        auto color = this->scalarToColor(val01, cmap);
+        v1.r = color[0];
+        v1.g = color[1];
+        v1.b = color[2];
+    }
+}
+
+void MyGLWidget::drawCube(short cubeSize, Voxel vox, bool* neighbors, std::vector<std::array<GLubyte, 4>> &node_colors)
 {
 
     static const GLfloat n[6][3] =
@@ -373,49 +462,42 @@ void MyGLWidget::drawCube(short cubeSize, Voxel vox, bool* neighbors)
     v[0][2] = v[3][2] = v[4][2] = v[7][2] = vox.z + offset;
     v[1][2] = v[2][2] = v[5][2] = v[6][2] = vox.z + cubeSize - offset;
 
-    Voxel v1, v2, v3, v4;
-    for (int i = 5; i >= 0; i--)
+    Voxel v1;
+    for (int i = 0; i < 6; i++) // for each of 6 face of cube
     {
         if (neighbors[i] )
             continue;
 
-        v1.nx = v2.nx = v3.nx = v4.nx = n[i][0];
-        v1.ny = v2.ny = v3.ny = v4.ny = n[i][1];
-        v1.nz = v2.nz = v3.nz = v4.nz = n[i][2];
-
-        v1.r = v2.r = v3.r = v4.r = vox.r;
-        v1.g = v2.g = v3.g = v4.g = vox.g;
-        v1.b = v2.b = v3.b = v4.b = vox.b;
-        v1.a = v2.a = v3.a = v4.a = vox.a;
+        v1.nx = n[i][0];
+        v1.ny = n[i][1];
+        v1.nz = n[i][2];
 
         if  (neighbors[i] == true) // plot hidden faces with gray (50.50.50) color for debug
         {
-            v1.r = v2.r = v3.r = v4.r = 50;
-            v1.g = v2.g = v3.g = v4.g = 50;
-            v1.b = v2.b = v3.b = v4.b = 50;
-            v1.a = v2.a = v3.a = v4.a = vox.a;
+            v1.r = 50;
+            v1.g = 50;
+            v1.b = 50;
+            v1.a = vox.a;
         }
 
-        v1.x = v[faces[i][0]][0];
-        v1.y = v[faces[i][0]][1];
-        v1.z = v[faces[i][0]][2];
+        for (int j = 0; j < 4; j++) // for each node
+        {
+            auto fij = faces[i][j];
+            v1.x = v[fij][0];
+            v1.y = v[fij][1];
+            v1.z = v[fij][2];
 
-        v2.x = v[faces[i][1]][0];
-        v2.y = v[faces[i][1]][1];
-        v2.z = v[faces[i][1]][2];
+            v1.a = vox.a;
 
-        v3.x = v[faces[i][2]][0];
-        v3.y = v[faces[i][2]][1];
-        v3.z = v[faces[i][2]][2];
+            v1.r = node_colors[fij][0];
+            v1.g = node_colors[fij][1];
+            v1.b = node_colors[fij][2];
 
-        v4.x = v[faces[i][3]][0];
-        v4.y = v[faces[i][3]][1];
-        v4.z = v[faces[i][3]][2];
+            //qDebug() << i << j << fij << v1.r << v1.g << v1.b << v1.x <<v1.y << v1.z;
 
-        voxelScene.push_back(v1);
-        voxelScene.push_back(v2);
-        voxelScene.push_back(v3);
-        voxelScene.push_back(v4);
+            voxelScene.push_back(v1);
+        }
+
     }
 }
 
@@ -725,3 +807,5 @@ int16_t*** MyGLWidget::getVoxels()
 {
     return voxels;
 }
+
+

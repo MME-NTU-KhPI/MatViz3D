@@ -2,10 +2,13 @@
 #define STRESSANALYSIS_H
 
 #include <cstdint>
+#include <ansysWrapper.h>
+
 class StressAnalysis
 {
 public:
-    static void estimateStressWithANSYS(short int numCubes, int16_t ***voxels);
+    void estimateStressWithANSYS(short int numCubes, short int numPoints, int16_t ***voxels);
+    ansysWrapper* wr;
 };
 
 #endif // STRESSANALYSIS_H
