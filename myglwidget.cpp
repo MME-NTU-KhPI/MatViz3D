@@ -383,10 +383,10 @@ void MyGLWidget::calculateScene()
                     auto cmap = this->createColorMap(0);
                     for (int l = 0; l < 8; l++)
                     {
-                        QVarLengthArray<float> key(3);
-                        key[0] = node_coordinates[l][0] + k;
-                        key[1] = node_coordinates[l][1] + i;
-                        key[2] = node_coordinates[l][2] + j;
+                        n3d::node3d key;
+                        key.data[0] = node_coordinates[l][0] + k;
+                        key.data[1] = node_coordinates[l][1] + i;
+                        key.data[2] = node_coordinates[l][2] + j;
 
                         float val = wr->getValByCoord(key, SX);
                         float val01 = wr->scaleValue01(val, SX);

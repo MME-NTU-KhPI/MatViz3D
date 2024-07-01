@@ -4,8 +4,39 @@
 #include <vector>
 #include <QString>
 #include <QTemporaryDir>
+#include <QHash>
 
 enum tensor_components{ID,X,Y,Z,UX,UY,UZ,SX,SY,SZ,SXY,SYZ,SXZ,EpsX,EpsY,EpsZ,EpsXY,EpsYZ,EpsXZ};
+
+namespace n3d
+{
+
+class node3d
+{
+public:
+    float data[3];
+    float operator [](size_t i) const
+    {
+        return data[i];
+    }
+    bool operator ==(const node3d& rhs) const
+    {
+        return std::memcmp(this->data, rhs.data, 3*sizeof(float)) == 0;
+    }
+    friend inline uint qHash(const node3d &key, uint seed);
+};
+
+
+inline uint qHash(const node3d &key, uint seed)
+{
+    float x = key.data[0],
+          y = key.data[1],
+          z = key.data[2];
+    return qHashMulti(seed, x, y, z);
+
+}
+
+} //end of namespace n3d
 
 class ansysWrapper
 {
@@ -31,9 +62,9 @@ protected:
     QString exitCodeToText(int retcode);
     float calc_avg(QVector<float> &x);
 
-    QMap< QVarLengthArray<float>, int> nodes;
+    QHash <n3d::node3d, int> nodes;
 
-    QMap< QVarLengthArray<float>, int> result_nodes;
+    QHash <n3d::node3d, int> result_nodes;
 
 public:
     ansysWrapper(bool isBatch);
@@ -85,7 +116,7 @@ public:
                           double x2, double y2, double z2,
                           const QString& shear_plane, double shear_disp);
 
-    QVarLengthArray<float> EstimateDisplacement(const QVarLengthArray<float>& node,
+    n3d::node3d EstimateDisplacement(const n3d::node3d& node,
                                                 double x_origin, double y_origin, double z_origin,
                                                 double epsilon_x, double epsilon_y, double epsilon_z,
                                                 double epsilon_xy, double epsilon_xz, double epsilon_yz);
@@ -93,7 +124,7 @@ public:
                            double x2, double y2, double z2,
                            double eps_x, double eps_y, double eps_z,
                            double eps_xy, double eps_xz, double eps_yz);
-    bool IsFaceNode(const QVarLengthArray<float>& node,
+    bool IsFaceNode(const n3d::node3d& node,
                     double x1, double y1, double z1,
                     double x2, double y2, double z2);
 
@@ -104,7 +135,7 @@ public:
 
     float scaleValue01(float val, int component);
     float getValByCoord(float x, float y, float z, int component);
-    float getValByCoord(QVarLengthArray<float> &key, int component);
+    float getValByCoord(n3d::node3d &key, int component);
 
     QVector<QVector<float>> loadstep_results;
 

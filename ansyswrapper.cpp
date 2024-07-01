@@ -216,10 +216,16 @@ void ansysWrapper::createFEfromArray(int16_t*** voxels, short int numCubes, int 
             {1.0, 1.0, 0.5},
             {0.0, 1.0, 0.5},*/
         };
-    QVarLengthArray<float> key(3);
+
+    n3d::node3d key;
     QVector<int> elemets;
     QVector<int> tmp_elemets(20);
     int node_number = 0;
+
+    int approx_num_nodes = 4 * pow(numCubes,3) + 9 * pow(numCubes,2) + 6 * numCubes + 1; // this make by building regression
+    nodes.reserve(approx_num_nodes); // allocate memory for 20*numCubes^3 nodes
+    QHash<int, n3d::node3d> reverse_nodes;
+    reverse_nodes.reserve(approx_num_nodes); // allocate memory for 20*numCubes^3 nodes
     qDebug() << "Creating nodes";
     for (int i = 0; i < numCubes; i++)
     {
@@ -228,9 +234,9 @@ void ansysWrapper::createFEfromArray(int16_t*** voxels, short int numCubes, int 
             {
                 for (int l = 1; l <= 20; l++)
                 {
-                    key[0] = node_coordinates[l][0] + i;
-                    key[1] = node_coordinates[l][1] + j;
-                    key[2] = node_coordinates[l][2] + k;
+                    key.data[0] = node_coordinates[l][0] + i;
+                    key.data[1] = node_coordinates[l][1] + j;
+                    key.data[2] = node_coordinates[l][2] + k;
                     int current_node = l - 1;
                     if (nodes.contains(key))
                     {
@@ -239,6 +245,7 @@ void ansysWrapper::createFEfromArray(int16_t*** voxels, short int numCubes, int 
                     else
                     {
                         nodes.insert(key, node_number + current_node);
+                        reverse_nodes.insert(node_number + current_node, key);
                         tmp_elemets[l-1] = node_number + current_node;
                     }
 
@@ -247,27 +254,25 @@ void ansysWrapper::createFEfromArray(int16_t*** voxels, short int numCubes, int 
                 elemets.append(tmp_elemets);
             }
         if (i%3 == 0)
+        {
             qDebug() << "Progress: " << i * 100 / numCubes <<"%";
+        }
     }
 
+    QTextStream apdl(&m_apdl);
 
-    QFile data("output.txt");
-    data.open(QFile::WriteOnly | QFile::Truncate);
-    QTextStream apdl(&data);
-    //QByteArray apdl_arr;
-    //QTextStream apdl(apdl_arr);
 
-    apdl << "NBLOCK,6,SOLID,"/*<< nodes.size() <<", "<<nodes.size()*/ << Qt::endl;
+    apdl << "NBLOCK,6,SOLID,"<< Qt::endl;
     apdl <<"(3i9,6e21.13e3)" << Qt::endl ;
     qDebug() << "Adding apdl for nodes";
-    for (auto ni = nodes.begin(); ni!=nodes.end(); ni++)
+    for (auto ni = nodes.constBegin(); ni!=nodes.constEnd(); ni++)
     {
         apdl.setFieldWidth(9);
         apdl << ni.value()+1 << 0 << 0;
         apdl.setFieldWidth(21);
-        apdl << QString::number(ni.key()[0], 'E', 13)
-             << QString::number(ni.key()[1], 'E', 13)
-             << QString::number(ni.key()[2], 'E', 13);
+        apdl << QString::number(ni.key().data[0], 'E', 13)
+             << QString::number(ni.key().data[1], 'E', 13)
+             << QString::number(ni.key().data[2], 'E', 13);
         apdl.setFieldWidth(0);
         apdl << Qt::endl;
     }
@@ -280,13 +285,13 @@ void ansysWrapper::createFEfromArray(int16_t*** voxels, short int numCubes, int 
 
     for (size_t ei = 0; ei < el_size; ei+=20)
     {
-        //key = nodes.key(elemets[ei]);
-        //int kx = (int)key[0], ky = (int)key[1], kz = (int)key[2];
+        key = reverse_nodes.value(elemets[ei]);
+        int kx = (int)key[0], ky = (int)key[1], kz = (int)key[2];
         int mat_id = 1;
         int el_id = 1;
         int real_const = 1;
         int sec_id = 1;
-        //int coord_sys_id = voxels[kx][ky][kz] + 11; // 11 - first ansys user-def coord sys
+        int coord_sys_id = voxels[kx][ky][kz] + 11; // 11 - first ansys user-def coord sys
         int bd_flag = 0;
         int sld_ref = 0;
         int el_shape = 0;
@@ -294,29 +299,32 @@ void ansysWrapper::createFEfromArray(int16_t*** voxels, short int numCubes, int 
         int exclude_key = 0;
         int el_number = ei / el_num_nodes + 1;
 
-        //apdl.setFieldWidth(10);
-        //apdl << mat_id << el_id << real_const << sec_id << coord_sys_id << bd_flag << sld_ref
-        //     << el_shape << el_num_nodes << exclude_key << el_number;
+        apdl.setFieldWidth(10);
+        apdl << mat_id << el_id << real_const << sec_id << coord_sys_id << bd_flag << sld_ref
+             << el_shape << el_num_nodes << exclude_key << el_number;
         for (size_t j = ei; j < ei+20; j++)
         {
-        //    apdl << elemets[j] + 1;
+            apdl << elemets[j] + 1;
             if (j - ei == 7)
             {
-          //      apdl.setFieldWidth(0);
-          //      apdl << Qt::endl;
-          //      apdl.setFieldWidth(10);
+                apdl.setFieldWidth(0);
+                apdl << Qt::endl;
+                apdl.setFieldWidth(10);
             }
         }
-        //apdl.setFieldWidth(0);
-        //apdl << Qt::endl;
+        apdl.setFieldWidth(0);
+        apdl << Qt::endl;
 
         if (ei%(el_size/100) == 0)
             qDebug() << "Progress: " << ei * 100 / el_size <<"%";
 
     }
+    qDebug() << "Done";
     apdl << -1 << Qt::endl; // indicate end of the list
     apdl << Qt::endl;
     apdl << "CSYS, 0"<<Qt::endl; //switch to global coord system
+    QString FEM_info = "FE Model info:\n    nodes:%1\n  elements:%2";
+    qInfo().noquote() << FEM_info.arg(nodes.size()).arg(elemets.size()/20);
 }
 
 int ansysWrapper::createLocalCS()
@@ -436,7 +444,7 @@ void ansysWrapper::applyPureShearBC(double x1, double y1, double z1, double x2, 
 }
 
 
-QVarLengthArray<float> ansysWrapper::EstimateDisplacement(const QVarLengthArray<float>& node,
+n3d::node3d ansysWrapper::EstimateDisplacement(const n3d::node3d& node,
                                                           double x_origin, double y_origin, double z_origin,
                                                           double epsilon_x, double epsilon_y, double epsilon_z,
                                                           double epsilon_xy, double epsilon_xz, double epsilon_yz)
@@ -451,21 +459,18 @@ QVarLengthArray<float> ansysWrapper::EstimateDisplacement(const QVarLengthArray<
     double u_z = epsilon_z * local_z + epsilon_xz * local_x + epsilon_yz * local_y;
 
     // return std::make_tuple(u_x, u_y, u_z);
-    QVarLengthArray<float> displacement(3);
+    n3d::node3d displacement;
 
-    displacement[0] = u_x;
-    displacement[1] = u_y;
-    displacement[2] = u_z;
+    displacement.data[0] = u_x;
+    displacement.data[1] = u_y;
+    displacement.data[2] = u_z;
     return displacement;
 }
 
-bool ansysWrapper::IsFaceNode(const QVarLengthArray<float>& node,
+bool ansysWrapper::IsFaceNode(const n3d::node3d& node,
                               double x1, double y1, double z1,
                               double x2, double y2, double z2)
 {
-    // Assuming node has at least 3 elements representing its coordinates
-    if (node.count() < 3) return false; // Safety check
-
     // node_buffer is the tolerance for being "on the face"
     double node_buffer = 0.25;
 
@@ -496,7 +501,7 @@ void ansysWrapper::applyComplexLoads(double x1, double y1, double z1,
 {
     this->prep7();
     QTextStream apdl(&m_apdl);
-    QVarLengthArray<float> displacement(3);
+    n3d::node3d displacement;
 
     apdl << "!-----Apply BC for 3D case -------" << Qt::endl;
     for (auto ni = nodes.begin(); ni!=nodes.end(); ni++)
@@ -510,7 +515,6 @@ void ansysWrapper::applyComplexLoads(double x1, double y1, double z1,
             apdl << "D, "<< node_id <<", UX, " << displacement[0] << Qt::endl;
             apdl << "D, "<< node_id <<", UY, " << displacement[1] << Qt::endl;
             apdl << "D, "<< node_id <<", UZ, " << displacement[2] << Qt::endl;
-
         }
 
     }
@@ -522,10 +526,6 @@ void ansysWrapper::applyComplexLoads(double x1, double y1, double z1,
 
 }
 
-//void ansysWrapper::applyLoadsAsStrainTensor(int cubeSize, double epsxx, )
-//{
-
-//}
 
 void ansysWrapper::prep7()
 {
@@ -1017,10 +1017,10 @@ void ansysWrapper::load_loadstep(int num)
             this->loadstep_results_min[j] = std::min(this->loadstep_results_min[j], this->loadstep_results[i][j]);
             this->loadstep_results_max[j] = std::max(this->loadstep_results_max[j], this->loadstep_results[i][j]);
         }
-        QVarLengthArray<float> key(3);
-        key[0] = this->loadstep_results[i][X];
-        key[1] = this->loadstep_results[i][Y];
-        key[2] = this->loadstep_results[i][Z];
+        n3d::node3d key;
+        key.data[0] = this->loadstep_results[i][X];
+        key.data[1] = this->loadstep_results[i][Y];
+        key.data[2] = this->loadstep_results[i][Z];
         int line_id = i;
         this->result_nodes.insert(key, line_id);
 
@@ -1070,21 +1070,15 @@ float ansysWrapper::scaleValue01(float val, int component)
 
 float ansysWrapper::getValByCoord(float x, float y, float z, int component)
 {
-    QVarLengthArray<float> key(3);
-    key[0] = x;
-    key[1] = y;
-    key[2] = z;
-    if (this->result_nodes.contains(key))
-    {
-        int line_id = this->result_nodes[key];
-        float res = this->loadstep_results[line_id][component];
-        return res;
-    }
-    qDebug() << "Coord not found : "<< x << y << z;
-    return 0;
+    n3d::node3d key;
+    key.data[0] = x;
+    key.data[1] = y;
+    key.data[2] = z;
+
+    return getValByCoord(key, component);
 }
 
-float ansysWrapper::getValByCoord(QVarLengthArray<float> &key, int component)
+float ansysWrapper::getValByCoord(n3d::node3d &key, int component)
 {
     if (this->result_nodes.contains(key))
     {
