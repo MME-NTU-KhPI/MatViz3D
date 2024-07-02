@@ -38,6 +38,7 @@ SOURCES += \
     export.cpp \
     dlca.cpp \
     hdf5handler.cpp \
+    legendview.cpp \
     main.cpp \
     mainwindow.cpp \
     messagehandler.cpp \
@@ -60,6 +61,7 @@ HEADERS += \
     export.h \
     dlca.h \
     hdf5handler.h \
+    legendview.h \
     mainwindow.h \
     messagehandler.h \
     moore.h \

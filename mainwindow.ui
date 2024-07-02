@@ -652,6 +652,131 @@ QSlider::handle {
                 </widget>
                </widget>
               </item>
+              <item row="0" column="0">
+               <widget class="QLabel" name="Exploded_view">
+                <property name="minimumSize">
+                 <size>
+                  <width>167</width>
+                  <height>9</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>167</width>
+                  <height>25</height>
+                 </size>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">font-family: 'Inter';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+padding-bottom: -30px;
+color: #969696;
+border: none;
+background-color: transparent;</string>
+                </property>
+                <property name="text">
+                 <string>Exploded view</string>
+                </property>
+                <property name="margin">
+                 <number>0</number>
+                </property>
+                <property name="buddy">
+                 <cstring>Rectangle10</cstring>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="0">
+               <widget class="QFrame" name="horizontalFrame_2">
+                <property name="minimumSize">
+                 <size>
+                  <width>0</width>
+                  <height>31</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>16777215</width>
+                  <height>40</height>
+                 </size>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">background: none;
+border: none;</string>
+                </property>
+                <layout class="QHBoxLayout" name="horizontalLayout_4">
+                 <item>
+                  <widget class="QLabel" name="label_4">
+                   <property name="minimumSize">
+                    <size>
+                     <width>151</width>
+                     <height>22</height>
+                    </size>
+                   </property>
+                   <property name="maximumSize">
+                    <size>
+                     <width>151</width>
+                     <height>22</height>
+                    </size>
+                   </property>
+                   <property name="styleSheet">
+                    <string notr="true">font-family: 'Inter';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+padding-bottom: -30px;
+color: #969696;
+border: none;
+background-color: transparent;</string>
+                   </property>
+                   <property name="text">
+                    <string>Wireframe on/off</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QCheckBox" name="checkBoxWiregrid">
+                   <property name="minimumSize">
+                    <size>
+                     <width>59</width>
+                     <height>31</height>
+                    </size>
+                   </property>
+                   <property name="maximumSize">
+                    <size>
+                     <width>59</width>
+                     <height>35</height>
+                    </size>
+                   </property>
+                   <property name="styleSheet">
+                    <string notr="true">QCheckBox {
+	background-color: transparent;
+}
+
+QCheckBox::indicator {
+	width: 59px;
+	height: 35px;
+	background-color: transparent;
+}
+
+QCheckBox::indicator:unchecked {
+	image: url(:/icon/AniOFF.png);
+}
+QCheckBox::indicator:checked {
+	image: url(:/icon/AniON.png);
+}</string>
+                   </property>
+                   <property name="text">
+                    <string/>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </widget>
+              </item>
               <item row="4" column="0">
                <widget class="QFrame" name="horizontalFrame">
                 <property name="minimumSize">
@@ -739,6 +864,36 @@ QCheckBox::indicator:checked {
                   </widget>
                  </item>
                 </layout>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="label_2">
+                <property name="minimumSize">
+                 <size>
+                  <width>151</width>
+                  <height>22</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>151</width>
+                  <height>22</height>
+                 </size>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">font-family: 'Inter';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+padding-bottom: -30px;
+color: #969696;
+border: none;
+background-color: transparent;</string>
+                </property>
+                <property name="text">
+                 <string>Animation speed</string>
+                </property>
                </widget>
               </item>
               <item row="1" column="0">
@@ -838,161 +993,6 @@ QSlider::handle {
                   <number>0</number>
                  </property>
                 </widget>
-               </widget>
-              </item>
-              <item row="0" column="0">
-               <widget class="QLabel" name="Exploded_view">
-                <property name="minimumSize">
-                 <size>
-                  <width>167</width>
-                  <height>9</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>167</width>
-                  <height>25</height>
-                 </size>
-                </property>
-                <property name="styleSheet">
-                 <string notr="true">font-family: 'Inter';
-font-style: normal;
-font-weight: 700;
-font-size: 16px;
-line-height: 19px;
-padding-bottom: -30px;
-color: #969696;
-border: none;
-background-color: transparent;</string>
-                </property>
-                <property name="text">
-                 <string>Exploded view</string>
-                </property>
-                <property name="margin">
-                 <number>0</number>
-                </property>
-                <property name="buddy">
-                 <cstring>Rectangle10</cstring>
-                </property>
-               </widget>
-              </item>
-              <item row="2" column="0">
-               <widget class="QLabel" name="label_2">
-                <property name="minimumSize">
-                 <size>
-                  <width>151</width>
-                  <height>22</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>151</width>
-                  <height>22</height>
-                 </size>
-                </property>
-                <property name="styleSheet">
-                 <string notr="true">font-family: 'Inter';
-font-style: normal;
-font-weight: 700;
-font-size: 16px;
-line-height: 19px;
-padding-bottom: -30px;
-color: #969696;
-border: none;
-background-color: transparent;</string>
-                </property>
-                <property name="text">
-                 <string>Animation speed</string>
-                </property>
-               </widget>
-              </item>
-              <item row="5" column="0">
-               <widget class="QFrame" name="horizontalFrame_2">
-                <property name="minimumSize">
-                 <size>
-                  <width>0</width>
-                  <height>31</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>16777215</width>
-                  <height>40</height>
-                 </size>
-                </property>
-                <property name="styleSheet">
-                 <string notr="true">background: none;
-border: none;</string>
-                </property>
-                <layout class="QHBoxLayout" name="horizontalLayout_4">
-                 <item>
-                  <widget class="QLabel" name="label_4">
-                   <property name="minimumSize">
-                    <size>
-                     <width>151</width>
-                     <height>22</height>
-                    </size>
-                   </property>
-                   <property name="maximumSize">
-                    <size>
-                     <width>151</width>
-                     <height>22</height>
-                    </size>
-                   </property>
-                   <property name="styleSheet">
-                    <string notr="true">font-family: 'Inter';
-font-style: normal;
-font-weight: 700;
-font-size: 16px;
-line-height: 19px;
-padding-bottom: -30px;
-color: #969696;
-border: none;
-background-color: transparent;</string>
-                   </property>
-                   <property name="text">
-                    <string>Wireframe on/off</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QCheckBox" name="checkBoxWiregrid">
-                   <property name="minimumSize">
-                    <size>
-                     <width>59</width>
-                     <height>31</height>
-                    </size>
-                   </property>
-                   <property name="maximumSize">
-                    <size>
-                     <width>59</width>
-                     <height>35</height>
-                    </size>
-                   </property>
-                   <property name="styleSheet">
-                    <string notr="true">QCheckBox {
-	background-color: transparent;
-}
-
-QCheckBox::indicator {
-	width: 59px;
-	height: 35px;
-	background-color: transparent;
-}
-
-QCheckBox::indicator:unchecked {
-	image: url(:/icon/AniOFF.png);
-}
-QCheckBox::indicator:checked {
-	image: url(:/icon/AniON.png);
-}</string>
-                   </property>
-                   <property name="text">
-                    <string/>
-                   </property>
-                  </widget>
-                 </item>
-                </layout>
                </widget>
               </item>
              </layout>
@@ -1417,6 +1417,203 @@ text-transform: uppercase;</string>
              </size>
             </property>
            </spacer>
+          </item>
+          <item row="3" column="4">
+           <widget class="QFrame" name="frameLegend">
+            <property name="minimumSize">
+             <size>
+              <width>402</width>
+              <height>275</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>402</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="styleSheet">
+             <string notr="true">background-color: transparent;</string>
+            </property>
+            <property name="frameShape">
+             <enum>QFrame::StyledPanel</enum>
+            </property>
+            <property name="frameShadow">
+             <enum>QFrame::Raised</enum>
+            </property>
+            <widget class="QWidget" name="backgrAnim_2" native="true">
+             <property name="geometry">
+              <rect>
+               <x>0</x>
+               <y>30</y>
+               <width>402</width>
+               <height>181</height>
+              </rect>
+             </property>
+             <property name="styleSheet">
+              <string notr="true">QWidget {
+	background-color: rgba(40, 40, 40, 0.5);
+	border-radius: 15px;
+	border: 0.5px solid rgba(0, 0, 0, 0.21);
+}</string>
+             </property>
+             <layout class="QGridLayout" name="gridLayout_10">
+              <item row="1" column="1">
+               <widget class="QComboBox" name="ComponentID">
+                <item>
+                 <property name="text">
+                  <string>ID</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>X</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>Y</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>Z</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>UX</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>UY</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>UZ</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>SX</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>SY</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>SZ</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>SXY</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>SYZ</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>SXZ</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>EpsX</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>EpsY</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>EpsZ</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>EpsXY</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>EpsYZ</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>EpsXZ</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>USUM</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>SEQV</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>EpsEQV</string>
+                 </property>
+                </item>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QLabel" name="Exploded_view_2">
+                <property name="minimumSize">
+                 <size>
+                  <width>167</width>
+                  <height>9</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>167</width>
+                  <height>25</height>
+                 </size>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">font-family: 'Inter';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+padding-bottom: -30px;
+color: #969696;
+border: none;
+background-color: transparent;</string>
+                </property>
+                <property name="text">
+                 <string>Legend</string>
+                </property>
+                <property name="margin">
+                 <number>0</number>
+                </property>
+                <property name="buddy">
+                 <cstring>Rectangle10</cstring>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QGraphicsView" name="LegendView"/>
+              </item>
+             </layout>
+            </widget>
+           </widget>
           </item>
          </layout>
         </widget>

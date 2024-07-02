@@ -19,6 +19,8 @@ public:
     std::vector<std::array<GLubyte, 4>> generateDistinctColors();
     void calculateSurfaceArea();
     void setPlotWireFrame(bool status);
+    QVector<QColor> getColorMap(int numLevels);
+    void setComponent(int index);
     ~MyGLWidget();
     int cubeSize = 1;
 signals:
@@ -39,8 +41,10 @@ protected:
     void calculateScene();
 
     std::vector<std::array<GLubyte, 4>> createColorMap(int numLevels);
+
     std::array<GLubyte, 4> scalarToColor(float value, const std::vector<std::array<GLubyte, 4>>& colorMap);
     ansysWrapper *wr;
+    int plotComponent;
 
 public slots:
     // slots for xyz-rotation slider
@@ -81,6 +85,7 @@ protected:
     std::vector<float> directionFactors;
 
     void updateVoxelColor(Voxel &v1);
+
 
     struct Voxel
     {

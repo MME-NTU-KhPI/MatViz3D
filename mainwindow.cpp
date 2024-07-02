@@ -70,6 +70,13 @@ MainWindow::MainWindow(QWidget *parent)
     connect(messageHandlerInstance, &MessageHandler::messageWrittenSignal, this, &MainWindow::onLogMessageWritten);
 
     startButtonPressed = false;
+
+
+    scene = new LegendView(this);
+    ui->LegendView->setScene(scene);
+    ui->LegendView->show();
+    scene->setMinMax(0,1);
+
 }
 
 MainWindow::~MainWindow()
@@ -507,6 +514,15 @@ void MainWindow::estimateStressWithANSYS(){
     {
         sa.estimateStressWithANSYS(Parameters::size, Parameters::points, Parameters::voxels);
         ui->myGLWidget->setAnsysWrapper(sa.wr);
+        auto cmap = ui->myGLWidget->getColorMap(9);
+        int comp = ui->ComponentID->currentIndex();
+
+        float maxv = sa.wr->loadstep_results_max[comp];
+        float minv = sa.wr->loadstep_results_min[comp];
+        this->scene->setMinMax(minv, maxv);
+
+        this->scene->setCmap(cmap);
+        this->scene->draw();
         ui->myGLWidget->update();
 
     }
@@ -986,5 +1002,18 @@ void MainWindow::on_checkBoxWiregrid_stateChanged(int arg1)
 {
     ui->myGLWidget->setPlotWireFrame((bool)arg1);
     ui->myGLWidget->repaint();
+}
+
+
+void MainWindow::on_ComponentID_currentIndexChanged(int index)
+{
+    if (sa.wr && sa.wr->loadstep_results_max.size() > index)
+    {
+       float maxv = sa.wr->loadstep_results_max[index];
+       float minv = sa.wr->loadstep_results_min[index];
+       this->scene->setMinMax(minv, maxv);
+       ui->myGLWidget->setComponent(index);
+       ui->myGLWidget->update();
+    }
 }
 

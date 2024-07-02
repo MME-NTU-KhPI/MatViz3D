@@ -12,7 +12,7 @@
 #include "messagehandler.h"
 #include "about.h"
 #include <hdf5handler.h>
-
+#include "legendview.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -65,6 +65,8 @@ private slots:
 
     void on_checkBoxWiregrid_stateChanged(int arg1);
 
+    void on_ComponentID_currentIndexChanged(int index);
+
 protected:
     void keyPressEvent(QKeyEvent *event);
 
@@ -79,6 +81,7 @@ private:
     QCheckBox *animationCheckBox;
     bool startButtonPressed;
     HDF5Handler m_h5handler;
+    LegendView* scene;
 };
 
 #endif // MAINWINDOW_H

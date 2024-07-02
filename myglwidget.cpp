@@ -219,15 +219,23 @@ std::vector<std::array<GLubyte, 4>> MyGLWidget::createColorMap(int numLevels)
     colorMap[1] = {0,   178,    255, 255};
     colorMap[0] = {0,   0,      255, 255};
 
-
-    /*
-    for (int i = 0; i < numLevels; ++i) {
-        GLubyte t = 255 * i / (numLevels - 1);
-        std::array<GLubyte, 4> arr({t, 0, static_cast<GLubyte>((255 - t)), 255});
-        colorMap[i] = arr;
-    }*/
-
     return colorMap;
+}
+
+QVector<QColor> MyGLWidget::getColorMap(int numLevels)
+{
+    std::vector<std::array<GLubyte, 4>> vcmap = MyGLWidget::createColorMap(numLevels);
+    QVector<QColor> cmap(numLevels);
+
+    for (int i = 0; i < numLevels; i++)
+    {
+        QColor c;
+        c.setRed(vcmap[i][0]);
+        c.setGreen(vcmap[i][1]);
+        c.setBlue(vcmap[i][2]);
+        cmap[i] = c;
+    }
+    return cmap;
 }
 
 std::array<GLubyte, 4> MyGLWidget::scalarToColor(float value, const std::vector<std::array<GLubyte, 4>>& colorMap)
@@ -239,6 +247,12 @@ std::array<GLubyte, 4> MyGLWidget::scalarToColor(float value, const std::vector<
 void MyGLWidget::setAnsysWrapper(ansysWrapper *wr)
 {
     this->wr = wr;
+    this->calculateScene();
+}
+
+void MyGLWidget::setComponent(int index)
+{
+    this->plotComponent = index;
     this->calculateScene();
 }
 
@@ -388,12 +402,9 @@ void MyGLWidget::calculateScene()
                         key.data[1] = node_coordinates[l][1] + i;
                         key.data[2] = node_coordinates[l][2] + j;
 
-                        float val = wr->getValByCoord(key, SX);
-                        float val01 = wr->scaleValue01(val, SX);
+                        float val = wr->getValByCoord(key, plotComponent);
+                        float val01 = wr->scaleValue01(val, plotComponent);
                         node_colors[l] = this->scalarToColor(val01, cmap);
-                       /* node_colors[l][0] = key[0];
-                        node_colors[l][1] = key[1];
-                        node_colors[l][2] = key[2];*/
                     }
                 }
                 else
@@ -570,6 +581,27 @@ void MyGLWidget::paintGL()
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_COLOR_ARRAY);
     glEnableClientState(GL_NORMAL_ARRAY);
+
+    // Draw X-axis (Red)
+    glColor3f(1.0, 0.0, 0.0);
+    glBegin(GL_LINES);
+    glVertex3f(-numCubes/2, -numCubes/2, -numCubes/2);
+    glVertex3f(1.15*numCubes, -numCubes/2, -numCubes/2);
+    glEnd();
+
+    // Draw Y-axis (Green)
+    glColor3f(0.0, 1.0, 0.0);
+    glBegin(GL_LINES);
+    glVertex3f(-numCubes/2, -numCubes/2, -numCubes/2);
+    glVertex3f(-numCubes/2, 1.15*numCubes, -numCubes/2);
+    glEnd();
+
+    // Draw Z-axis (Blue)
+    glColor3f(0.0, 0.0, 1.0);
+    glBegin(GL_LINES);
+    glVertex3f(-numCubes/2, -numCubes/2, -numCubes/2);
+    glVertex3f(-numCubes/2, -numCubes/2, 1.15*numCubes);
+    glEnd();
 
     // Create buffers for vertex, color, and normal data
     GLuint vboIds[3];
