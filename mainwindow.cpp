@@ -597,6 +597,14 @@ void MainWindow::setNumColors(int arg)
     emit ui->Rectangle9->editingFinished();
 }
 
+void MainWindow::setConcentration(int arg)
+{
+    ui->concentrationRadioButton->setChecked(true);
+    QString str = QString::number(arg);
+    ui->Rectangle9->setText(str);
+    emit ui->Rectangle9->editingFinished();
+}
+
 void MainWindow::setAlgorithms(QString arg)
 {
     ui->AlgorithmsBox->setCurrentText(arg);

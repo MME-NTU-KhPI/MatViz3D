@@ -26,6 +26,7 @@ public:
     MainWindow(QWidget *parent = nullptr);
     void setNumCubes(short int arg);
     void setNumColors(int arg);
+    void setConcentration(int arg);
     void setAlgorithms(QString arg);
     void callExportToCSV();
     int isAnimation = 0;
@@ -36,6 +37,7 @@ public:
 
 public slots:
     void onStartClicked();
+
 
 private slots:
     void checkStart();

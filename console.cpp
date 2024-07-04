@@ -20,6 +20,13 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
         Parameters::points = str.toInt();
         window.setNumColors(Parameters::points);
     }
+    if (parser.isSet("concentration"))
+    {
+        QString str = parser.value("concentration");
+        float PercentOfConcentration = str.toFloat()/100;
+        Parameters::points = PercentOfConcentration*std::pow(Parameters::size,3);
+        window.setNumColors(Parameters::points);
+    }
     if (parser.isSet("algorithm"))
     {
         Parameters::algorithm = parser.value("algorithm");
