@@ -12,6 +12,7 @@
 #include "neumann.h"
 #include "moore.h"
 #include "dlca.h"
+#include "probability_algorithm.h"
 #include "probability_ellipse.h"
 #include "probability_circle.h"
 #include "parent_algorithm.h"
@@ -39,7 +40,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(ui->numOfPointsRadioButton, &QRadioButton::clicked, this, &MainWindow::onInitialConditionSelectionChanged);
     connect(ui->concentrationRadioButton, &QRadioButton::clicked, this, &MainWindow::onInitialConditionSelectionChanged);
-
+    connect(ui->AlgorithmsBox, &QComboBox::currentTextChanged, this, &MainWindow::onProbabilityAlgorithmChanged);
     connect(this, &MainWindow::on_Start_clicked, this, &MainWindow::on_Start_clicked);
 
     connect(ui->Rectangle8, &QLineEdit::editingFinished, this, [=]() {
@@ -78,6 +79,16 @@ MainWindow::~MainWindow()
 void MainWindow::onLogMessageWritten(const QString &message)
 {
     ui->textEdit->append(message); // Вивід повідомлень в textEdit
+}
+
+void MainWindow::onProbabilityAlgorithmChanged(const QString &text)
+{
+    if (text == "Probability Algorithm")
+    {
+        probability_algorithm = new Probability_Algorithm;
+        probability_algorithm->show();
+    }
+
 }
 
 // Вибір між кількістю початкових точок та концентрацією
@@ -521,14 +532,6 @@ void MainWindow::onDataCheckBoxChanged(int state) {
         ui->DataWidget->hide();
     }
 }
-
-//void MainWindow::onConsoleCheckBoxChanged(int state) {
-//    if (state == Qt::Checked) {
-//        ui->ConsoleWidget->show();
-//    } else {
-//        ui->ConsoleWidget->hide();
-//    }
-//}
 
 void MainWindow::onConsoleCheckBoxChanged(int state) {
     if (state == Qt::Checked) {

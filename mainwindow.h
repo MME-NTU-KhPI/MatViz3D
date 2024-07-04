@@ -11,6 +11,7 @@
 #include "statistics.h"
 #include "messagehandler.h"
 #include "about.h"
+#include "probability_algorithm.h"
 
 
 QT_BEGIN_NAMESPACE
@@ -50,6 +51,7 @@ private slots:
     void onAllCheckBoxChanged(int state);
     void exportToCSV();
     void onInitialConditionSelectionChanged();
+    void onProbabilityAlgorithmChanged(const QString &text);
 
     void on_Start_clicked();
 
@@ -68,6 +70,7 @@ private:
     Ui::MainWindow *ui;
     Statistics form;
     About *about;
+    Probability_Algorithm *probability_algorithm;
     MessageHandler *messageHandlerInstance;
     QCheckBox *allCheckBox;
     QCheckBox *dataCheckBox;
