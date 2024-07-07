@@ -216,6 +216,29 @@ void MainWindow::on_Start_clicked()
         }
         qDebug() << "PROBABILITY ELLIPSE";
     }
+    else if (selectedAlgorithm == "Probability Algorithm")
+    {
+        probability_algorithm->numCubes = Parameters::size;
+        probability_algorithm->numColors = Parameters::points;
+        Parameters::voxels = probability_algorithm->Generate_Initial_Cube();
+        probability_algorithm->Generate_Random_Starting_Points(isWaveGeneration);
+        probability_algorithm->remainingPoints = probability_algorithm->numColors - static_cast<int>(0.1 * probability_algorithm->numColors);
+        if (isAnimation == 0)
+        {
+            probability_algorithm->Generate_Filling(isAnimation,isWaveGeneration);
+            ui->myGLWidget->setVoxels(probability_algorithm->voxels,probability_algorithm->numCubes);
+            ui->myGLWidget->update();
+        }
+        else
+        {
+            while (!probability_algorithm->grains.empty())
+            {
+                probability_algorithm->Generate_Filling(isAnimation,isWaveGeneration);
+                QApplication::processEvents();
+                ui->myGLWidget->updateGLWidget(probability_algorithm->voxels,probability_algorithm->numCubes);
+            }
+        }
+    }
     else if (selectedAlgorithm == "Moore")
     {
         Moore start(Parameters::size, Parameters::points);

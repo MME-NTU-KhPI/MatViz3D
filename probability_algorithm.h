@@ -15,9 +15,11 @@ class Probability_Algorithm : public QWidget, public Parent_Algorithm
 public:
     explicit Probability_Algorithm(QWidget *parent = nullptr);
     ~Probability_Algorithm();
+    void Generate_Filling(int isAnimation, int isWaveGeneration);
 
 private:
     Ui::Probability_Algorithm *ui;
+
 };
 
 #endif // PROBABILITY_ALGORITHM_H
