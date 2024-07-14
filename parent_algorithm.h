@@ -8,6 +8,9 @@
 
 class Parent_Algorithm
 {
+private:
+    template <class T> T*** Create3D(int N1, int N2, int N3);
+    template <class T> void Delete3D(T ***array);
 public:
     #pragma pack(push, 4)
     struct Coordinate

@@ -632,6 +632,12 @@ void MainWindow::callExportToCSV()
 
 void MainWindow::saveHDF()
 {
+
+    m_h5handler.setFileName("test.h5");
+    m_h5handler.writeVoxels(Parameters::voxels,Parameters::size);
+
+    return;
+
     if(Parameters::voxels)
     {
         hid_t file_id, dataset_id, dataspace_id; /* identifiers */
@@ -826,7 +832,7 @@ void MainWindow::openHDF()
     QString path;
     path = QFileDialog::getOpenFileName(this , "Choose file" , "C:/" ,"H5file (*.h5)");
 
-    m_h5handler.setPath(path);
+    m_h5handler.setFileName(path);
     m_h5handler.getAll(Parameters::voxels , Parameters::size , Parameters::points , Parameters::algorithm);
 
 

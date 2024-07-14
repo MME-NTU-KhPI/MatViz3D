@@ -11,9 +11,23 @@ QT += openglwidgets
 
 CONFIG += c++17
 
+LIBS += -L$$PWD/libs/hdf5_1.14.3/lib/
 
+LIBS        += -lhdf5
+#LIBS        += -lhdf5_cpp
+#LIBS        += -lhdf5_hl
+#LIBS        += -lhdf5_hl_cpp
+#LIBS        += -lhdf5_tools
+#LIBS        += -lzlib
 
-LIBS += -L$$PWD/libs/hdf5_1.14.3/lib/ -lhdf5 -lhdf5_cpp
+#LIBS        += -llibhdf5
+#LIBS        += -llibhdf5_cpp
+#LIBS        += -llibhdf5_hl
+#LIBS        += -llibhdf5_hl_cpp
+#LIBS        += -llibhdf5_tools
+#LIBS        += -llibzlib
+
+#-lhdf5_cpp -lhdf5_hl_cpp -lhdf5 -lhdf5_hl
 
 INCLUDEPATH += $$PWD/libs/hdf5_1.14.3/include
 DEPENDPATH += $$PWD/libs/hdf5_1.14.3/include

@@ -1,27 +1,77 @@
 #include "hdf5handler.h"
 #include <QDebug>
+#include <QFile>
 #include <iostream>
 
+#include <H5Cpp.h>
+using namespace H5;
 
-HDF5Handler::HDF5Handler() {}
-
-void HDF5Handler::setPath(const QString &new_path)
+HDF5Handler::HDF5Handler()
 {
-    m_path = new_path;
-    m_size = -1;
+    m_file = 0;
 }
 
-QString HDF5Handler::getPath()
+HDF5Handler::HDF5Handler(const QString& file_name)
 {
-    return m_path;
+    setFileName(file_name);
+}
+
+void HDF5Handler::setFileName(const QString &file_name)
+{
+    m_file_name = file_name;
+    m_size = -1;
+    this->openFile();
+}
+
+HDF5Handler::~HDF5Handler()
+{
+    if (m_file)
+        H5Fclose(m_file);
+}
+
+QString HDF5Handler::getFileName()
+{
+    return m_file_name;
+}
+
+bool HDF5Handler::openFile()
+{
+    // Creta file if not exits else open file
+    bool is_file_exist = QFile::exists("/home/pw/docs/file.txt");
+
+    if (is_file_exist)
+    {
+        qDebug() << "HDF5 file is already exists, opening for appending" << m_file_name;
+        m_file = H5Fopen(m_file_name.toStdString().c_str(), H5F_ACC_RDWR, H5P_DEFAULT);
+        if (m_file == H5I_INVALID_HID)
+        {
+            qDebug() << "Can not open file " << m_file_name;
+        }
+        return false;
+    }
+    else
+    {
+        m_file = H5Fcreate(m_file_name.toStdString().c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+        if (m_file == H5I_INVALID_HID)
+        {
+            qDebug() << "HDF5 file is already exists" << m_file_name;
+            m_file = H5Fopen(m_file_name.toStdString().c_str(), H5F_ACC_RDWR, H5P_DEFAULT);
+            if (m_file == H5I_INVALID_HID)
+            {
+                qDebug() << "Can not open file " << m_file_name;
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 void HDF5Handler::getVoxels(int16_t ***&voxels)
 {
-    if(m_path.isEmpty()) {qDebug() << "Empty path"; return;};
+    if(m_file_name.isEmpty()) {qDebug() << "Empty path"; return;};
     hid_t       file_id;
 
-    file_id = H5Fopen(m_path.toStdString().c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    file_id = H5Fopen(m_file_name.toStdString().c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
     hid_t size_dset = H5Dopen2(file_id, "/Size", H5P_DEFAULT);
     if (size_dset < 0) {
         std::cerr << "Error opening dataset" << std::endl;
@@ -66,11 +116,11 @@ void HDF5Handler::getVoxels(int16_t ***&voxels)
 void HDF5Handler::getSize(short &_size)
 {
     if(m_size>=0) {_size = m_size; return;}
-    if(m_path.isEmpty()) {qDebug() << "Empty path"; return;};
+    if(m_file_name.isEmpty()) {qDebug() << "Empty path"; return;};
 
     hid_t       file_id;
 
-    file_id = H5Fopen(m_path.toStdString().c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    file_id = H5Fopen(m_file_name.toStdString().c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
     hid_t size_dset = H5Dopen2(file_id, "/Size", H5P_DEFAULT);
     if (size_dset < 0) {
         std::cerr << "Error opening dataset" << std::endl;
@@ -84,10 +134,10 @@ void HDF5Handler::getSize(short &_size)
 
 void HDF5Handler::getPoints(int &_points)
 {
-    if(m_path.isEmpty()) {qDebug() << "Empty path"; return;};
+    if(m_file_name.isEmpty()) {qDebug() << "Empty path"; return;};
 
     hid_t       file_id;
-    file_id = H5Fopen(m_path.toStdString().c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    file_id = H5Fopen(m_file_name.toStdString().c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
 
     hid_t points_dset = H5Dopen2(file_id, "/Points", H5P_DEFAULT);
     if (points_dset < 0) {
@@ -102,10 +152,10 @@ void HDF5Handler::getPoints(int &_points)
 
 void HDF5Handler::getAlgName(QString &to_write)
 {
-    if(m_path.isEmpty()) {qDebug() << "Empty path"; return;};
+    if(m_file_name.isEmpty()) {qDebug() << "Empty path"; return;};
     hid_t       file_id;
 
-    file_id = H5Fopen(m_path.toStdString().c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    file_id = H5Fopen(m_file_name.toStdString().c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
     hid_t str_dset = H5Dopen2(file_id, "/Algo", H5P_DEFAULT);
     if (str_dset < 0) {
         std::cerr << "Error opening dataset" << std::endl;
@@ -130,10 +180,10 @@ void HDF5Handler::getAlgName(QString &to_write)
 
 void HDF5Handler::getAll(int16_t ***&voxels, short &_size, int &_points, QString &to_write)
 {
-    if(m_path.isEmpty()) {qDebug() << "Empty path"; return;};
+    if(m_file_name.isEmpty()) {qDebug() << "Empty path"; return;};
     hid_t       file_id;
 
-    file_id = H5Fopen(m_path.toStdString().c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    file_id = H5Fopen(m_file_name.toStdString().c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
 
 
     hid_t str_dset = H5Dopen2(file_id, "/Algo", H5P_DEFAULT);
@@ -226,12 +276,71 @@ void HDF5Handler::getAll(int16_t ***&voxels, short &_size, int &_points, QString
 }
 
 
+
+void HDF5Handler::writeVoxels(int16_t ***voxels , int size)
+{
+
+    /*
+     * Describe the size of the array and create the data space for fixed
+     * size dataset.
+     */
+
+    hsize_t dims[3];  // assuming a 3D array
+    dims[0] = size;
+    dims[1] = size;
+    dims[2] = size;
+
+    // allocate space as dataspace
+    hid_t dataspace = H5Screate_simple(3, dims, NULL);
+
+    if (dataspace == H5I_INVALID_HID)
+    {
+        qCritical() << "Cannot create dataspace in hdf5 file. Saving aborted";
+        return ;
+    }
+
+    hid_t lcpl;
+    if ((lcpl = H5Pcreate(H5P_LINK_CREATE)) == H5I_INVALID_HID)
+    {
+        qCritical() << "Cannot create property list in hdf5 file. Saving aborted";
+        return;
+    }
+    // create intermediate groups as needed
+    if (H5Pset_create_intermediate_group(lcpl, 1) < 0)
+    {
+        qCritical() << "Cannot create intermediate_group in hdf5 file. Saving aborted";
+        return;
+    }
+    hid_t  group = H5I_INVALID_HID;
+    group = H5Gcreate(m_file, "/G1", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
+
+    /*
+     * Create a new dataset within the file using defined dataspace and
+     * datatype and default dataset creation properties.
+     */
+    hid_t dataset_id = H5Dcreate(m_file, "/G1/voxels", H5T_STD_I16LE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (dataset_id == H5I_INVALID_HID)
+    {
+        qCritical() << "Cannot create dataset in hdf5 file. Saving aborted";
+        H5Sclose(dataspace);
+        return ;
+    }
+    /*
+     * Write the data to the dataset using default transfer properties.
+     */
+    herr_t status = H5Dwrite(dataset_id, H5T_STD_I16LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, voxels[0][0]);
+    status = H5Gclose(group);
+    H5Sclose(dataspace);
+    H5Dclose(dataset_id);
+}
+
 void HDF5Handler::writeInfo(QString dataset_name, hid_t type, int *data , int sizeOfArray)
 {
     hid_t file_id, dataset_id, dataspace_id;
     herr_t status;
 
-    file_id = H5Fcreate(m_path.toStdString().c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    file_id = H5Fcreate(m_file_name.toStdString().c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     if (file_id < 0) {
         // Обработка ошибки создания файла
         return;
@@ -273,7 +382,7 @@ void HDF5Handler::writeInfo(QString dataset_name, hid_t type, int value)
     hid_t file_id, dataset_id, dataspace_id;
     herr_t status;
 
-    file_id = H5Fcreate(m_path.toStdString().c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    file_id = H5Fcreate(m_file_name.toStdString().c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     if (file_id < 0) {
         // Обработка ошибки создания файла
         return;
@@ -296,6 +405,12 @@ void HDF5Handler::writeInfo(QString dataset_name, hid_t type, int value)
         return;
     }
 
+    /* Set order of dataset datatype */
+    if(H5Tset_order(type, H5T_ORDER_BE)<0) {
+        printf("Error: fail to set endianness\n");
+        return ;
+    }
+
     status = H5Dwrite(dataset_id, type, H5S_ALL, H5S_ALL, H5P_DEFAULT, &value);
     if (status < 0) {
         // Обработка ошибки записи данных
@@ -315,7 +430,7 @@ void HDF5Handler::writeInfo(QString dataset_name, QString data)
     hid_t file_id;
     herr_t status;
 
-    file_id = H5Fcreate(m_path.toStdString().c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    file_id = H5Fcreate(m_file_name.toStdString().c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
 
     std::string stdStr = data.toStdString();
 

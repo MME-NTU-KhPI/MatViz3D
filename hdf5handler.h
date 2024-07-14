@@ -8,8 +8,13 @@ class HDF5Handler
 {
 public:
     HDF5Handler();
-    void setPath(const QString& new_path);
-    QString getPath();
+    HDF5Handler(const QString& file_name);
+    ~HDF5Handler();
+    void setFileName(const QString& file_name);
+    QString getFileName();
+
+    bool openFile();
+
     void getVoxels(int16_t ***&voxels);
     void getSize(short& _size);
     void getPoints(int& _points);
@@ -18,8 +23,11 @@ public:
     void writeInfo(QString dataset_name,  hid_t type , int* data , int sizeOfArray);
     void writeInfo(QString dataset_name, hid_t type, int value);
     void writeInfo(QString dataset_name, QString data);
+
+    void writeVoxels(int16_t ***voxels , int size);
 private:
-    QString m_path;
+    QString m_file_name;
+    hid_t   m_file;
     short m_size = -1;
 };
 
