@@ -62,23 +62,18 @@ void Neumann::Generate_Filling(int isAnimation, int isWaveGeneration)
                 }
             }
         }
-        grains.clear();
-        grains.insert(grains.end(), newGrains.begin(), newGrains.end());
-        newGrains.clear();
+        grains = std::move(newGrains);
         IterationNumber++;
         double o = (double)counter/counter_max;
         qDebug().nospace() << o << "\t" << IterationNumber << "\t" << grains.size();
         if (isAnimation == 1)
         {
-            if (isWaveGeneration == 1)
+            if (isWaveGeneration == 1 && remainingPoints > 0)
             {
-                if (remainingPoints > 0)
-                {
-                    pointsForThisStep = max(1, static_cast<int>(0.1 * remainingPoints));
-                    newGrains = Add_New_Points(newGrains,pointsForThisStep);
-                    grains.insert(grains.end(), newGrains.begin(), newGrains.end());
-                    remainingPoints -= pointsForThisStep;
-                }
+                pointsForThisStep = max(1, static_cast<int>(0.1 * remainingPoints));
+                newGrains = Add_New_Points(newGrains,pointsForThisStep);
+                grains.insert(grains.end(), newGrains.begin(), newGrains.end());
+                remainingPoints -= pointsForThisStep;
             }
             break;
         }

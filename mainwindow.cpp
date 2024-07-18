@@ -58,7 +58,6 @@ MainWindow::MainWindow(QWidget *parent)
             ui->myGLWidget->setNumColors(Parameters::points);
         }
     });
-
     ui->Rectangle10->setMinimum(0);
     ui->Rectangle10->setMaximum(20);
     ui->Rectangle10->setSingleStep(1);
