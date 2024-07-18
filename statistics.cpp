@@ -402,7 +402,7 @@ std::vector<Object> label_connected_regions(const std::vector<std::vector<int>>&
 }
 
 
-void Statistics::layersProcessing(int16_t*** voxels, int numCubes)
+void Statistics::layersProcessing(int32_t*** voxels, int numCubes)
 {
     // Очищення allObjects перед обробкою нових даних
     allObjects.clear();
@@ -478,7 +478,7 @@ void Statistics::on_saveChartAsIMGButton_clicked()
 
 //Functions for 3D properties
 
-void Statistics::surfaceArea3D(int16_t ***voxels, int numCubes) {
+void Statistics::surfaceArea3D(int32_t ***voxels, int numCubes) {
     // Очищення попередніх даних
     surface_area_3D.clear();
 
@@ -525,7 +525,7 @@ void Statistics::surfaceArea3D(int16_t ***voxels, int numCubes) {
     }
 }
 
-void Statistics::calcVolume3D(int16_t ***voxels, int numCubes) {
+void Statistics::calcVolume3D(int32_t ***voxels, int numCubes) {
     // Очищення попередніх даних
     volume_3D.clear();
 

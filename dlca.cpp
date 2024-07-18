@@ -4,7 +4,7 @@
 
 using namespace std;
 
-DLCA_Aggregate::DLCA_Aggregate(int16_t*** voxels, int cubeSize)
+DLCA_Aggregate::DLCA_Aggregate(int32_t*** voxels, int cubeSize)
 {
     this->cubeSize = cubeSize;
     this->voxels = voxels;

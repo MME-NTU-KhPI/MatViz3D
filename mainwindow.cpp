@@ -25,8 +25,8 @@
 #include "statistics.h"
 #include "export.h"
 
-int16_t* createVoxelArray(int16_t*** voxels, int numCubes);
-std::unordered_map<int16_t, int> countVoxels(int16_t* voxelArray, int numCubes, int numColors);
+int32_t* createVoxelArray(int32_t*** voxels, int numCubes);
+std::unordered_map<int32_t, int> countVoxels(int32_t* voxelArray, int numCubes, int numColors);
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)

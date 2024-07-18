@@ -25,7 +25,7 @@ class Statistics : public QWidget
 public:
     explicit Statistics(QWidget *parent = nullptr);
     ~Statistics();
-    void layersProcessing(int16_t ***voxels, int numCubes);
+    void layersProcessing(int32_t ***voxels, int numCubes);
     void buildHistogram(const QVector<float>& counts, QString selectedTitleProperty);
     void selectProperty();
     void clearLayout(QLayout *layout);
@@ -36,8 +36,8 @@ public:
     QAreaSeries* createHistogramSeries(const QVector<float>& counts);
     void setPropertyBoxText(const QString &text);
 
-    void surfaceArea3D(int16_t ***voxels, int numCubes);
-    void calcVolume3D(int16_t ***voxels, int numCubes);
+    void surfaceArea3D(int32_t ***voxels, int numCubes);
+    void calcVolume3D(int32_t ***voxels, int numCubes);
     void calcNormVolume3D();
     void calcMomentInertia();
     void calcESR();

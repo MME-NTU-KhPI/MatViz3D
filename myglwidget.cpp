@@ -274,7 +274,7 @@ void MyGLWidget::calculateScene()
     }
 }
 
-void MyGLWidget::setVoxels(int16_t*** voxels, short int numCubes)
+void MyGLWidget::setVoxels(int32_t*** voxels, short int numCubes)
 {
     this->voxels = voxels;
     this->numCubes = numCubes;
@@ -530,7 +530,7 @@ void MyGLWidget::mouseMoveEvent(QMouseEvent *event)
     lastPos = event->pos();
 }
 
-void MyGLWidget::updateGLWidget(int16_t*** voxels, short int numCubes)
+void MyGLWidget::updateGLWidget(int32_t*** voxels, short int numCubes)
 {
     setVoxels(voxels, numCubes);
     QThread::msleep(delayAnimation);
@@ -645,7 +645,7 @@ void MyGLWidget::calculateSurfaceArea()
 //    file.close();
 //}
 
-int16_t*** MyGLWidget::getVoxels()
+int32_t*** MyGLWidget::getVoxels()
 {
     return voxels;
 }
