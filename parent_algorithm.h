@@ -23,7 +23,7 @@ public:
     int32_t*** voxels;
     short int numCubes;
     int numColors;
-    unsigned short int color = 0;
+    int32_t color = 0;
     std::vector<Coordinate> grains;
     Parent_Algorithm();
     virtual void Generate_Filling(int isAnimation, int isWaveGeneration) = 0;
