@@ -222,7 +222,7 @@ void MyGLWidget::calculateScene()
         for (int j = 0; j < numCubes; j++) {
             for (int k = 0; k < numCubes; k++) {
 
-                assert(voxels[k][i][j] >= 0 );
+                assert(voxels[k][i][j] >= 0);
 
                 if(voxels[k][i][j] == 0)
                 {

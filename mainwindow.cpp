@@ -52,10 +52,24 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(ui->Rectangle9, &QLineEdit::editingFinished, this, [=]() {
         bool ok;
-        Parameters::points = ui->Rectangle9->text().toInt(&ok);
-        if (ok) {
+        if (ui->numOfPointsRadioButton->isChecked() == true)
+        {
+            Parameters::points = ui->Rectangle9->text().toInt(&ok);
+            if (ok) {
+                ui->myGLWidget->setNumColors(Parameters::points);
+            }
+        }
+        else if (ui->concentrationRadioButton->isChecked() == true)
+        {
+            double PercentOfConcentraion = ui->Rectangle9->text().toInt()/ 100.0;
+            qDebug() << "PercentOfConcentraion:" << PercentOfConcentraion;
+
+            Parameters::points = PercentOfConcentraion * std::pow(static_cast<double>(Parameters::size), 3);
+            qDebug() << "Calculated Points:" << Parameters::points;
+
             ui->myGLWidget->setNumColors(Parameters::points);
         }
+
     });
 
     ui->Rectangle10->setMinimum(0);
@@ -84,10 +98,10 @@ void MainWindow::onLogMessageWritten(const QString &message)
 void MainWindow::onInitialConditionSelectionChanged()
 {
     if (ui->numOfPointsRadioButton->isChecked()) {
+        ui->concentrationRadioButton->setChecked(false);
         qDebug() << "Number of points is checked";
     } else if (ui->concentrationRadioButton->isChecked()) {
-        float PercentOfConcentraion = Parameters::points/100;
-        Parameters::points = PercentOfConcentraion*std::pow(Parameters::size,3);
+        ui->numOfPointsRadioButton->setChecked(false);
         qDebug() << "Concentration is checked";
     }
 }
