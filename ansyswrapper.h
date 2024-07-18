@@ -1,10 +1,10 @@
 #ifndef ANSYSWRAPPER_H_INCLUDED
 #define ANSYSWRAPPER_H_INCLUDED
 
-#include <vector>
 #include <QString>
 #include <QTemporaryDir>
 #include <QHash>
+#include <vector>
 
 enum tensor_components{ID,X,Y,Z,UX,UY,UZ,SX,SY,SZ,SXY,SYZ,SXZ,EpsX,EpsY,EpsZ,EpsXY,EpsYZ,EpsXZ};
 
@@ -137,16 +137,14 @@ public:
     float getValByCoord(float x, float y, float z, int component);
     float getValByCoord(n3d::node3d &key, int component);
 
-    QVector<QVector<float>> loadstep_results;
+    std::vector<std::vector<float>> loadstep_results;
 
-    QVector<float> loadstep_results_max;
-    QVector<float> loadstep_results_min;
-    QVector<float> loadstep_results_avg;
+    std::vector<float> loadstep_results_max;
+    std::vector<float> loadstep_results_min;
+    std::vector<float> loadstep_results_avg;
+    std::vector<std::vector<float>> local_cs;
+    std::vector<std::vector<float>> eps_as_loading;
 
-    /*float avg_x, avg_y, avg_z,
-        avg_ux, avg_uy, avg_uz,
-        avg_sx, avg_sy, avg_sz, avg_sxy, avg_syz, avg_sxz,
-        avg_epsx, avg_epsy, avg_epsz, avg_epsxy, avg_epsyz, avg_epsxz;*/
 };
 
 

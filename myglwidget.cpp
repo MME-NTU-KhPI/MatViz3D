@@ -23,6 +23,7 @@ MyGLWidget::MyGLWidget(QWidget *parent)
     voxels = nullptr;
     wr = nullptr;
     timer = new QTimer(this);
+    plotComponent = 0;
 }
 
 MyGLWidget::~MyGLWidget()

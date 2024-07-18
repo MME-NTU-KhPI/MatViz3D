@@ -11,7 +11,6 @@
 #include "statistics.h"
 #include "messagehandler.h"
 #include "about.h"
-#include <hdf5handler.h>
 #include "legendview.h"
 
 QT_BEGIN_NAMESPACE
@@ -80,7 +79,6 @@ private:
     QCheckBox *consoleCheckBox;
     QCheckBox *animationCheckBox;
     bool startButtonPressed;
-    HDF5Handler m_h5handler;
     LegendView* scene;
 };
 

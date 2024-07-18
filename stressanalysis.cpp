@@ -1,15 +1,7 @@
 #include "stressanalysis.h"
-
-#include "ansyswrapper.h"
-#include <Windows.h>
-
-#include <QtWidgets>
-#include <QMessageBox>
-#include <QPushButton>
-#include <QFileDialog>
-#include <QPropertyAnimation>
-#include <QParallelAnimationGroup>
-#include <QSequentialAnimationGroup>
+#include "ansysWrapper.h"
+#include "hdf5wrapper.h"
+#include "parameters.h"
 
 void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPoints, int16_t ***voxels)
 {
@@ -18,7 +10,6 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
     wr->setNP(1);
     //wr.setMaterial(2.1e11, 0.3, 0);
 
-    //wr.setMaterial(2.1e11, 0.3, 0);
     double c11 = 168.40e9, c12=121.40e9, c44=75.40e9; // copper bcc single crystal  https://solidmechanics.org/Text/Chapter3_2/Chapter3_2.php#Sect3_2_17
     wr->setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44) ;
 
@@ -26,11 +17,50 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
 
     wr->createFEfromArray(voxels, N, numPoints);
 
-    wr->applyComplexLoads(0, 0, 0, N, N, N,
-                         0.001, 0.000, 0.000,
-                         0.000, 0.000, 0.000);
-    wr->solveLS(1, 1);
+    const float min_val = -1e-04;
+    const float max_val =  1e-04;
+    const int approx_total_steps = 6;
+    const int n_total_steps = pow(ceil(pow(approx_total_steps, 1.0/6.0)), 6);
+    const int n_comp_steps = pow(n_total_steps, 1.0/6.0); // six components of tensor
+    const float step = (max_val - min_val) / (n_comp_steps - 1);
+
+    for (int ix = 0; ix < n_comp_steps; ix++)
+      for (int iy = 0; iy < n_comp_steps; iy++)
+        for (int iz = 0; iz < n_comp_steps; iz++)
+          for (int ixy = 0; ixy < n_comp_steps; ixy++)
+            for (int ixz = 0; ixz < n_comp_steps; ixz++)
+              for (int iyz = 0; iyz < n_comp_steps; iyz++)
+              {
+                    auto f = [=](int i) { return min_val + i * step; };
+                    wr->applyComplexLoads(0, 0, 0, N, N, N,
+                                          f(ix), f(iy), f(iz),
+                                          f(ixy), f(ixz), f(iyz));
+              }
+    wr->solveLS(1, n_total_steps);
     wr->saveAll();
     wr->run();
-    wr->load_loadstep(1);
+
+    HDF5Wrapper hdf5(Parameters::filename.toStdString());
+
+    int last_set = hdf5.readInt("","last_set") + 1;
+    hdf5.write("","last_set", last_set);
+
+    std::string prefix = ("/" + QString::number(last_set)).toStdString();
+
+    hdf5.write(prefix, "voxels", Parameters::voxels, Parameters::size);
+    hdf5.write(prefix, "cubeSize", Parameters::size);
+    hdf5.write(prefix, "numPoints", Parameters::points);
+    hdf5.write(prefix, "local_cs", wr->local_cs);
+    for (int ls_num = 1; ls_num <= n_total_steps; ls_num++)
+    {
+        std::string ls_str = "/ls_" + std::to_string(ls_num);
+        wr->load_loadstep(ls_num);
+
+        hdf5.write(prefix + ls_str, "results_avg", wr->loadstep_results_avg);
+        hdf5.write(prefix + ls_str, "results_max", wr->loadstep_results_max);
+        hdf5.write(prefix + ls_str, "results_min", wr->loadstep_results_min);
+        hdf5.write(prefix + ls_str, "results", wr->loadstep_results);
+        hdf5.write(prefix + ls_str, "eps_as_loading", wr->eps_as_loading);
+
+    }
 }

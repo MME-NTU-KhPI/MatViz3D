@@ -1,5 +1,4 @@
 #include <iostream>
-#include <chrono>
 #include <Windows.h>
 #include "parameters.h"
 #include "mainwindow.h"
@@ -14,7 +13,6 @@
 #include "dlca.h"
 #include "probability_ellipse.h"
 #include "probability_circle.h"
-#include "parent_algorithm.h"
 #include <QFileDialog>
 #include <QDebug>
 #include <QPropertyAnimation>
@@ -76,6 +74,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->LegendView->setScene(scene);
     ui->LegendView->show();
     scene->setMinMax(0,1);
+    this->update();
 
 }
 
@@ -629,379 +628,27 @@ void MainWindow::callExportToCSV()
 {
     emit exportToCSV();
 }
+#include "hdf5wrapper.h"
+
 
 void MainWindow::saveHDF()
 {
+    HDF5Wrapper hdf5Wrapper(Parameters::filename.toStdString());
 
-    m_h5handler.setFileName("test.h5");
-    m_h5handler.writeVoxels(Parameters::voxels,Parameters::size);
-
-    return;
-
-    if(Parameters::voxels)
+    if (Parameters::voxels)
     {
-        hid_t file_id, dataset_id, dataspace_id; /* identifiers */
-
-        hsize_t size = static_cast<hsize_t>(Parameters::size);
-
-        hsize_t dims[3] = {size, size, size};
-
-        herr_t status;
-
-        const short& vox_size = Parameters::size;
-
-        /* Create a new file using default properties. */
-        file_id = H5Fcreate("testfile.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-        if (file_id < 0) {
-            std::cerr << "Error creating file" << std::endl;
-            return;
-        }
-
-        /* Create the data space for the dataset. */
-        dataspace_id = H5Screate_simple(3, dims, NULL);
-        if (dataspace_id < 0) {
-            std::cerr << "Error creating dataspace" << std::endl;
-            H5Fclose(file_id);
-            return;
-        }
-
-        /* Create the dataset. */
-        dataset_id = H5Dcreate2(file_id, "/voxels", H5T_STD_I16LE, dataspace_id,
-                                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        if (dataset_id < 0) {
-            std::cerr << "Error creating dataset" << std::endl;
-            H5Sclose(dataspace_id);
-            H5Fclose(file_id);
-            return;
-        }
-
-       // int16_t* data = new int16_t[vox_size * vox_size * vox_size];
-        std::unique_ptr<int16_t[], std::default_delete<int16_t[]>> data(new int16_t[vox_size * vox_size * vox_size]);
-        for (int i = 0; i < vox_size; i++) {
-            for (int j = 0; j < vox_size; j++) {
-                for (int k = 0; k < vox_size; k++) {
-                    data[i * vox_size * vox_size + j * vox_size + k] = Parameters::voxels[i][j][k];
-                }
-            }
-        }
-
-        status = H5Dwrite(dataset_id, H5T_NATIVE_INT16, H5S_ALL, H5S_ALL, H5P_DEFAULT, data.get());
-        if (status < 0) {
-            std::cerr << "Error writing dataset" << std::endl;
-            H5Dclose(dataset_id);
-            H5Sclose(dataspace_id);
-            H5Fclose(file_id);
-            return;
-        }
-
-        /* End access to the dataset and release resources used by it. */
-        status = H5Dclose(dataset_id);
-        if (status < 0) {
-            std::cerr << "Error closing dataset" << std::endl;
-            H5Sclose(dataspace_id);
-            H5Fclose(file_id);
-            return;
-        }
-
-        /* Terminate access to the data space. */
-        status = H5Sclose(dataspace_id);
-        if (status < 0) {
-            std::cerr << "Error closing dataspace" << std::endl;
-            H5Fclose(file_id);
-            return;
-        }
-
-
-
-        hsize_t Size_dims[1] = { 1 };
-        hid_t Size_dataset_id;
-        hid_t  Size_dataspace_id = H5Screate_simple(1, Size_dims, NULL);
-        if (Size_dataspace_id < 0) {
-            std::cerr << "Error creating new dataspace" << std::endl;
-            H5Fclose(file_id);
-            return;
-        }
-
-        Size_dataset_id = H5Dcreate2(file_id, "/Size", H5T_NATIVE_SHORT, Size_dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-
-
-        if (Size_dataset_id < 0) {
-            std::cerr << "Error creating new dataset" << std::endl;
-            H5Sclose(Size_dataspace_id);
-            H5Fclose(file_id);
-            return;
-        }
-
-         status = H5Dwrite(Size_dataset_id, H5T_NATIVE_SHORT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &Parameters::size);
-        if (status < 0) {
-            std::cerr << "Error writing new dataset" << std::endl;
-            H5Dclose(Size_dataset_id);
-            H5Sclose(Size_dataspace_id);
-            H5Fclose(file_id);
-            return;
-        }
-
-        H5Dclose(Size_dataset_id);
-        H5Sclose(Size_dataspace_id);
-
-
-        hsize_t Points_dims[1] = { 1 };
-        hid_t Points_dataset_id;
-        hid_t  Points_dataspace_id = H5Screate_simple(1, Points_dims, NULL);
-        if (Points_dataspace_id < 0) {
-            std::cerr << "Error creating new dataspace" << std::endl;
-            H5Fclose(file_id);
-            return;
-        }
-
-        Points_dataset_id = H5Dcreate2(file_id, "/Points", H5T_NATIVE_INT, Points_dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        if (Points_dataset_id < 0) {
-            std::cerr << "Error creating new dataset" << std::endl;
-            H5Sclose(Points_dataspace_id);
-            H5Fclose(file_id);
-            return;
-        }
-
-        status = H5Dwrite(Points_dataset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &Parameters::points);
-        if (status < 0) {
-            std::cerr << "Error writing new dataset" << std::endl;
-            H5Dclose(Points_dataset_id);
-            H5Sclose(Points_dataspace_id);
-            H5Fclose(file_id);
-            return;
-        }
-
-        H5Dclose(Points_dataset_id);
-        H5Sclose(Points_dataspace_id);
-
-
-
-
-        std::string stdStr =  ui->AlgorithmsBox->currentText().toStdString();
-
-
-        hsize_t str_dims[1] = { 1 };
-        hid_t str_dataspace_id = H5Screate_simple(1, str_dims, NULL);
-        if (str_dataspace_id < 0) {
-            std::cerr << "Error creating new dataspace" << std::endl;
-            H5Fclose(file_id);
-            return;
-        }
-
-        hid_t strtype = H5Tcopy(H5T_C_S1);
-        H5Tset_size(strtype, stdStr.size() + 1); // +1 для null-терминатора
-        hid_t str_dataset_id = H5Dcreate2(file_id, "/Algo", strtype, str_dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        if (str_dataset_id < 0) {
-            std::cerr << "Error creating new dataset" << std::endl;
-            H5Sclose(str_dataspace_id);
-            H5Fclose(file_id);
-            return;
-        }
-
-       status = H5Dwrite(str_dataset_id, strtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, stdStr.c_str());
-        if (status < 0) {
-            std::cerr << "Error writing new dataset" << std::endl;
-            H5Dclose(str_dataset_id);
-            H5Sclose(str_dataspace_id);
-            H5Fclose(file_id);
-            return;
-        }
-
-        H5Dclose(str_dataset_id);
-        H5Sclose(str_dataspace_id);
-        H5Tclose(strtype);
-
-
-
-
-
-        /* Close the file. */
-        status = H5Fclose(file_id);
-        if (status < 0) {
-            std::cerr << "Error closing file" << std::endl;
-            return;
-        }
-
+        hdf5Wrapper.write("", "voxels", Parameters::voxels, Parameters::size);
+        hdf5Wrapper.write("", "cubeSize", Parameters::size);
+        hdf5Wrapper.write("", "numPoints", Parameters::points);
     }
-
 }
 
 
 void MainWindow::openHDF()
 {
     QString path;
-    path = QFileDialog::getOpenFileName(this , "Choose file" , "C:/" ,"H5file (*.h5)");
+    path = QFileDialog::getOpenFileName(this , "Choose file" , "" ,"H5file (*.h5)");
 
-    m_h5handler.setFileName(path);
-    m_h5handler.getAll(Parameters::voxels , Parameters::size , Parameters::points , Parameters::algorithm);
-
-
-
-    QString selectedAlgorithm = Parameters::algorithm;
-    clock_t start_time = clock(); // Фіксація часу початку виконання
-    this->on_SliderAnimationSpeed_valueChanged(ui->SliderAnimationSpeed->value());
-    if(std::isdigit(Parameters::size) == 0 && Parameters::size <= 0)
-    {
-        QMessageBox::warning(nullptr,"Warning!","Entered cube size is less than or equal to zero!");
-    }
-    else if(std::isdigit(Parameters::points) == 0 && Parameters::points <= 0)
-    {
-        QMessageBox::warning(nullptr, "Warning!", "Invalid initial points value entered!\nThis will result in incorrect program operation!");
-    }
-    ui->Start->setText("Loading...");
-    ui->Start->setStyleSheet("background: transparent; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
-    QApplication::processEvents();
-    if (selectedAlgorithm == "Neumann")
-    {
-        Neumann start(Parameters::size, Parameters::points);
-        start.voxels = Parameters::voxels;
-        start.Generate_Random_Starting_Points(isWaveGeneration);
-        start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
-        if (isAnimation == 0)
-        {
-            start.Generate_Filling(isAnimation, isWaveGeneration);
-            ui->myGLWidget->setNumColors(Parameters::points);
-            ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
-            ui->myGLWidget->update();
-        }
-        else
-        {
-            while (!start.grains.empty())
-            {
-                start.Generate_Filling(isAnimation, isWaveGeneration);
-                QApplication::processEvents();
-                ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
-            }
-        }
-        qDebug() << "NEUMANN";
-    }
-    else if (selectedAlgorithm == "Probability Circle")
-    {
-        Probability_Circle start(Parameters::size, Parameters::points);
-        start.voxels = Parameters::voxels;
-        start.Generate_Random_Starting_Points(isWaveGeneration);
-        start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
-        if (isAnimation == 0)
-        {
-            start.Generate_Filling(isAnimation, isWaveGeneration);
-            ui->myGLWidget->setNumColors(Parameters::points);
-            ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
-            ui->myGLWidget->update();
-        }
-        else
-        {
-            while (!start.grains.empty())
-            {
-                start.Generate_Filling(isAnimation, isWaveGeneration);
-                QApplication::processEvents();
-                ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
-            }
-        }
-        qDebug() << "PROBABILITY CIRCLE";
-    }
-    else if (selectedAlgorithm == "Probability Ellipse")
-    {
-        Probability_Ellipse start(Parameters::size, Parameters::points);
-        start.voxels = Parameters::voxels;
-        start.Generate_Random_Starting_Points(isWaveGeneration);
-        start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
-        if (isAnimation == 0)
-        {
-            start.Generate_Filling(isAnimation, isWaveGeneration);
-            ui->myGLWidget->setNumColors(Parameters::points);
-            ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
-            ui->myGLWidget->update();
-        }
-        else
-        {
-            while (!start.grains.empty())
-            {
-                start.Generate_Filling(isAnimation, isWaveGeneration);
-                QApplication::processEvents();
-                ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
-            }
-        }
-        qDebug() << "PROBABILITY ELLIPSE";
-    }
-    else if (selectedAlgorithm == "Moore")
-    {
-        Moore start(Parameters::size, Parameters::points);
-        start.voxels = Parameters::voxels;
-        start.Generate_Random_Starting_Points(isWaveGeneration);
-        start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
-        if (isAnimation == 0)
-        {
-            start.Generate_Filling(isAnimation, isWaveGeneration);
-            ui->myGLWidget->setNumColors(Parameters::points);
-            ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
-            ui->myGLWidget->update();
-        }
-        else
-        {
-            while (!start.grains.empty())
-            {
-                start.Generate_Filling(isAnimation, isWaveGeneration);
-                QApplication::processEvents();
-                ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
-            }
-        }
-        qDebug() << "MOORE";
-    }
-    else if(selectedAlgorithm == "Radial")
-    {
-        Radial start(Parameters::size, Parameters::points);
-        start.voxels = Parameters::voxels;
-        start.Generate_Random_Starting_Points(isWaveGeneration);
-        start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
-        if (isAnimation == 0)
-        {
-            start.Generate_Filling(isAnimation, isWaveGeneration);
-            ui->myGLWidget->setNumColors(Parameters::points);
-            ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
-            ui->myGLWidget->update();
-        }
-        else
-        {
-            while (!start.grains.empty())
-            {
-                start.Generate_Filling(isAnimation, isWaveGeneration);
-                QApplication::processEvents();
-                ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
-            }
-        }
-        qDebug() << "RADIAL";
-    }
-    if(selectedAlgorithm == "DLCA")
-    {
-        DLCA start(Parameters::size, Parameters::points);
-        start.voxels = Parameters::voxels;
-        start.Generate_Random_Starting_Points();
-        if (isAnimation == 0)
-        {
-            start.Generate_Filling(isAnimation, isWaveGeneration);
-            ui->myGLWidget->setNumColors(Parameters::points);
-            ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
-            ui->myGLWidget->update();
-        }
-        else
-        {
-            while (!start.grains.empty())
-            {
-                start.Generate_Filling(isAnimation, isWaveGeneration);
-                QApplication::processEvents();
-                ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
-            }
-        }
-        qDebug() << "DLCA";
-    }
-
-    ui->Start->setText("RELOAD");
-    ui->Start->setStyleSheet("background: #282828; border-radius: 8px; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
-    clock_t end_time = clock(); // Фіксація часу завершення виконання
-    double elapsed_time = double(end_time - start_time) / CLOCKS_PER_SEC; // Обчислення часу виконання в секундах
-    qDebug() << "Total execution time: " << elapsed_time << " seconds";
-    ui->myGLWidget->calculateSurfaceArea();
-    startButtonPressed = true;
 }
 
 void MainWindow::on_checkBoxWiregrid_stateChanged(int arg1)

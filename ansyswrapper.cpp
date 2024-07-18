@@ -323,7 +323,7 @@ void ansysWrapper::createFEfromArray(int16_t*** voxels, short int numCubes, int 
     apdl << -1 << Qt::endl; // indicate end of the list
     apdl << Qt::endl;
     apdl << "CSYS, 0"<<Qt::endl; //switch to global coord system
-    QString FEM_info = "FE Model info:\n    nodes:%1\n  elements:%2";
+    QString FEM_info = "FE Model info:\n\t nodes:%1\n\t elements:%2";
     qInfo().noquote() << FEM_info.arg(nodes.size()).arg(elemets.size()/20);
 }
 
@@ -333,6 +333,7 @@ int ansysWrapper::createLocalCS()
     int cs_id = this->m_lcs;
     double eu_angles[3];
     this->generate_random_angles(eu_angles, true);
+    this->local_cs.push_back(std::vector<float>(eu_angles, eu_angles + 3));
     qDebug() << "Creating local CS #" << cs_id;
     qDebug() << "    phi1 " << eu_angles[0];
     qDebug() << "    phi "  << eu_angles[1];
@@ -500,8 +501,18 @@ void ansysWrapper::applyComplexLoads(double x1, double y1, double z1,
                                      double eps_xy, double eps_xz, double eps_yz)
 {
     this->prep7();
+    this->clearBC();
     QTextStream apdl(&m_apdl);
     n3d::node3d displacement;
+
+    std::vector<float> eps_vec = {static_cast<float>(eps_x),
+                                  static_cast<float>(eps_y),
+                                  static_cast<float>(eps_z),
+                                  static_cast<float>(eps_xy),
+                                  static_cast<float>(eps_yz),
+                                  static_cast<float>(eps_xz)};
+
+    this->eps_as_loading.push_back(eps_vec);
 
     apdl << "!-----Apply BC for 3D case -------" << Qt::endl;
     for (auto ni = nodes.begin(); ni!=nodes.end(); ni++)
@@ -990,7 +1001,7 @@ void ansysWrapper::load_loadstep(int num)
         if (i == 1) //skip header line
             continue;
 
-        this->loadstep_results.append(QVector<float>(num_columns));
+        this->loadstep_results.push_back(std::vector<float>(num_columns));
         for (int j = 0; j < num_columns; j++)
         {
             parts[j] = line.sliced(j*17, 16).trimmed();
@@ -1002,14 +1013,13 @@ void ansysWrapper::load_loadstep(int num)
 
     this->loadstep_results_max.clear();
     this->loadstep_results_max.resize(num_columns);
-    this->loadstep_results_max.fill(-FLT_MAX);
+    std::fill(this->loadstep_results_max.begin(), this->loadstep_results_max.end(), -FLT_MAX);
 
     this->loadstep_results_min.clear();
     this->loadstep_results_min.resize(num_columns);
-    this->loadstep_results_min.fill(FLT_MAX);
+    std::fill(this->loadstep_results_min.begin(), this->loadstep_results_min.end(), FLT_MAX);
 
-
-    for (int i = 0; i < this->loadstep_results.size(); i++)
+    for (size_t i = 0; i < this->loadstep_results.size(); i++)
     {
         for (int j = 0; j < num_columns; j++)
         {

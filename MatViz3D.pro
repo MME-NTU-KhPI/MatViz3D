@@ -51,7 +51,7 @@ SOURCES += \
     console.cpp \
     export.cpp \
     dlca.cpp \
-    hdf5handler.cpp \
+    hdf5wrapper.cpp \
     legendview.cpp \
     main.cpp \
     mainwindow.cpp \
@@ -74,7 +74,7 @@ HEADERS += \
     console.h \
     export.h \
     dlca.h \
-    hdf5handler.h \
+    hdf5wrapper.h \
     legendview.h \
     mainwindow.h \
     messagehandler.h \
