@@ -35,7 +35,7 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
     }
     if (!parser.isSet("nogui"))
     {
-        window.show();
+        window.showMaximized();
     }
     if (parser.isSet("autostart"))
     {
