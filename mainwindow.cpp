@@ -18,6 +18,7 @@
 #include <QPropertyAnimation>
 #include <QParallelAnimationGroup>
 #include <QSequentialAnimationGroup>
+#include <QTimer>
 #include <ctime>
 #include <qgifimage.h>
 #include "statistics.h"
@@ -74,7 +75,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->LegendView->setScene(scene);
     ui->LegendView->show();
     scene->setMinMax(0,1);
-    this->update();
+
 
 }
 
@@ -383,6 +384,7 @@ void MainWindow::setupFileMenu() {
     connect(exportCSVAction, &QAction::triggered, this, &MainWindow::exportToCSV);
     connect(saveAsHDF , &QAction::triggered , this , &MainWindow::saveHDF);
     connect(estimateStressWithANSYS, &QAction::triggered, this, &MainWindow::estimateStressWithANSYS);
+
 }
 
 void MainWindow::setupWindowMenu() {
@@ -669,4 +671,5 @@ void MainWindow::on_ComponentID_currentIndexChanged(int index)
        ui->myGLWidget->update();
     }
 }
+
 
