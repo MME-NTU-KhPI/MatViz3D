@@ -20,6 +20,21 @@ border: none;</string>
       <string notr="true">border: none;</string>
      </property>
      <layout class="QGridLayout" name="gridLayout_2">
+      <item row="1" column="0">
+       <widget class="QLabel" name="label_2">
+        <property name="styleSheet">
+         <string notr="true">color: #FFF;
+font-family: Inter;
+font-size: 22px;
+font-style: normal;
+font-weight: 400;
+line-height: 143%;</string>
+        </property>
+        <property name="text">
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:24px; font-weight:700; color:#06b09e;&quot;&gt;Project team&lt;/span&gt;&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;Algorithm developer: Nikita Mityasov, Oleh Semenenko&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;Software developers: Oleh Semenenko, Valeriia Hritskova&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;Testers: Anastasiia Korzh, Hanna Khominich&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;UX/UA designers: Kateryna Skrynnyk, Violetta Katsylo&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;3D technology developer: Yulia Chepela&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;Mentors: Oleksii Vodka, Lyudmila Rozova&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+        </property>
+       </widget>
+      </item>
       <item row="0" column="0">
        <widget class="QLabel" name="label">
         <property name="minimumSize">
@@ -51,47 +66,8 @@ probability circle, probability ellipse.
         </property>
        </widget>
       </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="label_2">
-        <property name="minimumSize">
-         <size>
-          <width>0</width>
-          <height>224</height>
-         </size>
-        </property>
-        <property name="maximumSize">
-         <size>
-          <width>16777215</width>
-          <height>255</height>
-         </size>
-        </property>
-        <property name="styleSheet">
-         <string notr="true">color: #FFF;
-font-family: Inter;
-font-size: 22px;
-font-style: normal;
-font-weight: 400;
-line-height: 143%;</string>
-        </property>
-        <property name="text">
-         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;&lt;span style=&quot; font-size:24px; font-weight:700; color:#06b09e;&quot;&gt;Project team&lt;/span&gt;&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;Algorithm developer: Nikita Mityasov, Oleh Semenenko&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;Software developers: Oleh Semenenko, Valeriia Hritskova&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;Testers: Anastasiia Korzh, Hanna Khominich&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;UX/UA designers: Kateryna Skrynnyk, Violetta Katsylo&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;3D technology developer: Yulia Chepela&lt;/p&gt;&lt;p align=&quot;center&quot;&gt;Mentors: Oleksii Vodka, Lyudmila Rozova&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-        </property>
-       </widget>
-      </item>
       <item row="2" column="0">
        <widget class="QLabel" name="label_3">
-        <property name="minimumSize">
-         <size>
-          <width>510</width>
-          <height>59</height>
-         </size>
-        </property>
-        <property name="maximumSize">
-         <size>
-          <width>510</width>
-          <height>59</height>
-         </size>
-        </property>
         <property name="styleSheet">
          <string notr="true">color: #FFF;
 font-family: Inter;
