@@ -19,9 +19,9 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
 
     const float min_val = -1e-04;
     const float max_val =  1e-04;
-    const int approx_total_steps = 6;
-    const int n_total_steps = pow(ceil(pow(approx_total_steps, 1.0/6.0)), 6);
-    const int n_comp_steps = pow(n_total_steps, 1.0/6.0); // six components of tensor
+    const int grid_steps = 2; // -1 ; 1
+    const int n_total_steps = Parameters::num_rnd_loads + pow(grid_steps, 6);
+    const int n_comp_steps = grid_steps; // six components of tensor
     const float step = (max_val - min_val) / (n_comp_steps - 1);
 
     for (int ix = 0; ix < n_comp_steps; ix++)
@@ -36,14 +36,23 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
                                           f(ix), f(iy), f(iz),
                                           f(ixy), f(ixz), f(iyz));
               }
+    std::random_device rd;  // Will be used to obtain a seed for the random number engine
+    std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()
+    std::uniform_real_distribution<double> dis(min_val, max_val);
+    for (int rnd_step = wr->eps_as_loading.size(); rnd_step < n_total_steps; rnd_step++)
+    {
+        wr->applyComplexLoads(0, 0, 0, N, N, N,
+                              dis(gen), dis(gen), dis(gen),
+                              dis(gen), dis(gen), dis(gen));
+    }
     wr->solveLS(1, n_total_steps);
     wr->saveAll();
     wr->run();
 
     HDF5Wrapper hdf5(Parameters::filename.toStdString());
 
-    int last_set = hdf5.readInt("","last_set") + 1;
-    hdf5.write("","last_set", last_set);
+    int last_set = hdf5.readInt("/last","last_set") + 1;
+    hdf5.write("/last","last_set", last_set);
 
     std::string prefix = ("/" + QString::number(last_set)).toStdString();
 
@@ -60,7 +69,7 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
         hdf5.write(prefix + ls_str, "results_max", wr->loadstep_results_max);
         hdf5.write(prefix + ls_str, "results_min", wr->loadstep_results_min);
         hdf5.write(prefix + ls_str, "results", wr->loadstep_results);
-        hdf5.write(prefix + ls_str, "eps_as_loading", wr->eps_as_loading);
+        hdf5.write(prefix + ls_str, "eps_as_loading", wr->eps_as_loading[ls_num]);
 
     }
 }

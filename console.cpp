@@ -1,5 +1,6 @@
 
 #include "console.h"
+#include "stressanalysis.h"
 
 Console::Console()
 {
@@ -41,9 +42,29 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
     {
         window.onStartClicked();
     }
+
+    if (parser.isSet("num_rnd_loads"))
+    {
+        int val = parser.value("num_rnd_loads").toInt();
+        val = val >= 0 ? val : 0;
+        Parameters::num_rnd_loads = val;
+    }
+
     if (parser.isSet("output"))
     {
         Parameters::filename = parser.value("output");
-        window.callExportToCSV();
+        if (Parameters::filename.endsWith(".csv"))
+            window.callExportToCSV();
     }
+
+    if (parser.isSet("run_stress_calc"))
+    {
+        StressAnalysis sa;
+        sa.estimateStressWithANSYS(Parameters::size, Parameters::points, Parameters::voxels);
+    }
+    if (parser.isSet("nogui"))
+    {
+        exit(0);
+    }
+
 }

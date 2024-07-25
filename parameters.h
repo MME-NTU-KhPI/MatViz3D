@@ -12,6 +12,7 @@ public:
     static int points;
     static QString algorithm;
     static QString filename;
+    static int num_rnd_loads;
 };
 
 #endif // PARAMETERS_H

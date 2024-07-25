@@ -25,7 +25,7 @@ ansysWrapper::ansysWrapper(bool isBatch)
     m_apdl = "";
     prep7();
     m_isBatch = isBatch;
-    tempDir.setAutoRemove(false);
+    tempDir.setAutoRemove(true);
     m_projectPath = tempDir.path();
     m_projectPath = QDir::toNativeSeparators(m_projectPath);
 

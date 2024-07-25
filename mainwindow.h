@@ -36,6 +36,7 @@ public:
 
 public slots:
     void onStartClicked();
+    void estimateStressWithANSYS();
 
 private slots:
     void checkStart();
@@ -43,7 +44,7 @@ private slots:
     void setupFileMenu();
     void saveAsImage();
     void exportToWRL();
-    void estimateStressWithANSYS();
+
     void setupWindowMenu();
     void onConsoleCheckBoxChanged(int state);
     void onAnimationCheckBoxChanged(int state);

@@ -222,10 +222,12 @@ float HDF5Wrapper::readFloat(const std::string& dataGroup, const std::string& da
 
 int HDF5Wrapper::readInt(const std::string& dataGroup, const std::string& dataSetName)
 {
+    hid_t group_id = createGroupIfNotExists(dataGroup);
     hid_t dataset = H5Dopen(file, (dataGroup + "/" + dataSetName).c_str(), H5P_DEFAULT);
     int data;
     H5Dread(dataset, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &data);
     H5Dclose(dataset);
+    H5Gclose(group_id);
     return data;
 }
 

@@ -18,10 +18,10 @@ int main(int argc, char *argv[])
     parser.addOption(QCommandLineOption("autostart","Running a program with auto-generation of a cube"));
     parser.addOption(QCommandLineOption("nogui","Running a program with no GUI"));
     parser.addOption(QCommandLineOption("output", "Specify output file for generated cube", "directory"));
+    parser.addOption(QCommandLineOption("num_rnd_loads", "Set number of random loads (as eps) for stress analis", "num_rnd_loads"));
+    parser.addOption(QCommandLineOption("run_stress_calc", "Run FEM to estimate stresses and strains"));
     parser.process(a);
     MainWindow w;
     Console::processOptions(parser,w);
     return a.exec();
-
-        return 0;
 }
