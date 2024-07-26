@@ -51,8 +51,11 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
 
     HDF5Wrapper hdf5(Parameters::filename.toStdString());
 
-    int last_set = hdf5.readInt("/last","last_set") + 1;
-    hdf5.write("/last","last_set", last_set);
+    int last_set = hdf5.readInt("","last_set") + 1;
+    if (last_set == 1)
+        hdf5.write("","last_set", last_set);
+    else
+        hdf5.update("","last_set", last_set);
 
     std::string prefix = ("/" + QString::number(last_set)).toStdString();
 

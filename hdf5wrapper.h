@@ -26,6 +26,8 @@ public:
 
     std::vector<std::string> listDataGroups();
 
+    void update(const std::string& dataGroup, const std::string& dataSetName, int newValue);
+
 private:
     hid_t file;
     hid_t createGroupIfNotExists(const std::string& groupName);

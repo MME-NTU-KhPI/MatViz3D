@@ -258,3 +258,11 @@ std::vector<std::string> HDF5Wrapper::listDataGroups() {
     H5Literate(file, H5_INDEX_NAME, H5_ITER_NATIVE, nullptr, groupIterationCallback, &groups);
     return groups;
 }
+
+void HDF5Wrapper::update(const std::string& dataGroup, const std::string& dataSetName, int newValue)
+{
+    hid_t dataset = H5Dopen(file, (dataGroup + "/" + dataSetName).c_str(), H5P_DEFAULT);
+    H5Dwrite(dataset, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &newValue);
+    H5Dclose(dataset);
+}
+
