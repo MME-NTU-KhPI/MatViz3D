@@ -60,7 +60,7 @@ void Probability_Algorithm::processValues(int CS)
             {
                 fileld_in_local[k][l][m]++;
             }
-    }
+        }
 
 #pragma omp critical
         {
@@ -73,33 +73,14 @@ void Probability_Algorithm::processValues(int CS)
                     }
         }
     }
-
-    QString result;
-    QTextStream stream(&result);
     for (int i = 0; i < CS; i++)
         for (int j = 0; j < CS; j++)
             for (int k = 0; k < CS; k++)
             {
-                stream << i << "\t" << j << "\t" << k << "\t"
+                qDebug() << i << "\t" << j << "\t" << k << "\t"
                        << fileld_in[i][j][k] << "\t" << fileld_total[i][j][k] << "\t"
                        << (double)fileld_in[i][j][k] / fileld_total[i][j][k] << "\n";
             }
-}
-
-std::vector<Parent_Algorithm::Coordinate> Probability_Algorithm::get_sphere_points(Parent_Algorithm::Coordinate center, int radius) {
-    std::vector<Coordinate> points;
-    for (int16_t x = center.x - radius; x <= center.x + radius; ++x) {
-        for (int16_t y = center.y - radius; y <= center.y + radius; ++y) {
-            for (int16_t z = center.z - radius; z <= center.z + radius; ++z) {
-                if (x >= 0 && x < numCubes && y >= 0 && y < numCubes && z >= 0 && z < numCubes) {
-                    if (std::sqrt(std::pow(x - center.x, 2) + std::pow(y - center.y, 2) + std::pow(z - center.z, 2)) <= radius) {
-                        points.push_back({x, y, z});
-                    }
-                }
-            }
-        }
-    }
-    return points;
 }
 
 std::vector<Parent_Algorithm::Coordinate> Probability_Algorithm::Add_New_Points(const std::vector<Coordinate>& newGrains, int pointsForThisStep) {
