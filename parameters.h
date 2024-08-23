@@ -11,6 +11,7 @@ public:
     static short int size;
     static int points;
     static QString algorithm;
+    static unsigned int seed;
     static QString filename;
 };
 

@@ -5,6 +5,7 @@
 #include <cmath>
 #include <myglwidget.h>
 #include <random>
+#include "parameters.h"
 #include "parent_algorithm.h"
 #include <cstdint>
 #include <new>
@@ -44,7 +45,7 @@ int16_t*** Parent_Algorithm::Generate_Initial_Cube() {
 void Parent_Algorithm::Generate_Random_Starting_Points(int isWaveGeneration)
 {
     std::random_device rd;
-    std::mt19937 generator(rd());
+    std::mt19937 generator(Parameters::seed);
     std::uniform_int_distribution<int> distribution(0, numCubes - 1);
     int currentPoints;
     if (isWaveGeneration == 1)

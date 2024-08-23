@@ -16,7 +16,7 @@ public:
     explicit Probability_Algorithm(QWidget *parent = nullptr);
     ~Probability_Algorithm();
     void setHalfAxis();
-    void Generate_Filling(int isAnimation, int isWaveGeneration);
+    //void Generate_Filling(int isAnimation, int isWaveGeneration);
     bool isPointIn(double x,double y,double z, double radius);
     std::vector<Parent_Algorithm::Coordinate> get_sphere_points(Parent_Algorithm::Coordinate center, int radius);
     void processValues(int CS);

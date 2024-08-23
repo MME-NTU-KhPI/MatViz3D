@@ -40,14 +40,14 @@ void Probability_Algorithm::processValues(int CS)
     std::mt19937 gen(rd());
     std::uniform_real_distribution<double> dis(0, CS);
 
-    std::vector<std::vector<std::vector<uint64_t>>> fileld_in(CS, std::vector<std::vector<uint64_t>>(CS, std::vector<uint64_t>(CS, 0)));
-    std::vector<std::vector<std::vector<uint64_t>>> fileld_total(CS, std::vector<std::vector<uint64_t>>(CS, std::vector<uint64_t>(CS, 0)));
+    uint64_t fileld_in[3][3][3] = {{{0}}};
+    uint64_t fileld_total[3][3][3] = {{{0}}};
 
 #pragma omp parallel
     {
         int nthreads = omp_get_num_threads();
-        std::vector<std::vector<std::vector<uint64_t>>> fileld_in_local(CS, std::vector<std::vector<uint64_t>>(CS, std::vector<uint64_t>(CS, 0)));
-        std::vector<std::vector<std::vector<uint64_t>>> fileld_total_local(CS, std::vector<std::vector<uint64_t>>(CS, std::vector<uint64_t>(CS, 0)));
+        uint64_t fileld_in_local[3][3][3] = {{{0}}};
+        uint64_t fileld_total_local[3][3][3] = {{{0}}};
 
         for (uint64_t i = 0; i < N / nthreads; i++)
         {
@@ -96,7 +96,7 @@ std::vector<Parent_Algorithm::Coordinate> Probability_Algorithm::Add_New_Points(
     return addedPoints;
 }
 
-void Probability_Algorithm::Generate_Filling(int isAnimation, int isWaveGeneration)
+/*void Probability_Algorithm::Generate_Filling(int isAnimation, int isWaveGeneration)
 {
     srand(time(NULL));
     unsigned int counter_max = std::pow(numCubes, 3);
@@ -147,4 +147,4 @@ void Probability_Algorithm::Generate_Filling(int isAnimation, int isWaveGenerati
             break;
         }
     }
-}
+}*/
