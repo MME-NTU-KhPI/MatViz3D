@@ -9,7 +9,7 @@ LIBS += -fopenmp
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 QT += openglwidgets
 
-CONFIG += c++17
+CONFIG += c++17 console
 
 include(3rdparty/qtgifimage/src/gifimage/qtgifimage.pri)
 
@@ -31,6 +31,7 @@ SOURCES += \
     neumann.cpp \
     parameters.cpp \
     parent_algorithm.cpp \
+    probability_algorithm.cpp \
     probability_circle.cpp \
     probability_ellipse.cpp \
     radial.cpp \
@@ -49,6 +50,7 @@ HEADERS += \
     neumann.h \
     parameters.h \
     parent_algorithm.h \
+    probability_algorithm.h \
     probability_circle.h \
     probability_ellipse.h \
     radial.h \
@@ -57,6 +59,7 @@ HEADERS += \
 FORMS += \
     about.ui \
     mainwindow.ui \
+    probability_algorithm.ui \
     statistics.ui
 
 # Default rules for deployment.

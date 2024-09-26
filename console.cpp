@@ -1,5 +1,6 @@
 
 #include "console.h"
+#include "QDebug"
 
 Console::Console()
 {
@@ -20,6 +21,13 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
         Parameters::points = str.toInt();
         window.setNumColors(Parameters::points);
     }
+    if (parser.isSet("concentration"))
+    {
+        QString str = parser.value("concentration");
+        float PercentOfConcentration = str.toFloat()/100;
+        Parameters::points = PercentOfConcentration*std::pow(Parameters::size,3);
+        window.setNumColors(Parameters::points);
+    }
     if (parser.isSet("algorithm"))
     {
         Parameters::algorithm = parser.value("algorithm");
@@ -33,6 +41,13 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
             window.setAlgorithms("Probability Ellipse");
         }
     }
+    if (parser.isSet("seed"))
+    {
+        QString str = parser.value("seed");
+        Parameters::seed = str.toInt();
+    }
+    else
+        Parameters::seed = static_cast<unsigned int>(std::time(nullptr));
     if (!parser.isSet("nogui"))
     {
         window.show();
@@ -45,5 +60,12 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
     {
         Parameters::filename = parser.value("output");
         window.callExportToCSV();
+    }
+    if (parser.isSet("nogui"))
+    {
+        exit(0);
+    }
+    else {
+        window.show();
     }
 }

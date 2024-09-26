@@ -12,7 +12,7 @@
   </property>
   <property name="minimumSize">
    <size>
-    <width>1000</width>
+    <width>1200</width>
     <height>600</height>
    </size>
   </property>
@@ -34,6 +34,12 @@
    </item>
    <item row="0" column="0">
     <widget class="QFrame" name="gridFrame">
+     <property name="minimumSize">
+      <size>
+       <width>150</width>
+       <height>0</height>
+      </size>
+     </property>
      <property name="maximumSize">
       <size>
        <width>300</width>
@@ -41,7 +47,77 @@
       </size>
      </property>
      <layout class="QGridLayout" name="gridLayout_2">
+      <property name="spacing">
+       <number>7</number>
+      </property>
+      <item row="5" column="0">
+       <spacer name="verticalSpacer_2">
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+        <property name="sizeType">
+         <enum>QSizePolicy::Fixed</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>20</width>
+          <height>400</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
       <item row="0" column="0">
+       <spacer name="verticalSpacer_3">
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+        <property name="sizeType">
+         <enum>QSizePolicy::Fixed</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>20</width>
+          <height>100</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item row="4" column="0">
+       <widget class="QPushButton" name="saveChartAsIMGButton">
+        <property name="minimumSize">
+         <size>
+          <width>150</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>200</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <property name="styleSheet">
+         <string notr="true">padding: 10px 5px;
+
+border-radius: 10px;
+border: 1px solid #969696;
+background: #282828;
+
+color: rgba(150, 150, 150, 1);
+text-align: center;
+font-family: Inter;
+font-size: 20px;
+font-style: normal;
+font-weight: 700;
+line-height: normal;
+text-transform: uppercase;</string>
+        </property>
+        <property name="text">
+         <string>Save as img</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
        <widget class="QComboBox" name="propertyBox">
         <property name="maximumSize">
          <size>
@@ -102,9 +178,154 @@ QComboBox QAbstractItemView:hover {
         </property>
         <item>
          <property name="text">
+          <string>-----</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
           <string>Norm Area</string>
          </property>
         </item>
+        <item>
+         <property name="text">
+          <string>Area</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Perimeter</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>ECR</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Shape factor</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <spacer name="verticalSpacer">
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+        <property name="sizeType">
+         <enum>QSizePolicy::Expanding</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>20</width>
+          <height>100</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item row="1" column="0">
+       <widget class="QFrame" name="propertysTypeFrame">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>100</height>
+         </size>
+        </property>
+        <layout class="QVBoxLayout" name="verticalLayout">
+         <item>
+          <widget class="QLabel" name="label">
+           <property name="styleSheet">
+            <string notr="true">color: #969696;
+font-family: Inter;
+font-size: 20px;
+font-style: normal;
+font-weight: 700;
+line-height: normal;</string>
+           </property>
+           <property name="text">
+            <string>Type of property:</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QFrame" name="horizontalFrame">
+           <layout class="QHBoxLayout" name="horizontalLayout_2">
+            <item>
+             <widget class="QRadioButton" name="d2RadiaoButton">
+              <property name="styleSheet">
+               <string notr="true">QRadioButton {
+	color: #969696;
+	font-family: Inter;
+	font-size: 20px;
+	font-style: normal;
+	font-weight: 700;
+	line-height: normal;
+}
+
+QRadioButton::indicator {
+	width: 10px;
+    height: 10px;
+    border-radius: 6px;  
+    border: 2px solid #969696;
+}
+
+QRadioButton::indicator:checked {
+	background-color: #00564d;
+	border: 2px solid #969696;
+}
+
+QRadioButton::indicator:unchecked {
+	background-color: rgba(40, 40, 40, 1);
+	border: 2px solid  #969696;
+}</string>
+              </property>
+              <property name="text">
+               <string>2D</string>
+              </property>
+              <property name="checked">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="d3RadiaoButton">
+              <property name="styleSheet">
+               <string notr="true">QRadioButton {
+	color: #969696;
+	font-family: Inter;
+	font-size: 20px;
+	font-style: normal;
+	font-weight: 700;
+	line-height: normal;
+}
+
+QRadioButton::indicator {
+	width: 10px;
+    height: 10px;
+    border-radius: 6px;  
+    border: 2px solid #969696;
+}
+
+QRadioButton::indicator:checked {
+	background-color: #00564d;
+	border: 2px solid #969696;
+}
+
+QRadioButton::indicator:unchecked {
+	background-color: rgba(40, 40, 40, 1);
+	border: 2px solid  #969696;
+}</string>
+              </property>
+              <property name="text">
+               <string>3D</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+        </layout>
        </widget>
       </item>
      </layout>

@@ -5,25 +5,25 @@
 #include <cmath>
 #include <myglwidget.h>
 #include <random>
+#include "parameters.h"
 #include "parent_algorithm.h"
 #include <cstdint>
-#include <new>
 
 Parent_Algorithm::Parent_Algorithm()
 {
 
 }
 
-int16_t*** Parent_Algorithm::Generate_Initial_Cube() {
+int32_t*** Parent_Algorithm::Generate_Initial_Cube() {
 
     //Создаём динамический массив. Вместо (30) подставить numCubes
-    voxels = new int16_t** [numCubes];
+    voxels = new int32_t** [numCubes];
     assert(voxels);
     for (int i = 0; i < numCubes; i++) {
-        voxels[i] = new int16_t* [numCubes];
+        voxels[i] = new int32_t* [numCubes];
         assert(voxels[i]);
         for (int j = 0; j < numCubes; j++) {
-            voxels[i][j] = new int16_t[numCubes];
+            voxels[i][j] = new int32_t[numCubes];
             assert(voxels[i][j]);
         }
     }
@@ -44,7 +44,7 @@ int16_t*** Parent_Algorithm::Generate_Initial_Cube() {
 void Parent_Algorithm::Generate_Random_Starting_Points(int isWaveGeneration)
 {
     std::random_device rd;
-    std::mt19937 generator(rd());
+    std::mt19937 generator(Parameters::seed);
     std::uniform_int_distribution<int> distribution(0, numCubes - 1);
     int currentPoints;
     if (isWaveGeneration == 1)
