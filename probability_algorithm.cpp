@@ -1,12 +1,13 @@
 #include "probability_algorithm.h"
 #include "ui_probability_algorithm.h"
 #include <random>
+#include <cmath>
 #include <omp.h>
 #include <QString>
 #include <QTextStream>
 
 Probability_Algorithm::Probability_Algorithm(QWidget *parent) :
-    QWidget(parent),
+    QWidget(parent), Parent_Algorithm(),
     ui(new Ui::Probability_Algorithm)
 {
     ui->setupUi(this);
@@ -20,11 +21,6 @@ Probability_Algorithm::~Probability_Algorithm()
     delete ui;
 }
 
-bool Probability_Algorithm::isPointIn(double x,double y,double z, double radius)
-{
-    return pow(x - radius, 2) / halfaxis_a + pow(y - radius, 2) / halfaxis_b + pow(z - radius, 2) / halfaxis_c <= radius * radius;
-}
-
 void Probability_Algorithm::setHalfAxis()
 {
     halfaxis_a = ui->axisALineEdit->text().toFloat();
@@ -33,12 +29,28 @@ void Probability_Algorithm::setHalfAxis()
     orintation_angle = ui->orintationAngleLineEdit->text().toFloat();
 }
 
-void Probability_Algorithm::processValues(int CS)
+bool Probability_Algorithm::isPointIn(double x, double y, double z)
+{
+    return (pow((x - 1.5) / halfaxis_a, 2) + pow((y-1.5)  / halfaxis_b, 2) + pow((z-1.5) / halfaxis_c, 2)) <= 1.0;
+}
+
+void Probability_Algorithm::setNumCubes(short int size)
+{
+    numCubes = size;
+}
+
+void Probability_Algorithm::setNumColors(int points)
+{
+    numColors = points;
+}
+
+
+void Probability_Algorithm::processValues(double probability[3][3][3])
 {
     const uint64_t N = 100000000;
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::uniform_real_distribution<double> dis(0, CS);
+    std::uniform_real_distribution<double> dis(0, 3);
 
     uint64_t fileld_in[3][3][3] = {{{0}}};
     uint64_t fileld_total[3][3][3] = {{{0}}};
@@ -52,11 +64,13 @@ void Probability_Algorithm::processValues(int CS)
         for (uint64_t i = 0; i < N / nthreads; i++)
         {
             double x = dis(gen), y = dis(gen), z = dis(gen);
-            int k = (int)floor(x), l = (int)floor(y), m = (int)floor(z);
+            int k = std::min(std::max((int)floor(x), 0), 2);
+            int l = std::min(std::max((int)floor(y), 0), 2);
+            int m = std::min(std::max((int)floor(z), 0), 2);
 
             fileld_total_local[k][l][m]++;
 
-            if (isPointIn(x, y, z, CS / 2.))
+            if (isPointIn(x, y, z))
             {
                 fileld_in_local[k][l][m]++;
             }
@@ -64,22 +78,23 @@ void Probability_Algorithm::processValues(int CS)
 
 #pragma omp critical
         {
-            for (int i = 0; i < CS; i++)
-                for (int j = 0; j < CS; j++)
-                    for (int k = 0; k < CS; k++)
+            for (int i = 0; i < 3; i++)
+                for (int j = 0; j < 3; j++)
+                    for (int k = 0; k < 3; k++)
                     {
                         fileld_in[i][j][k] += fileld_in_local[i][j][k];
                         fileld_total[i][j][k] += fileld_total_local[i][j][k];
                     }
         }
     }
-    for (int i = 0; i < CS; i++)
-        for (int j = 0; j < CS; j++)
-            for (int k = 0; k < CS; k++)
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 3; j++)
+            for (int k = 0; k < 3; k++)
             {
+                probability[i][j][k] = (double)fileld_in[i][j][k] / fileld_total[i][j][k];
                 qDebug() << i << "\t" << j << "\t" << k << "\t"
-                       << fileld_in[i][j][k] << "\t" << fileld_total[i][j][k] << "\t"
-                       << (double)fileld_in[i][j][k] / fileld_total[i][j][k] << "\n";
+                         << fileld_in[i][j][k] << "\t" << fileld_total[i][j][k] << "\t"
+                         << (double)fileld_in[i][j][k] / fileld_total[i][j][k] << "\n";
             }
 }
 
@@ -96,55 +111,70 @@ std::vector<Parent_Algorithm::Coordinate> Probability_Algorithm::Add_New_Points(
     return addedPoints;
 }
 
-/*void Probability_Algorithm::Generate_Filling(int isAnimation, int isWaveGeneration)
+void Probability_Algorithm::Generate_Filling(int isAnimation, int isWaveGeneration)
 {
+    double probability[3][3][3];
+    processValues(probability);
     srand(time(NULL));
-    unsigned int counter_max = std::pow(numCubes, 3);
-    while (!grains.empty()) {
+    unsigned int counter_max = pow(numCubes,3);
+    while (!grains.empty())
+    {
         Coordinate temp;
-        int16_t x, y, z;
+        int16_t x,y,z;
         std::vector<Coordinate> newGrains;
-        for (size_t i = 0; i < grains.size(); i++) {
+        for(size_t i = 0; i < grains.size(); i++)
+        {
             temp = grains[i];
             x = temp.x;
             y = temp.y;
             z = temp.z;
-            float radius = 1.5f;
-            std::vector<Coordinate> sphere_points = get_sphere_points(temp, radius);
-            for (const auto& sp : sphere_points) {
-                int16_t newX = sp.x;
-                int16_t newY = sp.y;
-                int16_t newZ = sp.z;
-                if (voxels[newX][newY][newZ] == 0) {
-                    std::vector<Coordinate> neighbors = get_sphere_points({newX, newY, newZ}, 1);
-                    int filled_neighbors = std::count_if(neighbors.begin(), neighbors.end(), [&](Coordinate coord) {
-                        return voxels[coord.x][coord.y][coord.z] != 0;
-                    });
-                    double probability = static_cast<double>(filled_neighbors) / neighbors.size();
-                    if ((rand() % 100) / 100.0 < probability) {
-                        voxels[newX][newY][newZ] = voxels[x][y][z];
-                        newGrains.push_back({newX, newY, newZ});
-                        counter++;
-                    }
-                    else
+            for (int16_t k = -1; k < 2; k++)
+            {
+                for(int16_t p = -1; p < 2; p++)
+                {
+                    for(int16_t l = -1; l < 2; l++)
                     {
-                        newGrains.push_back({x,y,z});
+                        int16_t newX = k+x;
+                        int16_t newY = p+y;
+                        int16_t newZ = l+z;
+                        bool isValidXYZ = (newX >= 0 && newX < numCubes) && (newY >= 0 && newY < numCubes) && (newZ >= 0 && newZ < numCubes) && voxels[newX][newY][newZ] == 0;
+                        std::random_device rd;
+                        std::mt19937 gen(rd());
+                        std::uniform_real_distribution<> dis(0.0, 1.0);
+                        if (isValidXYZ)
+                        {
+                            if(dis(gen) >= probability[1+k][1+p][1+l])
+                            {
+                                voxels[newX][newY][newZ] = voxels[x][y][z];
+                                newGrains.push_back({newX,newY,newZ});
+                                counter++;
+                            }
+                            else
+                            {
+                                newGrains.push_back({x,y,z});
+                            }
+                        }
                     }
                 }
             }
         }
         grains = std::move(newGrains);
         IterationNumber++;
-        double o = static_cast<double>(counter) / counter_max;
+        double o = (double)counter/counter_max;
         qDebug().nospace() << o << "\t" << IterationNumber << "\t" << grains.size();
-        if (isAnimation == 1) {
-            if (isWaveGeneration == 1 && remainingPoints > 0) {
-                pointsForThisStep = std::max(1, static_cast<int>(0.1 * remainingPoints));
-                newGrains = Add_New_Points(grains, pointsForThisStep);
-                grains.insert(grains.end(), newGrains.begin(), newGrains.end());
-                remainingPoints -= pointsForThisStep;
+        if (isAnimation == 1)
+        {
+            if (isWaveGeneration == 1)
+            {
+                if (remainingPoints > 0)
+                {
+                    pointsForThisStep = std::max(1, static_cast<int>(0.1 * remainingPoints));
+                    newGrains = Add_New_Points(newGrains,pointsForThisStep);
+                    grains.insert(grains.end(), newGrains.begin(), newGrains.end());
+                    remainingPoints -= pointsForThisStep;
+                }
             }
             break;
         }
     }
-}*/
+}

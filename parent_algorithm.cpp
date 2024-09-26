@@ -8,7 +8,6 @@
 #include "parameters.h"
 #include "parent_algorithm.h"
 #include <cstdint>
-#include <new>
 
 Parent_Algorithm::Parent_Algorithm()
 {

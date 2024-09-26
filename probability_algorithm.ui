@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>523</width>
+    <width>534</width>
     <height>522</height>
    </rect>
   </property>
@@ -60,7 +60,7 @@ padding: 4px 0;
 padding-left: 4px;</string>
            </property>
            <property name="text">
-            <string>1</string>
+            <string>1.5</string>
            </property>
           </widget>
          </item>
@@ -111,7 +111,7 @@ padding: 4px 0;
 padding-left: 4px;</string>
            </property>
            <property name="text">
-            <string>1</string>
+            <string>1.5</string>
            </property>
           </widget>
          </item>
@@ -162,7 +162,7 @@ padding: 4px 0;
 padding-left: 4px;</string>
            </property>
            <property name="text">
-            <string>1</string>
+            <string>1.5</string>
            </property>
           </widget>
          </item>

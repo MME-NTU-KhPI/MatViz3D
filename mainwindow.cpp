@@ -84,8 +84,8 @@ void MainWindow::onProbabilityAlgorithmChanged(const QString &text)
 {
     if (text == "Probability Algorithm")
     {
-        //probability_algorithm = new Probability_Algorithm;
-        //probability_algorithm->show();
+        probability_algorithm = new Probability_Algorithm;
+        probability_algorithm->show();
     }
 
 }
@@ -217,7 +217,14 @@ void MainWindow::on_Start_clicked()
     }
     else if (selectedAlgorithm == "Probability Algorithm")
     {
-        probability_algorithm->processValues(Parameters::size);
+        probability_algorithm->setNumCubes(Parameters::size);
+        probability_algorithm->setNumColors(Parameters::points);
+        Parameters::voxels = probability_algorithm->Generate_Initial_Cube();
+        probability_algorithm->Generate_Random_Starting_Points(isWaveGeneration);
+        probability_algorithm->remainingPoints = probability_algorithm->numColors - static_cast<int>(0.1 * probability_algorithm->numColors);
+        probability_algorithm->Generate_Filling(isAnimation,isWaveGeneration);
+        ui->myGLWidget->setVoxels(probability_algorithm->voxels,probability_algorithm->numCubes);
+        ui->myGLWidget->update();
     }
     else if (selectedAlgorithm == "Moore")
     {
