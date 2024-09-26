@@ -41,6 +41,17 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
             window.setAlgorithms("Probability Ellipse");
         }
     }
+    if (parser.isSet("seed"))
+    {
+        QString str = parser.value("seed");
+        Parameters::seed = str.toInt();
+    }
+    else
+        Parameters::seed = static_cast<unsigned int>(std::time(nullptr));
+    if (!parser.isSet("nogui"))
+    {
+        window.show();
+    }
     if (parser.isSet("autostart"))
     {
         window.onStartClicked();

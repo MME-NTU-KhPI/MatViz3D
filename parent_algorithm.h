@@ -17,7 +17,6 @@ public:
         int16_t z;
     };
     #pragma pack(pop)
-
     unsigned int counter;
     unsigned int IterationNumber = 0;
     int32_t*** voxels;

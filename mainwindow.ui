@@ -1126,6 +1126,11 @@ QComboBox QAbstractItemView:hover {
                      </item>
                      <item>
                       <property name="text">
+                       <string>Probability Algorithm</string>
+                      </property>
+                     </item>
+                     <item>
+                      <property name="text">
                        <string>Probability Circle</string>
                       </property>
                      </item>

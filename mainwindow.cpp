@@ -12,6 +12,7 @@
 #include "neumann.h"
 #include "moore.h"
 #include "dlca.h"
+#include "probability_algorithm.h"
 #include "probability_ellipse.h"
 #include "probability_circle.h"
 #include "parent_algorithm.h"
@@ -39,7 +40,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(ui->numOfPointsRadioButton, &QRadioButton::clicked, this, &MainWindow::onInitialConditionSelectionChanged);
     connect(ui->concentrationRadioButton, &QRadioButton::clicked, this, &MainWindow::onInitialConditionSelectionChanged);
-
+    connect(ui->AlgorithmsBox, &QComboBox::currentTextChanged, this, &MainWindow::onProbabilityAlgorithmChanged);
     connect(this, &MainWindow::on_Start_clicked, this, &MainWindow::on_Start_clicked);
 
     connect(ui->Rectangle8, &QLineEdit::editingFinished, this, [=]() {
@@ -71,7 +72,6 @@ MainWindow::MainWindow(QWidget *parent)
         }
 
     });
-
     ui->Rectangle10->setMinimum(0);
     ui->Rectangle10->setMaximum(20);
     ui->Rectangle10->setSingleStep(1);
@@ -92,6 +92,16 @@ MainWindow::~MainWindow()
 void MainWindow::onLogMessageWritten(const QString &message)
 {
     ui->textEdit->append(message); // Вивід повідомлень в textEdit
+}
+
+void MainWindow::onProbabilityAlgorithmChanged(const QString &text)
+{
+    if (text == "Probability Algorithm")
+    {
+        probability_algorithm = new Probability_Algorithm;
+        probability_algorithm->show();
+    }
+
 }
 
 // Вибір між кількістю початкових точок та концентрацією
@@ -218,6 +228,17 @@ void MainWindow::on_Start_clicked()
             }
         }
         qDebug() << "PROBABILITY ELLIPSE";
+    }
+    else if (selectedAlgorithm == "Probability Algorithm")
+    {
+        probability_algorithm->setNumCubes(Parameters::size);
+        probability_algorithm->setNumColors(Parameters::points);
+        Parameters::voxels = probability_algorithm->Generate_Initial_Cube();
+        probability_algorithm->Generate_Random_Starting_Points(isWaveGeneration);
+        probability_algorithm->remainingPoints = probability_algorithm->numColors - static_cast<int>(0.1 * probability_algorithm->numColors);
+        probability_algorithm->Generate_Filling(isAnimation,isWaveGeneration);
+        ui->myGLWidget->setVoxels(probability_algorithm->voxels,probability_algorithm->numCubes);
+        ui->myGLWidget->update();
     }
     else if (selectedAlgorithm == "Moore")
     {
@@ -535,14 +556,6 @@ void MainWindow::onDataCheckBoxChanged(int state) {
         ui->DataWidget->hide();
     }
 }
-
-//void MainWindow::onConsoleCheckBoxChanged(int state) {
-//    if (state == Qt::Checked) {
-//        ui->ConsoleWidget->show();
-//    } else {
-//        ui->ConsoleWidget->hide();
-//    }
-//}
 
 void MainWindow::onConsoleCheckBoxChanged(int state) {
     if (state == Qt::Checked) {
