@@ -1,5 +1,6 @@
 
 #include "console.h"
+#include "QDebug"
 
 Console::Console()
 {
@@ -40,10 +41,6 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
             window.setAlgorithms("Probability Ellipse");
         }
     }
-    if (!parser.isSet("nogui"))
-    {
-        window.show();
-    }
     if (parser.isSet("autostart"))
     {
         window.onStartClicked();
@@ -52,5 +49,12 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
     {
         Parameters::filename = parser.value("output");
         window.callExportToCSV();
+    }
+    if (parser.isSet("nogui"))
+    {
+        exit(0);
+    }
+    else {
+        window.show();
     }
 }

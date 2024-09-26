@@ -9,7 +9,7 @@ LIBS += -fopenmp
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 QT += openglwidgets
 
-CONFIG += c++17
+CONFIG += c++17 console
 
 include(3rdparty/qtgifimage/src/gifimage/qtgifimage.pri)
 
