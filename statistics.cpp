@@ -17,7 +17,6 @@ Statistics::Statistics(QWidget *parent)
     : QWidget(parent), ui(new Ui::Statistics)
 {
     ui->setupUi(this);
-}
 
     connect(ui->d2RadiaoButton, &QRadioButton::toggled, this, &Statistics::updatePropertyBox);
     connect(ui->d3RadiaoButton, &QRadioButton::toggled, this, &Statistics::updatePropertyBox);
@@ -30,8 +29,8 @@ Statistics::Statistics(QWidget *parent)
         Q_UNUSED(index);
         this->selectProperty();
     });
-
 }
+
 
 Statistics::~Statistics()
 {
