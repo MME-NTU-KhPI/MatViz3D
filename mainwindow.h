@@ -11,6 +11,7 @@
 #include "statistics.h"
 #include "messagehandler.h"
 #include "about.h"
+#include "probability_algorithm.h"
 #include "legendview.h"
 
 QT_BEGIN_NAMESPACE
@@ -26,6 +27,7 @@ public:
     MainWindow(QWidget *parent = nullptr);
     void setNumCubes(short int arg);
     void setNumColors(int arg);
+    void setConcentration(int arg);
     void setAlgorithms(QString arg);
     void callExportToCSV();
     int isAnimation = 0;
@@ -51,8 +53,11 @@ private slots:
     void onDataCheckBoxChanged(int state);
     void onAllCheckBoxChanged(int state);
     void exportToCSV();
+    void onInitialConditionSelectionChanged();
+    void onProbabilityAlgorithmChanged(const QString &text);
     void saveHDF();
     void openHDF();
+
     void on_Start_clicked();
 
     void on_statistics_clicked();
@@ -74,6 +79,7 @@ private:
     Ui::MainWindow *ui;
     Statistics form;
     About *about;
+    Probability_Algorithm *probability_algorithm;
     MessageHandler *messageHandlerInstance;
     QCheckBox *allCheckBox;
     QCheckBox *dataCheckBox;

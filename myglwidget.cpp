@@ -11,7 +11,9 @@
 #include <array>
 #include <QFileDialog>
 #include <QTextStream>
+#include <set>
 #include <QDebug>
+
 
 MyGLWidget::MyGLWidget(QWidget *parent)
     : QOpenGLWidget(parent)
@@ -123,6 +125,8 @@ void MyGLWidget::setPlotWireFrame(bool status)
 
 void inline initLights()
 {
+    QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
+    f->glClearColor(0.21f, 0.21f, 0.21f, 1.0f);
 
     // set up light colors (ambient, diffuse, specular)
     GLfloat lightKa[] = {.2f, .2f, .2f, 1.0f};  // ambient light
@@ -162,6 +166,9 @@ void MyGLWidget::initializeGL()
     //QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
 
     glShadeModel(GL_SMOOTH);
+    f->glEnable(GL_COLOR_MATERIAL);
+    f->glEnable(GL_LIGHTING);
+    f->glEnable(GL_LIGHT0);
 
     // enable /disable features
     glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
@@ -338,7 +345,7 @@ void MyGLWidget::calculateScene()
         for (int j = 0; j < numCubes; j++) { // z
             for (int k = 0; k < numCubes; k++) { // x
 
-                assert(voxels[k][i][j] >= 0 );
+                assert(voxels[k][i][j] >= 0);
 
                 if(voxels[k][i][j] == 0)
                 {
@@ -420,7 +427,7 @@ void MyGLWidget::calculateScene()
 
 }
 
-void MyGLWidget::setVoxels(int16_t*** voxels, short int numCubes)
+void MyGLWidget::setVoxels(int32_t*** voxels, short int numCubes)
 {
     this->voxels = voxels;
     this->numCubes = numCubes;
@@ -578,6 +585,13 @@ void MyGLWidget::paintGL()
     glRotatef(yRot / 16.0, 0.0, 1.0, 0.0);
     glRotatef(zRot / 16.0, 0.0, 0.0, 1.0);
 
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+
+    glEnable(GL_NORMALIZE);
 
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_COLOR_ARRAY);
@@ -642,8 +656,14 @@ void MyGLWidget::paintGL()
 
     // Draw the voxel scene using the VBOs
     glDrawArrays(GL_QUADS, 0, voxelScene.size()); // 24 vertices per voxel (6 faces * 4 vertices)
-
-
+    if (plotWireFrame == true)
+    {
+        glColor3f(0.5f, 0.5f, 0.5f);
+        for (size_t i = 0; i < voxelScene.size(); i += 4)
+        {
+            glDrawArrays(GL_LINE_LOOP, i, 4); // plot 4 lines for each face
+        }
+    }
 
     // Unbind the buffers and disable client-side capabilities
     f->glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -721,7 +741,7 @@ void MyGLWidget::mouseMoveEvent(QMouseEvent *event)
     lastPos = event->pos();
 }
 
-void MyGLWidget::updateGLWidget(int16_t*** voxels, short int numCubes)
+void MyGLWidget::updateGLWidget(int32_t*** voxels, short int numCubes)
 {
     setVoxels(voxels, numCubes);
     QThread::msleep(delayAnimation);
@@ -836,7 +856,7 @@ void MyGLWidget::calculateSurfaceArea()
 //    file.close();
 //}
 
-int16_t*** MyGLWidget::getVoxels()
+int32_t*** MyGLWidget::getVoxels()
 {
     return voxels;
 }

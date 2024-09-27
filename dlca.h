@@ -8,14 +8,14 @@ class DLCA_Aggregate
 {
 
     int cubeSize;
-    int16_t*** voxels;
+    int32_t*** voxels;
 public:
     int id;
     std::vector <Parent_Algorithm::Coordinate> aggr;
     void move_aggregate(int dx, int dy, int dz);
     void map_to_voxels();
     bool is_can_move_aggregate(int dx, int dy, int dz);
-    DLCA_Aggregate(int16_t*** voxels, int cubeSize);
+    DLCA_Aggregate(int32_t*** voxels, int cubeSize);
 };
 
 class DLCA : public Parent_Algorithm {

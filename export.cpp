@@ -3,7 +3,7 @@
 #include <QDir>
 #include <QFileDialog>
 
-void Export::ExportToCSV(short int numCubes, int16_t ***voxels)
+void Export::ExportToCSV(short int numCubes, int32_t ***voxels)
 {
     if (Parameters::filename.isNull())
     {
@@ -29,7 +29,7 @@ void Export::ExportToCSV(short int numCubes, int16_t ***voxels)
     file.close();
 }
 
-void Export::ExportToVRML(const std::vector<std::array<GLubyte, 4>>& colors, short int numCubes, int16_t ***voxels)
+void Export::ExportToVRML(const std::vector<std::array<GLubyte, 4>>& colors, short int numCubes, int32_t ***voxels)
 {
     QString fileName = QFileDialog::getSaveFileName(nullptr, QFileDialog::tr("Save VRML File"), QDir::homePath(), QFileDialog::tr("VRML Files (*.wrl);;All Files (*)"));
     QFile file(fileName);

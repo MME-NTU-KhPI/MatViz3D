@@ -30,7 +30,7 @@ void Probability_Ellipse::Generate_Filling(int isAnimation, int isWaveGeneration
     {
 
         Coordinate temp;
-        int16_t x,y,z;
+        int32_t x,y,z;
         std::vector<Coordinate> newGrains;
         for(size_t i = 0; i < grains.size(); i++)
         {
@@ -38,15 +38,15 @@ void Probability_Ellipse::Generate_Filling(int isAnimation, int isWaveGeneration
             x = temp.x;
             y = temp.y;
             z = temp.z;
-            for (int16_t k = -1; k < 2; k++)
+            for (int32_t k = -1; k < 2; k++)
             {
-                for(int16_t p = -1; p < 2; p++)
+                for(int32_t p = -1; p < 2; p++)
                 {
-                    for(int16_t l = -1; l < 2; l++)
+                    for(int32_t l = -1; l < 2; l++)
                     {
-                        int16_t newX = k+x;
-                        int16_t newY = p+y;
-                        int16_t newZ = l+z;
+                        int32_t newX = k+x;
+                        int32_t newY = p+y;
+                        int32_t newZ = l+z;
                         bool isValidXYZ = (newX >= 0 && newX < numCubes) && (newY >= 0 && newY < numCubes) && (newZ >= 0 && newZ < numCubes) && voxels[newX][newY][newZ] == 0;
                         bool Chance50 = (rand() % 100) < 50;
                         bool Chance16 = (rand() % 100) < 16;
