@@ -24,7 +24,7 @@ class Statistics : public QWidget
 
 public:
     explicit Statistics(QWidget *parent = nullptr);
-    // Statistics(int16_t*** voxels, int numCubes, QWidget *parent = nullptr);
+    // Statistics(int32_t*** voxels, int numCubes, QWidget *parent = nullptr);
     ~Statistics();
     void layersProcessing(int32_t ***voxels, int numCubes);
     void buildHistogram(const QVector<float>& counts, QString selectedTitleProperty);

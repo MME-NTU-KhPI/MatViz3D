@@ -106,7 +106,7 @@ public:
 
     void setNP(int np);
 
-    void createFEfromArray(int16_t*** voxels, short int numCubes,int numSeeds);
+    void createFEfromArray(int32_t*** voxels, short int numCubes,int numSeeds);
     int createLocalCS();
     static void generate_random_angles(double *angl, bool in_deg=false, double epsilon=1e-6);
     void applyTensBC(double x1, double y1, double z1,

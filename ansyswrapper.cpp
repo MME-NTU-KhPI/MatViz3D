@@ -162,7 +162,7 @@ void ansysWrapper::defaultArgs()
 }
 
 
-void ansysWrapper::createFEfromArray(int16_t*** voxels, short int numCubes, int numSeeds)
+void ansysWrapper::createFEfromArray(int32_t*** voxels, short int numCubes, int numSeeds)
 {
     for (int i = 0; i < numSeeds + 1; i++)
         this->createLocalCS();

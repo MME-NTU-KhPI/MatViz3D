@@ -163,7 +163,7 @@ void inline initLights()
 void MyGLWidget::initializeGL()
 {
 
-    //QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
+    QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
 
     glShadeModel(GL_SMOOTH);
     f->glEnable(GL_COLOR_MATERIAL);

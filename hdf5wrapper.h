@@ -16,7 +16,7 @@ public:
     void write(const std::string& dataGroup, const std::string& dataSetName, float data);
     void write(const std::string& dataGroup, const std::string& dataSetName, int data);
     void write(const std::string& dataGroup, const std::string& dataSetName, const QString& data);
-    void write(const std::string& dataGroup, const std::string& dataSetName, int16_t ***voxels , int size);
+    void write(const std::string& dataGroup, const std::string& dataSetName, int32_t ***voxels , int size);
 
     std::vector<float> readVectorFloat(const std::string& dataGroup, const std::string& dataSetName);
     std::vector<std::vector<float>> readVectorVectorFloat(const std::string& dataGroup, const std::string& dataSetName);
