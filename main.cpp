@@ -3,6 +3,10 @@
 #include <QCommandLineParser>
 #include <QApplication>
 
+#include <QProcessEnvironment>
+#include <QCoreApplication>
+#include <QDir>
+
 
 int main(int argc, char *argv[])
 {

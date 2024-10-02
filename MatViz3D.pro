@@ -40,6 +40,20 @@ DEPENDPATH += $$PWD/libs/hdf5_1.14.3/include
 
 include(3rdparty/qtgifimage/src/gifimage/qtgifimage.pri)
 
+# Підключення HDF5 бібліотек (відносно кореня проекту)
+LIBS += -L$$PWD/libs/hdf5-1.14.4-2-win-vs2022_cl/hdf5/HDF5-1.14.4-win64/lib/
+
+# Підключення конкретних HDF5 бібліотек
+LIBS += -lhdf5 -lhdf5_cpp -lhdf5_hl -lhdf5_hl_cpp
+
+# Шляхи до заголовків HDF5
+INCLUDEPATH += $$PWD/libs/hdf5-1.14.4-2-win-vs2022_cl/hdf5/HDF5-1.14.4-win64/include/
+
+# Шляхи для пошуку заголовочних файлів
+DEPENDPATH += $$PWD/libs/hdf5-1.14.4-2-win-vs2022_cl/hdf5/HDF5-1.14.4-win64/include/
+
+
+
 # You can make your code fail to compile if it uses deprecated APIs.
 # In order to do so, uncomment the following line.
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
