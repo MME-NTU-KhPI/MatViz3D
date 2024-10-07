@@ -575,6 +575,7 @@ void MyGLWidget::paintGL()
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
     // clear buffer
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+    qDebug() << "PaitGL";
 
     // save the initial ModelView matrix before modifying ModelView matrix
     glPushMatrix();
@@ -617,6 +618,7 @@ void MyGLWidget::paintGL()
     glVertex3f(-numCubes/2, -numCubes/2, -numCubes/2);
     glVertex3f(-numCubes/2, -numCubes/2, 1.15*numCubes);
     glEnd();
+
 
     // Create buffers for vertex, color, and normal data
     GLuint vboIds[3];

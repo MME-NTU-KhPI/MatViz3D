@@ -19,6 +19,7 @@ public:
     void Generate_Filling(int isAnimation, int isWaveGeneration);
     bool isPointIn(double x,double y,double z);
     void processValues(double probability[3][3][3]);
+    void writeProbabilitiesToCSV(double probability[3][3][3], const QString& filePath, uint64_t N); // Method
     void setNumCubes(short int numCubes);
     void setNumColors(int numColors);
 private:

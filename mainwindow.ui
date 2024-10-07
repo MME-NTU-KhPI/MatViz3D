@@ -89,6 +89,9 @@ padding: 0px;</string>
       <layout class="QHBoxLayout" name="horizontalLayout">
        <item>
         <spacer name="horizontalSpacer_7">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
          <property name="sizeType">
           <enum>QSizePolicy::Fixed</enum>
          </property>
@@ -131,6 +134,9 @@ padding: 0px;</string>
        </item>
        <item>
         <spacer name="horizontalSpacer_8">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
          <property name="sizeType">
           <enum>QSizePolicy::Fixed</enum>
          </property>
@@ -182,6 +188,9 @@ QPushButton:pressed {
        </item>
        <item>
         <spacer name="horizontalSpacer_9">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
          <property name="sizeType">
           <enum>QSizePolicy::Fixed</enum>
          </property>
@@ -233,6 +242,9 @@ QPushButton:pressed {
        </item>
        <item>
         <spacer name="horizontalSpacer_10">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
          <property name="sizeType">
           <enum>QSizePolicy::Fixed</enum>
          </property>
@@ -284,6 +296,9 @@ QPushButton:pressed {
        </item>
        <item>
         <spacer name="horizontalSpacer_11">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
          <property name="sizeType">
           <enum>QSizePolicy::Fixed</enum>
          </property>
@@ -335,6 +350,9 @@ QPushButton:pressed {
        </item>
        <item>
         <spacer name="horizontalSpacer_13">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
          <property name="sizeHint" stdset="0">
           <size>
            <width>40</width>
@@ -381,6 +399,9 @@ color: #00897B;
        </item>
        <item>
         <spacer name="horizontalSpacer_12">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
          <property name="sizeType">
           <enum>QSizePolicy::Fixed</enum>
          </property>
@@ -485,6 +506,9 @@ padding: 0px;</string>
           </property>
           <item row="1" column="5">
            <spacer name="horizontalSpacer_2">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
             <property name="sizeType">
              <enum>QSizePolicy::Fixed</enum>
             </property>
@@ -1000,6 +1024,9 @@ text-transform: uppercase;</string>
           </item>
           <item row="0" column="2">
            <spacer name="verticalSpacer_3">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
             <property name="sizeType">
              <enum>QSizePolicy::Fixed</enum>
             </property>
@@ -1802,6 +1829,9 @@ background-color: transparent;</string>
           </item>
           <item row="0" column="2">
            <spacer name="verticalSpacer_3">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
             <property name="sizeType">
              <enum>QSizePolicy::Fixed</enum>
             </property>
@@ -1815,6 +1845,9 @@ background-color: transparent;</string>
           </item>
           <item row="1" column="5">
            <spacer name="horizontalSpacer_2">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
             <property name="sizeType">
              <enum>QSizePolicy::Fixed</enum>
             </property>
@@ -1844,6 +1877,9 @@ background-color: transparent;</string>
           </item>
           <item row="3" column="2">
            <spacer name="verticalSpacer">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
             <property name="sizeType">
              <enum>QSizePolicy::Fixed</enum>
             </property>

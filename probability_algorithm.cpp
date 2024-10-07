@@ -5,6 +5,8 @@
 #include <omp.h>
 #include <QString>
 #include <QTextStream>
+#include <QFile>
+#include <QDir>
 
 Probability_Algorithm::Probability_Algorithm(QWidget *parent) :
     QWidget(parent), Parent_Algorithm(),
@@ -47,7 +49,7 @@ void Probability_Algorithm::setNumColors(int points)
 
 void Probability_Algorithm::processValues(double probability[3][3][3])
 {
-    const uint64_t N = 100000000;
+    const uint64_t N = 1000;
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<double> dis(0, 3);
@@ -96,6 +98,9 @@ void Probability_Algorithm::processValues(double probability[3][3][3])
                          << fileld_in[i][j][k] << "\t" << fileld_total[i][j][k] << "\t"
                          << (double)fileld_in[i][j][k] / fileld_total[i][j][k] << "\n";
             }
+
+    // Call the function to save the probabilities to a CSV file
+    writeProbabilitiesToCSV(probability, "D:/Project(MatViz3D)/fall2024/", N);
 }
 
 std::vector<Parent_Algorithm::Coordinate> Probability_Algorithm::Add_New_Points(const std::vector<Coordinate>& newGrains, int pointsForThisStep) {
@@ -177,4 +182,38 @@ void Probability_Algorithm::Generate_Filling(int isAnimation, int isWaveGenerati
             break;
         }
     }
+}
+
+
+// Method to write the probabilities to a CSV file
+void Probability_Algorithm::writeProbabilitiesToCSV(double probability[3][3][3], const QString& filePath, uint64_t N)
+{
+    // Створення імені файлу з додаванням значення N
+    QString fileName = filePath + QDir::separator() + "N_" + QString::number(N) + ".csv";
+    QFile file(fileName);
+
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+    {
+        qDebug() << "Помилка відкриття файлу для запису ймовірностей.";
+        return;
+    }
+
+    QTextStream out(&file);
+
+    // Запис заголовка
+    out << "X,Y,Z,Probability\n";
+
+    // Запис значень ймовірностей
+    for (int i = 0; i < 3; i++)
+    {
+        for (int j = 0; j < 3; j++)
+        {
+            for (int k = 0; k < 3; k++)
+            {
+                out << i << "," << j << "," << k << "," << probability[i][j][k] << "\n";
+            }
+        }
+    }
+
+    file.close();
 }
