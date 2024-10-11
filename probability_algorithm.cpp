@@ -3,6 +3,8 @@
 #include <random>
 #include <cmath>
 #include <omp.h>
+#include <algorithm>
+#include <QDebug>
 #include <QString>
 #include <QTextStream>
 
@@ -146,6 +148,92 @@ void Probability_Algorithm::processValues(double probability[3][3][3])
             }
 }
 
+void Probability_Algorithm::processValuesGrid(double probability[3][3][3])
+{
+    const uint64_t N = 100000000;
+    // Определяем количество точек вдоль одной оси
+    uint64_t n = std::round(std::cbrt(N));  // Кубический корень от общего числа точек
+
+    // Рассчитываем шаг сетки
+    double step = 3.0 / (n - 1);
+
+    // Счётчики для количества точек внутри и общего количества
+    uint64_t fileld_in[3][3][3] = {{{0}}};
+    uint64_t fileld_total[3][3][3] = {{{0}}};
+
+#pragma omp parallel
+    {
+        // Локальные переменные для параллельных вычислений
+        uint64_t fileld_in_local[3][3][3] = {{{0}}};
+        uint64_t fileld_total_local[3][3][3] = {{{0}}};
+
+        // Генерация точек сеткой с вычисленным шагом
+        for (uint64_t i = 0; i < n; ++i)
+        {
+            for (uint64_t j = 0; j < n; ++j)
+            {
+                for (uint64_t k = 0; k < n; ++k)
+                {
+                    // Координаты точек на сетке
+                    double x = i * step;
+                    double y = j * step;
+                    double z = k * step;
+
+                    // Определение вокселя (k, l, m), в который попадает точка
+                    int k_voxel = std::min(std::max((int)floor(x), 0), 2);
+                    int l_voxel = std::min(std::max((int)floor(y), 0), 2);
+                    int m_voxel = std::min(std::max((int)floor(z), 0), 2);
+
+                    fileld_total_local[k_voxel][l_voxel][m_voxel]++;
+
+                    // Проверка, находится ли точка внутри области интереса
+                    if (isPointIn(x, y, z))
+                    {
+                        fileld_in_local[k_voxel][l_voxel][m_voxel]++;
+                    }
+                }
+            }
+        }
+
+#pragma omp critical
+        {
+            // Агрегация локальных данных в общие массивы
+            for (int i = 0; i < 3; i++)
+                for (int j = 0; j < 3; j++)
+                    for (int k = 0; k < 3; k++)
+                    {
+                        fileld_in[i][j][k] += fileld_in_local[i][j][k];
+                        fileld_total[i][j][k] += fileld_total_local[i][j][k];
+                    }
+        }
+    }
+
+    // Расчёт вероятностей
+    for (int i = 0; i < 3; i++)
+    {
+        for (int j = 0; j < 3; j++)
+        {
+            for (int k = 0; k < 3; k++)
+            {
+                // Избегаем деления на ноль
+                if (fileld_total[i][j][k] > 0)
+                {
+                    probability[i][j][k] = (double)fileld_in[i][j][k] / fileld_total[i][j][k];
+                }
+                else
+                {
+                    probability[i][j][k] = 0.0;
+                }
+
+                qDebug() << i << "\t" << j << "\t" << k << "\t"
+                         << fileld_in[i][j][k] << "\t" << fileld_total[i][j][k] << "\t"
+                         << probability[i][j][k] << "\n";
+            }
+        }
+    }
+}
+
+
 std::vector<Parent_Algorithm::Coordinate> Probability_Algorithm::Add_New_Points(const std::vector<Coordinate>& newGrains, int pointsForThisStep) {
     std::vector<Coordinate> addedPoints;
     for (int i = 0; i < pointsForThisStep; ++i) {
@@ -162,7 +250,7 @@ std::vector<Parent_Algorithm::Coordinate> Probability_Algorithm::Add_New_Points(
 void Probability_Algorithm::Generate_Filling(int isAnimation, int isWaveGeneration)
 {
     double probability[3][3][3];
-    processValues(probability);
+    processValuesGrid(probability);
     srand(time(NULL));
     unsigned int counter_max = pow(numCubes,3);
     while (!grains.empty())
