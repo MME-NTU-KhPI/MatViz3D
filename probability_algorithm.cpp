@@ -26,11 +26,14 @@ void Probability_Algorithm::setHalfAxis()
     halfaxis_a = ui->axisALineEdit->text().toFloat();
     halfaxis_b = ui->axisBLineEdit->text().toFloat();
     halfaxis_c = ui->axisCLineEdit->text().toFloat();
-    orintation_angle = ui->orintationAngleLineEdit->text().toFloat();
+    orientation_angle_a = ui->orintationAngleLineEdit->text().toFloat();
+    orientation_angle_b = ui->lineEdit->text().toFloat();
+    orientation_angle_c = ui->lineEdit_2->text().toFloat();
 }
 
 bool Probability_Algorithm::isPointIn(double x, double y, double z)
 {
+    rotatePoint(x,y,z);
     return (pow((x - 1.5) / halfaxis_a, 2) + pow((y-1.5)  / halfaxis_b, 2) + pow((z-1.5) / halfaxis_c, 2)) <= 1.0;
 }
 
@@ -42,6 +45,51 @@ void Probability_Algorithm::setNumCubes(short int size)
 void Probability_Algorithm::setNumColors(int points)
 {
     numColors = points;
+}
+
+double Probability_Algorithm::toRadians(double degrees)
+{
+    return degrees * (3.142/180) ;
+}
+
+void Probability_Algorithm::rotatePoint(double& x, double& y, double& z)
+{
+    double Rx[3][3] = {
+        {1, 0, 0},
+        {0, cos(toRadians(orientation_angle_a)), -sin(toRadians(orientation_angle_a))},
+        {0, sin(toRadians(orientation_angle_a)), cos(toRadians(orientation_angle_a))}
+    };
+
+    double Ry[3][3] = {
+        {cos(toRadians(orientation_angle_b)), 0, sin(toRadians(orientation_angle_b))},
+        {0, 1, 0},
+        {-sin(toRadians(orientation_angle_b)), 0, cos(toRadians(orientation_angle_b))}
+    };
+
+    double Rz[3][3] = {
+        {cos(toRadians(orientation_angle_c)), -sin(toRadians(orientation_angle_c)), 0},
+        {sin(toRadians(orientation_angle_c)), cos(toRadians(orientation_angle_c)), 0},
+        {0, 0, 1}
+    };
+    // Промежуточные координаты после поворота вокруг оси X
+    double x1 = Rx[0][0] * x + Rx[0][1] * y + Rx[0][2] * z;
+    double y1 = Rx[1][0] * x + Rx[1][1] * y + Rx[1][2] * z;
+    double z1 = Rx[2][0] * x + Rx[2][1] * y + Rx[2][2] * z;
+
+    // Промежуточные координаты после поворота вокруг оси Y
+    double x2 = Ry[0][0] * x1 + Ry[0][1] * y1 + Ry[0][2] * z1;
+    double y2 = Ry[1][0] * x1 + Ry[1][1] * y1 + Ry[1][2] * z1;
+    double z2 = Ry[2][0] * x1 + Ry[2][1] * y1 + Ry[2][2] * z1;
+
+    // Конечные координаты после поворота вокруг оси Z
+    double x3 = Rz[0][0] * x2 + Rz[0][1] * y2 + Rz[0][2] * z2;
+    double y3 = Rz[1][0] * x2 + Rz[1][1] * y2 + Rz[1][2] * z2;
+    double z3 = Rz[2][0] * x2 + Rz[2][1] * y2 + Rz[2][2] * z2;
+
+    // Обновляем исходные координаты на новые
+    x = x3;
+    y = y3;
+    z = z3;
 }
 
 
