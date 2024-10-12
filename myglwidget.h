@@ -12,8 +12,8 @@ class MyGLWidget : public QOpenGLWidget
     Q_OBJECT
 public:
     explicit MyGLWidget(QWidget *parent = 0);
-    void setVoxels(int16_t*** voxels, short int numCubes);
-    int16_t*** getVoxels();
+    void setVoxels(int32_t*** voxels, short int numCubes);
+    int32_t*** getVoxels();
     void repaint_function();
     QVector<int> countVoxelColors(); // Функція для підрахунку кількості вокселей кожного кольору
     std::vector<std::array<GLubyte, 4>> generateDistinctColors();
@@ -57,7 +57,7 @@ public slots:
     void setDelayAnimation(int delayAnimation);
     void setAnsysWrapper(ansysWrapper *wr);
     void update_function();
-    void updateGLWidget(int16_t*** voxels, short int numCubes);
+    void updateGLWidget(int32_t*** voxels, short int numCubes);
 signals:
     // signaling rotation from mouse movement
     void xRotationChanged(int angle);
@@ -77,7 +77,7 @@ protected:
     QMatrix4x4 m_projection;
     float distanceFactor = 0;
 
-    int16_t*** voxels;
+    int32_t*** voxels;
     short int numCubes;
     int numColors;
 

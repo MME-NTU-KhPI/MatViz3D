@@ -3,7 +3,7 @@
 #include "hdf5wrapper.h"
 #include "parameters.h"
 
-void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPoints, int16_t ***voxels)
+void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPoints, int32_t ***voxels)
 {
     const auto N = numCubes;
     wr = new ansysWrapper(true);

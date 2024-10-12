@@ -11,6 +11,7 @@
 #include "neumann.h"
 #include "moore.h"
 #include "dlca.h"
+#include "probability_algorithm.h"
 #include "probability_ellipse.h"
 #include "probability_circle.h"
 #include <QFileDialog>
@@ -27,8 +28,8 @@
 #include "stressanalysis.h"
 
 
-int16_t* createVoxelArray(int16_t*** voxels, int numCubes);
-std::unordered_map<int16_t, int> countVoxels(int16_t* voxelArray, int numCubes, int numColors);
+int32_t* createVoxelArray(int32_t*** voxels, int numCubes);
+std::unordered_map<int32_t, int> countVoxels(int32_t* voxelArray, int numCubes, int numColors);
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -39,7 +40,9 @@ MainWindow::MainWindow(QWidget *parent)
     setupFileMenu();
     setupWindowMenu();
 
-    connect(ui->statistics, &QPushButton::clicked, this, &MainWindow::on_statistics_clicked);
+    connect(ui->numOfPointsRadioButton, &QRadioButton::clicked, this, &MainWindow::onInitialConditionSelectionChanged);
+    connect(ui->concentrationRadioButton, &QRadioButton::clicked, this, &MainWindow::onInitialConditionSelectionChanged);
+    connect(ui->AlgorithmsBox, &QComboBox::currentTextChanged, this, &MainWindow::onProbabilityAlgorithmChanged);
     connect(this, &MainWindow::on_Start_clicked, this, &MainWindow::on_Start_clicked);
 
 
@@ -53,10 +56,24 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(ui->Rectangle9, &QLineEdit::editingFinished, this, [=]() {
         bool ok;
-        Parameters::points = ui->Rectangle9->text().toInt(&ok);
-        if (ok) {
+        if (ui->numOfPointsRadioButton->isChecked() == true)
+        {
+            Parameters::points = ui->Rectangle9->text().toInt(&ok);
+            if (ok) {
+                ui->myGLWidget->setNumColors(Parameters::points);
+            }
+        }
+        else if (ui->concentrationRadioButton->isChecked() == true)
+        {
+            double PercentOfConcentraion = ui->Rectangle9->text().toInt()/ 100.0;
+            qDebug() << "PercentOfConcentraion:" << PercentOfConcentraion;
+
+            Parameters::points = PercentOfConcentraion * std::pow(static_cast<double>(Parameters::size), 3);
+            qDebug() << "Calculated Points:" << Parameters::points;
+
             ui->myGLWidget->setNumColors(Parameters::points);
         }
+
     });
 
     ui->Rectangle10->setMinimum(0);
@@ -87,6 +104,28 @@ MainWindow::~MainWindow()
 void MainWindow::onLogMessageWritten(const QString &message)
 {
     ui->textEdit->append(message); // Вивід повідомлень в textEdit
+}
+
+void MainWindow::onProbabilityAlgorithmChanged(const QString &text)
+{
+    if (text == "Probability Algorithm")
+    {
+        probability_algorithm = new Probability_Algorithm;
+        probability_algorithm->show();
+    }
+
+}
+
+// Вибір між кількістю початкових точок та концентрацією
+void MainWindow::onInitialConditionSelectionChanged()
+{
+    if (ui->numOfPointsRadioButton->isChecked()) {
+        ui->concentrationRadioButton->setChecked(false);
+        qDebug() << "Number of points is checked";
+    } else if (ui->concentrationRadioButton->isChecked()) {
+        ui->numOfPointsRadioButton->setChecked(false);
+        qDebug() << "Concentration is checked";
+    }
 }
 
 // Функція перевірки для старт
@@ -126,6 +165,10 @@ void MainWindow::on_Start_clicked()
     {
         QMessageBox::warning(nullptr, "Warning!", "Invalid initial points value entered!\nThis will result in incorrect program operation!");
     }
+    else if(Parameters::points > std::pow(Parameters::size,3))
+    {
+        QMessageBox::warning(nullptr, "Warning!", "The entered value of the initial points exceeds the number of points in the cube! This may lead to incorrect operation of the programme. Please make sure that the number of starting points does not exceed the volume of the cube!");
+    }
     ui->Start->setText("Loading...");
     ui->Start->setStyleSheet("background: transparent; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
     QApplication::processEvents();
@@ -154,136 +197,157 @@ void MainWindow::on_Start_clicked()
     }
     else if (selectedAlgorithm == "Probability Circle")
     {
-            Probability_Circle start(Parameters::size, Parameters::points);
-            Parameters::voxels = start.Generate_Initial_Cube();
-            start.Generate_Random_Starting_Points(isWaveGeneration);
-            start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
-            if (isAnimation == 0)
+        Probability_Circle start(Parameters::size, Parameters::points);
+        Parameters::voxels = start.Generate_Initial_Cube();
+        start.Generate_Random_Starting_Points(isWaveGeneration);
+        start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
+        if (isAnimation == 0)
+        {
+            start.Generate_Filling(isAnimation, isWaveGeneration);
+            ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
+            ui->myGLWidget->update();
+        }
+        else
+        {
+            while (!start.grains.empty())
             {
                 start.Generate_Filling(isAnimation, isWaveGeneration);
-                ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
-                ui->myGLWidget->update();
+                QApplication::processEvents();
+                ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
             }
-            else
-            {
-                while (!start.grains.empty())
-                {
-                    start.Generate_Filling(isAnimation, isWaveGeneration);
-                    QApplication::processEvents();
-                    ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
-                }
-            }
-            qDebug() << "PROBABILITY CIRCLE";
+        }
+        qDebug() << "PROBABILITY CIRCLE";
     }
     else if (selectedAlgorithm == "Probability Ellipse")
     {
-            Probability_Ellipse start(Parameters::size, Parameters::points);
-            Parameters::voxels = start.Generate_Initial_Cube();
-            start.Generate_Random_Starting_Points(isWaveGeneration);
-            start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
-            if (isAnimation == 0)
+        Probability_Ellipse start(Parameters::size, Parameters::points);
+        Parameters::voxels = start.Generate_Initial_Cube();
+        start.Generate_Random_Starting_Points(isWaveGeneration);
+        start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
+        if (isAnimation == 0)
+        {
+            start.Generate_Filling(isAnimation, isWaveGeneration);
+            ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
+            ui->myGLWidget->update();
+        }
+        else
+        {
+            while (!start.grains.empty())
             {
                 start.Generate_Filling(isAnimation, isWaveGeneration);
-                ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
-                ui->myGLWidget->update();
+                QApplication::processEvents();
+                ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
             }
-            else
-            {
-                while (!start.grains.empty())
-                {
-                    start.Generate_Filling(isAnimation, isWaveGeneration);
-                    QApplication::processEvents();
-                    ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
-                }
-            }
-            qDebug() << "PROBABILITY ELLIPSE";
+        }
+        qDebug() << "PROBABILITY ELLIPSE";
+    }
+    else if (selectedAlgorithm == "Probability Algorithm")
+    {
+        probability_algorithm->setNumCubes(Parameters::size);
+        probability_algorithm->setNumColors(Parameters::points);
+        Parameters::voxels = probability_algorithm->Generate_Initial_Cube();
+        probability_algorithm->Generate_Random_Starting_Points(isWaveGeneration);
+        probability_algorithm->remainingPoints = probability_algorithm->numColors - static_cast<int>(0.1 * probability_algorithm->numColors);
+        probability_algorithm->Generate_Filling(isAnimation,isWaveGeneration);
+        ui->myGLWidget->setVoxels(probability_algorithm->voxels,probability_algorithm->numCubes);
+        ui->myGLWidget->update();
     }
     else if (selectedAlgorithm == "Moore")
     {
-            Moore start(Parameters::size, Parameters::points);
-            Parameters::voxels = start.Generate_Initial_Cube();
-            start.Generate_Random_Starting_Points(isWaveGeneration);
-            start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
-            if (isAnimation == 0)
+        Moore start(Parameters::size, Parameters::points);
+        Parameters::voxels = start.Generate_Initial_Cube();
+        start.Generate_Random_Starting_Points(isWaveGeneration);
+        start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
+        if (isAnimation == 0)
+        {
+            start.Generate_Filling(isAnimation, isWaveGeneration);
+            ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
+            ui->myGLWidget->update();
+        }
+        else
+        {
+            while (!start.grains.empty())
             {
                 start.Generate_Filling(isAnimation, isWaveGeneration);
-                ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
-                ui->myGLWidget->update();
+                QApplication::processEvents();
+                ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
             }
-            else
-            {
-                while (!start.grains.empty())
-                {
-                    start.Generate_Filling(isAnimation, isWaveGeneration);
-                    QApplication::processEvents();
-                    ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
-                }
-            }
-            qDebug() << "MOORE";
+        }
+        qDebug() << "MOORE";
     }
     else if(selectedAlgorithm == "Radial")
     {
-            Radial start(Parameters::size, Parameters::points);
-            Parameters::voxels = start.Generate_Initial_Cube();
-            start.Generate_Random_Starting_Points(isWaveGeneration);
-            start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
-            if (isAnimation == 0)
+        Radial start(Parameters::size, Parameters::points);
+        Parameters::voxels = start.Generate_Initial_Cube();
+        start.Generate_Random_Starting_Points(isWaveGeneration);
+        start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
+        if (isAnimation == 0)
+        {
+            start.Generate_Filling(isAnimation, isWaveGeneration);
+            ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
+            ui->myGLWidget->update();
+        }
+        else
+        {
+            while (!start.grains.empty())
             {
                 start.Generate_Filling(isAnimation, isWaveGeneration);
-                ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
-                ui->myGLWidget->update();
+                QApplication::processEvents();
+                ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
             }
-            else
-            {
-                while (!start.grains.empty())
-                {
-                    start.Generate_Filling(isAnimation, isWaveGeneration);
-                    QApplication::processEvents();
-                    ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
-                }
-            }
-            qDebug() << "RADIAL";
+        }
+        qDebug() << "RADIAL";
     }
     if(selectedAlgorithm == "DLCA")
     {
-            DLCA start(Parameters::size, Parameters::points);
-            Parameters::voxels = start.Generate_Initial_Cube();
-            start.Generate_Random_Starting_Points();
-            if (isAnimation == 0)
+        DLCA start(Parameters::size, Parameters::points);
+        Parameters::voxels = start.Generate_Initial_Cube();
+        start.Generate_Random_Starting_Points();
+        if (isAnimation == 0)
+        {
+            start.Generate_Filling(isAnimation, isWaveGeneration);
+            ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
+            ui->myGLWidget->update();
+        }
+        else
+        {
+            while (!start.grains.empty())
             {
                 start.Generate_Filling(isAnimation, isWaveGeneration);
-                ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
-                ui->myGLWidget->update();
+                QApplication::processEvents();
+                ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
             }
-            else
-            {
-                while (!start.grains.empty())
-                {
-                    start.Generate_Filling(isAnimation, isWaveGeneration);
-                    QApplication::processEvents();
-                    ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
-                }
-            }
-            qDebug() << "DLCA";
+        }
+        qDebug() << "DLCA";
     }
     ui->Start->setText("RELOAD");
     ui->Start->setStyleSheet("background: #282828; border-radius: 8px; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
     clock_t end_time = clock(); // Фіксація часу завершення виконання
     double elapsed_time = double(end_time - start_time) / CLOCKS_PER_SEC; // Обчислення часу виконання в секундах
     qDebug() << "Total execution time: " << elapsed_time << " seconds";
-    ui->myGLWidget->calculateSurfaceArea();
+    // ui->myGLWidget->calculateSurfaceArea();
     startButtonPressed = true;
 }
 
 void MainWindow::on_statistics_clicked()
 {
+    clock_t start_time = clock();
+    //QMessageBox::information(nullptr, "Warning!", "The structure was not generated.");
     if(startButtonPressed == false)
     {
         QMessageBox::information(nullptr, "Warning!", "The structure was not generated.");
     }
     else{
-        QVector<int> colorCounts = ui->myGLWidget->countVoxelColors();
-        form.setVoxelCounts(colorCounts);
+        form.layersProcessing(Parameters::voxels, Parameters::size);
+        form.setPropertyBoxText("-----");
+        form.selectProperty();
+
+	//form.setVoxelCounts(Parameters::voxels, Parameters::size);
+        form.calcVolume3D(Parameters::voxels, Parameters::size);
+        form.surfaceArea3D(Parameters::voxels, Parameters::size);
+        form.calcESR();
+        form.calcMomentInertia();
+        form.calcNormVolume3D();
 
         QString selectedAlgorithm = ui->AlgorithmsBox->currentText();
 
@@ -312,6 +376,9 @@ void MainWindow::on_statistics_clicked()
         // Показати вікно
         form.show();
     }
+    clock_t end_time = clock(); // Фіксація часу завершення виконання
+    double elapsed_time = double(end_time - start_time) / CLOCKS_PER_SEC; // Обчислення часу виконання в секундах
+    qDebug() << "Total execution time: " << elapsed_time << " seconds";
 }
 
 
@@ -552,11 +619,12 @@ void MainWindow::onDataCheckBoxChanged(int state) {
 
 void MainWindow::onConsoleCheckBoxChanged(int state) {
     if (state == Qt::Checked) {
-        ui->ConsoleWidget->show();
+        ui->ConsoleWidget->setVisible(true);
     } else {
-        ui->ConsoleWidget->hide();
+        ui->ConsoleWidget->setVisible(false);
     }
 }
+
 
 void MainWindow::onAnimationCheckBoxChanged(int state) {
     // Обробка зміни стану чекбоксу All
@@ -611,6 +679,14 @@ void MainWindow::setNumCubes(short int arg)
 
 void MainWindow::setNumColors(int arg)
 {
+    QString str = QString::number(arg);
+    ui->Rectangle9->setText(str);
+    emit ui->Rectangle9->editingFinished();
+}
+
+void MainWindow::setConcentration(int arg)
+{
+    ui->concentrationRadioButton->setChecked(true);
     QString str = QString::number(arg);
     ui->Rectangle9->setText(str);
     emit ui->Rectangle9->editingFinished();

@@ -4,7 +4,7 @@
 
 using namespace std;
 
-DLCA_Aggregate::DLCA_Aggregate(int16_t*** voxels, int cubeSize)
+DLCA_Aggregate::DLCA_Aggregate(int32_t*** voxels, int cubeSize)
 {
     this->cubeSize = cubeSize;
     this->voxels = voxels;
@@ -28,9 +28,9 @@ bool DLCA_Aggregate::is_can_move_aggregate(int dx, int dy, int dz)
 {
     for (size_t i = 0; i < this->aggr.size(); i++)
     {
-        int16_t x = (aggr[i].x + dx + cubeSize) % cubeSize; // get new x position
-        int16_t y = (aggr[i].y + dy + cubeSize) % cubeSize; // get new y position
-        int16_t z = (aggr[i].z + dz + cubeSize) % cubeSize; // get new z position
+        int32_t x = (aggr[i].x + dx + cubeSize) % cubeSize; // get new x position
+        int32_t y = (aggr[i].y + dy + cubeSize) % cubeSize; // get new y position
+        int32_t z = (aggr[i].z + dz + cubeSize) % cubeSize; // get new z position
 
         if (voxels[x][y][z] != 0 && voxels[x][y][z] != this->id) // is this a free cell?
             return false;
@@ -126,8 +126,8 @@ void DLCA::Generate_Random_Starting_Points()
 
 #include <limits.h>
 
-int16_t my_abs(int16_t a) {
-    int16_t mask = (a >> (sizeof(int16_t) * CHAR_BIT - 1));
+int32_t my_abs(int32_t a) {
+    int32_t mask = (a >> (sizeof(int32_t) * CHAR_BIT - 1));
     return (a + mask) ^ mask;
 }
 

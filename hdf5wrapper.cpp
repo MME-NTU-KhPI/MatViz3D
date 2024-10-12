@@ -114,7 +114,7 @@ void HDF5Wrapper::write(const std::string& dataGroup, const std::string& dataSet
     H5Dclose(dataset);
 }
 
-void HDF5Wrapper::write(const std::string& dataGroup, const std::string& dataSetName, int16_t ***voxels , int size)
+void HDF5Wrapper::write(const std::string& dataGroup, const std::string& dataSetName, int32_t ***voxels , int size)
 {
     hid_t group_id = createGroupIfNotExists(dataGroup);
     /*

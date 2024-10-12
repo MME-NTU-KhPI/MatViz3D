@@ -7,7 +7,7 @@
 class StressAnalysis
 {
 public:
-    void estimateStressWithANSYS(short int numCubes, short int numPoints, int16_t ***voxels);
+    void estimateStressWithANSYS(short int numCubes, short int numPoints, int32_t ***voxels);
     ansysWrapper* wr;
 };
 

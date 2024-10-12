@@ -1,6 +1,7 @@
 
 #include "console.h"
 #include "stressanalysis.h"
+#include "QDebug"
 
 Console::Console()
 {
@@ -21,6 +22,13 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
         Parameters::points = str.toInt();
         window.setNumColors(Parameters::points);
     }
+    if (parser.isSet("concentration"))
+    {
+        QString str = parser.value("concentration");
+        float PercentOfConcentration = str.toFloat()/100;
+        Parameters::points = PercentOfConcentration*std::pow(Parameters::size,3);
+        window.setNumColors(Parameters::points);
+    }
     if (parser.isSet("algorithm"))
     {
         Parameters::algorithm = parser.value("algorithm");
@@ -34,10 +42,17 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
             window.setAlgorithms("Probability Ellipse");
         }
     }
-    if (!parser.isSet("nogui"))
+    if (parser.isSet("seed"))
     {
-        window.showMaximized();
+        QString str = parser.value("seed");
+        Parameters::seed = str.toInt();
     }
+    else
+        Parameters::seed = static_cast<unsigned int>(std::time(nullptr));
+//    if (!parser.isSet("nogui"))
+//    {
+//        window.show();
+//    }
     if (parser.isSet("autostart"))
     {
         window.onStartClicked();
@@ -66,5 +81,7 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
     {
         exit(0);
     }
-
+    else {
+        window.show();
+    }
 }

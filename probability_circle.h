@@ -14,7 +14,7 @@ public:
     Probability_Circle();
     Probability_Circle(short int numCubes, int numColors);
     void Generate_Filling(int isAnimation, int isWaveGeneration);
-    std::vector<Coordinate> Check (int16_t*** voxels, std::vector<Coordinate> grains, size_t i);
+    std::vector<Coordinate> Check (int32_t*** voxels, std::vector<Coordinate> grains, size_t i);
 
 private:
 

@@ -15,22 +15,21 @@ public:
     #pragma pack(push, 4)
     struct Coordinate
     {
-        int16_t x;
-        int16_t y;
-        int16_t z;
+        int32_t x;
+        int32_t y;
+        int32_t z;
     };
     #pragma pack(pop)
-
     unsigned int counter;
     unsigned int IterationNumber = 0;
-    int16_t*** voxels;
+    int32_t*** voxels;
     short int numCubes;
     int numColors;
-    short int color = 0;
+    int32_t color = 0;
     std::vector<Coordinate> grains;
     Parent_Algorithm();
     virtual void Generate_Filling(int isAnimation, int isWaveGeneration) = 0;
-    int16_t*** Generate_Initial_Cube();
+    int32_t*** Generate_Initial_Cube();
     void Generate_Random_Starting_Points(int isWaveGeneration);
     std::vector<Coordinate> Add_New_Points(std::vector<Coordinate> grains, int numPoints);
     std::vector<Coordinate> Delete_Points(std::vector<Coordinate> grains,size_t i);
