@@ -162,10 +162,10 @@ void ansysWrapper::defaultArgs()
 }
 
 
-void ansysWrapper::createFEfromArray(int32_t*** voxels, short int numCubes, int numSeeds)
+void ansysWrapper::createFEfromArray(int32_t*** voxels, short int numCubes, int numSeeds, bool is_random_orientation)
 {
     for (int i = 0; i < numSeeds + 1; i++)
-        this->createLocalCS();
+        this->createLocalCS(is_random_orientation);
 
     static const float node_coordinates[21][3] =
         {
@@ -327,12 +327,14 @@ void ansysWrapper::createFEfromArray(int32_t*** voxels, short int numCubes, int 
     qInfo().noquote() << FEM_info.arg(nodes.size()).arg(elemets.size()/20);
 }
 
-int ansysWrapper::createLocalCS()
+int ansysWrapper::createLocalCS(bool is_random_orientation)
 {
     QTextStream apdl(&m_apdl);
     int cs_id = this->m_lcs;
-    double eu_angles[3];
-    this->generate_random_angles(eu_angles, true);
+    double eu_angles[3] = {0};
+    if (is_random_orientation) // otherwise 0 as angle
+        this->generate_random_angles(eu_angles, true);
+
     this->local_cs.push_back(std::vector<float>(eu_angles, eu_angles + 3));
     qDebug() << "Creating local CS #" << cs_id;
     qDebug() << "    phi1 " << eu_angles[0];

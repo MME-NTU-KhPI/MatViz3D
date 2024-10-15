@@ -15,7 +15,7 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
 
     wr->setElemByNum(186);
 
-    wr->createFEfromArray(voxels, N, numPoints);
+    wr->createFEfromArray(voxels, N, numPoints, false);
 
     const float min_val = -1e-04;
     const float max_val =  1e-04;

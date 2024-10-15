@@ -540,7 +540,7 @@ border-radius: 13px;
 border: 0.5px solid rgba(0, 0, 0, 0.21);</string>
             </property>
             <layout class="QGridLayout" name="gridLayout_7">
-             <item row="0" column="0" alignment="Qt::AlignHCenter">
+             <item row="0" column="0" alignment="">
               <widget class="QWidget" name="verticalWidget" native="true">
                <property name="minimumSize">
                 <size>
@@ -562,7 +562,7 @@ border: 0;</string>
                 <property name="topMargin">
                  <number>7</number>
                 </property>
-                <item row="3" column="0" alignment="Qt::AlignHCenter">
+                <item row="3" column="0" alignment="">
                  <widget class="QFrame" name="algorithmsFrame">
                   <property name="minimumSize">
                    <size>
@@ -580,7 +580,7 @@ border: 0;</string>
                    <property name="topMargin">
                     <number>0</number>
                    </property>
-                   <item alignment="Qt::AlignHCenter">
+                   <item alignment="">
                     <widget class="QLabel" name="AlgorithmsLabel">
                      <property name="minimumSize">
                       <size>
@@ -608,7 +608,7 @@ color:#969696;</string>
                      </property>
                     </widget>
                    </item>
-                   <item alignment="Qt::AlignHCenter">
+                   <item alignment="">
                     <widget class="QComboBox" name="AlgorithmsBox">
                      <property name="minimumSize">
                       <size>
@@ -731,7 +731,7 @@ QComboBox QAbstractItemView:hover {
                    <property name="topMargin">
                     <number>3</number>
                    </property>
-                   <item alignment="Qt::AlignHCenter">
+                   <item alignment="">
                     <widget class="QLabel" name="Cube_size">
                      <property name="minimumSize">
                       <size>
@@ -764,7 +764,7 @@ line-height: normal;</string>
                      </property>
                     </widget>
                    </item>
-                   <item alignment="Qt::AlignHCenter">
+                   <item alignment="">
                     <widget class="QLineEdit" name="Rectangle8">
                      <property name="minimumSize">
                       <size>
@@ -791,7 +791,7 @@ padding-left: 4px;</string>
                   </layout>
                  </widget>
                 </item>
-                <item row="2" column="0" alignment="Qt::AlignHCenter">
+                <item row="2" column="0" alignment="">
                  <widget class="QFrame" name="numConPointsFrame">
                   <property name="minimumSize">
                    <size>
@@ -917,7 +917,7 @@ QRadioButton::indicator:unchecked {
                      </layout>
                     </widget>
                    </item>
-                   <item alignment="Qt::AlignHCenter">
+                   <item alignment="">
                     <widget class="QLineEdit" name="Rectangle9">
                      <property name="minimumSize">
                       <size>
@@ -962,7 +962,7 @@ padding-left: 4px;</string>
                    <string notr="true">border: 0;</string>
                   </property>
                   <layout class="QHBoxLayout" name="horizontalLayout_2">
-                   <item alignment="Qt::AlignHCenter">
+                   <item alignment="">
                     <widget class="QPushButton" name="Start">
                      <property name="minimumSize">
                       <size>
@@ -1189,6 +1189,9 @@ QSlider::handle {
                  </property>
                  <property name="sliderPosition">
                   <number>50</number>
+                 </property>
+                 <property name="orientation">
+                  <enum>Qt::Horizontal</enum>
                  </property>
                  <property name="tickPosition">
                   <enum>QSlider::NoTicks</enum>
@@ -1526,6 +1529,9 @@ QSlider::handle {
                  </property>
                  <property name="sliderPosition">
                   <number>0</number>
+                 </property>
+                 <property name="orientation">
+                  <enum>Qt::Horizontal</enum>
                  </property>
                  <property name="tickPosition">
                   <enum>QSlider::NoTicks</enum>
@@ -2020,8 +2026,8 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>1262</width>
-            <height>222</height>
+            <width>1268</width>
+            <height>228</height>
            </rect>
           </property>
           <layout class="QGridLayout" name="gridLayout_5">
