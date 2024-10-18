@@ -41,7 +41,7 @@ template <class T> T ***Parent_Algorithm::Create3D(int N1, int N2, int N3)
 
 int32_t*** Parent_Algorithm::Generate_Initial_Cube()
 {
-    voxels = this->Create3D<int32_t>(numCubes, numCubes, numCubes); // create continius allocated 3d dynamic array
+    voxels = this->Create3D<int32_t>(numCubes, numCubes, numCubes); // create continТius allocated 3d dynamic array
 
     assert(voxels); // the new operator should throw an exeption, but we will check again
 

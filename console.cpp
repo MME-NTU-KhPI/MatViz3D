@@ -49,10 +49,7 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
     }
     else
         Parameters::seed = static_cast<unsigned int>(std::time(nullptr));
-//    if (!parser.isSet("nogui"))
-//    {
-//        window.show();
-//    }
+
     if (parser.isSet("autostart"))
     {
         window.onStartClicked();
@@ -79,9 +76,11 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
     }
     if (parser.isSet("nogui"))
     {
-        exit(0);
+        exit(0); // terminating app -- all is done
     }
-    else {
+    else
+    {
+        window.update();
         window.show();
     }
 }

@@ -75,7 +75,7 @@ struct Object {
 
     // Default constructor
     Object() : label(0), size(0), perimeter(0), normArea(0.0f), ecr(0.0f),
-        shape_factor(0.0f), volume_3D(0), norm_volume_3D(0.0),
+        shape_factor(0.0), volume_3D(0), norm_volume_3D(0.0),
         surface_area_3D(0.0), moment_inertia_3D(0.0), ESR_3D(0.0) {}
 
     // Parameterized constructor

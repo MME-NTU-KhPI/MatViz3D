@@ -575,7 +575,6 @@ void MyGLWidget::paintGL()
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
     // clear buffer
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-    qDebug() << "PaitGL";
 
     // save the initial ModelView matrix before modifying ModelView matrix
     glPushMatrix();

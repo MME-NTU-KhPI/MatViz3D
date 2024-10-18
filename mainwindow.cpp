@@ -1,5 +1,3 @@
-#include <iostream>
-#include <Windows.h>
 #include "parameters.h"
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
