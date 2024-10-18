@@ -74,7 +74,7 @@ struct Object {
     double ESR_3D;
 
     // Default constructor
-    Object() : label(0), size(0), perimeter(0), normArea(0.0f), ecr(0.0f),
+    Object() : label(0), size(0), perimeter(0), normArea(0.0), ecr(0.0),
         shape_factor(0.0), volume_3D(0), norm_volume_3D(0.0),
         surface_area_3D(0.0), moment_inertia_3D(0.0), ESR_3D(0.0) {}
 
@@ -86,7 +86,7 @@ struct Object {
         moment_inertia_3D(_momentinertia3d), ESR_3D(_esr3d) {}
 
     Object(int label, int size, int perimeter, double normArea, double shape_factor, double ecr)
-        : label(label), size(size), perimeter(perimeter), normArea(normArea), shape_factor(shape_factor), ecr(ecr) {}
+        : label(label), size(size), perimeter(perimeter), normArea(normArea), ecr(ecr), shape_factor(shape_factor) {}
 
 };
 
