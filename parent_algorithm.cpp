@@ -1,7 +1,4 @@
-#include <iostream>
-#include <windows.h>
 #include <ctime>
-#include <list>
 #include <cmath>
 #include <myglwidget.h>
 #include <assert.h>
@@ -9,7 +6,6 @@
 #include "parameters.h"
 #include "parent_algorithm.h"
 #include <cstdint>
-#include <new>
 
 Parent_Algorithm::Parent_Algorithm()
 {
@@ -19,70 +15,41 @@ Parent_Algorithm::Parent_Algorithm()
  * The array is dynamic but continuous so it's a huge plus over the vector<> approach and loops of new[] calls.
  * https://stackoverflow.com/questions/8027958/c-3d-array-dynamic-memory-allocation-aligned-in-one-line
  */
-template <class T> T*** Parent_Algorithm::Create3D(int N1, int N2, int N3)
+
+template <class T> T ***Parent_Algorithm::Create3D(int N1, int N2, int N3)
 {
-    T ***array = new T **[N1];
-    array[0] = new T *[N1 * N2];
-    array[0][0] = new T[N1 * N2 * N3];
-}
+    T *** array = new T ** [N1];
+    array[0] = new T * [N1 * N2];
+    array[0][0] = new T [N1 * N2 * N3];
 
-int32_t*** Parent_Algorithm::Generate_Initial_Cube() {
-
-    //Создаём динамический массив. Вместо (30) подставить numCubes
-    voxels = new int32_t** [numCubes];
-    assert(voxels);
-    for (int i = 0; i < numCubes; i++) {
-        voxels[i] = new int32_t* [numCubes];
-        assert(voxels[i]);
-        for (int j = 0; j < numCubes; j++) {
-            voxels[i][j] = new int32_t[numCubes];
-            assert(voxels[i][j]);
-        }
-    }
-
-    for (int k = 0; k < numCubes; k++)
+    for(int i = 0; i < N1; i++)
     {
-        for (int i = 0; i < numCubes; i++)
+        if(i < N1 - 1)
         {
-            for (int j = 0; j < numCubes; j++)
-            {
-                voxels[k][i][j] = 0;
-            }
+            array[0][(i + 1)*N2] = &(array[0][0][(i + 1) * N3 * N2]);
+            array[i + 1] = &(array[0][(i + 1) * N2]);
+        }
+
+        for(int j = 0; j < N2; j++)
+        {
+            if(j > 0)
+                array[i][j] = array[i][j - 1] + N3;
         }
     }
+    return array;
+};
 
+int32_t*** Parent_Algorithm::Generate_Initial_Cube()
+{
+    voxels = this->Create3D<int32_t>(numCubes, numCubes, numCubes); // create continius allocated 3d dynamic array
 
-//    for (int i = 0; i < N1; i++)
-//    {
-//        if (i < N1 - 1)
-//        {
-//            array[0][(i + 1) * N2] = &(array[0][0][(i + 1) * N3 * N2]);
-//            array[i + 1] = &(array[0][(i + 1) * N2]);
-//        }
+    assert(voxels); // the new operator should throw an exeption, but we will check again
 
-//        for (int j = 0; j < N2; j++)
-//        {
-//            if (j > 0)
-//                array[i][j] = array[i][j - 1] + N3;
-//        }
-//    }
-
-//    return array;
-
-//    for (int i = 0; i < N1; i++)
-//    {
-//        if (i < N1 - 1)
-//        {
-//            voxels[0][(i + 1) * N2] = &(voxels[0][0][(i + 1) * N3 * N2]);
-//            voxels[i + 1] = &(voxels[0][(i + 1) * N2]);
-//        }
-
-//        for (int j = 0; j < N2; j++)
-//        {
-//            if (j > 0)
-//                voxels[i][j] = voxels[i][j - 1] + N3;
-//        }
-//    }
+    #pragma omp parallel for collapse(3)
+    for(int k = 0; k < numCubes; k++)
+        for(int i = 0; i < numCubes; i++)
+            for(int j = 0; j < numCubes; j++)
+                voxels[k][i][j] = 0;
 
     return voxels;
 };
@@ -101,7 +68,7 @@ void Parent_Algorithm::Generate_Random_Starting_Points(int isWaveGeneration)
     std::mt19937 generator(Parameters::seed);
     std::uniform_int_distribution<int> distribution(0, numCubes - 1);
     int currentPoints;
-    if (isWaveGeneration == 1)
+    if(isWaveGeneration == 1)
     {
         currentPoints = static_cast<int>(0.1 * numColors);
     }
@@ -110,7 +77,7 @@ void Parent_Algorithm::Generate_Random_Starting_Points(int isWaveGeneration)
         currentPoints = numColors;
     }
     Coordinate a;
-    for (int i = 0; i < currentPoints; i++)
+    for(int i = 0; i < currentPoints; i++)
     {
         a.x = distribution(generator);
         a.y = distribution(generator);
@@ -128,7 +95,7 @@ std::vector<Parent_Algorithm::Coordinate> Parent_Algorithm::Add_New_Points(std::
     std::uniform_int_distribution<int> distribution(0, numCubes - 1);
 
     Coordinate a;
-    for (int i = 0; i < numPoints; i++)
+    for(int i = 0; i < numPoints; i++)
     {
         a.x = distribution(generator);
         a.y = distribution(generator);
@@ -140,7 +107,7 @@ std::vector<Parent_Algorithm::Coordinate> Parent_Algorithm::Add_New_Points(std::
     return grains;
 }
 
-std::vector<Parent_Algorithm::Coordinate> Parent_Algorithm::Delete_Points(std::vector<Coordinate> grains,size_t i)
+std::vector<Parent_Algorithm::Coordinate> Parent_Algorithm::Delete_Points(std::vector<Coordinate> grains, size_t i)
 {
     grains.erase(grains.begin() + i);
     i--;
