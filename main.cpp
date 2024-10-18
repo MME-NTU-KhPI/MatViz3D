@@ -97,7 +97,7 @@ int main(int argc, char *argv[])
     parser.addOption(QCommandLineOption("output", "Specify output file for generated cube", "directory"));
     parser.addOption(QCommandLineOption("num_rnd_loads", "Set number of random loads (as eps) for stress analis", "num_rnd_loads"));
     parser.addOption(QCommandLineOption("run_stress_calc", "Run FEM to estimate stresses and strains"));
-    parser.addOption(QCommandLineOption("working_directory", "Set path where ansys working directory will be stored"));
+    parser.addOption(QCommandLineOption("working_directory", "Set path where ansys working directory will be stored","working_directory"));
     parser.process(a);
     MainWindow w;
     Console::processOptions(parser,w);

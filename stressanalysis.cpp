@@ -12,7 +12,7 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
         wr->setWorkingDirectory(Parameters::working_directory);
 
     wr->setSeed(Parameters::seed);
-    wr->setNP(1);
+    //wr->setNP(1);
     //wr.setMaterial(2.1e11, 0.3, 0);
 
     double c11 = 168.40e9, c12=121.40e9, c44=75.40e9; // copper bcc single crystal  https://solidmechanics.org/Text/Chapter3_2/Chapter3_2.php#Sect3_2_17

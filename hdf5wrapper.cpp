@@ -154,7 +154,7 @@ void HDF5Wrapper::write(const std::string& dataGroup, const std::string& dataSet
      * datatype and default dataset creation properties.
      */
     std::string dataset_name = (dataGroup + "/" + dataSetName);
-    hid_t dataset_id = H5Dcreate(file, dataset_name.c_str(), H5T_STD_I16LE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    hid_t dataset_id = H5Dcreate(file, dataset_name.c_str(), H5T_STD_I32LE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     if (dataset_id == H5I_INVALID_HID)
     {
         qCritical() << "Cannot create dataset in hdf5 file. Saving aborted";
@@ -164,7 +164,7 @@ void HDF5Wrapper::write(const std::string& dataGroup, const std::string& dataSet
     /*
      * Write the data to the dataset using default transfer properties.
      */
-    herr_t status = H5Dwrite(dataset_id, H5T_STD_I16LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, voxels[0][0]);
+    herr_t status = H5Dwrite(dataset_id, H5T_STD_I32LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, voxels[0][0]);
     if (status < 0)
         qCritical() << "Cannot write dataset";
 

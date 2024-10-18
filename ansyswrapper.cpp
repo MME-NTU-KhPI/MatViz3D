@@ -48,6 +48,8 @@ void ansysWrapper::setWorkingDirectory(QString path)
     tempDir = QTemporaryDir(path);
     m_projectPath = tempDir.path();
     m_projectPath = QDir::toNativeSeparators(m_projectPath);
+    qDebug() << "Woring directory is set to: " << m_projectPath;
+    defaultArgs();
 }
 
 void ansysWrapper::setSeed(unsigned int seed)
@@ -549,7 +551,7 @@ void ansysWrapper::applyComplexLoads(double x1, double y1, double z1,
     apdl << "NSEL,S, , ,all" << Qt::endl;
     apdl << "LSWRITE," << Qt::endl;
 
-    qDebug() << "nodes size:" << nodes.size();
+    // qDebug() << "nodes size:" << nodes.size();
 
 }
 
@@ -1000,7 +1002,7 @@ void ansysWrapper::load_loadstep(int num)
     QFile file(path_to_file);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
     {
-        qDebug() << "Can not open file to read results. Path to file: " << path_to_file;
+        qCritical() << "Can not open file to read results. Path to file: " << path_to_file;
         return;
     }
     int i = 0;
@@ -1052,29 +1054,29 @@ void ansysWrapper::load_loadstep(int num)
     {
         this->loadstep_results_avg[j] /= (float)this->loadstep_results.size();
     }
-    auto &avg = this->loadstep_results_avg;
-    auto &max = this->loadstep_results_max;
-    auto &min = this->loadstep_results_min;
+    // auto &avg = this->loadstep_results_avg;
+    // auto &max = this->loadstep_results_max;
+    // auto &min = this->loadstep_results_min;
 
-    qDebug() << "AVG Stress tensor: ";
-    qDebug() << "  "<< avg[SX]  << avg[SXY] << avg[SXZ];
-    qDebug() << "  "<< avg[SXY] << avg[SY]  << avg[SYZ];
-    qDebug() << "  "<< avg[SXZ] << avg[SYZ] << avg[SZ];
+    // qDebug() << "AVG Stress tensor: ";
+    // qDebug() << "  "<< avg[SX]  << avg[SXY] << avg[SXZ];
+    // qDebug() << "  "<< avg[SXY] << avg[SY]  << avg[SYZ];
+    // qDebug() << "  "<< avg[SXZ] << avg[SYZ] << avg[SZ];
 
-    qDebug() << "AVG Strain tensor: ";
-    qDebug() << "  "<< avg[EpsX]  << avg[EpsXY] << avg[EpsXZ];
-    qDebug() << "  "<< avg[EpsXY] << avg[EpsY]  << avg[EpsYZ];
-    qDebug() << "  "<< avg[EpsXZ] << avg[EpsYZ] << avg[EpsZ];
+    // qDebug() << "AVG Strain tensor: ";
+    // qDebug() << "  "<< avg[EpsX]  << avg[EpsXY] << avg[EpsXZ];
+    // qDebug() << "  "<< avg[EpsXY] << avg[EpsY]  << avg[EpsYZ];
+    // qDebug() << "  "<< avg[EpsXZ] << avg[EpsYZ] << avg[EpsZ];
 
-    qDebug() << "MAX Stress tensor: ";
-    qDebug() << "  "<< max[SX]  << max[SXY] << max[SXZ];
-    qDebug() << "  "<< max[SXY] << max[SY]  << max[SYZ];
-    qDebug() << "  "<< max[SXZ] << max[SYZ] << max[SZ];
+    // qDebug() << "MAX Stress tensor: ";
+    // qDebug() << "  "<< max[SX]  << max[SXY] << max[SXZ];
+    // qDebug() << "  "<< max[SXY] << max[SY]  << max[SYZ];
+    // qDebug() << "  "<< max[SXZ] << max[SYZ] << max[SZ];
 
-    qDebug() << "MIN Stress tensor: ";
-    qDebug() << "  "<< min[SX]  << min[SXY] << min[SXZ];
-    qDebug() << "  "<< min[SXY] << min[SY]  << min[SYZ];
-    qDebug() << "  "<< min[SXZ] << min[SYZ] << min[SZ];
+    // qDebug() << "MIN Stress tensor: ";
+    // qDebug() << "  "<< min[SX]  << min[SXY] << min[SXZ];
+    // qDebug() << "  "<< min[SXY] << min[SY]  << min[SYZ];
+    // qDebug() << "  "<< min[SXZ] << min[SYZ] << min[SZ];
 }
 
 float ansysWrapper::scaleValue01(float val, int component)
