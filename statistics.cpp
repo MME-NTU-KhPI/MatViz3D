@@ -281,7 +281,7 @@ void Statistics::selectProperty() {
                              return std::isinf(value) || std::isnan(value) || value == 0.0f;
                          }), propertyValues.end());
 
-    qDebug() << propertyValues;
+    //qDebug() << propertyValues;
 
     clearLayout(ui->horizontalFrame->layout());
     // Викликаємо функцію для побудови гістограми з оновленими значеннями властивостей

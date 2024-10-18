@@ -39,6 +39,20 @@ ansysWrapper::ansysWrapper(bool isBatch)
     findNp();
     findPathVersion();
     defaultArgs();
+    std::random_device myRandomDevice;
+    this->seed = myRandomDevice();
+}
+
+void ansysWrapper::setWorkingDirectory(QString path)
+{
+    tempDir = QTemporaryDir(path);
+    m_projectPath = tempDir.path();
+    m_projectPath = QDir::toNativeSeparators(m_projectPath);
+}
+
+void ansysWrapper::setSeed(unsigned int seed)
+{
+    this->seed = seed;
 }
 
 void ansysWrapper::run()
@@ -946,11 +960,8 @@ void ansysWrapper::generate_random_angles(double *angl, bool in_deg, double epsi
     if (!angl)
         return;
 
-    std::random_device myRandomDevice;
-    auto seed = myRandomDevice();
-
     std::uniform_real_distribution<double> unif(-1.0, 1.0);
-    std::default_random_engine re(seed);
+    std::mt19937 re(this->seed);
 
     double g[3][3];
     for (int i = 0; i < 3; i++)

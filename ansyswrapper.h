@@ -66,8 +66,14 @@ protected:
 
     QHash <n3d::node3d, int> result_nodes;
 
+    unsigned int seed;
+
 public:
     ansysWrapper(bool isBatch);
+
+    void setWorkingDirectory(QString path);
+    void setSeed(unsigned int seed);
+
     void run(QString apdl);
     void run();
     int kp(double x, double y);
@@ -108,7 +114,7 @@ public:
 
     void createFEfromArray(int32_t*** voxels, short int numCubes,int numSeeds, bool is_random_orientation = true);
     int createLocalCS(bool is_random_orientation = true);
-    static void generate_random_angles(double *angl, bool in_deg=false, double epsilon=1e-6);
+    void generate_random_angles(double *angl, bool in_deg=false, double epsilon=1e-6);
     void applyTensBC(double x1, double y1, double z1,
                      double x2, double y2, double z2,
                      double epsx, double epsy, double epsz);

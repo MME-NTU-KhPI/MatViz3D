@@ -2,11 +2,16 @@
 #include "ansysWrapper.h"
 #include "hdf5wrapper.h"
 #include "parameters.h"
+#include <random>
 
 void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPoints, int32_t ***voxels)
 {
     const auto N = numCubes;
     wr = new ansysWrapper(true);
+    if (! Parameters::working_directory.isEmpty())
+        wr->setWorkingDirectory(Parameters::working_directory);
+
+    wr->setSeed(Parameters::seed);
     wr->setNP(1);
     //wr.setMaterial(2.1e11, 0.3, 0);
 
@@ -36,8 +41,8 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
                                           f(ix), f(iy), f(iz),
                                           f(ixy), f(ixz), f(iyz));
               }
-    std::random_device rd;  // Will be used to obtain a seed for the random number engine
-    std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()
+
+    std::mt19937 gen(Parameters::seed); // use global seed
     std::uniform_real_distribution<double> dis(min_val, max_val);
     for (int rnd_step = wr->eps_as_loading.size(); rnd_step < n_total_steps; rnd_step++)
     {

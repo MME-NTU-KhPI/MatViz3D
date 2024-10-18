@@ -1,7 +1,7 @@
 #ifndef PARAMETERS_H
 #define PARAMETERS_H
 
-#include <mainwindow.h>
+#include <QString>
 
 
 class Parameters
@@ -14,6 +14,7 @@ public:
     static unsigned int seed;
     static QString filename;
     static int num_rnd_loads;
+    static QString working_directory; // save working directory
 };
 
 #endif // PARAMETERS_H

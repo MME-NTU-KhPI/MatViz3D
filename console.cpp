@@ -48,7 +48,11 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
         Parameters::seed = str.toInt();
     }
     else
+    {
         Parameters::seed = static_cast<unsigned int>(std::time(nullptr));
+    }
+    qInfo() << "Random seed value is set to:" << Parameters::seed;
+
 
     if (parser.isSet("autostart"))
     {
@@ -67,6 +71,11 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
         Parameters::filename = parser.value("output");
         if (Parameters::filename.endsWith(".csv"))
             window.callExportToCSV();
+    }
+
+    if (parser.isSet("working_directory"))
+    {
+        Parameters::working_directory = parser.value("working_directory");
     }
 
     if (parser.isSet("run_stress_calc"))

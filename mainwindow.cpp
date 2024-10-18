@@ -41,7 +41,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->numOfPointsRadioButton, &QRadioButton::clicked, this, &MainWindow::onInitialConditionSelectionChanged);
     connect(ui->concentrationRadioButton, &QRadioButton::clicked, this, &MainWindow::onInitialConditionSelectionChanged);
     connect(ui->AlgorithmsBox, &QComboBox::currentTextChanged, this, &MainWindow::onProbabilityAlgorithmChanged);
-    connect(this, &MainWindow::on_Start_clicked, this, &MainWindow::on_Start_clicked);
+    //connect(this, &MainWindow::on_Start_clicked, this, &MainWindow::on_Start_clicked);
 
 
     connect(ui->Rectangle8, &QLineEdit::editingFinished, this, [=]() {

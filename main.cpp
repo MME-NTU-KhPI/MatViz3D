@@ -34,6 +34,7 @@ QString logo_full_qstr = R"(
              +++++++++#########
                 *+++++######
                    +++###
+
 )";
 
 QString logo_qstr = R"(
@@ -61,6 +62,7 @@ QString logo_qstr = R"(
                 +++++++++#########
                    *+++++######
                       +++###
+
 )";
 
 QString textlogo_qstr = R"(
@@ -80,7 +82,7 @@ int main(int argc, char *argv[])
     QApplication::setApplicationVersion("2.01");
     QCommandLineParser parser;
 
-    std::cout << logo_full_qstr.toLatin1().constData();
+    std::cout << logo_full_qstr.toLatin1().constData() << std::endl;
     std::cout.flush();
 
     parser.addHelpOption();
@@ -95,6 +97,7 @@ int main(int argc, char *argv[])
     parser.addOption(QCommandLineOption("output", "Specify output file for generated cube", "directory"));
     parser.addOption(QCommandLineOption("num_rnd_loads", "Set number of random loads (as eps) for stress analis", "num_rnd_loads"));
     parser.addOption(QCommandLineOption("run_stress_calc", "Run FEM to estimate stresses and strains"));
+    parser.addOption(QCommandLineOption("working_directory", "Set path where ansys working directory will be stored"));
     parser.process(a);
     MainWindow w;
     Console::processOptions(parser,w);
