@@ -43,6 +43,15 @@ HDF5Wrapper::~HDF5Wrapper()
         H5Fclose(file);
 }
 
+bool HDF5Wrapper::checkError(hid_t id, const std::string& message)
+{
+    if (id == H5I_INVALID_HID) {
+        qCritical() << message.c_str();
+        return true;
+    }
+    return false;
+}
+
 hid_t HDF5Wrapper::createGroupIfNotExists(const std::string& groupName)
 {
     H5Eset_auto(H5E_DEFAULT, NULL, NULL); // Use updated error handler
@@ -56,72 +65,147 @@ hid_t HDF5Wrapper::createGroupIfNotExists(const std::string& groupName)
 
 void HDF5Wrapper::write(const std::string& dataGroup, const std::string& dataSetName, const std::vector<float>& data) {
     hid_t group_id = createGroupIfNotExists(dataGroup);
+    if (checkError(group_id, "write vector<float>: Failed to create group"))
+        return;
+
     hsize_t dims[1] = { data.size() };
     hid_t dataspace = H5Screate_simple(1, dims, nullptr);
+    if (checkError(dataspace, "write vector<float>: Failed to create dataspace"))
+    {
+        H5Gclose(group_id);
+        return;
+    }
+
     hid_t dataset = H5Dcreate(file, (dataGroup + "/" + dataSetName).c_str(), H5T_NATIVE_FLOAT, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (checkError(dataset, "write vector<float>: Failed to create dataset " + dataGroup + "/" + dataSetName))
+    {
+        H5Sclose(dataspace);
+        H5Gclose(group_id);
+        return;
+    }
     H5Dwrite(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data.data());
+
+    H5Dclose(dataset);
     H5Sclose(dataspace);
     H5Gclose(group_id);
-    H5Dclose(dataset);
+
 }
 
 void HDF5Wrapper::write(const std::string& dataGroup, const std::string& dataSetName, const std::vector<std::vector<float>>& data) {
     hid_t group_id = createGroupIfNotExists(dataGroup);
+    if (checkError(group_id, "write vector<vector<float>: Failed to create group"))
+        return;
     hsize_t dims[2] = { data.size(), data[0].size() };
     hid_t dataspace = H5Screate_simple(2, dims, nullptr);
-    hid_t dataset = H5Dcreate(file, (dataGroup + "/" + dataSetName).c_str(), H5T_NATIVE_FLOAT, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 
+    if (checkError(dataspace, "write vector<vector<float>>: Failed to create dataspace"))
+    {
+        H5Gclose(group_id);
+        return;
+    }
+    hid_t dataset = H5Dcreate(file, (dataGroup + "/" + dataSetName).c_str(), H5T_NATIVE_FLOAT, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (checkError(dataset, "write vector<vector<float>>: Failed to create dataset " + dataGroup + "/" + dataSetName))
+    {
+        H5Dclose(dataset);
+        H5Gclose(group_id);
+        return;
+    }
     std::vector<float> flatData;
     for (const auto& row : data) {
         flatData.insert(flatData.end(), row.begin(), row.end());
     }
 
     H5Dwrite(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, flatData.data());
+
+    H5Dclose(dataset);
     H5Sclose(dataspace);
     H5Gclose(group_id);
-    H5Dclose(dataset);
 }
 
 void HDF5Wrapper::write(const std::string& dataGroup, const std::string& dataSetName, int data)
 {
     hid_t group_id = createGroupIfNotExists(dataGroup);
+    if (checkError(group_id, "write int: Failed to create group"))
+        return;
+
     hid_t dataspace = H5Screate(H5S_SCALAR);
+    if (checkError(dataspace, "write int: Failed to create dataspace"))
+    {
+        H5Gclose(group_id);
+        return;
+    }
+
     hid_t dataset = H5Dcreate(file, (dataGroup + "/" + dataSetName).c_str(), H5T_NATIVE_INT, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (checkError(dataset, "write int: Failed to create dataset " + dataGroup + "/" + dataSetName))
+    {
+        H5Sclose(dataspace);
+        H5Gclose(group_id);
+        return;
+    }
     H5Dwrite(dataset, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &data);
+    H5Dclose(dataset);
     H5Sclose(dataspace);
     H5Gclose(group_id);
-    H5Dclose(dataset);
 }
 
-void HDF5Wrapper::write(const std::string& dataGroup, const std::string& dataSetName, float data) {
+void HDF5Wrapper::write(const std::string& dataGroup, const std::string& dataSetName, float data)
+{
     hid_t group_id = createGroupIfNotExists(dataGroup);
+    if (checkError(group_id, "write float: Failed to create group"))
+        return;
+
     hid_t dataspace = H5Screate(H5S_SCALAR);
+    if (checkError(dataspace, "write float: Failed to create dataspace"))
+    {
+        H5Gclose(group_id);
+        return;
+    }
     hid_t dataset = H5Dcreate(file, (dataGroup + "/" + dataSetName).c_str(), H5T_NATIVE_FLOAT, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (checkError(dataset, "write float: Failed to create dataset " + dataGroup + "/" + dataSetName))
+    {
+        H5Sclose(dataspace);
+        H5Gclose(group_id);
+        return;
+    }
     H5Dwrite(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &data);
     H5Sclose(dataspace);
     H5Gclose(group_id);
     H5Dclose(dataset);
 }
 
-void HDF5Wrapper::write(const std::string& dataGroup, const std::string& dataSetName, const QString& data) {
+void HDF5Wrapper::write(const std::string& dataGroup, const std::string& dataSetName, const QString& data)
+{
     hid_t group_id = createGroupIfNotExists(dataGroup);
+    if (checkError(group_id, "write QString: Failed to create group"))
+        return;
     QByteArray byteArray = data.toUtf8();
     hsize_t dims[1] = { static_cast<hsize_t>(byteArray.size()) };
     hid_t dataspace = H5Screate_simple(1, dims, nullptr);
+    if (checkError(dataspace, "write QString: Failed to create dataspace"))
+    {
+        H5Gclose(group_id);
+        return;
+    }
     hid_t dataset = H5Dcreate(file, (dataGroup + "/" + dataSetName).c_str(), H5T_NATIVE_CHAR, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (checkError(dataset, "write QString: Failed to create dataset " + dataGroup + "/" + dataSetName))
+    {
+        H5Sclose(dataspace);
+        H5Gclose(group_id);
+        return;
+    }
     H5Dwrite(dataset, H5T_NATIVE_CHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, byteArray.data());
+
+    H5Dclose(dataset);
     H5Sclose(dataspace);
     H5Gclose(group_id);
-    H5Dclose(dataset);
+
 }
 
 void HDF5Wrapper::write(const std::string& dataGroup, const std::string& dataSetName, int32_t ***voxels , int size)
 {
     hid_t group_id = createGroupIfNotExists(dataGroup);
-    /*
-     * Describe the size of the array and create the data space for fixed
-     * size dataset.
-     */
+    if (checkError(group_id, "write int32_t ***voxels: Failed to create group"))
+        return;
 
     hsize_t dims[3];  // assuming a 3D array
     dims[0] = size;
@@ -130,21 +214,22 @@ void HDF5Wrapper::write(const std::string& dataGroup, const std::string& dataSet
 
     // allocate space as dataspace
     hid_t dataspace = H5Screate_simple(3, dims, NULL);
-
-    if (dataspace == H5I_INVALID_HID)
+    if (checkError(dataspace, "write int32_t ***voxels: Failed to create dataspace"))
     {
-        qCritical() << "Cannot create dataspace in hdf5 file. Saving aborted";
-        return ;
-    }
-
-    hid_t lcpl;
-    if ((lcpl = H5Pcreate(H5P_LINK_CREATE)) == H5I_INVALID_HID)
-    {
-        qCritical() << "Cannot create property list in hdf5 file. Saving aborted";
+        H5Gclose(group_id);
         return;
     }
+
+    hid_t lcpl = H5Pcreate(H5P_LINK_CREATE);
+    if (checkError(lcpl, "write int32_t ***voxels: Cannot create property list in hdf5 file. Saving aborted"))
+    {
+        H5Gclose(group_id);
+        return;
+    }
+
     // create intermediate groups as needed
-    if (H5Pset_create_intermediate_group(lcpl, 1) < 0)
+
+    if ((H5Pset_create_intermediate_group(lcpl, 1)) < 0)
     {
         qCritical() << "Cannot create intermediate_group in hdf5 file. Saving aborted";
         return;
@@ -156,11 +241,12 @@ void HDF5Wrapper::write(const std::string& dataGroup, const std::string& dataSet
      */
     std::string dataset_name = (dataGroup + "/" + dataSetName);
     hid_t dataset_id = H5Dcreate(file, dataset_name.c_str(), H5T_STD_I32LE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    if (dataset_id == H5I_INVALID_HID)
+    if (checkError(dataset_id, "write int32_t ***voxels: Failed to create dataset " + dataGroup + "/" + dataSetName))
     {
-        qCritical() << "Cannot create dataset in hdf5 file. Saving aborted";
+        H5Pclose(lcpl);
         H5Sclose(dataspace);
-        return ;
+        H5Gclose(group_id);
+        return;
     }
     /*
      * Write the data to the dataset using default transfer properties.
@@ -169,9 +255,10 @@ void HDF5Wrapper::write(const std::string& dataGroup, const std::string& dataSet
     if (status < 0)
         qCritical() << "Cannot write dataset";
 
-    H5Gclose(group_id);
-    H5Sclose(dataspace);
     H5Dclose(dataset_id);
+    H5Pclose(lcpl);
+    H5Sclose(dataspace);
+    H5Gclose(group_id);
 }
 
 std::vector<float> HDF5Wrapper::readVectorFloat(const std::string& dataGroup, const std::string& dataSetName) {

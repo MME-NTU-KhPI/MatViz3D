@@ -74,8 +74,8 @@ public:
     void setWorkingDirectory(QString path);
     void setSeed(unsigned int seed);
 
-    void run(QString apdl);
-    void run();
+    bool run(QString apdl);
+    bool run();
     int kp(double x, double y);
     int spline(std::vector<int> kps, int left_boundary, int right_boundary);
     int spline(std::vector<double> x, std::vector<double> y, int left_boundary = 1, int right_boundary = 1);

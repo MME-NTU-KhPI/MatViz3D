@@ -31,6 +31,7 @@ public:
 private:
     hid_t file;
     hid_t createGroupIfNotExists(const std::string& groupName);
+    bool checkError(hid_t id, const std::string& message);
 };
 
 

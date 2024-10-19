@@ -64,12 +64,12 @@ bool ansysWrapper::clear_temp_data()
     return res;
 }
 
-void ansysWrapper::run()
+bool ansysWrapper::run()
 {
-    this->run(m_apdl);
+    return this->run(m_apdl);
 }
 
-void ansysWrapper::run(QString apdl)
+bool ansysWrapper::run(QString apdl)
 {
     QString fileName;
 
@@ -87,13 +87,14 @@ void ansysWrapper::run(QString apdl)
     if (!tempDir.isValid())
     {
         qDebug() <<"Temp dir error: " << tempDir.errorString();
+        return false;
     }
 
     QFile f(fileName);
     if(!f.open(QFile::WriteOnly|QFile::Text))
     {
         qDebug() << "Could not open the file for writing:" << fileName;
-        return;
+        return false;
     }
     f.write(apdl.toLatin1());
     f.close();
@@ -106,16 +107,17 @@ void ansysWrapper::run(QString apdl)
     pr.setWorkingDirectory(m_projectPath);
     pr.start(m_pathToAns, m_arg);
     pr.waitForFinished(INT_MAX);
-    qDebug() << "Ansys process output:\n" << pr.readAll();
+    qDebug().noquote() << "Ansys process output:\n" + pr.readAll();
     qDebug() << "Ansys process finished with code: " << pr.exitCode() << " Status: " << exitCodeToText(pr.exitCode());
 
     QFile ans_output(tempDir.filePath(m_jobName+".err"));
     if(ans_output.open(QFile::ReadOnly | QFile::Text))
     {
-        qDebug().nospace().noquote() << ans_output.readAll();
+        qDebug().noquote() << ans_output.readAll();
         ans_output.close();
     }
-
+    bool status = pr.exitCode() == 0 || pr.exitCode() == 8;
+    return status;
 }
 
 QString ansysWrapper::exitCodeToText(int retcode)

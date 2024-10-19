@@ -52,8 +52,13 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
     }
     wr->solveLS(1, n_total_steps);
     wr->saveAll();
-    wr->run();
+    bool success = wr->run();
 
+    if (!success)
+    {
+        qCritical() << "Ansys run was unsuccessfull. Exiting...";
+        return;
+    }
     HDF5Wrapper hdf5(Parameters::filename.toStdString());
 
     int last_set = hdf5.readInt("/", "last_set");
@@ -74,7 +79,7 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
     hdf5.write(prefix, "cubeSize", Parameters::size);
     hdf5.write(prefix, "numPoints", Parameters::points);
     hdf5.write(prefix, "local_cs", wr->local_cs);
-    for (int ls_num = 1; ls_num <= n_total_steps; ls_num++)
+    for (size_t ls_num = 1; ls_num <= wr->eps_as_loading.size(); ls_num++)
     {
         std::string ls_str = "/ls_" + std::to_string(ls_num);
         wr->load_loadstep(ls_num);
@@ -83,7 +88,7 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
         hdf5.write(prefix + ls_str, "results_max", wr->loadstep_results_max);
         hdf5.write(prefix + ls_str, "results_min", wr->loadstep_results_min);
         hdf5.write(prefix + ls_str, "results", wr->loadstep_results);
-        hdf5.write(prefix + ls_str, "eps_as_loading", wr->eps_as_loading[ls_num]);
+        hdf5.write(prefix + ls_str, "eps_as_loading", wr->eps_as_loading[ls_num-1]);
     }
 
     wr->clear_temp_data();
