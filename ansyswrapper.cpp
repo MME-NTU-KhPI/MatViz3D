@@ -963,7 +963,7 @@ void ansysWrapper::generate_random_angles(double *angl, bool in_deg, double epsi
         return;
 
     std::uniform_real_distribution<double> unif(-1.0, 1.0);
-    std::mt19937 re(this->seed);
+    static std::mt19937 re(this->seed);
 
     double g[3][3];
     for (int i = 0; i < 3; i++)
