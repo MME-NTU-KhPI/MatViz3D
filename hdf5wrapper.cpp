@@ -43,12 +43,13 @@ HDF5Wrapper::~HDF5Wrapper()
         H5Fclose(file);
 }
 
-hid_t HDF5Wrapper::createGroupIfNotExists(const std::string& groupName) {
-    H5Eset_auto1(H5E_DEFAULT, NULL);
-    hid_t group_id = H5Gopen1(file, groupName.c_str());
+hid_t HDF5Wrapper::createGroupIfNotExists(const std::string& groupName)
+{
+    H5Eset_auto(H5E_DEFAULT, NULL, NULL); // Use updated error handler
+    hid_t group_id = H5Gopen2(file, groupName.c_str(), H5P_DEFAULT); // Use H5Gopen2
     if (group_id == H5I_INVALID_HID)
     {
-        group_id = H5Gcreate(file, groupName.c_str(), H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        group_id = H5Gcreate2(file, groupName.c_str(), H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT); // Use H5Gcreate2
     }
     return group_id;
 }
@@ -85,7 +86,7 @@ void HDF5Wrapper::write(const std::string& dataGroup, const std::string& dataSet
 {
     hid_t group_id = createGroupIfNotExists(dataGroup);
     hid_t dataspace = H5Screate(H5S_SCALAR);
-    hid_t dataset = H5Dcreate(file, (dataGroup + "/" + dataSetName).c_str(), H5T_NATIVE_FLOAT, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    hid_t dataset = H5Dcreate(file, (dataGroup + "/" + dataSetName).c_str(), H5T_NATIVE_INT, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     H5Dwrite(dataset, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &data);
     H5Sclose(dataspace);
     H5Gclose(group_id);
@@ -223,7 +224,18 @@ float HDF5Wrapper::readFloat(const std::string& dataGroup, const std::string& da
 int HDF5Wrapper::readInt(const std::string& dataGroup, const std::string& dataSetName)
 {
     hid_t group_id = createGroupIfNotExists(dataGroup);
+    if (group_id < 0) {
+        // Handle error
+        qCritical() << "Can not create group " << dataGroup;
+        return -1;
+    }
     hid_t dataset = H5Dopen(file, (dataGroup + "/" + dataSetName).c_str(), H5P_DEFAULT);
+    if (dataset < 0) {
+        // Handle error
+        qCritical() << "Can not open dataset " << dataGroup + "/" + dataSetName;
+        H5Gclose(group_id);
+        return -1;
+    }
     int data;
     H5Dread(dataset, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &data);
     H5Dclose(dataset);

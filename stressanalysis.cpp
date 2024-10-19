@@ -20,7 +20,7 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
 
     wr->setElemByNum(186);
 
-    wr->createFEfromArray(voxels, N, numPoints, false);
+    wr->createFEfromArray(voxels, N, numPoints, true);
 
     const float min_val = -1e-04;
     const float max_val =  1e-04;
@@ -56,11 +56,17 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
 
     HDF5Wrapper hdf5(Parameters::filename.toStdString());
 
-    int last_set = hdf5.readInt("","last_set") + 1;
-    if (last_set == 1)
-        hdf5.write("","last_set", last_set);
+    int last_set = hdf5.readInt("/", "last_set");
+    if (last_set == -1) // Handle missing dataset case
+    {
+        last_set = 1;
+        hdf5.write("/", "last_set", last_set);
+    }
     else
-        hdf5.update("","last_set", last_set);
+    {
+        last_set += 1;
+        hdf5.update("/", "last_set", last_set);
+    }
 
     std::string prefix = ("/" + QString::number(last_set)).toStdString();
 
@@ -78,6 +84,6 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
         hdf5.write(prefix + ls_str, "results_min", wr->loadstep_results_min);
         hdf5.write(prefix + ls_str, "results", wr->loadstep_results);
         hdf5.write(prefix + ls_str, "eps_as_loading", wr->eps_as_loading[ls_num]);
-
     }
+    //delete wr;
 }
