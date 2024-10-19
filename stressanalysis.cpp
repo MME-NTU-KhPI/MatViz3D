@@ -85,5 +85,7 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
         hdf5.write(prefix + ls_str, "results", wr->loadstep_results);
         hdf5.write(prefix + ls_str, "eps_as_loading", wr->eps_as_loading[ls_num]);
     }
+
+    wr->clear_temp_data();
     //delete wr;
 }

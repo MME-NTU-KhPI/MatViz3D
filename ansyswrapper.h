@@ -100,6 +100,7 @@ public:
     void solveLS(int start, int end);
 
     void clear();
+    bool clear_temp_data();
 
     QString getAnsExec();
     void setAnsExec(QString exec);

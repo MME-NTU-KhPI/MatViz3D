@@ -57,6 +57,13 @@ void ansysWrapper::setSeed(unsigned int seed)
     this->seed = seed;
 }
 
+bool ansysWrapper::clear_temp_data()
+{
+    bool res = tempDir.remove();
+    qDebug() << "Ansys tmp dir has been removed :" << res;
+    return res;
+}
+
 void ansysWrapper::run()
 {
     this->run(m_apdl);
