@@ -62,6 +62,7 @@ SOURCES += \
     about.cpp \
     animation.cpp \
     ansyswrapper.cpp \
+    composite.cpp \
     console.cpp \
     export.cpp \
     dlca.cpp \
@@ -86,6 +87,7 @@ HEADERS += \
     about.h \
     animation.h \
     ansyswrapper.h \
+    composite.h \
     console.h \
     export.h \
     dlca.h \

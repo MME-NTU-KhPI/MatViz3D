@@ -8,6 +8,7 @@
 #include "radial.h"
 #include "neumann.h"
 #include "moore.h"
+#include "composite.h"
 #include "dlca.h"
 #include "probability_algorithm.h"
 #include "probability_ellipse.h"
@@ -295,6 +296,16 @@ void MainWindow::on_Start_clicked()
             }
         }
         qDebug() << "RADIAL";
+    }
+    if(selectedAlgorithm == "Composite")
+    {
+        Composite start(Parameters::size, Parameters::points);
+        Parameters::voxels = start.Generate_Initial_Cube();
+        start.Generate_Random_Starting_Points(isWaveGeneration);
+        start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
+        start.FillWithCylinder(isAnimation,isWaveGeneration,1);
+        ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
+        ui->myGLWidget->update();
     }
     if(selectedAlgorithm == "DLCA")
     {
