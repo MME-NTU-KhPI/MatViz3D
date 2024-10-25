@@ -303,7 +303,8 @@ void MainWindow::on_Start_clicked()
         Parameters::voxels = start.Generate_Initial_Cube();
         start.Generate_Random_Starting_Points(isWaveGeneration);
         start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
-        start.FillWithCylinder(isAnimation,isWaveGeneration,1);
+        start.setRadius(Parameters::points);
+        start.FillWithCylinder(isAnimation,isWaveGeneration);
         ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
         ui->myGLWidget->update();
     }
