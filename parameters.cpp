@@ -3,7 +3,7 @@
 
 int32_t*** Parameters::voxels;
 short int Parameters::size;
-int Parameters::points;
+int Parameters::points = 0;
 unsigned int Parameters::seed;
 QString Parameters::algorithm;
 QString Parameters::filename;
