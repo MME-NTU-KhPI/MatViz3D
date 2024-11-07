@@ -19,7 +19,7 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
     }
     else
     {
-        Parameters::size = 5;
+        //Parameters::size = 5;
         qInfo() << "size:" << Parameters::size;
         window.setNumCubes(Parameters::size);
     }

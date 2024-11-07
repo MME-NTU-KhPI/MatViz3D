@@ -17,14 +17,14 @@ public:
     ~Probability_Algorithm();
     void setHalfAxis();
     void Generate_Filling(int isAnimation, int isWaveGeneration);
-    void writeProbabilitiesToCSV(double probability[3][3][3], const QString& filePath, uint64_t N); // Method
+    void processValues();
+    void processValuesGrid();
+    void writeProbabilitiesToCSV(const QString& filePath, uint64_t N); // Method
     void setNumCubes(short int numCubes);
     void setNumColors(int numColors);
 private:
     std::vector<Coordinate> Add_New_Points(const std::vector<Coordinate>& newGrains, int pointsForThisStep);
     Ui::Probability_Algorithm *ui;
-    void processValues(double probability[3][3][3]);
-    void processValuesGrid(double probability[3][3][3]);
     bool isPointIn(double x,double y,double z);
     void rotatePoint(double& x, double& y, double& z);
     double toRadians(double degress);
@@ -35,6 +35,7 @@ private:
     float orientation_angle_a;
     float orientation_angle_b;
     float orientation_angle_c;
+    double probability[3][3][3];
 };
 
 #endif // PROBABILITY_ALGORITHM_H

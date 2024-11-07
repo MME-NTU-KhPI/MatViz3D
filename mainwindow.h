@@ -7,7 +7,6 @@
 #include <QPushButton>
 #include <QWidget>
 #include <QSlider>
-#include "animation.h"
 #include "statistics.h"
 #include "messagehandler.h"
 #include "about.h"

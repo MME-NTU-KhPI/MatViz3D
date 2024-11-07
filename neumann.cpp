@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <windows.h>
 #include <ctime>
 #include <list>
@@ -23,6 +24,7 @@ Neumann::Neumann(short int numCubes, int numColors)
 void Neumann::Generate_Filling(int isAnimation, int isWaveGeneration)
 {
     unsigned int counter_max = pow(numCubes,3);
+    auto start = std::chrono::high_resolution_clock::now();
     while (!grains.empty())
     {
         Coordinate temp;
@@ -78,4 +80,7 @@ void Neumann::Generate_Filling(int isAnimation, int isWaveGeneration)
             break;
         }
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end - start;
+    qDebug() << "Algorithm execution time: " << duration.count() << " seconds";
 }

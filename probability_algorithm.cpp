@@ -95,7 +95,7 @@ void Probability_Algorithm::rotatePoint(double& x, double& y, double& z)
 }
 
 
-void Probability_Algorithm::processValues(double probability[3][3][3])
+void Probability_Algorithm::processValues()
 {
     const uint64_t N = 100000000;
     std::random_device rd;
@@ -148,7 +148,7 @@ void Probability_Algorithm::processValues(double probability[3][3][3])
             }
 
     // Call the function to save the probabilities to a CSV file
-    writeProbabilitiesToCSV(probability, "D:/Project(MatViz3D)/fall2024/", N);
+    writeProbabilitiesToCSV("D:/Project(MatViz3D)/fall2024/", N);
 }
 
 std::vector<Parent_Algorithm::Coordinate> Probability_Algorithm::Add_New_Points(const std::vector<Coordinate>& newGrains, int pointsForThisStep) {
@@ -164,7 +164,7 @@ std::vector<Parent_Algorithm::Coordinate> Probability_Algorithm::Add_New_Points(
     return addedPoints;
 }
 
-void Probability_Algorithm::processValuesGrid(double probability[3][3][3])
+void Probability_Algorithm::processValuesGrid()
 {
     const uint64_t N = 1000000;
     uint64_t n = std::round(std::cbrt(N));
@@ -237,13 +237,11 @@ void Probability_Algorithm::processValuesGrid(double probability[3][3][3])
         }
     }
     // Call the function to save the probabilities to a CSV file
-    writeProbabilitiesToCSV(probability, "D:/Project(MatViz3D)/fall2024/", N);
+    writeProbabilitiesToCSV("D:/Project(MatViz3D)/fall2024/", N);
 }
 
 void Probability_Algorithm::Generate_Filling(int isAnimation, int isWaveGeneration)
 {
-    double probability[3][3][3];
-    processValuesGrid(probability);
     srand(time(NULL));
     unsigned int counter_max = pow(numCubes,3);
     while (!grains.empty())
@@ -310,7 +308,7 @@ void Probability_Algorithm::Generate_Filling(int isAnimation, int isWaveGenerati
 
 
 // Method to write the probabilities to a CSV file
-void Probability_Algorithm::writeProbabilitiesToCSV(double probability[3][3][3], const QString& filePath, uint64_t N)
+void Probability_Algorithm::writeProbabilitiesToCSV(const QString& filePath, uint64_t N)
 {
     // Створення імені файлу з додаванням значення N
     QString fileName = filePath + QDir::separator() + "N_" + QString::number(N) + ".csv";

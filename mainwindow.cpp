@@ -246,9 +246,23 @@ void MainWindow::on_Start_clicked()
         Parameters::voxels = probability_algorithm->Generate_Initial_Cube();
         probability_algorithm->Generate_Random_Starting_Points(isWaveGeneration);
         probability_algorithm->remainingPoints = probability_algorithm->numColors - static_cast<int>(0.1 * probability_algorithm->numColors);
-        probability_algorithm->Generate_Filling(isAnimation,isWaveGeneration);
-        ui->myGLWidget->setVoxels(probability_algorithm->voxels,probability_algorithm->numCubes);
-        ui->myGLWidget->update();
+        double probability[3][3][3];
+        probability_algorithm->processValuesGrid();
+        if (isAnimation == 0)
+        {
+            probability_algorithm->Generate_Filling(isAnimation,isWaveGeneration);
+            ui->myGLWidget->setVoxels(probability_algorithm->voxels,probability_algorithm->numCubes);
+            ui->myGLWidget->update();
+        }
+        else
+        {
+            while (!probability_algorithm->grains.empty())
+            {
+                probability_algorithm->Generate_Filling(isAnimation, isWaveGeneration);
+                QApplication::processEvents();
+                ui->myGLWidget->updateGLWidget(probability_algorithm->voxels,probability_algorithm->numCubes);
+            }
+        }
     }
     else if (selectedAlgorithm == "Moore")
     {
@@ -304,8 +318,9 @@ void MainWindow::on_Start_clicked()
         start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
         start.setRadius(Parameters::points);
         //start.FillWithCylinder(isAnimation,isWaveGeneration);
-        //start.FillWithTetra(isAnimation,isWaveGeneration);
-        start.FillWithHexa(isAnimation,isWaveGeneration);
+        //start.FillWithTetra(isAnimation,isWaveGeneration,1,1,1);
+        //start.FillWithHexa(isAnimation,isWaveGeneration,1,1,1);
+        start.FillCubeInChessPattern();
         ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
         ui->myGLWidget->update();
     }

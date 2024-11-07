@@ -11,7 +11,6 @@
 #include <array>
 #include <QFileDialog>
 #include <QTextStream>
-#include <set>
 #include <QDebug>
 
 

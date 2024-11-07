@@ -4,6 +4,7 @@
 #include <list>
 #include <cmath>
 #include <myglwidget.h>
+#include <fstream>
 #include "parent_algorithm.h"
 #include "moore.h"
 
@@ -23,6 +24,7 @@ Moore::Moore(short int numCubes, int numColors)
 void Moore::Generate_Filling(int isAnimation, int isWaveGeneration)
 {
     unsigned int counter_max = pow(numCubes,3);
+    auto start = std::chrono::high_resolution_clock::now();
     while (!grains.empty())
     {
         Coordinate temp;
@@ -70,4 +72,7 @@ void Moore::Generate_Filling(int isAnimation, int isWaveGeneration)
             break;
         }
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end - start;
+    qDebug() << "Algorithm execution time: " << duration.count() << " seconds";
 }
