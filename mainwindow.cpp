@@ -317,10 +317,9 @@ void MainWindow::on_Start_clicked()
         start.Generate_Random_Starting_Points(isWaveGeneration);
         start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
         start.setRadius(Parameters::points);
-        //start.FillWithCylinder(isAnimation,isWaveGeneration);
+        start.FillWithCylinder(isAnimation,isWaveGeneration);
         //start.FillWithTetra(isAnimation,isWaveGeneration,1,1,1);
         //start.FillWithHexa(isAnimation,isWaveGeneration,1,1,1);
-        start.FillCubeInChessPattern();
         ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
         ui->myGLWidget->update();
     }

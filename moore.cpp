@@ -30,6 +30,7 @@ void Moore::Generate_Filling(int isAnimation, int isWaveGeneration)
         Coordinate temp;
         int32_t x,y,z;
         std::vector<Coordinate> newGrains;
+        #pragma omp parallel for num_threads(12)
         for(size_t i = 0; i < grains.size(); i++)
         {
             temp = grains[i];
@@ -46,12 +47,16 @@ void Moore::Generate_Filling(int isAnimation, int isWaveGeneration)
                         int32_t newY = p+y;
                         int32_t newZ = l+z;
                         bool isValidXYZ = (newX >= 0 && newX < numCubes) && (newY >= 0 && newY < numCubes) && (newZ >= 0 && newZ < numCubes) && voxels[newX][newY][newZ] == 0;
-                        if (isValidXYZ)
-                        {
-                            voxels[newX][newY][newZ] = voxels[x][y][z];
-                            newGrains.push_back({newX,newY,newZ});
-                            counter++;
-                        }
+                            if (isValidXYZ)
+                            {
+                                #pragma omp critical
+                                {
+                                    voxels[newX][newY][newZ] = voxels[x][y][z];
+                                    newGrains.push_back({newX,newY,newZ});
+                                    counter++;
+                                }
+
+                            }
                     }
                 }
             }

@@ -30,6 +30,7 @@ void Neumann::Generate_Filling(int isAnimation, int isWaveGeneration)
         Coordinate temp;
         int32_t x,y,z;
         std::vector<Coordinate> newGrains;
+        #pragma omp parallel for num_threads(12)
         for(size_t i = 0; i < grains.size(); i++)
         {
             temp = grains[i];
@@ -44,23 +45,26 @@ void Neumann::Generate_Filling(int isAnimation, int isWaveGeneration)
                 bool isValidX = (newX >= 0 && newX < numCubes) && voxels[newX][y][z] == 0;
                 bool isValidY = (newY >= 0 && newY < numCubes) && voxels[x][newY][z] == 0;
                 bool isValidZ = (newZ >= 0 && newZ < numCubes) && voxels[x][y][newZ] == 0;
-                if (isValidX)
+                #pragma omp critical
                 {
-                    voxels[newX][y][z] = voxels[x][y][z];
-                    newGrains.push_back({newX,y,z});
-                    counter++;
-                }
-                if (isValidY)
-                {
-                    voxels[x][newY][z] = voxels[x][y][z];
-                    newGrains.push_back({x,newY,z});
-                    counter++;
-                }
-                if (isValidZ)
-                {
-                    voxels[x][y][newZ] = voxels[x][y][z];
-                    newGrains.push_back({x,y,newZ});
-                    counter++;
+                    if (isValidX)
+                    {
+                        voxels[newX][y][z] = voxels[x][y][z];
+                        newGrains.push_back({newX,y,z});
+                        counter++;
+                    }
+                    if (isValidY)
+                    {
+                        voxels[x][newY][z] = voxels[x][y][z];
+                        newGrains.push_back({x,newY,z});
+                        counter++;
+                    }
+                    if (isValidZ)
+                    {
+                        voxels[x][y][newZ] = voxels[x][y][z];
+                        newGrains.push_back({x,y,newZ});
+                        counter++;
+                    }
                 }
             }
         }

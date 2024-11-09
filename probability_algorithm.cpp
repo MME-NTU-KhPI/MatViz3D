@@ -97,7 +97,7 @@ void Probability_Algorithm::rotatePoint(double& x, double& y, double& z)
 
 void Probability_Algorithm::processValues()
 {
-    const uint64_t N = 100000000;
+    const uint64_t N = 1000000;
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<double> dis(0, 3);
@@ -244,6 +244,7 @@ void Probability_Algorithm::Generate_Filling(int isAnimation, int isWaveGenerati
 {
     srand(time(NULL));
     unsigned int counter_max = pow(numCubes,3);
+    auto start = std::chrono::high_resolution_clock::now();
     while (!grains.empty())
     {
         Coordinate temp;
@@ -304,6 +305,9 @@ void Probability_Algorithm::Generate_Filling(int isAnimation, int isWaveGenerati
             break;
         }
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end - start;
+    qDebug() << "Algorithm execution time: " << duration.count() << " seconds";
 }
 
 
