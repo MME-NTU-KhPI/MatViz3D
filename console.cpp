@@ -59,6 +59,12 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
     }
     qInfo() << "Random seed value is set to:" << Parameters::seed;
 
+    if (parser.isSet("wave_coefficient"))
+    {
+        QString str = parser.value("wave_coefficient");
+        Parameters::wave_coefficient = str.toFloat();
+        qInfo() << "wave_coefficient:" << Parameters::wave_coefficient;
+    }
 
     if (parser.isSet("autostart"))
     {

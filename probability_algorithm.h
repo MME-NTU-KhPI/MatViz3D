@@ -3,6 +3,7 @@
 
 #include <QWidget>
 #include "parent_algorithm.h"
+#include "parameters.h"
 
 namespace Ui {
 class Probability_Algorithm;

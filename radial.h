@@ -3,6 +3,7 @@
 #define RADIAL_H
 
 #include "parent_algorithm.h"
+#include "parameters.h"
 
 
 

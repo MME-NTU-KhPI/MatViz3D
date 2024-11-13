@@ -15,6 +15,8 @@ public:
     static QString filename;
     static int num_rnd_loads;
     static QString working_directory; // save working directory
+
+    static float wave_coefficient;
 };
 
 #endif // PARAMETERS_H

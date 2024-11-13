@@ -6,6 +6,7 @@
 #include <QtOpenGLWidgets/QOpenGLWidget>
 #include <mainwindow.h>
 #include "parent_algorithm.h"
+#include "parameters.h"
 
 
 
