@@ -245,6 +245,9 @@ void Probability_Algorithm::Generate_Filling(int isAnimation, int isWaveGenerati
     srand(time(NULL));
     unsigned int counter_max = pow(numCubes,3);
     auto start = std::chrono::high_resolution_clock::now();
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<> dis(0.0, 1.0);
     while (!grains.empty())
     {
         Coordinate temp;
@@ -258,17 +261,17 @@ void Probability_Algorithm::Generate_Filling(int isAnimation, int isWaveGenerati
             z = temp.z;
             for (int16_t k = -1; k < 2; k++)
             {
+                int16_t newX = k+x;
+                if (!(newX >= 0 && newX < numCubes)) continue;
                 for(int16_t p = -1; p < 2; p++)
                 {
+                    int16_t newY = p+y;
+                    if (!(newY >= 0 && newY < numCubes)) continue;
                     for(int16_t l = -1; l < 2; l++)
                     {
-                        int16_t newX = k+x;
-                        int16_t newY = p+y;
                         int16_t newZ = l+z;
-                        bool isValidXYZ = (newX >= 0 && newX < numCubes) && (newY >= 0 && newY < numCubes) && (newZ >= 0 && newZ < numCubes) && voxels[newX][newY][newZ] == 0;
-                        std::random_device rd;
-                        std::mt19937 gen(rd());
-                        std::uniform_real_distribution<> dis(0.0, 1.0);
+                        if (!(newZ >= 0 && newZ < numCubes)) continue;
+                        bool isValidXYZ = voxels[newX][newY][newZ] == 0;
                         if (isValidXYZ)
                         {
                             if(dis(gen) >= probability[1+k][1+p][1+l])
