@@ -63,7 +63,7 @@ MainWindow::MainWindow(QWidget *parent)
         }
         else if (ui->concentrationRadioButton->isChecked() == true)
         {
-            double PercentOfConcentraion = ui->Rectangle9->text().toInt()/ 100.0;
+            double PercentOfConcentraion = ui->Rectangle9->text().toFloat()/ 100.0;
             qDebug() << "PercentOfConcentraion:" << PercentOfConcentraion;
 
             Parameters::points = PercentOfConcentraion * std::pow(static_cast<double>(Parameters::size), 3);

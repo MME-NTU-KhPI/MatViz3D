@@ -17,45 +17,48 @@ void Composite::setRadius(short int radius)
 void Composite::FillWithCylinder(int isAnimation, int isWaveGeneration)
 {
     #pragma omp parallel for collapse(3)
-        for(int k = 0; k < numCubes; k++)
-            for(int i = 0; i < numCubes; i++)
-                for(int j = 0; j < numCubes; j++)
-                    voxels[k][i][j] = 1;
+    for (int k = 0; k < numCubes; k++)
+        for (int i = 0; i < numCubes; i++)
+            for (int j = 0; j < numCubes; j++)
+                voxels[k][i][j] = 1;
 
-        short int cylinderDiameter = radius * 2;
-        short int spacing = radius * 1.5;  // Увеличенный зазор между цилиндрами
-        short int centerOffset = cylinderDiameter + spacing;
+    short int cylinderDiameter = radius * 2;
+    short int spacing = radius * 3;  // Пространство между цилиндрами
+    short int centerOffset = cylinderDiameter + spacing;
 
-        short int maxCylinders = numCubes / centerOffset;  // Максимальное количество цилиндров по одной оси
+    // Определяем максимальное количество цилиндров на нижнем слое (основании пирамиды)
+    short int maxCylinders = numCubes / centerOffset;
 
-        color = 1 + rand() % 10;
+    // Итерация по уровням (слоям по оси Z)
+    for (int level = 0; level < maxCylinders; level++) {
+        // Определяем количество цилиндров в текущем слое
+        int numCylindersInLayer = maxCylinders - level; // Уменьшается с каждым уровнем
 
-                        // Итерация по слоям (Z-координата)
-        for (int z = 0; z < numCubes; z++) {
-            // Итерация по сетке с учётом centerOffset
-            for (int i = 0; i < maxCylinders; i++) {
-                for (int j = 0; j < maxCylinders; j++) {
-                    // Определение центра цилиндра
-                    short int centerX = i * centerOffset + radius;
-                    short int centerY = j * centerOffset + radius;
+        // Смещение для центрирования цилиндров в каждом уровне
+        int offsetX = (numCubes - (numCylindersInLayer * centerOffset)) / 2;
+        int offsetY = (numCubes - (numCylindersInLayer * centerOffset)) / 2;
 
-                    // Чередование шахматного порядка
-                    if ((i + j) % 2 == 1) {
-                        centerX += centerOffset / 2;
-                    }
+        // Размещение цилиндров в шахматном порядке в текущем уровне
+        for (int i = 0; i < numCylindersInLayer; i++) {
+            for (int j = 0; j < numCylindersInLayer; j++) {
+                // Определение центра цилиндра
+                short int centerX = offsetX + i * centerOffset + radius;
+                short int centerY = offsetY + j * centerOffset + radius;
 
-                    // Создание цилиндра на текущей позиции
+                // Создание цилиндра, проходящего через весь куб вдоль оси Z
+                for (int z = 0; z < numCubes; z++) {  // Z
                     for (int y = 0; y < numCubes; y++) {  // Y
                         for (int x = 0; x < numCubes; x++) {  // X
                             int distance = sqrt(pow(y - centerY, 2) + pow(x - centerX, 2));
                             if (distance <= radius) {
-                                voxels[x][y][z] = color;
+                                voxels[x][y][z] = 4;
                             }
                         }
                     }
                 }
             }
         }
+    }
 }
 
 void Composite::FillWithTetra(int isAnimation, int isWaveGeneration, short int offsetX, short int offsetY, short int offsetZ)
