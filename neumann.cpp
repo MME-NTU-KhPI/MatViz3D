@@ -35,9 +35,11 @@ void Neumann::Generate_Filling(int isAnimation, int isWaveGeneration)
     {
         std::vector<Coordinate> newGrains;
         unsigned int local_counter = 0;
+        std::vector<std::vector<Coordinate>> thread_grains(num_threads);
         #pragma omp parallel reduction(+:local_counter)
         {
-            std::vector<Coordinate> privateGrains;
+            int thread_id = omp_get_thread_num();
+            std::vector<Coordinate>& privateGrains = thread_grains[thread_id];
             #pragma omp for schedule(static)
             for (size_t i = 0; i < grains.size(); i++)
             {
@@ -73,8 +75,9 @@ void Neumann::Generate_Filling(int isAnimation, int isWaveGeneration)
                     }
                 }
             }
-            #pragma omp critical
-            newGrains.insert(newGrains.end(), privateGrains.begin(), privateGrains.end());
+        }
+        for (const auto& tg : thread_grains) {
+            newGrains.insert(newGrains.end(), tg.begin(), tg.end());
         }
         counter += local_counter;
         grains = std::move(newGrains);
