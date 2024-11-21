@@ -23,64 +23,60 @@ Neumann::Neumann(short int numCubes, int numColors)
 
 void Neumann::Generate_Filling(int isAnimation, int isWaveGeneration)
 {
-    std::string filename = "output.csv";
+    std::string filename = "Neumann_150_0.5.csv";
     std::ofstream file;
     file.open(filename, std::ios::app);
-    int num_threads = 12;
+    //file << "Thread;Time\n";
+    int num_threads = 6;
     omp_set_num_threads(num_threads);
     unsigned int counter_max = pow(numCubes, 3);
     auto start = std::chrono::high_resolution_clock::now();
-
     while (!grains.empty())
     {
         std::vector<Coordinate> newGrains;
-        #pragma omp parallel
+        unsigned int local_counter = 0;
+        #pragma omp parallel reduction(+:local_counter)
         {
             std::vector<Coordinate> privateGrains;
-
             #pragma omp for schedule(static)
-            for (size_t i = 0; i < grains.size(); i++) {
+            for (size_t i = 0; i < grains.size(); i++)
+            {
                 Coordinate temp = grains[i];
                 int32_t x = temp.x, y = temp.y, z = temp.z;
 
-                for (int32_t k = -1; k < 2; k += 2) {
+                for (int32_t k = -1; k < 2; k += 2)
+                {
                     int32_t newX = k + x;
                     int32_t newY = k + y;
                     int32_t newZ = k + z;
 
-                    if ((newX >= 0 && newX < numCubes) && voxels[newX][y][z] == 0) {
-                        if (__sync_bool_compare_and_swap(&voxels[newX][y][z], 0, voxels[x][y][z])) {
-                            privateGrains.push_back({newX, y, z});
-                            #pragma omp atomic
-                            counter++;
-                        }
+                    if (!(newX >= 0 && newX < numCubes)) continue;
+                    if (__sync_bool_compare_and_swap(&voxels[newX][y][z], 0, voxels[x][y][z]))
+                    {
+                        privateGrains.push_back({newX, y, z});
+                        local_counter++;
                     }
 
-                    if ((newY >= 0 && newY < numCubes) && voxels[x][newY][z] == 0) {
-                        if (__sync_bool_compare_and_swap(&voxels[x][newY][z], 0, voxels[x][y][z])) {
-                            privateGrains.push_back({x, newY, z});
-                            #pragma omp atomic
-                            counter++;
-                        }
+
+                    if (!(newY >= 0 && newY < numCubes)) continue;
+                    if (__sync_bool_compare_and_swap(&voxels[x][newY][z], 0, voxels[x][y][z]))
+                    {
+                        privateGrains.push_back({x, newY, z});
+                        local_counter++;
                     }
 
-                    if ((newZ >= 0 && newZ < numCubes) && voxels[x][y][newZ] == 0) {
-                        if (__sync_bool_compare_and_swap(&voxels[x][y][newZ], 0, voxels[x][y][z])) {
-                            privateGrains.push_back({x, y, newZ});
-                            #pragma omp atomic
-                            counter++;
-                        }
+                    if (!(newZ >= 0 && newZ < numCubes)) continue;
+                    if (__sync_bool_compare_and_swap(&voxels[x][y][newZ], 0, voxels[x][y][z]))
+                    {
+                        privateGrains.push_back({x, y, newZ});
+                        local_counter++;
                     }
                 }
             }
-
-            // Слияние результатов из локального буфера каждого потока
             #pragma omp critical
-            {
-                newGrains.insert(newGrains.end(), privateGrains.begin(), privateGrains.end());
-            }
+            newGrains.insert(newGrains.end(), privateGrains.begin(), privateGrains.end());
         }
-
+        counter += local_counter;
         grains = std::move(newGrains);
         IterationNumber++;
         double o = (double)counter / counter_max;
@@ -100,8 +96,8 @@ void Neumann::Generate_Filling(int isAnimation, int isWaveGeneration)
 
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;
-    file << num_threads << ";" << duration.count() << "\n";
     qDebug() << "Algorithm execution time: " << duration.count() << " seconds";
+    file << num_threads << ";" << duration.count() << "\n";
     file.close();
 }
 

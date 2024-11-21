@@ -22,37 +22,38 @@ void Composite::FillWithCylinder(int isAnimation, int isWaveGeneration)
             for (int j = 0; j < numCubes; j++)
                 voxels[k][i][j] = 1;
 
-    short int cylinderDiameter = radius * 2;
-    short int spacing = radius * 3;  // Пространство между цилиндрами
+    // Объём куба
+    float cubeVolume = std::pow(numCubes, 3);
+
+    // Общий объём цилиндров
+    float targetCylinderVolume = cubeVolume * 0.1 * radius;
+
+    // Радиус цилиндров (вычисляется из заданного объёма цилиндров)
+    float radius = std::cbrt(targetCylinderVolume / (M_PI * numCubes));
+
+    // Диаметр цилиндра и промежутки между цилиндрами
+    short int cylinderDiameter = static_cast<short int>(2 * radius);
+    short int spacing = cylinderDiameter * 0.05; // Зазор между цилиндрами
     short int centerOffset = cylinderDiameter + spacing;
 
-    // Определяем максимальное количество цилиндров на нижнем слое (основании пирамиды)
-    short int maxCylinders = numCubes / centerOffset;
+    // Определяем максимальное количество цилиндров вдоль одной стороны
+    short int maxCylindersPerRow = numCubes / centerOffset;
 
-    // Итерация по уровням (слоям по оси Z)
-    for (int level = 0; level < maxCylinders; level++) {
-        // Определяем количество цилиндров в текущем слое
-        int numCylindersInLayer = maxCylinders - level; // Уменьшается с каждым уровнем
+    // Итерация по сетке для размещения цилиндров
+    for (int i = 0; i < maxCylindersPerRow; i++) {
+        for (int j = 0; j < maxCylindersPerRow; j++) {
+            // Определяем центр текущего цилиндра
+            short int centerX = spacing + i * centerOffset + radius;
+            short int centerY = spacing + j * centerOffset + radius;
 
-        // Смещение для центрирования цилиндров в каждом уровне
-        int offsetX = (numCubes - (numCylindersInLayer * centerOffset)) / 2;
-        int offsetY = (numCubes - (numCylindersInLayer * centerOffset)) / 2;
-
-        // Размещение цилиндров в шахматном порядке в текущем уровне
-        for (int i = 0; i < numCylindersInLayer; i++) {
-            for (int j = 0; j < numCylindersInLayer; j++) {
-                // Определение центра цилиндра
-                short int centerX = offsetX + i * centerOffset + radius;
-                short int centerY = offsetY + j * centerOffset + radius;
-
-                // Создание цилиндра, проходящего через весь куб вдоль оси Z
-                for (int z = 0; z < numCubes; z++) {  // Z
-                    for (int y = 0; y < numCubes; y++) {  // Y
-                        for (int x = 0; x < numCubes; x++) {  // X
-                            int distance = sqrt(pow(y - centerY, 2) + pow(x - centerX, 2));
-                            if (distance <= radius) {
-                                voxels[x][y][z] = 4;
-                            }
+            // Создаём цилиндр, проходящий через весь куб вдоль оси Z
+            for (int x = 0; x <= numCubes; x++) {
+                for (int y = 0; y <= numCubes; y++) {
+                    int distance = sqrt(pow(x - centerX, 2) + pow(y - centerY, 2));
+                    if (distance <= radius) {
+                        // Заполняем весь столбец по оси Z
+                        for (int z = 0; z <= numCubes; z++) {
+                            voxels[x][y][z] = 5; // Помечаем цилиндры
                         }
                     }
                 }
