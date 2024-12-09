@@ -1,13 +1,8 @@
-#include <iostream>
-#include <fstream>
 #include <windows.h>
 #include <ctime>
-#include <list>
 #include <cmath>
 #include <myglwidget.h>
 #include "neumann.h"
-
-using namespace std;
 
 Neumann::Neumann()
 {
@@ -20,46 +15,44 @@ Neumann::Neumann(short int numCubes, int numColors)
     this->numColors = numColors;
 }
 
+const std::array<std::array<int32_t, 3>, 6> NEUMANN_OFFSETS = {{
+    {1,0,0}, {-1,0,0}, {0,1,0}, {0,-1,0}, {0,0,1}, {0,0,-1}
+}};
+
 
 void Neumann::Generate_Filling(int isAnimation, int isWaveGeneration)
 {
-    std::string filename = "Neumann_150_0.5.csv";
-    std::ofstream file;
-    file.open(filename, std::ios::app);
-    //file << "Thread;Time\n";
-    int num_threads = 6;
-    omp_set_num_threads(num_threads);
+    omp_set_num_threads(omp_get_max_threads());
     unsigned int counter_max = pow(numCubes, 3);
     auto start = std::chrono::high_resolution_clock::now();
     while (!grains.empty())
     {
+        const size_t current_size = grains.size();
         std::vector<Coordinate> newGrains;
+        newGrains.reserve(current_size * 26);
         unsigned int local_counter = 0;
-        std::vector<std::vector<Coordinate>> thread_grains(num_threads);
         #pragma omp parallel reduction(+:local_counter)
         {
-            int thread_id = omp_get_thread_num();
-            std::vector<Coordinate>& privateGrains = thread_grains[thread_id];
-            #pragma omp for schedule(static)
+            std::vector<Coordinate> privateGrains;
+            privateGrains.reserve(current_size * 26 / omp_get_max_threads());
+            #pragma omp for schedule(guided) nowait
             for (size_t i = 0; i < grains.size(); i++)
             {
                 Coordinate temp = grains[i];
                 int32_t x = temp.x, y = temp.y, z = temp.z;
 
-                for (int32_t k = -1; k < 2; k += 2)
+                #pragma omp simd
+                for (const auto& offset : NEUMANN_OFFSETS)
                 {
-                    int32_t newX = k + x;
-                    int32_t newY = k + y;
-                    int32_t newZ = k + z;
-
+                    const int32_t newX = x + offset[0];
+                    const int32_t newY = y + offset[1];
+                    const int32_t newZ = z + offset[2];
                     if (!(newX >= 0 && newX < numCubes)) continue;
                     if (__sync_bool_compare_and_swap(&voxels[newX][y][z], 0, voxels[x][y][z]))
                     {
                         privateGrains.push_back({newX, y, z});
                         local_counter++;
                     }
-
-
                     if (!(newY >= 0 && newY < numCubes)) continue;
                     if (__sync_bool_compare_and_swap(&voxels[x][newY][z], 0, voxels[x][y][z]))
                     {
@@ -74,10 +67,10 @@ void Neumann::Generate_Filling(int isAnimation, int isWaveGeneration)
                         local_counter++;
                     }
                 }
+
             }
-        }
-        for (const auto& tg : thread_grains) {
-            newGrains.insert(newGrains.end(), tg.begin(), tg.end());
+            #pragma omp critical
+            newGrains.insert(newGrains.end(), privateGrains.begin(), privateGrains.end());
         }
         counter += local_counter;
         grains = std::move(newGrains);
@@ -88,7 +81,7 @@ void Neumann::Generate_Filling(int isAnimation, int isWaveGeneration)
         {
             if (isWaveGeneration == 1 && remainingPoints > 0)
             {
-                pointsForThisStep = max(1, static_cast<int>(0.1 * remainingPoints));
+                pointsForThisStep = std::max(1, static_cast<int>(0.1 * remainingPoints));
                 newGrains = Add_New_Points(newGrains, pointsForThisStep);
                 grains.insert(grains.end(), newGrains.begin(), newGrains.end());
                 remainingPoints -= pointsForThisStep;
@@ -96,11 +89,7 @@ void Neumann::Generate_Filling(int isAnimation, int isWaveGeneration)
             break;
         }
     }
-
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;
     qDebug() << "Algorithm execution time: " << duration.count() << " seconds";
-    file << num_threads << ";" << duration.count() << "\n";
-    file.close();
 }
-

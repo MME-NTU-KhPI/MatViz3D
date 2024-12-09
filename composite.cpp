@@ -22,38 +22,32 @@ void Composite::FillWithCylinder(int isAnimation, int isWaveGeneration)
             for (int j = 0; j < numCubes; j++)
                 voxels[k][i][j] = 1;
 
-    // Объём куба
     float cubeVolume = std::pow(numCubes, 3);
 
-    // Общий объём цилиндров
     float targetCylinderVolume = cubeVolume * 0.1 * radius;
 
-    // Радиус цилиндров (вычисляется из заданного объёма цилиндров)
     float radius = std::cbrt(targetCylinderVolume / (M_PI * numCubes));
 
-    // Диаметр цилиндра и промежутки между цилиндрами
     short int cylinderDiameter = static_cast<short int>(2 * radius);
-    short int spacing = cylinderDiameter * 0.05; // Зазор между цилиндрами
+    short int spacing = cylinderDiameter;
     short int centerOffset = cylinderDiameter + spacing;
 
-    // Определяем максимальное количество цилиндров вдоль одной стороны
     short int maxCylindersPerRow = numCubes / centerOffset;
 
-    // Итерация по сетке для размещения цилиндров
+    short int xStartOffset = (numCubes - (maxCylindersPerRow * centerOffset - spacing)) / 2;
+    short int yStartOffset = xStartOffset;
+
     for (int i = 0; i < maxCylindersPerRow; i++) {
         for (int j = 0; j < maxCylindersPerRow; j++) {
-            // Определяем центр текущего цилиндра
-            short int centerX = spacing + i * centerOffset + radius;
-            short int centerY = spacing + j * centerOffset + radius;
+            short int centerX = xStartOffset + i * centerOffset + radius;
+            short int centerY = yStartOffset + j * centerOffset + radius;
 
-            // Создаём цилиндр, проходящий через весь куб вдоль оси Z
-            for (int x = 0; x <= numCubes; x++) {
-                for (int y = 0; y <= numCubes; y++) {
+            for (int x = 0; x < numCubes; x++) {
+                for (int y = 0; y < numCubes; y++) {
                     int distance = sqrt(pow(x - centerX, 2) + pow(y - centerY, 2));
                     if (distance <= radius) {
-                        // Заполняем весь столбец по оси Z
-                        for (int z = 0; z <= numCubes; z++) {
-                            voxels[x][y][z] = 5; // Помечаем цилиндры
+                        for (int z = 0; z < numCubes; z++) {
+                            voxels[x][y][z] = 5;
                         }
                     }
                 }
@@ -70,25 +64,45 @@ void Composite::FillWithTetra(int isAnimation, int isWaveGeneration, short int o
                 for(int j = 0; j < numCubes; j++)
                     voxels[k][i][j] = 1;
 
-    short int centerX = offsetX + radius;
-    short int centerY = offsetY + radius;
-    short int a = radius * 2;
+    float cubeVolume = std::pow(numCubes, 3);
 
-    for (int z = offsetZ; z < offsetZ + 2 * radius && z < numCubes; z++) {
-        for (int y = offsetY; y < offsetY + 2 * radius && y < numCubes; y++) {
-            for (int x = offsetX; x < offsetX + 2 * radius && x < numCubes; x++) {
-                double distance = sqrt(pow(y - centerY, 2) + pow(x - centerX, 2));
+    float targetCylinderVolume = cubeVolume * 0.1 * radius;
 
-                if ((distance <= (a / 2)) &&
-                    (x == (numCubes / 2) || y == (numCubes / 2)))
-                {
-                    voxels[x][y][z] = 2;
-                }
-                else if ((distance <= (sqrt(2) * (a / 2))) &&
-                         (x != (numCubes / 2)) &&
-                         (y != (numCubes / 2)))
-                {
-                    voxels[x][y][z] = 4;
+    float radius = std::cbrt(targetCylinderVolume / (M_PI * numCubes));
+
+    short int cylinderDiameter = static_cast<short int>(2 * radius);
+    short int spacing = cylinderDiameter;
+    short int centerOffset = cylinderDiameter + spacing;
+
+    short int maxCylindersBase = numCubes / centerOffset;
+
+    short int baseXOffset = (numCubes - (maxCylindersBase * centerOffset - spacing)) / 2;
+    short int baseZOffset = baseXOffset;
+
+    for (int yLayer = 0; yLayer < maxCylindersBase; yLayer++) {
+        short int cylindersInLayer = maxCylindersBase - yLayer;
+
+        if (cylindersInLayer <= 0) {
+            break;
+        }
+
+        short int xOffset = baseXOffset + yLayer * centerOffset / 2;
+        short int zOffset = baseZOffset + yLayer * centerOffset / 2;
+
+        for (int i = 0; i < cylindersInLayer; i++) {
+            for (int j = 0; j < cylindersInLayer; j++) {
+                short int centerX = xOffset + i * centerOffset + radius;
+                short int centerY = zOffset + j * centerOffset + radius;
+
+                for (int x = 0; x <= numCubes; x++) {
+                    for (int y = 0; y <= numCubes; y++) {
+                        int distance = sqrt(pow(x - centerX, 2) + pow(y - centerY, 2));
+                        if (distance <= radius) {
+                            for (int zFill = 0; zFill <= numCubes; zFill++) {
+                                voxels[x][y][zFill] = 5;
+                            }
+                        }
+                    }
                 }
             }
         }
