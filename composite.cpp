@@ -22,32 +22,37 @@ void Composite::FillWithCylinder(int isAnimation, int isWaveGeneration)
             for (int j = 0; j < numCubes; j++)
                 voxels[k][i][j] = 1;
 
-    float cubeVolume = std::pow(numCubes, 3);
-
-    float targetCylinderVolume = cubeVolume * 0.1 * radius;
-
-    float radius = std::cbrt(targetCylinderVolume / (M_PI * numCubes));
-
+    // Диаметр цилиндра
     short int cylinderDiameter = static_cast<short int>(2 * radius);
-    short int spacing = cylinderDiameter;
-    short int centerOffset = cylinderDiameter + spacing;
 
-    short int maxCylindersPerRow = numCubes / centerOffset;
+    // Добавляем зазор между цилиндрами
+    short int gap = 5; // Фиксированное расстояние между цилиндрами
+    short int centerOffset = cylinderDiameter + gap;
 
-    short int xStartOffset = (numCubes - (maxCylindersPerRow * centerOffset - spacing)) / 2;
-    short int yStartOffset = xStartOffset;
+    // Определяем максимальное количество рядов цилиндров
+    short int maxCylindersPerRow = numCubes / centerOffset + 1;
 
+    // Вычисляем начальное смещение для центрирования сетки цилиндров
+    short int xStartOffset = (numCubes - (maxCylindersPerRow * centerOffset)) / 2;
+
+    // Итерация по сетке для размещения цилиндров (ромбовидный узор)
     for (int i = 0; i < maxCylindersPerRow; i++) {
         for (int j = 0; j < maxCylindersPerRow; j++) {
-            short int centerX = xStartOffset + i * centerOffset + radius;
-            short int centerY = yStartOffset + j * centerOffset + radius;
+            // Смещаем каждый второй ряд по X для создания ромбовидного узора
+            short int shiftX = (j % 2 == 0) ? 0 : centerOffset / 2;
 
+            // Определяем центр текущего цилиндра
+            short int centerX = xStartOffset + i * centerOffset + radius + shiftX;
+            short int centerY = xStartOffset + j * centerOffset + radius;
+
+            // Создаём цилиндр, проходящий через весь куб вдоль оси Z
             for (int x = 0; x < numCubes; x++) {
                 for (int y = 0; y < numCubes; y++) {
                     int distance = sqrt(pow(x - centerX, 2) + pow(y - centerY, 2));
                     if (distance <= radius) {
+                        // Заполняем столбец по оси Z, учитывая границы куба
                         for (int z = 0; z < numCubes; z++) {
-                            voxels[x][y][z] = 5;
+                            voxels[x][y][z] = 5; // Помечаем цилиндры
                         }
                     }
                 }

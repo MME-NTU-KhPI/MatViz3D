@@ -29,12 +29,12 @@ void Neumann::Generate_Filling(int isAnimation, int isWaveGeneration)
     {
         const size_t current_size = grains.size();
         std::vector<Coordinate> newGrains;
-        newGrains.reserve(current_size * 26);
+        newGrains.reserve(current_size * 6);
         unsigned int local_counter = 0;
         #pragma omp parallel reduction(+:local_counter)
         {
             std::vector<Coordinate> privateGrains;
-            privateGrains.reserve(current_size * 26 / omp_get_max_threads());
+            privateGrains.reserve(current_size * 6 / omp_get_max_threads());
             #pragma omp for schedule(guided) nowait
             for (size_t i = 0; i < grains.size(); i++)
             {

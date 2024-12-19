@@ -1,5 +1,6 @@
 #include "probability_algorithm.h"
 #include "ui_probability_algorithm.h"
+#include <fstream>
 #include <random>
 #include <cmath>
 #include <omp.h>
@@ -94,7 +95,6 @@ void Probability_Algorithm::rotatePoint(double& x, double& y, double& z)
     z = z3;
 }
 
-
 void Probability_Algorithm::processValues()
 {
     const uint64_t N = 1000000;
@@ -105,38 +105,38 @@ void Probability_Algorithm::processValues()
     uint64_t fileld_in[3][3][3] = {{{0}}};
     uint64_t fileld_total[3][3][3] = {{{0}}};
 
-    #pragma omp parallel
+#pragma omp parallel
+    {
+        int nthreads = omp_get_num_threads();
+        uint64_t fileld_in_local[3][3][3] = {{{0}}};
+        uint64_t fileld_total_local[3][3][3] = {{{0}}};
+
+        for (uint64_t i = 0; i < N / nthreads; i++)
         {
-            int nthreads = omp_get_num_threads();
-            uint64_t fileld_in_local[3][3][3] = {{{0}}};
-            uint64_t fileld_total_local[3][3][3] = {{{0}}};
+            double x = dis(gen), y = dis(gen), z = dis(gen);
+            int k = std::min(std::max((int)floor(x), 0), 2);
+            int l = std::min(std::max((int)floor(y), 0), 2);
+            int m = std::min(std::max((int)floor(z), 0), 2);
 
-            for (uint64_t i = 0; i < N / nthreads; i++)
+            fileld_total_local[k][l][m]++;
+
+            if (isPointIn(x, y, z))
             {
-                double x = dis(gen), y = dis(gen), z = dis(gen);
-                int k = std::min(std::max((int)floor(x), 0), 2);
-                int l = std::min(std::max((int)floor(y), 0), 2);
-                int m = std::min(std::max((int)floor(z), 0), 2);
-
-                fileld_total_local[k][l][m]++;
-
-                if (isPointIn(x, y, z))
-                {
-                    fileld_in_local[k][l][m]++;
-                }
+                fileld_in_local[k][l][m]++;
             }
-
-        #pragma omp critical
-                {
-                    for (int i = 0; i < 3; i++)
-                        for (int j = 0; j < 3; j++)
-                            for (int k = 0; k < 3; k++)
-                            {
-                                fileld_in[i][j][k] += fileld_in_local[i][j][k];
-                                fileld_total[i][j][k] += fileld_total_local[i][j][k];
-                            }
-                }
         }
+
+#pragma omp critical
+        {
+            for (int i = 0; i < 3; i++)
+                for (int j = 0; j < 3; j++)
+                    for (int k = 0; k < 3; k++)
+                    {
+                        fileld_in[i][j][k] += fileld_in_local[i][j][k];
+                        fileld_total[i][j][k] += fileld_total_local[i][j][k];
+                    }
+        }
+    }
     for (int i = 0; i < 3; i++)
         for (int j = 0; j < 3; j++)
             for (int k = 0; k < 3; k++)
@@ -242,79 +242,111 @@ void Probability_Algorithm::processValuesGrid()
 
 void Probability_Algorithm::Generate_Filling(int isAnimation, int isWaveGeneration)
 {
-    srand(time(NULL));
-    unsigned int counter_max = pow(numCubes,3);
+    std::ofstream file;
+    file.open("Probability_500_0.5.csv", std::ios::app);
+    file << "Thread;Time\n";
+    int num_threads = 6;
+    omp_set_num_threads(num_threads);
+    const unsigned int counter_max = pow(numCubes, 3);
     auto start = std::chrono::high_resolution_clock::now();
+
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<> dis(0.0, 1.0);
+
     while (!grains.empty())
     {
-        Coordinate temp;
-        int16_t x,y,z;
+        const size_t current_size = grains.size();
         std::vector<Coordinate> newGrains;
-        for(size_t i = 0; i < grains.size(); i++)
+        newGrains.reserve(current_size * 26);
+        
+        unsigned int local_counter = 0;
+        #pragma omp parallel reduction(+:local_counter)
         {
-            temp = grains[i];
-            x = temp.x;
-            y = temp.y;
-            z = temp.z;
-            for (int16_t k = -1; k < 2; k++)
+            std::vector<Coordinate> privateGrains;
+            privateGrains.reserve(current_size * 26 / omp_get_max_threads());
+            
+            std::mt19937 local_gen(rd()); // Thread-local random generator
+            std::uniform_real_distribution<> local_dis(0.0, 1.0);
+            
+            #pragma omp for schedule(guided) nowait
+            for(size_t i = 0; i < current_size; i++)
             {
-                int16_t newX = k+x;
-                if (!(newX >= 0 && newX < numCubes)) continue;
-                for(int16_t p = -1; p < 2; p++)
+                const Coordinate& temp = grains[i];
+                const int16_t x = temp.x, y = temp.y, z = temp.z;
+                const int32_t current_value = voxels[x][y][z];
+                
+                #pragma omp simd
+                for (int16_t k = -1; k < 2; k++)
                 {
-                    int16_t newY = p+y;
-                    if (!(newY >= 0 && newY < numCubes)) continue;
-                    for(int16_t l = -1; l < 2; l++)
+                    const int16_t newX = k + x;
+                    if (!(newX >= 0 && newX < numCubes)) continue;
+                    
+                    for(int16_t p = -1; p < 2; p++)
                     {
-                        int16_t newZ = l+z;
-                        if (!(newZ >= 0 && newZ < numCubes)) continue;
-                        bool isValidXYZ = voxels[newX][newY][newZ] == 0;
-                        if (isValidXYZ)
+                        const int16_t newY = p + y;
+                        if (!(newY >= 0 && newY < numCubes)) continue;
+                        
+                        for(int16_t l = -1; l < 2; l++)
                         {
-                            if(dis(gen) >= probability[1+k][1+p][1+l])
+                            const int16_t newZ = l + z;
+                            if (!(newZ >= 0 && newZ < numCubes)) continue;
+                            
+                            if (voxels[newX][newY][newZ] == 0)
                             {
-                                voxels[newX][newY][newZ] = voxels[x][y][z];
-                                newGrains.push_back({newX,newY,newZ});
-                                counter++;
-                            }
-                            else
-                            {
-                                newGrains.push_back({x,y,z});
+                                if(local_dis(local_gen) >= probability[1+k][1+p][1+l])
+                                {
+                                    if (__sync_bool_compare_and_swap(&voxels[newX][newY][newZ], 0, current_value))
+                                    {
+                                        privateGrains.push_back({newX, newY, newZ});
+                                        local_counter++;
+                                    }
+                                }
+                                else
+                                {
+                                    privateGrains.push_back({x, y, z});
+                                }
                             }
                         }
                     }
                 }
             }
+            
+            #pragma omp critical
+            {
+                newGrains.insert(newGrains.end(),
+                               std::make_move_iterator(privateGrains.begin()),
+                               std::make_move_iterator(privateGrains.end()));
+            }
         }
+        
+        counter += local_counter;
         grains = std::move(newGrains);
         IterationNumber++;
-        double o = (double)counter/counter_max;
+        
+        double o = static_cast<double>(counter) / counter_max;
         qDebug().nospace() << o << "\t" << IterationNumber << "\t" << grains.size();
+        
         if (isAnimation == 1)
         {
-            if (isWaveGeneration == 1)
+            if (isWaveGeneration == 1 && remainingPoints > 0)
             {
-                if (remainingPoints > 0)
-                {
-                    pointsForThisStep = std::max(1, static_cast<int>(0.1 * remainingPoints));
-                    newGrains = Add_New_Points(newGrains,pointsForThisStep);
-                    grains.insert(grains.end(), newGrains.begin(), newGrains.end());
-                    remainingPoints -= pointsForThisStep;
-                }
+                pointsForThisStep = std::max(1, static_cast<int>(0.1 * remainingPoints));
+                newGrains = Add_New_Points(newGrains, pointsForThisStep);
+                grains.insert(grains.end(), newGrains.begin(), newGrains.end());
+                remainingPoints -= pointsForThisStep;
             }
             break;
         }
     }
+    
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;
     qDebug() << "Algorithm execution time: " << duration.count() << " seconds";
+    file << num_threads << ";" << duration.count() << "\n";
+    file.close();
 }
 
-
-// Method to write the probabilities to a CSV file
 void Probability_Algorithm::writeProbabilitiesToCSV(const QString& filePath, uint64_t N)
 {
     // Створення імені файлу з додаванням значення N

@@ -109,9 +109,8 @@ void MainWindow::onProbabilityAlgorithmChanged(const QString &text)
     if (text == "Probability Algorithm")
     {
         probability_algorithm = new Probability_Algorithm;
-        probability_algorithm->show();
+        //probability_algorithm->show();
     }
-
 }
 
 // Вибір між кількістю початкових точок та концентрацією

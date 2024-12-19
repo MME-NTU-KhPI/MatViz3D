@@ -4,7 +4,6 @@
 #include <cmath>
 #include "QDebug"
 #include <omp.h>
-#include <fstream>
 
 Radial::Radial()
 {
