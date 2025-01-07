@@ -45,7 +45,7 @@ ansysWrapper::ansysWrapper(bool isBatch)
 
 void ansysWrapper::setWorkingDirectory(QString path)
 {
-    tempDir = QTemporaryDir(path);
+    //tempDir = QTemporaryDir(path);
     m_projectPath = tempDir.path();
     m_projectPath = QDir::toNativeSeparators(m_projectPath);
     qDebug() << "Woring directory is set to: " << m_projectPath;

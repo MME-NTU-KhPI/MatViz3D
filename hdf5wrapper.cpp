@@ -313,13 +313,13 @@ int HDF5Wrapper::readInt(const std::string& dataGroup, const std::string& dataSe
     hid_t group_id = createGroupIfNotExists(dataGroup);
     if (group_id < 0) {
         // Handle error
-        qCritical() << "Can not create group " << dataGroup;
+        qCritical() << "Can not create group " << dataGroup.c_str();
         return -1;
     }
     hid_t dataset = H5Dopen(file, (dataGroup + "/" + dataSetName).c_str(), H5P_DEFAULT);
     if (dataset < 0) {
         // Handle error
-        qCritical() << "Can not open dataset " << dataGroup + "/" + dataSetName;
+        qCritical() << "Can not open dataset " << (dataGroup + "/" + dataSetName).c_str();
         H5Gclose(group_id);
         return -1;
     }
