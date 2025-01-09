@@ -173,7 +173,7 @@ void DLCA::join_aggregates(size_t _i, size_t _j)
     }
 }
 
-void DLCA::Generate_Filling(int isAnimation, int isWaveGeneration)
+void DLCA::Generate_Filling(int isAnimation, int isWaveGeneration, int isPeriodicStructure)
 {
     if (this->aggregates.size() > 1)
     {

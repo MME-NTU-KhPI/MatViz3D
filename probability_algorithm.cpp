@@ -240,13 +240,9 @@ void Probability_Algorithm::processValuesGrid()
     writeProbabilitiesToCSV("D:/Project(MatViz3D)/fall2024/", N);
 }
 
-void Probability_Algorithm::Generate_Filling(int isAnimation, int isWaveGeneration)
+void Probability_Algorithm::Generate_Filling(int isAnimation, int isWaveGeneration, int isPeriodicStructure)
 {
-    std::ofstream file;
-    file.open("Probability_500_0.5.csv", std::ios::app);
-    file << "Thread;Time\n";
-    int num_threads = 6;
-    omp_set_num_threads(num_threads);
+    omp_set_num_threads(omp_get_max_threads());
     const unsigned int counter_max = pow(numCubes, 3);
     auto start = std::chrono::high_resolution_clock::now();
 
@@ -279,18 +275,25 @@ void Probability_Algorithm::Generate_Filling(int isAnimation, int isWaveGenerati
                 #pragma omp simd
                 for (int16_t k = -1; k < 2; k++)
                 {
-                    const int16_t newX = k + x;
+                    int16_t newX = k + x;
                     if (!(newX >= 0 && newX < numCubes)) continue;
                     
                     for(int16_t p = -1; p < 2; p++)
                     {
-                        const int16_t newY = p + y;
+                        int16_t newY = p + y;
                         if (!(newY >= 0 && newY < numCubes)) continue;
                         
                         for(int16_t l = -1; l < 2; l++)
                         {
-                            const int16_t newZ = l + z;
+                            int16_t newZ = l + z;
                             if (!(newZ >= 0 && newZ < numCubes)) continue;
+
+                            if (isPeriodicStructure == 1)
+                            {
+                                newX = (newX + numCubes) % numCubes;
+                                newY = (newY + numCubes) % numCubes;
+                                newZ = (newZ + numCubes) % numCubes;
+                            }
                             
                             if (voxels[newX][newY][newZ] == 0)
                             {
@@ -343,8 +346,6 @@ void Probability_Algorithm::Generate_Filling(int isAnimation, int isWaveGenerati
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;
     qDebug() << "Algorithm execution time: " << duration.count() << " seconds";
-    file << num_threads << ";" << duration.count() << "\n";
-    file.close();
 }
 
 void Probability_Algorithm::writeProbabilitiesToCSV(const QString& filePath, uint64_t N)

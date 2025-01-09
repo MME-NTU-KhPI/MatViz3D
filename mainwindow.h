@@ -31,6 +31,7 @@ public:
     void callExportToCSV();
     int isAnimation = 0;
     int isWaveGeneration = 0;
+    int isPeriodicStructure = 1;
     int isClosedCube;
     int delayAnimation;
     ~MainWindow();

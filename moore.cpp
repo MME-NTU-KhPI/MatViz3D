@@ -29,7 +29,7 @@ const std::array<std::array<int32_t, 3>, 26> MOORE_OFFSETS = {{
     {1, 1, -1},   {1, 1, 0},   {1, 1, 1}
 }};
 
-void Moore::Generate_Filling(int isAnimation, int isWaveGeneration)
+void Moore::Generate_Filling(int isAnimation, int isWaveGeneration, int isPeriodicStructure)
 {
     omp_set_num_threads(omp_get_max_threads());
     const unsigned int counter_max = pow(numCubes, 3);
@@ -57,10 +57,17 @@ void Moore::Generate_Filling(int isAnimation, int isWaveGeneration)
                 #pragma omp simd
                 for (const auto& offset : MOORE_OFFSETS)
                 {
-                    const int32_t newX = x + offset[0];
-                    const int32_t newY = y + offset[1];
-                    const int32_t newZ = z + offset[2];
-                    
+                    int32_t newX = x + offset[0];
+                    int32_t newY = y + offset[1];
+                    int32_t newZ = z + offset[2];
+
+                    if (isPeriodicStructure == 1)
+                    {
+                        newX = (newX + numCubes) % numCubes;
+                        newY = (newY + numCubes) % numCubes;
+                        newZ = (newZ + numCubes) % numCubes;
+                    }
+
                     if (newX >= 0 && newX < numCubes &&
                         newY >= 0 && newY < numCubes &&
                         newZ >= 0 && newZ < numCubes)

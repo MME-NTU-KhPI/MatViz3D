@@ -1,5 +1,11 @@
 #include "composite.h"
 #include <cmath>
+#include <fstream>
+#include <chrono>
+#include <QString>
+#include <QTextStream>
+#include <QFile>
+#include <QDir>
 
 Composite::Composite() {}
 
@@ -16,96 +22,91 @@ void Composite::setRadius(short int radius)
 
 void Composite::FillWithCylinder(int isAnimation, int isWaveGeneration)
 {
+    std::ofstream file;
+    file.open("Composite_250_50.csv", std::ios::app);
+    //file << "Thread;Time\n";
+    int num_threads = 6;
+    omp_set_num_threads(num_threads);
+    auto start = std::chrono::high_resolution_clock::now();
+
+    // Initialize all voxels to 1 in parallel
     #pragma omp parallel for collapse(3)
     for (int k = 0; k < numCubes; k++)
         for (int i = 0; i < numCubes; i++)
             for (int j = 0; j < numCubes; j++)
                 voxels[k][i][j] = 1;
 
-    // Диаметр цилиндра
     short int cylinderDiameter = static_cast<short int>(2 * radius);
-
-    // Добавляем зазор между цилиндрами
-    short int gap = 5; // Фиксированное расстояние между цилиндрами
+    short int gap = 5;
     short int centerOffset = cylinderDiameter + gap;
-
-    // Определяем максимальное количество рядов цилиндров
     short int maxCylindersPerRow = numCubes / centerOffset + 1;
-
-    // Вычисляем начальное смещение для центрирования сетки цилиндров
     short int xStartOffset = (numCubes - (maxCylindersPerRow * centerOffset)) / 2;
+    const float radius_squared = static_cast<float>(radius * radius);
 
-    // Итерация по сетке для размещения цилиндров (ромбовидный узор)
-    for (int i = 0; i < maxCylindersPerRow; i++) {
-        for (int j = 0; j < maxCylindersPerRow; j++) {
-            // Смещаем каждый второй ряд по X для создания ромбовидного узора
-            short int shiftX = (j % 2 == 0) ? 0 : centerOffset / 2;
+    #pragma omp parallel
+    {
+        #pragma omp for collapse(4) schedule(dynamic, 8)
+        for (int i = 0; i < maxCylindersPerRow; i++) {
+            for (int j = 0; j < maxCylindersPerRow; j++) {
+                for (int x = 0; x < numCubes; x++) {
+                    for (int y = 0; y < numCubes; y++) {
+                        short int shiftX = (j % 2 == 0) ? 0 : centerOffset / 2;
+                        short int centerX = xStartOffset + i * centerOffset + radius + shiftX;
+                        short int centerY = xStartOffset + j * centerOffset + radius;
 
-            // Определяем центр текущего цилиндра
-            short int centerX = xStartOffset + i * centerOffset + radius + shiftX;
-            short int centerY = xStartOffset + j * centerOffset + radius;
-
-            // Создаём цилиндр, проходящий через весь куб вдоль оси Z
-            for (int x = 0; x < numCubes; x++) {
-                for (int y = 0; y < numCubes; y++) {
-                    int distance = sqrt(pow(x - centerX, 2) + pow(y - centerY, 2));
-                    if (distance <= radius) {
-                        // Заполняем столбец по оси Z, учитывая границы куба
-                        for (int z = 0; z < numCubes; z++) {
-                            voxels[x][y][z] = 5; // Помечаем цилиндры
+                        float dx = static_cast<float>(x - centerX);
+                        float dy = static_cast<float>(y - centerY);
+                        float distance_squared = dx * dx + dy * dy;
+                        
+                        if (distance_squared <= radius_squared) {
+                            #pragma omp simd
+                            for (int z = 0; z < numCubes; z++) {
+                                voxels[x][y][z] = 5;
+                            }
                         }
                     }
                 }
             }
         }
     }
+
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end - start;
+    qDebug() << "Algorithm execution time: " << duration.count() << " seconds";
+    file << num_threads << ";" << duration.count() << "\n";
+    file.close();
 }
 
 void Composite::FillWithTetra(int isAnimation, int isWaveGeneration, short int offsetX, short int offsetY, short int offsetZ)
 {
     #pragma omp parallel for collapse(3)
-        for(int k = 0; k < numCubes; k++)
-            for(int i = 0; i < numCubes; i++)
-                for(int j = 0; j < numCubes; j++)
-                    voxels[k][i][j] = 1;
-
-    float cubeVolume = std::pow(numCubes, 3);
-
-    float targetCylinderVolume = cubeVolume * 0.1 * radius;
-
-    float radius = std::cbrt(targetCylinderVolume / (M_PI * numCubes));
+    for(int k = 0; k < numCubes; k++)
+        for(int i = 0; i < numCubes; i++)
+            for(int j = 0; j < numCubes; j++)
+                voxels[k][i][j] = 1;
 
     short int cylinderDiameter = static_cast<short int>(2 * radius);
-    short int spacing = cylinderDiameter;
-    short int centerOffset = cylinderDiameter + spacing;
+    short int gap = 5;
+    short int centerOffset = cylinderDiameter + gap;
 
-    short int maxCylindersBase = numCubes / centerOffset;
+    short int maxCylindersPerRow = numCubes / centerOffset + 1;
 
-    short int baseXOffset = (numCubes - (maxCylindersBase * centerOffset - spacing)) / 2;
-    short int baseZOffset = baseXOffset;
+    short int xStartOffset = (numCubes - (maxCylindersPerRow * centerOffset)) / 2;
 
-    for (int yLayer = 0; yLayer < maxCylindersBase; yLayer++) {
-        short int cylindersInLayer = maxCylindersBase - yLayer;
+    #pragma omp parallel for collapse(2)
+    for (int i = 0; i < maxCylindersPerRow; i++) {
+        for (int j = 0; j < maxCylindersPerRow; j++) {
+            short int shiftX = (j % 2 == 0) ? 0 : centerOffset / 2;
+            short int centerX = xStartOffset + i * centerOffset + radius + shiftX;
+            short int centerY = xStartOffset + j * centerOffset + radius;
 
-        if (cylindersInLayer <= 0) {
-            break;
-        }
-
-        short int xOffset = baseXOffset + yLayer * centerOffset / 2;
-        short int zOffset = baseZOffset + yLayer * centerOffset / 2;
-
-        for (int i = 0; i < cylindersInLayer; i++) {
-            for (int j = 0; j < cylindersInLayer; j++) {
-                short int centerX = xOffset + i * centerOffset + radius;
-                short int centerY = zOffset + j * centerOffset + radius;
-
-                for (int x = 0; x <= numCubes; x++) {
-                    for (int y = 0; y <= numCubes; y++) {
+            #pragma omp parallel for collapse(3)
+            for (int x = 0; x < numCubes; x++) {
+                for (int y = 0; y < numCubes; y++) {
+                    for (int z = 0; z < numCubes; z++) {
                         int distance = sqrt(pow(x - centerX, 2) + pow(y - centerY, 2));
                         if (distance <= radius) {
-                            for (int zFill = 0; zFill <= numCubes; zFill++) {
-                                voxels[x][y][zFill] = 5;
-                            }
+                            voxels[x][y][z] = 5;
                         }
                     }
                 }
@@ -145,7 +146,7 @@ void Composite::FillWithHexa(int isAnimation, int isWaveGeneration,short int off
 }
 
 
-void Composite::Generate_Filling(int isAnimation, int isWaveGeneration)
+void Composite::Generate_Filling(int isAnimation, int isWaveGeneration, int isPeriodicStructure)
 {
 
 };

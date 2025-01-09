@@ -23,7 +23,7 @@ Probability_Ellipse::Probability_Ellipse(short int numCubes, int numColors)
 }
 
 
-void Probability_Ellipse::Generate_Filling(int isAnimation, int isWaveGeneration)
+void Probability_Ellipse::Generate_Filling(int isAnimation, int isWaveGeneration, int isPeriodicStructure)
 {
     srand(time(NULL));
     unsigned int counter_max = pow(numCubes,3);

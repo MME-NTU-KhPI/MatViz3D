@@ -12,7 +12,7 @@ public:
     void FillWithCylinder(int isAnimation, int isWaveGeneration);
     void FillWithTetra(int isAnimation, int isWaveGeneration, short int offsetX, short int offsetY, short int offsetZ);
     void FillWithHexa(int isAnimation, int isWaveGeneration, short int offsetX, short int offsetY, short int offsetZ);
-    void Generate_Filling(int isAnimation, int isWaveGeneration);
+    void Generate_Filling(int isAnimation, int isWaveGeneration, int isPeriodicStructure);
 private:
     short int radius;
 };

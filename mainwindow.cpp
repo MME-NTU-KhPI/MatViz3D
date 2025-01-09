@@ -177,7 +177,7 @@ void MainWindow::on_Start_clicked()
         start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
         if (isAnimation == 0)
         {
-            start.Generate_Filling(isAnimation, isWaveGeneration);
+            start.Generate_Filling(isAnimation, isWaveGeneration, isPeriodicStructure);
             ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
             ui->myGLWidget->update();
         }
@@ -185,7 +185,7 @@ void MainWindow::on_Start_clicked()
         {
             while (!start.grains.empty())
             {
-                start.Generate_Filling(isAnimation, isWaveGeneration);
+                start.Generate_Filling(isAnimation, isWaveGeneration, isPeriodicStructure);
                 QApplication::processEvents();
                 ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
             }
@@ -200,7 +200,7 @@ void MainWindow::on_Start_clicked()
         start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
         if (isAnimation == 0)
         {
-            start.Generate_Filling(isAnimation, isWaveGeneration);
+            start.Generate_Filling(isAnimation, isWaveGeneration, isPeriodicStructure);
             ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
             ui->myGLWidget->update();
         }
@@ -208,7 +208,7 @@ void MainWindow::on_Start_clicked()
         {
             while (!start.grains.empty())
             {
-                start.Generate_Filling(isAnimation, isWaveGeneration);
+                start.Generate_Filling(isAnimation, isWaveGeneration, isPeriodicStructure);
                 QApplication::processEvents();
                 ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
             }
@@ -223,7 +223,7 @@ void MainWindow::on_Start_clicked()
         start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
         if (isAnimation == 0)
         {
-            start.Generate_Filling(isAnimation, isWaveGeneration);
+            start.Generate_Filling(isAnimation, isWaveGeneration, isPeriodicStructure);
             ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
             ui->myGLWidget->update();
         }
@@ -231,7 +231,7 @@ void MainWindow::on_Start_clicked()
         {
             while (!start.grains.empty())
             {
-                start.Generate_Filling(isAnimation, isWaveGeneration);
+                start.Generate_Filling(isAnimation, isWaveGeneration, isPeriodicStructure);
                 QApplication::processEvents();
                 ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
             }
@@ -249,7 +249,7 @@ void MainWindow::on_Start_clicked()
         probability_algorithm->processValuesGrid();
         if (isAnimation == 0)
         {
-            probability_algorithm->Generate_Filling(isAnimation,isWaveGeneration);
+            probability_algorithm->Generate_Filling(isAnimation,isWaveGeneration, isPeriodicStructure);
             ui->myGLWidget->setVoxels(probability_algorithm->voxels,probability_algorithm->numCubes);
             ui->myGLWidget->update();
         }
@@ -257,7 +257,7 @@ void MainWindow::on_Start_clicked()
         {
             while (!probability_algorithm->grains.empty())
             {
-                probability_algorithm->Generate_Filling(isAnimation, isWaveGeneration);
+                probability_algorithm->Generate_Filling(isAnimation, isWaveGeneration, isPeriodicStructure);
                 QApplication::processEvents();
                 ui->myGLWidget->updateGLWidget(probability_algorithm->voxels,probability_algorithm->numCubes);
             }
@@ -271,7 +271,7 @@ void MainWindow::on_Start_clicked()
         start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
         if (isAnimation == 0)
         {
-            start.Generate_Filling(isAnimation, isWaveGeneration);
+            start.Generate_Filling(isAnimation, isWaveGeneration, isPeriodicStructure);
             ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
             ui->myGLWidget->update();
         }
@@ -279,7 +279,7 @@ void MainWindow::on_Start_clicked()
         {
             while (!start.grains.empty())
             {
-                start.Generate_Filling(isAnimation, isWaveGeneration);
+                start.Generate_Filling(isAnimation, isWaveGeneration, isPeriodicStructure);
                 QApplication::processEvents();
                 ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
             }
@@ -294,7 +294,7 @@ void MainWindow::on_Start_clicked()
         start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
         if (isAnimation == 0)
         {
-            start.Generate_Filling(isAnimation, isWaveGeneration);
+            start.Generate_Filling(isAnimation, isWaveGeneration, isPeriodicStructure);
             ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
             ui->myGLWidget->update();
         }
@@ -302,7 +302,7 @@ void MainWindow::on_Start_clicked()
         {
             while (!start.grains.empty())
             {
-                start.Generate_Filling(isAnimation, isWaveGeneration);
+                start.Generate_Filling(isAnimation, isWaveGeneration, isPeriodicStructure);
                 QApplication::processEvents();
                 ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
             }
@@ -329,7 +329,7 @@ void MainWindow::on_Start_clicked()
         start.Generate_Random_Starting_Points();
         if (isAnimation == 0)
         {
-            start.Generate_Filling(isAnimation, isWaveGeneration);
+            start.Generate_Filling(isAnimation, isWaveGeneration, isPeriodicStructure);
             ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
             ui->myGLWidget->update();
         }
@@ -337,7 +337,7 @@ void MainWindow::on_Start_clicked()
         {
             while (!start.grains.empty())
             {
-                start.Generate_Filling(isAnimation, isWaveGeneration);
+                start.Generate_Filling(isAnimation, isWaveGeneration, isPeriodicStructure);
                 QApplication::processEvents();
                 ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
             }
@@ -346,8 +346,8 @@ void MainWindow::on_Start_clicked()
     }
     ui->Start->setText("RELOAD");
     ui->Start->setStyleSheet("background: #282828; border-radius: 8px; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
-    clock_t end_time = clock(); // Фіксація часу завершення виконання
-    double elapsed_time = double(end_time - start_time) / CLOCKS_PER_SEC; // Обчислення часу виконання в секундах
+    clock_t end_time = clock();
+    double elapsed_time = double(end_time - start_time) / CLOCKS_PER_SEC;
     qDebug() << "Total execution time: " << elapsed_time << " seconds";
     // ui->myGLWidget->calculateSurfaceArea();
     startButtonPressed = true;

@@ -28,7 +28,7 @@ public:
     int32_t color = 0;
     std::vector<Coordinate> grains;
     Parent_Algorithm();
-    virtual void Generate_Filling(int isAnimation, int isWaveGeneration) = 0;
+    virtual void Generate_Filling(int isAnimation, int isWaveGeneration, int isPeriodicStructure) = 0;
     int32_t*** Generate_Initial_Cube();
     void Generate_Random_Starting_Points(int isWaveGeneration);
     std::vector<Coordinate> Add_New_Points(std::vector<Coordinate> grains, int numPoints);

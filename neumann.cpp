@@ -20,7 +20,7 @@ const std::array<std::array<int32_t, 3>, 6> NEUMANN_OFFSETS = {{
 }};
 
 
-void Neumann::Generate_Filling(int isAnimation, int isWaveGeneration)
+void Neumann::Generate_Filling(int isAnimation, int isWaveGeneration, int isPeriodicStructure)
 {
     omp_set_num_threads(omp_get_max_threads());
     unsigned int counter_max = pow(numCubes, 3);
@@ -44,9 +44,17 @@ void Neumann::Generate_Filling(int isAnimation, int isWaveGeneration)
                 #pragma omp simd
                 for (const auto& offset : NEUMANN_OFFSETS)
                 {
-                    const int32_t newX = x + offset[0];
-                    const int32_t newY = y + offset[1];
-                    const int32_t newZ = z + offset[2];
+                    int32_t newX = x + offset[0];
+                    int32_t newY = y + offset[1];
+                    int32_t newZ = z + offset[2];
+
+                    if (isPeriodicStructure == 1)
+                    {
+                        newX = (newX + numCubes) % numCubes;
+                        newY = (newY + numCubes) % numCubes;
+                        newZ = (newZ + numCubes) % numCubes;
+                    }
+
                     if (!(newX >= 0 && newX < numCubes)) continue;
                     if (__sync_bool_compare_and_swap(&voxels[newX][y][z], 0, voxels[x][y][z]))
                     {
