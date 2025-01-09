@@ -26,6 +26,7 @@ MyGLWidget::MyGLWidget(QWidget *parent)
     wr = nullptr;
     timer = new QTimer(this);
     plotComponent = 0;
+    bgColor.setRgbF(0.21f, 0.21f, 0.21f);
 }
 
 MyGLWidget::~MyGLWidget()
@@ -127,10 +128,81 @@ void MyGLWidget::setPlotWireFrame(bool status)
     this->plotWireFrame = status;
 }
 
-void inline initLights()
+/**
+ * Capture a screenshot of the OpenGL widget and store it in a buffer.
+ * @return A QImage containing the screenshot.
+ */
+QImage MyGLWidget::captureScreenshot()
+{
+    this->makeCurrent(); // Ensure the OpenGL context is current
+
+    QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
+
+    // Get the dimensions of the widget
+    int width = this->width();
+    int height = this->height();
+
+    // Create a buffer to store pixel data
+    QImage screenshot(width, height, QImage::Format_RGBA8888);
+
+    // Read pixels from OpenGL framebuffer
+    f->glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, screenshot.bits());
+
+    // Convert the image from bottom-left origin to top-left origin
+    screenshot = screenshot.mirrored();
+    this->doneCurrent();
+
+    return screenshot;
+}
+
+/**
+ * Capture a screenshot and copy it to the system clipboard.
+ */
+void MyGLWidget::captureScreenshotToClipboard()
+{
+    QImage screenshot = captureScreenshotWithWhiteBackground();
+    QClipboard *clipboard = QGuiApplication::clipboard();
+    clipboard->setImage(screenshot);
+}
+
+/**
+ * Capture a screenshot of the OpenGL widget, replace the background with white, and store it in a buffer.
+ * @return A QImage containing the modified screenshot.
+ */
+QImage MyGLWidget::captureScreenshotWithWhiteBackground()
+{
+    QImage screenshot = captureScreenshot();
+
+    // Modify the screenshot to replace gray background with white
+    QImage modifiedScreenshot(screenshot.size(), QImage::Format_RGB32);
+    const float tol = 0.015f;
+    for (int y = 0; y < screenshot.height(); ++y) {
+        for (int x = 0; x < screenshot.width(); ++x) {
+            QColor pixelColor = screenshot.pixelColor(x, y);
+
+            // Replace gray bg color with white
+            if (
+                fabs(pixelColor.redF() - bgColor.redF()) <= tol  &&
+                fabs(pixelColor.greenF() - bgColor.greenF()) <= tol &&
+                fabs(pixelColor.blueF() - bgColor.blueF()) <=tol
+                )
+            {
+                modifiedScreenshot.setPixelColor(x, y, Qt::white);
+            }
+            else
+            {
+                modifiedScreenshot.setPixelColor(x, y, pixelColor);
+            }
+        }
+    }
+
+    return modifiedScreenshot;
+}
+
+void inline MyGLWidget::initLights()
 {
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
-    f->glClearColor(0.21f, 0.21f, 0.21f, 1.0f);
+    f->glClearColor(bgColor.redF(), bgColor.greenF(), bgColor.blueF(), bgColor.alphaF());
 
     // set up light colors (ambient, diffuse, specular)
     GLfloat lightKa[] = {.2f, .2f, .2f, 1.0f};  // ambient light
@@ -251,7 +323,7 @@ void MyGLWidget::initializeGL()
     glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
     glEnable(GL_COLOR_MATERIAL);
 
-    glClearColor(0.21f, 0.21f, 0.21f, 1.0);     // background color
+    glClearColor(bgColor.redF(), bgColor.greenF(), bgColor.blueF(), bgColor.alphaF());     // background color
     glClearStencil(0);                          // clear stencil buffer
     glClearDepth(numCubes);                         // 0 is near, 1 is far
     glDepthFunc(GL_LESS);

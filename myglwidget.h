@@ -43,6 +43,11 @@ public:
     int32_t*** getVoxels();
     void repaint_function();
 
+    QImage captureScreenshot();
+    QImage captureScreenshotWithWhiteBackground();
+    void captureScreenshotToClipboard();
+
+
     std::vector<std::array<GLubyte, 4>> generateDistinctColors();
 
     void setPlotWireFrame(bool status);
@@ -56,6 +61,7 @@ protected:
     void initializeGL();
     void paintGL();
     void drawAxis();
+    void initLights();
     void resizeGL(int width, int height);
     void paintSphere(float radius, int numStacks, int numSlices);
     void drawCube(float cubeSize, GLenum type = GL_QUADS);
@@ -107,6 +113,8 @@ protected:
 
     float distance;
 
+    QColor bgColor;
+
     QPoint lastPos;
     QMatrix4x4 m_projection;
     float distanceFactor = 0;
@@ -124,7 +132,7 @@ protected:
 
     struct Voxel
     {
-        GLfloat x, y, z;
+        GLfloat x, y, z; // Coordinates
         GLubyte r, g, b, a; // Color attributes
         GLbyte nx, ny, nz; // Normal attributes
     };

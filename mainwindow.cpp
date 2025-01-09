@@ -185,12 +185,22 @@ void MainWindow::on_Start_clicked()
         }
         else
         {
+            QGifImage gif;
             while (!start.grains.empty())
             {
                 start.Generate_Filling(isAnimation, isWaveGeneration);
                 QApplication::processEvents();
                 ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
+
+
+                gif.setDefaultDelay(1);
+
+                QImage frame = ui->myGLWidget->captureScreenshotWithWhiteBackground();
+                gif.addFrame(frame);
             }
+
+                // Save the GIF to the specified file
+            gif.save("animation.gif");
         }
         qDebug() << "NEUMANN";
     }
@@ -392,12 +402,14 @@ void MainWindow::setupFileMenu() {
     QAction *exportCSVAction = new QAction("Export to csv", this);
     QAction *saveAsHDF = new QAction("Save as hdf5 file" , this);
     QAction *estimateStressWithANSYS = new QAction("Estimate stresses", this);
+    QAction *MakeScreenshot = new QAction("Make screenshot", this);
 
     fileMenu->addAction(saveAsImageAction);
     fileMenu->addAction(exportWRLAction);
     fileMenu->addAction(exportCSVAction);
     fileMenu->addAction(saveAsHDF);
     fileMenu->addAction(estimateStressWithANSYS);
+    fileMenu->addAction(MakeScreenshot);
 
 
     // Кастомізація FileMenu за допомогою CSS
@@ -441,6 +453,7 @@ void MainWindow::setupFileMenu() {
     exportCSVAction->setFont(actionFont);
     saveAsHDF->setFont(actionFont);
     estimateStressWithANSYS->setFont(actionFont);
+    MakeScreenshot->setFont(actionFont);
 
     // Призначте це меню кнопці
     ui->FileButton->setMenu(fileMenu);
@@ -450,6 +463,7 @@ void MainWindow::setupFileMenu() {
     connect(exportCSVAction, &QAction::triggered, this, &MainWindow::exportToCSV);
     connect(saveAsHDF , &QAction::triggered , this , &MainWindow::saveHDF);
     connect(estimateStressWithANSYS, &QAction::triggered, this, &MainWindow::estimateStressWithANSYS);
+    connect(MakeScreenshot,  &QAction::triggered, this, [=](){ui->myGLWidget->captureScreenshotToClipboard();});
 
 }
 
