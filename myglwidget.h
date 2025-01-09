@@ -1,6 +1,9 @@
 #ifndef MYGLWIDGET_H
 #define MYGLWIDGET_H
 
+#include <QOpenGLBuffer>
+#include <QOpenGLVertexArrayObject>
+
 #include <QtOpenGLWidgets/QOpenGLWidget>
 #include <QMatrix4x4>
 #include <QOpenGLFunctions>
@@ -10,14 +13,18 @@
 class MyGLWidget : public QOpenGLWidget
 {
     Q_OBJECT
+
+    static void debugCallback(GLenum source, GLenum type, GLuint id, GLenum severity,
+                              GLsizei length, const GLchar* message, const void* userParam);
+
 public:
     explicit MyGLWidget(QWidget *parent = 0);
     void setVoxels(int32_t*** voxels, short int numCubes);
     int32_t*** getVoxels();
     void repaint_function();
-    QVector<int> countVoxelColors(); // Функція для підрахунку кількості вокселей кожного кольору
+
     std::vector<std::array<GLubyte, 4>> generateDistinctColors();
-    void calculateSurfaceArea();
+
     void setPlotWireFrame(bool status);
     QVector<QColor> getColorMap(int numLevels);
     void setComponent(int index);
@@ -28,6 +35,7 @@ protected:
     struct Voxel;
     void initializeGL();
     void paintGL();
+    void drawAxis();
     void resizeGL(int width, int height);
     void paintSphere(float radius, int numStacks, int numSlices);
     void drawCube(float cubeSize, GLenum type = GL_QUADS);
@@ -39,6 +47,8 @@ protected:
     void wheelEvent(QWheelEvent *event);
 
     void calculateScene();
+    void initializeVBO();
+    void updateVBO();
 
     std::vector<std::array<GLubyte, 4>> createColorMap(int numLevels);
 
@@ -65,6 +75,10 @@ signals:
     void zRotationChanged(int angle);
 private:
     QTimer* timer;
+
+private:
+    GLuint vboIds[3];
+
 protected:
     int xRot;
     int yRot;
@@ -86,6 +100,7 @@ protected:
 
     void updateVoxelColor(Voxel &v1);
 
+    bool isVBOupdateRequired = false;
 
     struct Voxel
     {

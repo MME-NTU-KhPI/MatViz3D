@@ -2,6 +2,7 @@
 
 #include <QtWidgets>
 #include "myglwidget.h"
+
 #include <cmath> // include for sin and cos functions
 #include <vector>
 #include <cstdlib>
@@ -11,7 +12,6 @@
 #include <array>
 #include <QFileDialog>
 #include <QTextStream>
-#include <set>
 #include <QDebug>
 
 
@@ -31,6 +31,10 @@ MyGLWidget::MyGLWidget(QWidget *parent)
 MyGLWidget::~MyGLWidget()
 {
     delete timer;
+    makeCurrent(); // Ensure context is active before cleanup
+    QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
+    f->glDeleteBuffers(1, vboIds);
+    doneCurrent(); // Release context
 }
 
 QSize MyGLWidget::minimumSizeHint() const
@@ -160,10 +164,72 @@ void inline initLights()
 
 }
 
+void MyGLWidget::debugCallback(GLenum source, GLenum type, GLuint id, GLenum severity,
+                               GLsizei length, const GLchar* message, const void* userParam) {
+    Q_UNUSED(length);
+
+    // Get the OpenGL widget instance
+    const MyGLWidget* widget = static_cast<const MyGLWidget*>(userParam);
+
+    // Map enums to human-readable strings
+    QString sourceStr;
+    switch (source) {
+    case GL_DEBUG_SOURCE_API:             sourceStr = "API"; break;
+    case GL_DEBUG_SOURCE_WINDOW_SYSTEM:   sourceStr = "Window System"; break;
+    case GL_DEBUG_SOURCE_SHADER_COMPILER: sourceStr = "Shader Compiler"; break;
+    case GL_DEBUG_SOURCE_THIRD_PARTY:     sourceStr = "Third Party"; break;
+    case GL_DEBUG_SOURCE_APPLICATION:     sourceStr = "Application"; break;
+    case GL_DEBUG_SOURCE_OTHER:           sourceStr = "Other"; break;
+    default:                              sourceStr = "Unknown"; break;
+    }
+
+    QString typeStr;
+    switch (type) {
+    case GL_DEBUG_TYPE_ERROR:               typeStr = "Error"; break;
+    case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: typeStr = "Deprecated Behavior"; break;
+    case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:  typeStr = "Undefined Behavior"; break;
+    case GL_DEBUG_TYPE_PORTABILITY:         typeStr = "Portability"; break;
+    case GL_DEBUG_TYPE_PERFORMANCE:         typeStr = "Performance"; break;
+    case GL_DEBUG_TYPE_MARKER:              typeStr = "Marker"; break;
+    case GL_DEBUG_TYPE_PUSH_GROUP:          typeStr = "Push Group"; break;
+    case GL_DEBUG_TYPE_POP_GROUP:           typeStr = "Pop Group"; break;
+    case GL_DEBUG_TYPE_OTHER:               typeStr = "Other"; break;
+    default:                                typeStr = "Unknown"; break;
+    }
+
+    QString severityStr;
+    switch (severity) {
+    case GL_DEBUG_SEVERITY_HIGH:         severityStr = "High"; break;
+    case GL_DEBUG_SEVERITY_MEDIUM:       severityStr = "Medium"; break;
+    case GL_DEBUG_SEVERITY_LOW:          severityStr = "Low"; break;
+    case GL_DEBUG_SEVERITY_NOTIFICATION: severityStr = "Notification"; break;
+    default:                             severityStr = "Unknown"; break;
+    }
+
+    // Log the debug message using QDebug
+    qDebug().noquote()
+        << "OpenGL Debug Message:"
+        << "\n    Source: " << sourceStr
+        << "\n    Type: " << typeStr
+        << "\n    ID: " << id
+        << "\n    Severity: " << severityStr
+        << "\n    Message: " << message;
+}
+
 void MyGLWidget::initializeGL()
 {
 
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
+
+    // Enable OpenGL debug output
+    f->glEnable(GL_DEBUG_OUTPUT);
+    f->glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+
+    QOpenGLExtraFunctions* ef = QOpenGLContext::currentContext()->extraFunctions();
+
+    // Register the debug message callback
+    ef->glDebugMessageCallback(debugCallback, this);
+
 
     glShadeModel(GL_SMOOTH);
     f->glEnable(GL_COLOR_MATERIAL);
@@ -210,6 +276,7 @@ void MyGLWidget::initializeGL()
     glMaterialfv(GL_FRONT, GL_SPECULAR, matSpc);
     glMaterialfv(GL_FRONT, GL_SHININESS, matShn);
 
+    this->initializeVBO();
 
 }
 
@@ -424,7 +491,7 @@ void MyGLWidget::calculateScene()
             }
         }
     }
-
+    isVBOupdateRequired = true;
 }
 
 void MyGLWidget::setVoxels(int32_t*** voxels, short int numCubes)
@@ -569,8 +636,53 @@ void MyGLWidget::update_function()
     update();
 }
 
+void MyGLWidget::drawAxis()
+{
+    // Draw X-axis (Red)
+    glColor3f(1.0, 0.0, 0.0);
+    glBegin(GL_LINES);
+    glVertex3f(-numCubes/2, -numCubes/2, -numCubes/2);
+    glVertex3f(1.15*numCubes, -numCubes/2, -numCubes/2);
+    glEnd();
+
+    // Draw Y-axis (Green)
+    glColor3f(0.0, 1.0, 0.0);
+    glBegin(GL_LINES);
+    glVertex3f(-numCubes/2, -numCubes/2, -numCubes/2);
+    glVertex3f(-numCubes/2, 1.15*numCubes, -numCubes/2);
+    glEnd();
+
+    // Draw Z-axis (Blue)
+    glColor3f(0.0, 0.0, 1.0);
+    glBegin(GL_LINES);
+    glVertex3f(-numCubes/2, -numCubes/2, -numCubes/2);
+    glVertex3f(-numCubes/2, -numCubes/2, 1.15*numCubes);
+    glEnd();
+}
+
+void MyGLWidget::initializeVBO()
+{
+     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
+    // Create buffers for vertex, color, and normal data
+    f->glGenBuffers(1, vboIds);
+    // Bind the vertex buffer
+    f->glBindBuffer(GL_ARRAY_BUFFER, vboIds[0]);
+    // upload buffer t GPU
+    f->glBufferData(GL_ARRAY_BUFFER, voxelScene.size() * sizeof(Voxel), voxelScene.data() + offsetof(Voxel, x), GL_STATIC_DRAW);
+}
+
+void MyGLWidget::updateVBO()
+{
+    QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
+
+    f->glBindBuffer(GL_ARRAY_BUFFER, vboIds[0]);
+    f->glBufferData(GL_ARRAY_BUFFER, voxelScene.size() * sizeof(Voxel), voxelScene.data() + offsetof(Voxel, x), GL_STATIC_DRAW);
+}
+
 void MyGLWidget::paintGL()
 {
+    if (isVBOupdateRequired)
+        this->updateVBO();
 
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
     // clear buffer
@@ -593,45 +705,20 @@ void MyGLWidget::paintGL()
 
     glEnable(GL_NORMALIZE);
 
+     // Draw X-Y-Z axis in R for X, G - for Y, B for Z
+    this->drawAxis();
+
+    // Bind VBO
+    f->glBindBuffer(GL_ARRAY_BUFFER, vboIds[0]);
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_COLOR_ARRAY);
     glEnableClientState(GL_NORMAL_ARRAY);
 
-    // Draw X-axis (Red)
-    glColor3f(1.0, 0.0, 0.0);
-    glBegin(GL_LINES);
-    glVertex3f(-numCubes/2, -numCubes/2, -numCubes/2);
-    glVertex3f(1.15*numCubes, -numCubes/2, -numCubes/2);
-    glEnd();
-
-    // Draw Y-axis (Green)
-    glColor3f(0.0, 1.0, 0.0);
-    glBegin(GL_LINES);
-    glVertex3f(-numCubes/2, -numCubes/2, -numCubes/2);
-    glVertex3f(-numCubes/2, 1.15*numCubes, -numCubes/2);
-    glEnd();
-
-    // Draw Z-axis (Blue)
-    glColor3f(0.0, 0.0, 1.0);
-    glBegin(GL_LINES);
-    glVertex3f(-numCubes/2, -numCubes/2, -numCubes/2);
-    glVertex3f(-numCubes/2, -numCubes/2, 1.15*numCubes);
-    glEnd();
-
-
-    // Create buffers for vertex, color, and normal data
-    GLuint vboIds[3];
-    f->glGenBuffers(3, vboIds);
-
-    // Bind the vertex buffer
-    f->glBindBuffer(GL_ARRAY_BUFFER, vboIds[0]);
-    f->glBufferData(GL_ARRAY_BUFFER, voxelScene.size() * sizeof(Voxel), &voxelScene[0], GL_STATIC_DRAW);
-    glVertexPointer(3, GL_FLOAT, sizeof(Voxel), 0);
-    \
+    // Load vertix array
+    glVertexPointer(3, GL_FLOAT, sizeof(Voxel), (void*)offsetof(Voxel, x));
 
     if (plotWireFrame == true)
     {
-
         glEnable(GL_POLYGON_OFFSET_LINE); // Enable polygon offset for lines
         glPolygonOffset(-1.0f, -1.0f); // Set the polygon offset factor and units
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -645,35 +732,20 @@ void MyGLWidget::paintGL()
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     }
 
-    // Bind the color buffer
-    f->glBindBuffer(GL_ARRAY_BUFFER, vboIds[1]);
-    f->glBufferData(GL_ARRAY_BUFFER, voxelScene.size() * sizeof(Voxel), &voxelScene[0].r, GL_STATIC_DRAW);
-    glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(Voxel), 0);
+    //load color array
+    glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(Voxel), (void*)offsetof(Voxel, r));
+    //load normal array
+    glNormalPointer(GL_BYTE, sizeof(Voxel), (void*)offsetof(Voxel, nx));
 
-    // Bind the normal buffer
-    f->glBindBuffer(GL_ARRAY_BUFFER, vboIds[2]);
-    f->glBufferData(GL_ARRAY_BUFFER, voxelScene.size() * sizeof(Voxel), &voxelScene[0].nx, GL_STATIC_DRAW);
-    glNormalPointer(GL_BYTE, sizeof(Voxel), 0);
-
-    // Draw the voxel scene using the VBOs
+    //Draw all quads by vertixes
     glDrawArrays(GL_QUADS, 0, voxelScene.size()); // 24 vertices per voxel (6 faces * 4 vertices)
-    if (plotWireFrame == true)
-    {
-        glColor3f(0.5f, 0.5f, 0.5f);
-        for (size_t i = 0; i < voxelScene.size(); i += 4)
-        {
-            glDrawArrays(GL_LINE_LOOP, i, 4); // plot 4 lines for each face
-        }
-    }
 
     // Unbind the buffers and disable client-side capabilities
-    f->glBindBuffer(GL_ARRAY_BUFFER, 0);
     glDisableClientState(GL_VERTEX_ARRAY);
     glDisableClientState(GL_COLOR_ARRAY);
     glDisableClientState(GL_NORMAL_ARRAY);
 
-    // Delete the VBOs
-    f->glDeleteBuffers(3, vboIds);
+    f->glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     glPopMatrix();
 }
@@ -748,114 +820,6 @@ void MyGLWidget::updateGLWidget(int32_t*** voxels, short int numCubes)
     QThread::msleep(delayAnimation);
     repaint();
 }
-
-
-// Функція для підрахунку кількості вокселей кожного кольору
-QVector<int> MyGLWidget::countVoxelColors()
-{
-    QVector<int> colorCounts(numColors, 0);
-
-    for (int k = 0; k < numCubes; k++) {
-        for (int i = 0; i < numCubes; i++) {
-            for (int j = 0; j < numCubes; j++) {
-                int color = voxels[k][i][j];
-                if (color > 0 && color <= numColors) {
-                    colorCounts[color - 1]++;
-                }
-            }
-        }
-    }
-    return colorCounts;
-}
-
-void MyGLWidget::calculateSurfaceArea()
-{
-    qDebug() << "Total Surface Area for Color";
-    QVector<int> colorCounts = countVoxelColors();
-
-    for (int colorIndex = 0; colorIndex < numColors; colorIndex++) {
-        int colorCount = colorCounts[colorIndex];
-
-        if (colorCount > 0) {
-            //qDebug() << "Color" << colorIndex + 1 << "Surface Area:";
-
-            int totalSurfaceArea = 0;
-
-            for (int k = 0; k < numCubes; k++) {
-                for (int i = 0; i < numCubes; i++) {
-                    for (int j = 0; j < numCubes; j++) {
-                        int currentColor = voxels[k][i][j];
-
-                        if (currentColor == colorIndex + 1) {
-                            int surfaceArea = 0;
-
-                            // Check the six faces of the voxel
-                            if (i == 0 || voxels[k][i - 1][j] != colorIndex + 1) {
-                                surfaceArea++; // left face
-                            }
-                            if (i == numCubes - 1 || voxels[k][i + 1][j] != colorIndex + 1) {
-                                surfaceArea++; // right face
-                            }
-                            if (j == 0 || voxels[k][i][j - 1] != colorIndex + 1) {
-                                surfaceArea++; // front face
-                            }
-                            if (j == numCubes - 1 || voxels[k][i][j + 1] != colorIndex + 1) {
-                                surfaceArea++; // back face
-                            }
-                            if (k == 0 || voxels[k - 1][i][j] != colorIndex + 1) {
-                                surfaceArea++; // bottom face
-                            }
-                            if (k == numCubes - 1 || voxels[k + 1][i][j] != colorIndex + 1) {
-                                surfaceArea++; // top face
-                            }
-
-                            //qDebug() << "Voxel at (" << i << ", " << j << ", " << k << ") - Surface Area: " << surfaceArea;
-                            totalSurfaceArea += surfaceArea;
-                        }
-                    }
-                }
-            }
-
-            qDebug() << "Color" << colorIndex + 1 << ": " << totalSurfaceArea;
-            //qDebug() << totalSurfaceArea;
-        }
-    }
-}
-
-
-//void MyGLWidget::exportVRML(const QString& filename, const std::vector<std::array<GLubyte, 4>>& colors) {
-//    QFile file(filename);
-//    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-//        qDebug() << "Cannot open file!";
-//        return;
-//    }
-
-//    QTextStream out(&file);
-//    out << "#VRML V2.0 utf8\n\n";
-
-//    for (int k = 0; k < numCubes; k++) {
-//        for (int i = 0; i < numCubes; i++) {
-//            for (int j = 0; j < numCubes; j++) {
-//                out << "Transform {\n";
-//                out << "  translation " << k << " " << i << " " << j << "\n";
-//                out << "  children Shape {\n";
-//                out << "    appearance Appearance {\n";
-//                out << "      material Material {\n";
-//                out << "        diffuseColor " << (colors[voxels[k][i][j] - 1][0] / 255.0) << " "
-//                    << (colors[voxels[k][i][j] - 1][1] / 255.0) << " "
-//                    << (colors[voxels[k][i][j] - 1][2] / 255.0) << "\n";
-//                out << "      }\n";
-//                out << "    }\n";
-//                out << "    geometry Box {\n";
-//                out << "      size 1.0 1.0 1.0\n";
-//                out << "    }\n";
-//                out << "  }\n";
-//                out << "}\n";
-//            }
-//        }
-//    }
-//    file.close();
-//}
 
 int32_t*** MyGLWidget::getVoxels()
 {
