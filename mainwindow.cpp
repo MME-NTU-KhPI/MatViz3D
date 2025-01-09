@@ -28,6 +28,7 @@
 
 int32_t* createVoxelArray(int32_t*** voxels, int numCubes);
 std::unordered_map<int32_t, int> countVoxels(int32_t* voxelArray, int numCubes, int numColors);
+Probability_Algorithm* MainWindow::probability_algorithm = nullptr;
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -108,11 +109,48 @@ void MainWindow::onProbabilityAlgorithmChanged(const QString &text)
 {
     if (text == "Probability Algorithm")
     {
-        probability_algorithm = new Probability_Algorithm;
-        probability_algorithm->show();
-    }
 
+        bool parametersSet = (Parameters::halfaxis_a != 0.0f) &&
+                             (Parameters::halfaxis_b != 0.0f) &&
+                             (Parameters::halfaxis_c != 0.0f);
+
+        if (!parametersSet) // Якщо параметри НЕ встановлені
+        {
+            if (probability_algorithm == nullptr) {
+                probability_algorithm = new Probability_Algorithm;
+                probability_algorithm->show();
+            } else {
+                // Якщо вікно вже відкрите, закриваємо його
+                probability_algorithm->close();
+                delete probability_algorithm;
+                probability_algorithm = nullptr;
+            }
+        }
+        else
+        {
+            probability_algorithm = new Probability_Algorithm;
+            qDebug() << "Parameters are set. Probability Algorithm window not required.";
+        }
+    }
 }
+
+// void MainWindow::onProbabilityAlgorithmChanged(const QString &text)
+// {
+//     if (text == "Probability Algorithm")
+//     {
+//         // Перевіряємо, чи вже є вікно
+//         if (probability_algorithm == nullptr) {
+//             probability_algorithm = new Probability_Algorithm;
+//             probability_algorithm->show();
+//         } else {
+//             // Якщо вікно вже відкрите, закриваємо його
+//             probability_algorithm->close();
+//             delete probability_algorithm;
+//             probability_algorithm = nullptr;
+//         }
+//     }
+// }
+
 
 // Вибір між кількістю початкових точок та концентрацією
 void MainWindow::onInitialConditionSelectionChanged()
@@ -628,8 +666,10 @@ void MainWindow::onAnimationCheckBoxChanged(int state) {
     // Обробка зміни стану чекбоксу All
     if (state == Qt::Checked) {
         ui->frameAnimation->show();
+        ui->frameLegend->show();
     } else {
         ui->frameAnimation->hide();
+        ui->frameLegend->hide();
     }
 }
 

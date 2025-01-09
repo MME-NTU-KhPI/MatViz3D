@@ -4,9 +4,8 @@
 
 #include <QCommandLineParser>
 #include "mainwindow.h"
-#include "parameters.h"
 
-class Console
+class Console : public QObject
 {
 public:
     Console();

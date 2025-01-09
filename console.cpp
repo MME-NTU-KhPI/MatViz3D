@@ -1,7 +1,10 @@
 
 #include "console.h"
 #include "stressanalysis.h"
+#include "parameters.h"
 #include "QDebug"
+#include <QObject>
+
 
 Console::Console()
 {
@@ -33,6 +36,56 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
         qInfo() << "points:" << Parameters::points;
         window.setNumColors(Parameters::points);
     }
+
+    if (parser.isSet("halfaxis_a"))
+    {
+        QString str = parser.value("halfaxis_a");
+        Parameters::halfaxis_a = str.toFloat();
+        qInfo() << "halfaxis_a:" << Parameters::halfaxis_a;
+    }
+
+    if (parser.isSet("halfaxis_b"))
+    {
+        QString str = parser.value("halfaxis_b");
+        Parameters::halfaxis_b = str.toFloat();
+        qInfo() << "halfaxis_b:" << Parameters::halfaxis_b;
+    }
+
+    if (parser.isSet("halfaxis_c"))
+    {
+        QString str = parser.value("halfaxis_c");
+        Parameters::halfaxis_c = str.toFloat();
+        qInfo() << "halfaxis_c:" << Parameters::halfaxis_c;
+    }
+
+    if (parser.isSet("orientation_angle_a"))
+    {
+        QString str = parser.value("orientation_angle_a");
+        Parameters::orientation_angle_a = str.toFloat();
+        qInfo() << "orientation_angle_a:" << Parameters::orientation_angle_a;
+    }
+
+    if (parser.isSet("orientation_angle_b"))
+    {
+        QString str = parser.value("orientation_angle_b");
+        Parameters::orientation_angle_b = str.toFloat();
+        qInfo() << "orientation_angle_b:" << Parameters::orientation_angle_b;
+    }
+
+    if (parser.isSet("orientation_angle_c"))
+    {
+        QString str = parser.value("orientation_angle_c");
+        Parameters::orientation_angle_c = str.toFloat();
+        qInfo() << "orientation_angle_c:" << Parameters::orientation_angle_c;
+    }
+
+    if (parser.isSet("wave_coefficient"))
+    {
+        QString str = parser.value("wave_coefficient");
+        Parameters::wave_coefficient = str.toFloat();
+        qInfo() << "wave_coefficient:" << Parameters::wave_coefficient;
+    }
+
     if (parser.isSet("algorithm"))
     {
         Parameters::algorithm = parser.value("algorithm");
@@ -47,7 +100,22 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
         {
             window.setAlgorithms("Probability Ellipse");
         }
+        // if (Parameters::algorithm == "Probability Algorithm") {
+        //     bool parametersSet = parser.isSet("halfaxis_a") && parser.isSet("halfaxis_b") && parser.isSet("halfaxis_c");
+
+        //     if (parametersSet) {
+        //         qInfo() << "Parameters for halfaxis_a, halfaxis_b, and halfaxis_c are already set.";
+
+        //         if (MainWindow::probability_algorithm != nullptr) {
+        //             qInfo() << "Closing the Probability Algorithm window.";
+        //             MainWindow::probability_algorithm->close();  // Закриваємо вікно
+        //         } else {
+        //             qInfo() << "Probability Algorithm window is not open.";
+        //         }
+        //     }
+        // }
     }
+
     if (parser.isSet("seed"))
     {
         QString str = parser.value("seed");
@@ -58,13 +126,6 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
         Parameters::seed = static_cast<unsigned int>(std::time(nullptr));
     }
     qInfo() << "Random seed value is set to:" << Parameters::seed;
-
-    if (parser.isSet("wave_coefficient"))
-    {
-        QString str = parser.value("wave_coefficient");
-        Parameters::wave_coefficient = str.toFloat();
-        qInfo() << "wave_coefficient:" << Parameters::wave_coefficient;
-    }
 
     if (parser.isSet("autostart"))
     {

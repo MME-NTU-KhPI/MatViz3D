@@ -60,30 +60,52 @@ padding: 4px 0;
 padding-left: 4px;</string>
            </property>
            <property name="text">
-            <string>1.5</string>
+            <string/>
            </property>
           </widget>
          </item>
         </layout>
        </widget>
       </item>
-      <item row="1" column="0">
-       <widget class="QFrame" name="gridFrame_2">
+      <item row="3" column="0" colspan="2">
+       <widget class="QFrame" name="gridFrame_5">
+        <property name="maximumSize">
+         <size>
+          <width>16777215</width>
+          <height>30</height>
+         </size>
+        </property>
+        <layout class="QGridLayout" name="gridLayout_8">
+         <item row="0" column="0">
+          <widget class="QLabel" name="label_5">
+           <property name="styleSheet">
+            <string notr="true">
+color: #969696;
+font-family: Inter;
+font-size: 13px;
+font-style: normal;
+font-weight: 700;
+line-height: normal;</string>
+           </property>
+           <property name="text">
+            <string>If a sphere is used for construction - all halfi-axes must be equal.</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QFrame" name="gridFrame_4">
         <property name="maximumSize">
          <size>
           <width>230</width>
           <height>100</height>
          </size>
         </property>
-        <layout class="QGridLayout" name="gridLayout_5">
+        <layout class="QGridLayout" name="gridLayout_7">
          <item row="0" column="0">
-          <widget class="QLabel" name="label_2">
-           <property name="maximumSize">
-            <size>
-             <width>224</width>
-             <height>100</height>
-            </size>
-           </property>
+          <widget class="QLabel" name="label_4">
            <property name="styleSheet">
             <string notr="true">/* Cube size: */
 
@@ -96,12 +118,12 @@ font-weight: 700;
 line-height: normal;</string>
            </property>
            <property name="text">
-            <string>Half-axis c</string>
+            <string>Orintation angle (A)</string>
            </property>
           </widget>
          </item>
          <item row="1" column="0">
-          <widget class="QLineEdit" name="axisBLineEdit">
+          <widget class="QLineEdit" name="orintationAngleLineEdit">
            <property name="styleSheet">
             <string notr="true">background: #282828;
 border: 1px solid #969696;
@@ -111,7 +133,7 @@ padding: 4px 0;
 padding-left: 4px;</string>
            </property>
            <property name="text">
-            <string>1.5</string>
+            <string/>
            </property>
           </widget>
          </item>
@@ -162,24 +184,30 @@ padding: 4px 0;
 padding-left: 4px;</string>
            </property>
            <property name="text">
-            <string>1.5</string>
+            <string/>
            </property>
           </widget>
          </item>
         </layout>
        </widget>
       </item>
-      <item row="1" column="1">
-       <widget class="QFrame" name="gridFrame_4">
+      <item row="1" column="0">
+       <widget class="QFrame" name="gridFrame_2">
         <property name="maximumSize">
          <size>
           <width>230</width>
           <height>100</height>
          </size>
         </property>
-        <layout class="QGridLayout" name="gridLayout_7">
+        <layout class="QGridLayout" name="gridLayout_5">
          <item row="0" column="0">
-          <widget class="QLabel" name="label_4">
+          <widget class="QLabel" name="label_2">
+           <property name="maximumSize">
+            <size>
+             <width>224</width>
+             <height>100</height>
+            </size>
+           </property>
            <property name="styleSheet">
             <string notr="true">/* Cube size: */
 
@@ -192,12 +220,12 @@ font-weight: 700;
 line-height: normal;</string>
            </property>
            <property name="text">
-            <string>Orintation angle</string>
+            <string>Half-axis c</string>
            </property>
           </widget>
          </item>
          <item row="1" column="0">
-          <widget class="QLineEdit" name="orintationAngleLineEdit">
+          <widget class="QLineEdit" name="axisBLineEdit">
            <property name="styleSheet">
             <string notr="true">background: #282828;
 border: 1px solid #969696;
@@ -207,35 +235,94 @@ padding: 4px 0;
 padding-left: 4px;</string>
            </property>
            <property name="text">
-            <string>0</string>
+            <string/>
            </property>
           </widget>
          </item>
         </layout>
        </widget>
       </item>
-      <item row="2" column="0" colspan="2">
-       <widget class="QFrame" name="gridFrame_5">
-        <property name="maximumSize">
-         <size>
-          <width>16777215</width>
-          <height>30</height>
-         </size>
-        </property>
-        <layout class="QGridLayout" name="gridLayout_8">
+      <item row="2" column="0">
+       <widget class="QFrame" name="gridFrame_6">
+        <layout class="QGridLayout" name="gridLayout_9">
          <item row="0" column="0">
-          <widget class="QLabel" name="label_5">
+          <widget class="QLabel" name="label_6">
+           <property name="maximumSize">
+            <size>
+             <width>16777215</width>
+             <height>16777215</height>
+            </size>
+           </property>
            <property name="styleSheet">
-            <string notr="true">
+            <string notr="true">/* Cube size: */
+
+
 color: #969696;
 font-family: Inter;
-font-size: 13px;
+font-size: 20px;
 font-style: normal;
 font-weight: 700;
 line-height: normal;</string>
            </property>
            <property name="text">
-            <string>If a circle is used for generation, the half-axle b and half-axle c must be 0.</string>
+            <string>Orientation angle (B)</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLineEdit" name="lineEdit">
+           <property name="styleSheet">
+            <string notr="true">background: #282828;
+border: 1px solid #969696;
+border-radius: 5px;
+color: #969696;
+padding: 4px 0;
+padding-left: 4px;</string>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+           <property name="cursorPosition">
+            <number>0</number>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QFrame" name="gridFrame_7">
+        <layout class="QGridLayout" name="gridLayout_10">
+         <item row="0" column="0">
+          <widget class="QLabel" name="label_7">
+           <property name="styleSheet">
+            <string notr="true">/* Cube size: */
+
+
+color: #969696;
+font-family: Inter;
+font-size: 20px;
+font-style: normal;
+font-weight: 700;
+line-height: normal;</string>
+           </property>
+           <property name="text">
+            <string>Orientation angle (C)</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLineEdit" name="lineEdit_2">
+           <property name="styleSheet">
+            <string notr="true">background: #282828;
+border: 1px solid #969696;
+border-radius: 5px;
+color: #969696;
+padding: 4px 0;
+padding-left: 4px;</string>
+           </property>
+           <property name="text">
+            <string/>
            </property>
           </widget>
          </item>

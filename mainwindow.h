@@ -1,4 +1,3 @@
-
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 #define H5_BUILT_AS_DYNAMIC_LIB
@@ -25,6 +24,8 @@ class MainWindow : public QMainWindow
 
 public:
     MainWindow(QWidget *parent = nullptr);
+    static Probability_Algorithm *probability_algorithm;
+    Probability_Algorithm* getProbabilityAlgorithm() { return probability_algorithm; }
     void setNumCubes(short int arg);
     void setNumColors(int arg);
     void setConcentration(int arg);
@@ -79,7 +80,6 @@ private:
     Ui::MainWindow *ui;
     Statistics form;
     About *about;
-    Probability_Algorithm *probability_algorithm;
     MessageHandler *messageHandlerInstance;
     QCheckBox *allCheckBox;
     QCheckBox *dataCheckBox;
