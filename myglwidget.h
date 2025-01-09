@@ -9,17 +9,37 @@
 #include <QOpenGLFunctions>
 #include "ansysWrapper.h"
 
-
+/**
+ * @class MyGLWidget
+ * A custom OpenGL widget for rendering 3D voxel scenes with interaction capabilities.
+ */
 class MyGLWidget : public QOpenGLWidget
 {
     Q_OBJECT
-
+    /**
+     * OpenGL debug callback for logging messages.
+     */
     static void debugCallback(GLenum source, GLenum type, GLuint id, GLenum severity,
                               GLsizei length, const GLchar* message, const void* userParam);
 
 public:
+    /**
+     * Constructor to initialize the OpenGL widget.
+     * @param parent The parent widget.
+     */
     explicit MyGLWidget(QWidget *parent = 0);
+
+    /**
+     * Set the voxel data.
+     * @param voxels 3D array of voxel data.
+     * @param numCubes Number of cubes per dimension.
+     */
     void setVoxels(int32_t*** voxels, short int numCubes);
+
+    /**
+     * Retrieve the voxel data.
+     * @return Pointer to the 3D voxel array.
+     */
     int32_t*** getVoxels();
     void repaint_function();
 

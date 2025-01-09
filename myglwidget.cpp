@@ -667,7 +667,7 @@ void MyGLWidget::initializeVBO()
     f->glGenBuffers(1, vboIds);
     // Bind the vertex buffer
     f->glBindBuffer(GL_ARRAY_BUFFER, vboIds[0]);
-    // upload buffer t GPU
+    // upload buffer to GPU
     f->glBufferData(GL_ARRAY_BUFFER, voxelScene.size() * sizeof(Voxel), voxelScene.data() + offsetof(Voxel, x), GL_STATIC_DRAW);
 }
 
@@ -682,7 +682,10 @@ void MyGLWidget::updateVBO()
 void MyGLWidget::paintGL()
 {
     if (isVBOupdateRequired)
+    {
         this->updateVBO();
+        isVBOupdateRequired = false;
+    }
 
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
     // clear buffer
@@ -705,7 +708,7 @@ void MyGLWidget::paintGL()
 
     glEnable(GL_NORMALIZE);
 
-     // Draw X-Y-Z axis in R for X, G - for Y, B for Z
+     // Draw X-Y-Z axis in Red for X, Green for Y, Blue for Z
     this->drawAxis();
 
     // Bind VBO
