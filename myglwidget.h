@@ -87,6 +87,11 @@ public slots:
     void setXRotation(int angle);
     void setYRotation(int angle);
     void setZRotation(int angle);
+
+public:
+    void setIsometricView();
+    void setDimetricView();
+
     void setNumCubes(int numCubes);
     void setNumColors(int numColors);
     void setDistanceFactor(int factor);

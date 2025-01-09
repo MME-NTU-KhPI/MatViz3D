@@ -22,6 +22,7 @@ MyGLWidget::MyGLWidget(QWidget *parent)
     yRot = 0;
     zRot = 0;
     distance = 2.0f;
+    numCubes = 1;
     voxels = nullptr;
     wr = nullptr;
     timer = new QTimer(this);
@@ -85,6 +86,30 @@ void MyGLWidget::setZRotation(int angle)
         update();
     }
 }
+
+
+/**
+ * Set the view to standard isometric projection.
+ */
+void MyGLWidget::setIsometricView()
+{
+    xRot =  35.26 * 16;
+    yRot = -45.00 * 16;
+    zRot =  0;
+    update();
+}
+
+/**
+ * Set the view to standard dimetric projection.
+ */
+void MyGLWidget::setDimetricView()
+{
+    xRot =  26.57 * 16;
+    yRot = -45.00 * 16;
+    zRot =  0;
+    update();
+}
+
 
 
 void MyGLWidget::setNumCubes(int numCubes)
@@ -767,10 +792,12 @@ void MyGLWidget::paintGL()
     glPushMatrix();
 
     glLoadIdentity();
+
     glTranslatef(0.0, 0.0, -distance);
     glRotatef(xRot / 16.0, 1.0, 0.0, 0.0);
     glRotatef(yRot / 16.0, 0.0, 1.0, 0.0);
     glRotatef(zRot / 16.0, 0.0, 0.0, 1.0);
+    //qDebug() << "paintGL rotations angles:" << xRot / 16.0 << yRot / 16.0 << zRot / 16.0;
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
