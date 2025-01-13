@@ -101,7 +101,7 @@ MainWindow::~MainWindow()
 
 void MainWindow::onLogMessageWritten(const QString &message)
 {
-    ui->textEdit->append(message); // Вивід повідомлень в textEdit
+    ui->textEdit->append(message);
 }
 
 void MainWindow::onProbabilityAlgorithmChanged(const QString &text)
@@ -329,7 +329,6 @@ void MainWindow::on_statistics_clicked()
 
         QString selectedAlgorithm = ui->AlgorithmsBox->currentText();
 
-        // Отримати вибраний алгоритм
         QString algorithmName;
         if (selectedAlgorithm == "Neumann")
         {
@@ -348,23 +347,19 @@ void MainWindow::on_statistics_clicked()
             algorithmName = "Moore";
         }
 
-        // Встановити текст іконки вікна
         form.setWindowTitle("Statistics - " + algorithmName);
 
-        // Показати вікно
         form.show();
     }
-    clock_t end_time = clock(); // Фіксація часу завершення виконання
-    double elapsed_time = double(end_time - start_time) / CLOCKS_PER_SEC; // Обчислення часу виконання в секундах
+    clock_t end_time = clock();
+    double elapsed_time = double(end_time - start_time) / CLOCKS_PER_SEC;
     qDebug() << "Total execution time: " << elapsed_time << " seconds";
 }
 
 
 void MainWindow::setupFileMenu() {
-    // Створіть QMenu та QAction для FileMenu
     QMenu *fileMenu = new QMenu(this);
 
-    // Додайте інші дії до FileMenu
     QAction *openHDF = new QAction("Open h5 file" , this);
     QAction *saveAsImageAction = new QAction("Save as image", this);
     QAction *exportWRLAction = new QAction("Export to wrl", this);
@@ -379,7 +374,6 @@ void MainWindow::setupFileMenu() {
     fileMenu->addAction(estimateStressWithANSYS);
 
 
-    // Кастомізація FileMenu за допомогою CSS
     fileMenu->setStyleSheet("QMenu {"
                             "    background-color: #282828;" // фон меню
                             "    color: rgba(217, 217, 217, 0.70);" // колір тексту
@@ -390,8 +384,8 @@ void MainWindow::setupFileMenu() {
                             "    width: 170px;"
                             "    height: 54px;"
                             "    background-color: transparent;"
-                            "    padding: 8px 16px;"           // відступи для тексту
-                            "    border: 1px solid #969696;"  // обводка для кожного пункту
+                            "    padding: 8px 16px;"
+                            "    border: 1px solid #969696;"
                             "    border-radius: 15px;"
                             "    font-size: 20px;"
                             "    padding-top: 5px;"
@@ -402,18 +396,17 @@ void MainWindow::setupFileMenu() {
                             "    margin-bottom: 7px;"
                             "}"
                             "QMenu::item:selected {"
-                            "    background-color: rgba(217, 217, 217, 0.30);"  // фон для вибраного елемента
+                            "    background-color: rgba(217, 217, 217, 0.30);"
                             "}"
                             "QMenu::drop-down {"
-                            "    width: 0; height: 0;"  // Зробити стрілку невидимою
+                            "    width: 0; height: 0;"
                             "}"
                             "QMenu::indicator {"
-                            "    width: 0; height: 0;"  // Зробити стрілку невидимою
+                            "    width: 0; height: 0;"
                             "}");
 
-    // Кастомізація QAction
     QFont actionFont;
-    actionFont.setPointSize(14);  // розмір тексту
+    actionFont.setPointSize(14);
     openHDF->setFont(actionFont);
     saveAsImageAction->setFont(actionFont);
     exportWRLAction->setFont(actionFont);
@@ -421,7 +414,6 @@ void MainWindow::setupFileMenu() {
     saveAsHDF->setFont(actionFont);
     estimateStressWithANSYS->setFont(actionFont);
 
-    // Призначте це меню кнопці
     ui->FileButton->setMenu(fileMenu);
     connect(openHDF , &QAction::triggered , this , &MainWindow::openHDF);
     connect(saveAsImageAction, &QAction::triggered, this, &MainWindow::saveAsImage);
@@ -433,48 +425,41 @@ void MainWindow::setupFileMenu() {
 }
 
 void MainWindow::setupWindowMenu() {
-    // Створіть QMenu для WindowMenu
     QMenu *windowMenu = new QMenu(this);
 
-    // Створіть чекбокси для WindowMenu
     QCheckBox *allCheckBox = new QCheckBox("All", this);
     animationCheckBox = new QCheckBox("Animation", this);
     dataCheckBox = new QCheckBox("Data", this);
     consoleCheckBox = new QCheckBox("Console", this);
 
-    // Створіть QWidgetAction для кожного чекбоксу
     QWidgetAction *allCheckBoxAction = new QWidgetAction(this);
     QWidgetAction *animationCheckBoxAction = new QWidgetAction(this);
     QWidgetAction *consoleCheckBoxAction = new QWidgetAction(this);
     QWidgetAction *dataCheckBoxAction = new QWidgetAction(this);
 
-    // Встановіть віджети для QWidgetAction
     allCheckBoxAction->setDefaultWidget(allCheckBox);
     animationCheckBoxAction->setDefaultWidget(animationCheckBox);
     consoleCheckBoxAction->setDefaultWidget(consoleCheckBox);
     dataCheckBoxAction->setDefaultWidget(dataCheckBox);
 
-    // Додайте QWidgetAction до WindowMenu
     windowMenu->addAction(allCheckBoxAction);
     windowMenu->addAction(animationCheckBoxAction);
     windowMenu->addAction(consoleCheckBoxAction);
     windowMenu->addAction(dataCheckBoxAction);
 
-    // Встановіть стани чекбоксів за замовчуванням
     dataCheckBox->setChecked(true);
     consoleCheckBox->setChecked(true);
     animationCheckBox->setChecked(true);
     allCheckBox->setChecked(true);
 
-    // Кастомізація WindowMenu за допомогою CSS (можете вказати власні стилі)
     windowMenu->setStyleSheet("QMenu {"
                               "    width: 195px;"
                               "    height: 200px;"
-                              "    background-color: #282828;" // фон меню
-                              "    color: rgba(217, 217, 217, 0.70);" // колір тексту
+                              "    background-color: #282828;"
+                              "    color: rgba(217, 217, 217, 0.70);"
                               "}"
                               "QCheckBox {"
-                              "    padding: 8px 16px;"           // відступи для тексту
+                              "    padding: 8px 16px;"
                               "    font-size: 14px;"
                               "    font-weight: 500;"
                               "    color: #CFCECE;"
@@ -487,15 +472,13 @@ void MainWindow::setupWindowMenu() {
                               "    background-color: transparent;"
                               "}"
                               "QCheckBox::indicator:unchecked {"
-                              "    image: url(:/icon/checkOff.png);"  // зображення для невибраного чекбоксу
+                              "    image: url(:/icon/checkOff.png);"
                               "}"
                               "QCheckBox::indicator:checked {"
-                              "    image: url(:/icon/check.png);"  // зображення для вибраного чекбоксу
+                              "    image: url(:/icon/check.png);"
                               "}");
 
-    // Призначте це меню кнопці
     ui->WindowButton->setMenu(windowMenu);
-    // Приєднайте слоти до зміни стану чекбоксів
     connect(allCheckBox, &QCheckBox::stateChanged, this, &MainWindow::onAllCheckBoxChanged);
     connect(animationCheckBox, &QCheckBox::stateChanged, this, &MainWindow::onAnimationCheckBoxChanged);
     connect(consoleCheckBox, &QCheckBox::stateChanged, this, &MainWindow::onConsoleCheckBoxChanged);
@@ -537,7 +520,6 @@ void MainWindow::exportToWRL(){
     }
 }
 
-// Cube csv export button
 void MainWindow::exportToCSV(){
     if(startButtonPressed == false)
     {
@@ -549,7 +531,6 @@ void MainWindow::exportToCSV(){
     }
 }
 StressAnalysis sa;
-// Estimate elastic stress with ANSYS static structure solver
 void MainWindow::estimateStressWithANSYS(){
 
     if(startButtonPressed == false)
@@ -575,7 +556,6 @@ void MainWindow::estimateStressWithANSYS(){
 }
 
 void MainWindow::onAllCheckBoxChanged(int state) {
-    // Обробка зміни стану чекбоксу All
     if (state == Qt::Checked) {
         dataCheckBox->setChecked(true);
         consoleCheckBox->setChecked(true);
@@ -605,7 +585,6 @@ void MainWindow::onConsoleCheckBoxChanged(int state) {
 
 
 void MainWindow::onAnimationCheckBoxChanged(int state) {
-    // Обробка зміни стану чекбоксу All
     if (state == Qt::Checked) {
         ui->frameAnimation->show();
     } else {
@@ -620,11 +599,9 @@ void MainWindow::on_checkBoxAnimation_stateChanged(int arg1)
     if(arg1 == Qt::Checked) {
         isAnimation = 1;
         isClosedCube = 1;
-        //qDebug() << "Checkbox is checked";
     } else {
         isAnimation = 0;
         isClosedCube = 0;
-        //qDebug() << "Checkbox is unchecked";
     }
 }
 
@@ -642,7 +619,6 @@ void MainWindow::on_SliderAnimationSpeed_valueChanged(int value)
     double minValueConverted = 1.0;
     double maxValueConverted = 0.01;
 
-    // Конвертація значення слайдера
     double delayAnimation = ((maxValueConverted - minValueConverted) * (value - minValueSlider) / (maxValueSlider - minValueSlider)) + minValueConverted;
 
     ui->myGLWidget->setDelayAnimation(delayAnimation*1000);

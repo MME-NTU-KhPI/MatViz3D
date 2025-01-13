@@ -249,7 +249,7 @@ void Probability_Algorithm::Generate_Filling(int isAnimation, int isWaveGenerati
 
         std::atomic<unsigned int> local_counter(0);
 
-#pragma omp parallel
+        #pragma omp parallel
         {
             std::vector<Coordinate> privateGrains;
             privateGrains.reserve(current_size * 26 / omp_get_num_threads());
@@ -257,7 +257,7 @@ void Probability_Algorithm::Generate_Filling(int isAnimation, int isWaveGenerati
             std::mt19937 local_gen(global_gen());
             std::uniform_real_distribution<> local_dis(0.0, 1.0);
 
-#pragma omp for schedule(guided) nowait
+            #pragma omp for schedule(guided) nowait
             for (size_t i = 0; i < current_size; i++)
             {
                 const Coordinate& temp = grains[i];
@@ -294,7 +294,7 @@ void Probability_Algorithm::Generate_Filling(int isAnimation, int isWaveGenerati
                 }
             }
 
-#pragma omp critical
+            #pragma omp critical
             {
                 newGrains.insert(newGrains.end(),
                                  std::make_move_iterator(privateGrains.begin()),
