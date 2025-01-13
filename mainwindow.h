@@ -46,6 +46,20 @@ private slots:
     void setupFileMenu();
     void saveAsImage();
     void exportToWRL();
+    void initializeUIForStart();
+    bool validateParameters();
+    void executeAlgorithm(Parent_Algorithm& algorithm, const QString& algorithmName);
+
+    void executeNeumann();
+    void executeProbabilityCircle();
+    void executeProbabilityEllipse();
+    void executeProbabilityAlgorithm();
+    void executeMoore();
+    void executeRadial();
+    void executeComposite();
+    void executeDLCA();
+    void finalizeUIAfterCompletion();
+    void logExecutionTime(clock_t start_time);
 
     void setupWindowMenu();
     void onConsoleCheckBoxChanged(int state);
