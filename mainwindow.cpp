@@ -109,11 +109,10 @@ void MainWindow::onProbabilityAlgorithmChanged(const QString &text)
     if (text == "Probability Algorithm")
     {
         probability_algorithm = new Probability_Algorithm;
-        //probability_algorithm->show();
+        probability_algorithm->show();
     }
 }
 
-// Вибір між кількістю початкових точок та концентрацією
 void MainWindow::onInitialConditionSelectionChanged()
 {
     if (ui->numOfPointsRadioButton->isChecked()) {
@@ -125,10 +124,9 @@ void MainWindow::onInitialConditionSelectionChanged()
     }
 }
 
-// Функція перевірки для старт
 void MainWindow::checkStart()
 {
-    bool checked = ui->AlgorithmsBox->currentIndex() != -1; // Перевірте, чи обраний елемент
+    bool checked = ui->AlgorithmsBox->currentIndex() != -1;
 
     if (checked) {
         ui->Start->setEnabled(true);
@@ -151,7 +149,7 @@ void MainWindow::keyPressEvent(QKeyEvent *e)
 
 void MainWindow::on_Start_clicked()
 {
-    clock_t start_time = clock(); // Фіксація часу початку виконання
+    clock_t start_time = clock();
     QString selectedAlgorithm = ui->AlgorithmsBox->currentText();
     this->on_SliderAnimationSpeed_valueChanged(ui->SliderAnimationSpeed->value());
     if(std::isdigit(Parameters::size) == 0 && Parameters::size <= 0)

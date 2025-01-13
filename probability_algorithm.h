@@ -23,7 +23,6 @@ public:
     void setNumCubes(short int numCubes);
     void setNumColors(int numColors);
 private:
-    std::vector<Coordinate> Add_New_Points(const std::vector<Coordinate>& newGrains, int pointsForThisStep);
     Ui::Probability_Algorithm *ui;
     bool isPointIn(double x,double y,double z);
     void rotatePoint(double& x, double& y, double& z);
