@@ -29,10 +29,9 @@ public:
     void setConcentration(int arg);
     void setAlgorithms(QString arg);
     void callExportToCSV();
-    int isAnimation = 0;
-    int isWaveGeneration = 0;
-    int isPeriodicStructure = 1;
-    int isClosedCube;
+    bool isAnimation = false;
+    bool isWaveGeneration = false;
+    bool isPeriodicStructure = true;
     int delayAnimation;
     ~MainWindow();
 

@@ -1,6 +1,5 @@
 #include "composite.h"
 #include <cmath>
-#include <fstream>
 #include <chrono>
 #include <QString>
 #include <QTextStream>
@@ -20,16 +19,12 @@ void Composite::setRadius(short int radius)
     this->radius = radius;
 }
 
-void Composite::FillWithCylinder(int isAnimation, int isWaveGeneration)
-{
-    std::ofstream file;
-    file.open("Composite_250_50.csv", std::ios::app);
-    //file << "Thread;Time\n";
+void Composite::FillWithCylinder(bool isAnimation, bool isWaveGeneration) {
     int num_threads = 6;
     omp_set_num_threads(num_threads);
+
     auto start = std::chrono::high_resolution_clock::now();
 
-    // Initialize all voxels to 1 in parallel
     #pragma omp parallel for collapse(3)
     for (int k = 0; k < numCubes; k++)
         for (int i = 0; i < numCubes; i++)
@@ -43,26 +38,29 @@ void Composite::FillWithCylinder(int isAnimation, int isWaveGeneration)
     short int xStartOffset = (numCubes - (maxCylindersPerRow * centerOffset)) / 2;
     const float radius_squared = static_cast<float>(radius * radius);
 
-    #pragma omp parallel
-    {
-        #pragma omp for collapse(4) schedule(dynamic, 8)
-        for (int i = 0; i < maxCylindersPerRow; i++) {
-            for (int j = 0; j < maxCylindersPerRow; j++) {
-                for (int x = 0; x < numCubes; x++) {
-                    for (int y = 0; y < numCubes; y++) {
-                        short int shiftX = (j % 2 == 0) ? 0 : centerOffset / 2;
-                        short int centerX = xStartOffset + i * centerOffset + radius + shiftX;
-                        short int centerY = xStartOffset + j * centerOffset + radius;
+    #pragma omp parallel for collapse(2) schedule(dynamic, 8)
+    for (int i = 0; i < maxCylindersPerRow; i++) {
+        for (int j = 0; j < maxCylindersPerRow; j++) {
+            short int shiftX = (j % 2 == 0) ? 0 : centerOffset / 2;
+            short int centerX = xStartOffset + i * centerOffset + radius + shiftX;
+            short int centerY = xStartOffset + j * centerOffset + radius;
 
-                        float dx = static_cast<float>(x - centerX);
-                        float dy = static_cast<float>(y - centerY);
-                        float distance_squared = dx * dx + dy * dy;
-                        
-                        if (distance_squared <= radius_squared) {
-                            #pragma omp simd
-                            for (int z = 0; z < numCubes; z++) {
-                                voxels[x][y][z] = 5;
-                            }
+            int xStart = std::max(0, centerX - radius);
+            int xEnd = std::min(static_cast<int>(numCubes), centerX + radius);
+
+            int yStart = std::max(0, centerY - radius);
+            int yEnd = std::min(static_cast<int>(numCubes), centerY + radius);
+
+            for (int x = xStart; x < xEnd; x++) {
+                for (int y = yStart; y < yEnd; y++) {
+                    float dx = static_cast<float>((x - centerX + numCubes) % numCubes - numCubes * ((x - centerX + numCubes) % numCubes > radius));
+                    float dy = static_cast<float>((y - centerY + numCubes) % numCubes - numCubes * ((y - centerY + numCubes) % numCubes > radius));
+                    float distance_squared = dx * dx + dy * dy;
+
+                    if (distance_squared <= radius_squared) {
+                        #pragma omp simd
+                        for (int z = 0; z < numCubes; z++) {
+                            voxels[x][y][z] = 5;
                         }
                     }
                 }
@@ -73,11 +71,9 @@ void Composite::FillWithCylinder(int isAnimation, int isWaveGeneration)
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;
     qDebug() << "Algorithm execution time: " << duration.count() << " seconds";
-    file << num_threads << ";" << duration.count() << "\n";
-    file.close();
 }
 
-void Composite::FillWithTetra(int isAnimation, int isWaveGeneration, short int offsetX, short int offsetY, short int offsetZ)
+void Composite::FillWithTetra(bool isAnimation, bool isWaveGeneration, short int offsetX, short int offsetY, short int offsetZ)
 {
     #pragma omp parallel for collapse(3)
     for(int k = 0; k < numCubes; k++)
@@ -115,7 +111,7 @@ void Composite::FillWithTetra(int isAnimation, int isWaveGeneration, short int o
     }
 }
 
-void Composite::FillWithHexa(int isAnimation, int isWaveGeneration,short int offsetX, short int offsetY, short int offsetZ)
+void Composite::FillWithHexa(bool isAnimation, bool isWaveGeneration,short int offsetX, short int offsetY, short int offsetZ)
 {
     #pragma omp parallel for collapse(3)
         for(int k = 0; k < numCubes; k++)
@@ -146,7 +142,7 @@ void Composite::FillWithHexa(int isAnimation, int isWaveGeneration,short int off
 }
 
 
-void Composite::Generate_Filling(int isAnimation, int isWaveGeneration, int isPeriodicStructure)
+void Composite::Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPeriodicStructure)
 {
 
 };

@@ -231,7 +231,7 @@ void Probability_Algorithm::processValuesGrid()
     writeProbabilitiesToCSV("D:/Project(MatViz3D)/fall2024/", N);
 }
 
-void Probability_Algorithm::Generate_Filling(int isAnimation, int isWaveGeneration, int isPeriodicStructure)
+void Probability_Algorithm::Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPeriodicStructure)
 {
     omp_set_num_threads(omp_get_max_threads());
     const unsigned int counter_max = static_cast<unsigned int>(pow(numCubes, 3));
@@ -270,18 +270,18 @@ void Probability_Algorithm::Generate_Filling(int isAnimation, int isWaveGenerati
                     int16_t newY = y + offset[1];
                     int16_t newZ = z + offset[2];
 
-                    if (newX < 0 || newX >= numCubes ||
-                        newY < 0 || newY >= numCubes ||
-                        newZ < 0 || newZ >= numCubes)
-                        continue;
-
                     if (isPeriodicStructure == 1)
                     {
                         newX = (newX + numCubes) % numCubes;
                         newY = (newY + numCubes) % numCubes;
                         newZ = (newZ + numCubes) % numCubes;
                     }
-
+                    else if (newX < 0 || newX >= numCubes ||
+                             newY < 0 || newY >= numCubes ||
+                             newZ < 0 || newZ >= numCubes)
+                    {
+                        continue;
+                    }
                     if (voxels[newX][newY][newZ] == 0 && local_dis(local_gen) >= probability[1 + offset[0]][1 + offset[1]][1 + offset[2]])
                     {
                         if (voxels[newX][newY][newZ] == 0 &&
@@ -309,9 +309,9 @@ void Probability_Algorithm::Generate_Filling(int isAnimation, int isWaveGenerati
         double progress = static_cast<double>(counter) / counter_max;
         qDebug().nospace() << progress << "\t" << IterationNumber << "\t" << grains.size();
 
-        if (isAnimation == 1)
+        if (isAnimation)
         {
-            if (isWaveGeneration == 1 && remainingPoints > 0)
+            if (isWaveGeneration && remainingPoints > 0)
             {
                 pointsForThisStep = std::max(1, static_cast<int>(0.1 * remainingPoints));
                 auto newPoints = Add_New_Points(grains, pointsForThisStep);

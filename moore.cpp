@@ -29,7 +29,7 @@ const std::array<std::array<int32_t, 3>, 26> MOORE_OFFSETS = {{
     {1, 1, -1},   {1, 1, 0},   {1, 1, 1}
 }};
 
-void Moore::Generate_Filling(int isAnimation, int isWaveGeneration, int isPeriodicStructure)
+void Moore::Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPeriodicStructure)
 {
     omp_set_num_threads(omp_get_max_threads());
     const unsigned int counter_max = pow(numCubes, 3);
@@ -93,9 +93,9 @@ void Moore::Generate_Filling(int isAnimation, int isWaveGeneration, int isPeriod
         double o = static_cast<double>(counter) / counter_max;
         qDebug().nospace() << o << "\t" << IterationNumber << "\t" << grains.size();
         
-        if (isAnimation == 1)
+        if (isAnimation)
         {
-            if (isWaveGeneration == 1 && remainingPoints > 0)
+            if (isWaveGeneration && remainingPoints > 0)
             {
                 pointsForThisStep = std::max(1, static_cast<int>(0.1 * remainingPoints));
                 newGrains = Add_New_Points(newGrains, pointsForThisStep);

@@ -16,7 +16,7 @@ public:
     explicit Probability_Algorithm(QWidget *parent = nullptr);
     ~Probability_Algorithm();
     void setHalfAxis();
-    void Generate_Filling(int isAnimation, int isWaveGeneration, int isPeriodicStructure);
+    void Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPeriodicStructure);
     void processValues();
     void processValuesGrid();
     void writeProbabilitiesToCSV(const QString& filePath, uint64_t N); // Method

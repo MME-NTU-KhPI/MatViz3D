@@ -598,10 +598,8 @@ void MainWindow::on_checkBoxAnimation_stateChanged(int arg1)
 {
     if(arg1 == Qt::Checked) {
         isAnimation = 1;
-        isClosedCube = 1;
     } else {
         isAnimation = 0;
-        isClosedCube = 0;
     }
 }
 

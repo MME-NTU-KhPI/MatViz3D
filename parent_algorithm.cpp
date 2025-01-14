@@ -62,13 +62,13 @@ template <class T> void Parent_Algorithm::Delete3D(T ***array)
 };
 
 
-void Parent_Algorithm::Generate_Random_Starting_Points(int isWaveGeneration)
+void Parent_Algorithm::Generate_Random_Starting_Points(bool isWaveGeneration)
 {
     std::random_device rd;
     std::mt19937 generator(Parameters::seed);
     std::uniform_int_distribution<int> distribution(0, numCubes - 1);
     int currentPoints;
-    if(isWaveGeneration == 1)
+    if(isWaveGeneration)
     {
         currentPoints = static_cast<int>(0.1 * numColors);
     }
