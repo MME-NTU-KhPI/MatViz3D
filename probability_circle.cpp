@@ -23,7 +23,7 @@ Probability_Circle::Probability_Circle(short int numCubes, int numColors)
 }
 
 //Функция заполнения массива
-void Probability_Circle::Generate_Filling(int isAnimation, int isWaveGeneration)
+void Probability_Circle::Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPeriodicStructure)
 {
     srand(time(NULL));
     unsigned int counter_max = pow(numCubes,3);

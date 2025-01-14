@@ -2,7 +2,6 @@
 #include "console.h"
 #include <QCommandLineParser>
 #include <QApplication>
-
 #include <QProcessEnvironment>
 #include <QCoreApplication>
 #include <QDir>

@@ -17,6 +17,12 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
         qInfo() << "size:" << Parameters::size;
         window.setNumCubes(Parameters::size);
     }
+    else
+    {
+        //Parameters::size = 5;
+        qInfo() << "size:" << Parameters::size;
+        window.setNumCubes(Parameters::size);
+    }
     if (parser.isSet("points"))
     {
         QString str = parser.value("points");

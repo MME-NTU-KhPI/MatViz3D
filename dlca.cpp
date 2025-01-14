@@ -15,11 +15,10 @@ void DLCA_Aggregate::move_aggregate(int dx, int dy, int dz)
 {
     for (size_t i = 0; i < this->aggr.size(); i++)
     {
-        // Update particle position
         //voxels[aggr[i].x][aggr[i].y][aggr[i].z] = 0;
-        aggr[i].x = (aggr[i].x + dx + cubeSize) % cubeSize; // Update x position
-        aggr[i].y = (aggr[i].y + dy + cubeSize) % cubeSize; // Update y position
-        aggr[i].z = (aggr[i].z + dz + cubeSize) % cubeSize; // Update z position
+        aggr[i].x = (aggr[i].x + dx + cubeSize) % cubeSize;
+        aggr[i].y = (aggr[i].y + dy + cubeSize) % cubeSize;
+        aggr[i].z = (aggr[i].z + dz + cubeSize) % cubeSize;
         //voxels[aggr[i].x][aggr[i].y][aggr[i].z] = this->id; // Update new position
     }
 }
@@ -173,7 +172,7 @@ void DLCA::join_aggregates(size_t _i, size_t _j)
     }
 }
 
-void DLCA::Generate_Filling(int isAnimation, int isWaveGeneration)
+void DLCA::Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPeriodicStructure)
 {
     if (this->aggregates.size() > 1)
     {

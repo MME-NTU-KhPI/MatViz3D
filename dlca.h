@@ -24,7 +24,7 @@ class DLCA : public Parent_Algorithm {
 public:
     DLCA(short int numCubes, int numColors);
     DLCA(int cubeSize);
-    void Generate_Filling(int isAnimation, int isWaveGeneration);
+    void Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPeriodicStructure);
     void Generate_Random_Starting_Points();
     void random_walk();
     std::vector<DLCA_Aggregate> aggregates;

@@ -16,20 +16,25 @@ public:
     explicit Probability_Algorithm(QWidget *parent = nullptr);
     ~Probability_Algorithm();
     void setHalfAxis();
-    void Generate_Filling(int isAnimation, int isWaveGeneration);
-    bool isPointIn(double x,double y,double z);
-    void processValues(double probability[3][3][3]);
-    void writeProbabilitiesToCSV(double probability[3][3][3], const QString& filePath, uint64_t N); // Method
+    void Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPeriodicStructure);
+    void processValues();
+    void processValuesGrid();
+    void writeProbabilitiesToCSV(const QString& filePath, uint64_t N); // Method
     void setNumCubes(short int numCubes);
     void setNumColors(int numColors);
 private:
-    std::vector<Coordinate> Add_New_Points(const std::vector<Coordinate>& newGrains, int pointsForThisStep);
     Ui::Probability_Algorithm *ui;
+    bool isPointIn(double x,double y,double z);
+    void rotatePoint(double& x, double& y, double& z);
+    double toRadians(double degress);
     int pointsinvoxel;
-    float halfaxis_a = 1;
-    float halfaxis_b = 1;
-    float halfaxis_c = 1;
-    float orintation_angle;
+    float halfaxis_a = 1.5;
+    float halfaxis_b = 1.5;
+    float halfaxis_c = 1.5;
+    float orientation_angle_a = 0;
+    float orientation_angle_b = 0;
+    float orientation_angle_c = 0;
+    double probability[3][3][3];
 };
 
 #endif // PROBABILITY_ALGORITHM_H

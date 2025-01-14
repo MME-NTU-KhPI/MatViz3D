@@ -7,7 +7,6 @@
 #include <QPushButton>
 #include <QWidget>
 #include <QSlider>
-#include "animation.h"
 #include "statistics.h"
 #include "messagehandler.h"
 #include "about.h"
@@ -30,9 +29,9 @@ public:
     void setConcentration(int arg);
     void setAlgorithms(QString arg);
     void callExportToCSV();
-    int isAnimation = 0;
-    int isWaveGeneration = 0;
-    int isClosedCube;
+    bool isAnimation = false;
+    bool isWaveGeneration = false;
+    bool isPeriodicStructure = true;
     int delayAnimation;
     ~MainWindow();
 
@@ -46,6 +45,20 @@ private slots:
     void setupFileMenu();
     void saveAsImage();
     void exportToWRL();
+    void initializeUIForStart();
+    bool validateParameters();
+    void executeAlgorithm(Parent_Algorithm& algorithm, const QString& algorithmName);
+
+    void executeNeumann();
+    void executeProbabilityCircle();
+    void executeProbabilityEllipse();
+    void executeProbabilityAlgorithm();
+    void executeMoore();
+    void executeRadial();
+    void executeComposite();
+    void executeDLCA();
+    void finalizeUIAfterCompletion();
+    void logExecutionTime(clock_t start_time);
 
     void setupWindowMenu();
     void onConsoleCheckBoxChanged(int state);

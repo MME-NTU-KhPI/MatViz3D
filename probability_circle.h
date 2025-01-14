@@ -13,7 +13,7 @@ class Probability_Circle : public Parent_Algorithm
 public:
     Probability_Circle();
     Probability_Circle(short int numCubes, int numColors);
-    void Generate_Filling(int isAnimation, int isWaveGeneration);
+    void Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPeriodicStructure);
     std::vector<Coordinate> Check (int32_t*** voxels, std::vector<Coordinate> grains, size_t i);
 
 private:

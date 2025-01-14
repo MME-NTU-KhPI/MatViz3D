@@ -8,6 +8,7 @@
 #include "radial.h"
 #include "neumann.h"
 #include "moore.h"
+#include "composite.h"
 #include "dlca.h"
 #include "probability_algorithm.h"
 #include "probability_ellipse.h"
@@ -44,7 +45,6 @@ MainWindow::MainWindow(QWidget *parent)
     //connect(this, &MainWindow::on_Start_clicked, this, &MainWindow::on_Start_clicked);
 
     ui->myGLWidget->setDimetricView();
-
     connect(ui->Rectangle8, &QLineEdit::editingFinished, this, [=]() {
         bool ok;
         Parameters::size = ui->Rectangle8->text().toInt(&ok);
@@ -64,7 +64,7 @@ MainWindow::MainWindow(QWidget *parent)
         }
         else if (ui->concentrationRadioButton->isChecked() == true)
         {
-            double PercentOfConcentraion = ui->Rectangle9->text().toInt()/ 100.0;
+            double PercentOfConcentraion = ui->Rectangle9->text().toFloat()/ 100.0;
             qDebug() << "PercentOfConcentraion:" << PercentOfConcentraion;
 
             Parameters::points = PercentOfConcentraion * std::pow(static_cast<double>(Parameters::size), 3);
@@ -102,7 +102,7 @@ MainWindow::~MainWindow()
 
 void MainWindow::onLogMessageWritten(const QString &message)
 {
-    ui->textEdit->append(message); // Вивід повідомлень в textEdit
+    ui->textEdit->append(message);
 }
 
 void MainWindow::onProbabilityAlgorithmChanged(const QString &text)
@@ -112,10 +112,8 @@ void MainWindow::onProbabilityAlgorithmChanged(const QString &text)
         probability_algorithm = new Probability_Algorithm;
         probability_algorithm->show();
     }
-
 }
 
-// Вибір між кількістю початкових точок та концентрацією
 void MainWindow::onInitialConditionSelectionChanged()
 {
     if (ui->numOfPointsRadioButton->isChecked()) {
@@ -127,10 +125,9 @@ void MainWindow::onInitialConditionSelectionChanged()
     }
 }
 
-// Функція перевірки для старт
 void MainWindow::checkStart()
 {
-    bool checked = ui->AlgorithmsBox->currentIndex() != -1; // Перевірте, чи обраний елемент
+    bool checked = ui->AlgorithmsBox->currentIndex() != -1;
 
     if (checked) {
         ui->Start->setEnabled(true);
@@ -153,191 +150,164 @@ void MainWindow::keyPressEvent(QKeyEvent *e)
 
 void MainWindow::on_Start_clicked()
 {
-    clock_t start_time = clock(); // Фіксація часу початку виконання
+    clock_t start_time = clock();
     QString selectedAlgorithm = ui->AlgorithmsBox->currentText();
-    this->on_SliderAnimationSpeed_valueChanged(ui->SliderAnimationSpeed->value());
-    if(std::isdigit(Parameters::size) == 0 && Parameters::size <= 0)
-    {
-        QMessageBox::warning(nullptr,"Warning!","Entered cube size is less than or equal to zero!");
+
+    initializeUIForStart();
+
+    if (!validateParameters()) {
+        return;
     }
-    else if(std::isdigit(Parameters::points) == 0 && Parameters::points <= 0)
-    {
-        QMessageBox::warning(nullptr, "Warning!", "Invalid initial points value entered!\nThis will result in incorrect program operation!");
+
+    if (selectedAlgorithm == "Neumann") {
+        executeNeumann();
+    } else if (selectedAlgorithm == "Probability Circle") {
+        executeProbabilityCircle();
+    } else if (selectedAlgorithm == "Probability Ellipse") {
+        executeProbabilityEllipse();
+    } else if (selectedAlgorithm == "Probability Algorithm") {
+        executeProbabilityAlgorithm();
+    } else if (selectedAlgorithm == "Moore") {
+        executeMoore();
+    } else if (selectedAlgorithm == "Radial") {
+        executeRadial();
+    } else if (selectedAlgorithm == "Composite") {
+        executeComposite();
+    } else if (selectedAlgorithm == "DLCA") {
+        executeDLCA();
     }
-    else if(Parameters::points > std::pow(Parameters::size,3))
-    {
-        QMessageBox::warning(nullptr, "Warning!", "The entered value of the initial points exceeds the number of points in the cube! This may lead to incorrect operation of the programme. Please make sure that the number of starting points does not exceed the volume of the cube!");
-    }
+
+    finalizeUIAfterCompletion();
+    logExecutionTime(start_time);
+}
+
+void MainWindow::initializeUIForStart()
+{
     ui->Start->setText("Loading...");
     ui->Start->setStyleSheet("background: transparent; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
     QApplication::processEvents();
-    if (selectedAlgorithm == "Neumann")
-    {
-        Neumann start(Parameters::size, Parameters::points);
-        Parameters::voxels = start.Generate_Initial_Cube();
-        start.Generate_Random_Starting_Points(isWaveGeneration);
-        start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
-        if (isAnimation == 0)
-        {
-            start.Generate_Filling(isAnimation, isWaveGeneration);
-            ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
-            ui->myGLWidget->update();
-        }
-        else
-        {
-            QGifImage gif;
-            while (!start.grains.empty())
-            {
-                start.Generate_Filling(isAnimation, isWaveGeneration);
-                QApplication::processEvents();
-                ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
-
-
-                gif.setDefaultDelay(1);
-
-                QImage frame = ui->myGLWidget->captureScreenshotWithWhiteBackground();
-                gif.addFrame(frame);
-            }
-
-                // Save the GIF to the specified file
-            gif.save("animation.gif");
-        }
-        qDebug() << "NEUMANN";
-    }
-    else if (selectedAlgorithm == "Probability Circle")
-    {
-        Probability_Circle start(Parameters::size, Parameters::points);
-        Parameters::voxels = start.Generate_Initial_Cube();
-        start.Generate_Random_Starting_Points(isWaveGeneration);
-        start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
-        if (isAnimation == 0)
-        {
-            start.Generate_Filling(isAnimation, isWaveGeneration);
-            ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
-            ui->myGLWidget->update();
-        }
-        else
-        {
-            while (!start.grains.empty())
-            {
-                start.Generate_Filling(isAnimation, isWaveGeneration);
-                QApplication::processEvents();
-                ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
-            }
-        }
-        qDebug() << "PROBABILITY CIRCLE";
-    }
-    else if (selectedAlgorithm == "Probability Ellipse")
-    {
-        Probability_Ellipse start(Parameters::size, Parameters::points);
-        Parameters::voxels = start.Generate_Initial_Cube();
-        start.Generate_Random_Starting_Points(isWaveGeneration);
-        start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
-        if (isAnimation == 0)
-        {
-            start.Generate_Filling(isAnimation, isWaveGeneration);
-            ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
-            ui->myGLWidget->update();
-        }
-        else
-        {
-            while (!start.grains.empty())
-            {
-                start.Generate_Filling(isAnimation, isWaveGeneration);
-                QApplication::processEvents();
-                ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
-            }
-        }
-        qDebug() << "PROBABILITY ELLIPSE";
-    }
-    else if (selectedAlgorithm == "Probability Algorithm")
-    {
-        probability_algorithm->setNumCubes(Parameters::size);
-        probability_algorithm->setNumColors(Parameters::points);
-        Parameters::voxels = probability_algorithm->Generate_Initial_Cube();
-        probability_algorithm->Generate_Random_Starting_Points(isWaveGeneration);
-        probability_algorithm->remainingPoints = probability_algorithm->numColors - static_cast<int>(0.1 * probability_algorithm->numColors);
-        probability_algorithm->Generate_Filling(isAnimation,isWaveGeneration);
-        ui->myGLWidget->setVoxels(probability_algorithm->voxels,probability_algorithm->numCubes);
-        ui->myGLWidget->update();
-    }
-    else if (selectedAlgorithm == "Moore")
-    {
-        Moore start(Parameters::size, Parameters::points);
-        Parameters::voxels = start.Generate_Initial_Cube();
-        start.Generate_Random_Starting_Points(isWaveGeneration);
-        start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
-        if (isAnimation == 0)
-        {
-            start.Generate_Filling(isAnimation, isWaveGeneration);
-            ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
-            ui->myGLWidget->update();
-        }
-        else
-        {
-            while (!start.grains.empty())
-            {
-                start.Generate_Filling(isAnimation, isWaveGeneration);
-                QApplication::processEvents();
-                ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
-            }
-        }
-        qDebug() << "MOORE";
-    }
-    else if(selectedAlgorithm == "Radial")
-    {
-        Radial start(Parameters::size, Parameters::points);
-        Parameters::voxels = start.Generate_Initial_Cube();
-        start.Generate_Random_Starting_Points(isWaveGeneration);
-        start.remainingPoints = start.numColors - static_cast<int>(0.1 * start.numColors);
-        if (isAnimation == 0)
-        {
-            start.Generate_Filling(isAnimation, isWaveGeneration);
-            ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
-            ui->myGLWidget->update();
-        }
-        else
-        {
-            while (!start.grains.empty())
-            {
-                start.Generate_Filling(isAnimation, isWaveGeneration);
-                QApplication::processEvents();
-                ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
-            }
-        }
-        qDebug() << "RADIAL";
-    }
-    if(selectedAlgorithm == "DLCA")
-    {
-        DLCA start(Parameters::size, Parameters::points);
-        Parameters::voxels = start.Generate_Initial_Cube();
-        start.Generate_Random_Starting_Points();
-        if (isAnimation == 0)
-        {
-            start.Generate_Filling(isAnimation, isWaveGeneration);
-            ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
-            ui->myGLWidget->update();
-        }
-        else
-        {
-            while (!start.grains.empty())
-            {
-                start.Generate_Filling(isAnimation, isWaveGeneration);
-                QApplication::processEvents();
-                ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
-            }
-        }
-        qDebug() << "DLCA";
-    }
-    ui->Start->setText("RELOAD");
-    ui->Start->setStyleSheet("background: #282828; border-radius: 8px; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
-    clock_t end_time = clock(); // Фіксація часу завершення виконання
-    double elapsed_time = double(end_time - start_time) / CLOCKS_PER_SEC; // Обчислення часу виконання в секундах
-    qDebug() << "Total execution time: " << elapsed_time << " seconds";
-    // ui->myGLWidget->calculateSurfaceArea();
-    startButtonPressed = true;
 }
 
+bool MainWindow::validateParameters()
+{
+    if (std::isdigit(Parameters::size) == 0 && Parameters::size <= 0) {
+        QMessageBox::warning(nullptr, "Warning!", "Entered cube size is less than or equal to zero!");
+        return false;
+    } else if (std::isdigit(Parameters::points) == 0 && Parameters::points <= 0) {
+        QMessageBox::warning(nullptr, "Warning!", "Invalid initial points value entered!\nThis will result in incorrect program operation!");
+        return false;
+    } else if (Parameters::points > std::pow(Parameters::size, 3)) {
+        QMessageBox::warning(nullptr, "Warning!", "The entered value of the initial points exceeds the number of points in the cube! This may lead to incorrect operation of the programme. Please make sure that the number of starting points does not exceed the volume of the cube!");
+        return false;
+    }
+    return true;
+}
+
+void MainWindow::executeAlgorithm(Parent_Algorithm& algorithm, const QString& algorithmName)
+{
+    Parameters::voxels = algorithm.Generate_Initial_Cube();
+    algorithm.Generate_Random_Starting_Points(isWaveGeneration);
+    algorithm.remainingPoints = algorithm.numColors - static_cast<int>(0.1 * algorithm.numColors);
+
+    if (isAnimation == 0) {
+        algorithm.Generate_Filling(isAnimation, isWaveGeneration, isPeriodicStructure);
+        ui->myGLWidget->setVoxels(algorithm.voxels, algorithm.numCubes);
+        ui->myGLWidget->update();
+    } else {
+        while (!algorithm.grains.empty()) {
+            algorithm.Generate_Filling(isAnimation, isWaveGeneration, isPeriodicStructure);
+            QApplication::processEvents();
+            ui->myGLWidget->updateGLWidget(algorithm.voxels, algorithm.numCubes);
+        }
+    }
+
+    qDebug() << algorithmName;
+}
+
+void MainWindow::executeNeumann()
+{
+    Neumann algorithm(Parameters::size, Parameters::points);
+    executeAlgorithm(algorithm, "NEUMANN");
+}
+
+void MainWindow::executeProbabilityCircle()
+{
+    Probability_Circle algorithm(Parameters::size, Parameters::points);
+    executeAlgorithm(algorithm, "PROBABILITY CIRCLE");
+}
+
+void MainWindow::executeProbabilityEllipse()
+{
+    Probability_Ellipse algorithm(Parameters::size, Parameters::points);
+    executeAlgorithm(algorithm, "PROBABILITY ELLIPSE");
+}
+
+void MainWindow::executeProbabilityAlgorithm()
+{
+    probability_algorithm->setNumCubes(Parameters::size);
+    probability_algorithm->setNumColors(Parameters::points);
+    Parameters::voxels = probability_algorithm->Generate_Initial_Cube();
+    probability_algorithm->Generate_Random_Starting_Points(isWaveGeneration);
+    probability_algorithm->remainingPoints = probability_algorithm->numColors - static_cast<int>(0.1 * probability_algorithm->numColors);
+
+    probability_algorithm->processValuesGrid();
+
+    if (isAnimation == 0) {
+        probability_algorithm->Generate_Filling(isAnimation, isWaveGeneration, isPeriodicStructure);
+        ui->myGLWidget->setVoxels(probability_algorithm->voxels, probability_algorithm->numCubes);
+        ui->myGLWidget->update();
+    } else {
+        while (!probability_algorithm->grains.empty()) {
+            probability_algorithm->Generate_Filling(isAnimation, isWaveGeneration, isPeriodicStructure);
+            QApplication::processEvents();
+            ui->myGLWidget->updateGLWidget(probability_algorithm->voxels, probability_algorithm->numCubes);
+        }
+    }
+}
+
+void MainWindow::executeMoore()
+{
+    Moore algorithm(Parameters::size, Parameters::points);
+    executeAlgorithm(algorithm, "MOORE");
+}
+
+void MainWindow::executeRadial()
+{
+    Radial algorithm(Parameters::size, Parameters::points);
+    executeAlgorithm(algorithm, "RADIAL");
+}
+
+void MainWindow::executeComposite()
+{
+    Composite algorithm(Parameters::size, Parameters::points);
+    Parameters::voxels = algorithm.Generate_Initial_Cube();
+    algorithm.Generate_Random_Starting_Points(isWaveGeneration);
+    algorithm.remainingPoints = algorithm.numColors - static_cast<int>(0.1 * algorithm.numColors);
+    algorithm.setRadius(Parameters::points);
+    algorithm.FillWithCylinder(isAnimation, isWaveGeneration);
+
+    ui->myGLWidget->setVoxels(algorithm.voxels, algorithm.numCubes);
+    ui->myGLWidget->update();
+}
+
+void MainWindow::executeDLCA()
+{
+    DLCA algorithm(Parameters::size, Parameters::points);
+    executeAlgorithm(algorithm, "DLCA");
+}
+
+void MainWindow::finalizeUIAfterCompletion()
+{
+    ui->Start->setText("RELOAD");
+    ui->Start->setStyleSheet("background: #282828; border-radius: 8px; color: #CFCECE; font-family: Inter; font-size: 20px; font-style: normal; font-weight: 700; line-height: normal; text-transform: uppercase;");
+}
+
+void MainWindow::logExecutionTime(clock_t start_time)
+{
+    clock_t end_time = clock();
+    double elapsed_time = double(end_time - start_time) / CLOCKS_PER_SEC;
+    qDebug() << "Total execution time: " << elapsed_time << " seconds";
+}
 void MainWindow::on_statistics_clicked()
 {
     clock_t start_time = clock();
@@ -360,7 +330,6 @@ void MainWindow::on_statistics_clicked()
 
         QString selectedAlgorithm = ui->AlgorithmsBox->currentText();
 
-        // Отримати вибраний алгоритм
         QString algorithmName;
         if (selectedAlgorithm == "Neumann")
         {
@@ -379,23 +348,19 @@ void MainWindow::on_statistics_clicked()
             algorithmName = "Moore";
         }
 
-        // Встановити текст іконки вікна
         form.setWindowTitle("Statistics - " + algorithmName);
 
-        // Показати вікно
         form.show();
     }
-    clock_t end_time = clock(); // Фіксація часу завершення виконання
-    double elapsed_time = double(end_time - start_time) / CLOCKS_PER_SEC; // Обчислення часу виконання в секундах
+    clock_t end_time = clock();
+    double elapsed_time = double(end_time - start_time) / CLOCKS_PER_SEC;
     qDebug() << "Total execution time: " << elapsed_time << " seconds";
 }
 
 
 void MainWindow::setupFileMenu() {
-    // Створіть QMenu та QAction для FileMenu
     QMenu *fileMenu = new QMenu(this);
 
-    // Додайте інші дії до FileMenu
     QAction *openHDF = new QAction("Open h5 file" , this);
     QAction *saveAsImageAction = new QAction("Save as image", this);
     QAction *exportWRLAction = new QAction("Export to wrl", this);
@@ -412,7 +377,6 @@ void MainWindow::setupFileMenu() {
     fileMenu->addAction(MakeScreenshot);
 
 
-    // Кастомізація FileMenu за допомогою CSS
     fileMenu->setStyleSheet("QMenu {"
                             "    background-color: #282828;" // фон меню
                             "    color: rgba(217, 217, 217, 0.70);" // колір тексту
@@ -423,8 +387,8 @@ void MainWindow::setupFileMenu() {
                             "    width: 170px;"
                             "    height: 54px;"
                             "    background-color: transparent;"
-                            "    padding: 8px 16px;"           // відступи для тексту
-                            "    border: 1px solid #969696;"  // обводка для кожного пункту
+                            "    padding: 8px 16px;"
+                            "    border: 1px solid #969696;"
                             "    border-radius: 15px;"
                             "    font-size: 20px;"
                             "    padding-top: 5px;"
@@ -435,18 +399,17 @@ void MainWindow::setupFileMenu() {
                             "    margin-bottom: 7px;"
                             "}"
                             "QMenu::item:selected {"
-                            "    background-color: rgba(217, 217, 217, 0.30);"  // фон для вибраного елемента
+                            "    background-color: rgba(217, 217, 217, 0.30);"
                             "}"
                             "QMenu::drop-down {"
-                            "    width: 0; height: 0;"  // Зробити стрілку невидимою
+                            "    width: 0; height: 0;"
                             "}"
                             "QMenu::indicator {"
-                            "    width: 0; height: 0;"  // Зробити стрілку невидимою
+                            "    width: 0; height: 0;"
                             "}");
 
-    // Кастомізація QAction
     QFont actionFont;
-    actionFont.setPointSize(14);  // розмір тексту
+    actionFont.setPointSize(14);
     openHDF->setFont(actionFont);
     saveAsImageAction->setFont(actionFont);
     exportWRLAction->setFont(actionFont);
@@ -455,7 +418,6 @@ void MainWindow::setupFileMenu() {
     estimateStressWithANSYS->setFont(actionFont);
     MakeScreenshot->setFont(actionFont);
 
-    // Призначте це меню кнопці
     ui->FileButton->setMenu(fileMenu);
     connect(openHDF , &QAction::triggered , this , &MainWindow::openHDF);
     connect(saveAsImageAction, &QAction::triggered, this, &MainWindow::saveAsImage);
@@ -468,48 +430,41 @@ void MainWindow::setupFileMenu() {
 }
 
 void MainWindow::setupWindowMenu() {
-    // Створіть QMenu для WindowMenu
     QMenu *windowMenu = new QMenu(this);
 
-    // Створіть чекбокси для WindowMenu
     QCheckBox *allCheckBox = new QCheckBox("All", this);
     animationCheckBox = new QCheckBox("Animation", this);
     dataCheckBox = new QCheckBox("Data", this);
     consoleCheckBox = new QCheckBox("Console", this);
 
-    // Створіть QWidgetAction для кожного чекбоксу
     QWidgetAction *allCheckBoxAction = new QWidgetAction(this);
     QWidgetAction *animationCheckBoxAction = new QWidgetAction(this);
     QWidgetAction *consoleCheckBoxAction = new QWidgetAction(this);
     QWidgetAction *dataCheckBoxAction = new QWidgetAction(this);
 
-    // Встановіть віджети для QWidgetAction
     allCheckBoxAction->setDefaultWidget(allCheckBox);
     animationCheckBoxAction->setDefaultWidget(animationCheckBox);
     consoleCheckBoxAction->setDefaultWidget(consoleCheckBox);
     dataCheckBoxAction->setDefaultWidget(dataCheckBox);
 
-    // Додайте QWidgetAction до WindowMenu
     windowMenu->addAction(allCheckBoxAction);
     windowMenu->addAction(animationCheckBoxAction);
     windowMenu->addAction(consoleCheckBoxAction);
     windowMenu->addAction(dataCheckBoxAction);
 
-    // Встановіть стани чекбоксів за замовчуванням
     dataCheckBox->setChecked(true);
     consoleCheckBox->setChecked(true);
     animationCheckBox->setChecked(true);
     allCheckBox->setChecked(true);
 
-    // Кастомізація WindowMenu за допомогою CSS (можете вказати власні стилі)
     windowMenu->setStyleSheet("QMenu {"
                               "    width: 195px;"
                               "    height: 200px;"
-                              "    background-color: #282828;" // фон меню
-                              "    color: rgba(217, 217, 217, 0.70);" // колір тексту
+                              "    background-color: #282828;"
+                              "    color: rgba(217, 217, 217, 0.70);"
                               "}"
                               "QCheckBox {"
-                              "    padding: 8px 16px;"           // відступи для тексту
+                              "    padding: 8px 16px;"
                               "    font-size: 14px;"
                               "    font-weight: 500;"
                               "    color: #CFCECE;"
@@ -522,15 +477,13 @@ void MainWindow::setupWindowMenu() {
                               "    background-color: transparent;"
                               "}"
                               "QCheckBox::indicator:unchecked {"
-                              "    image: url(:/icon/checkOff.png);"  // зображення для невибраного чекбоксу
+                              "    image: url(:/icon/checkOff.png);"
                               "}"
                               "QCheckBox::indicator:checked {"
-                              "    image: url(:/icon/check.png);"  // зображення для вибраного чекбоксу
+                              "    image: url(:/icon/check.png);"
                               "}");
 
-    // Призначте це меню кнопці
     ui->WindowButton->setMenu(windowMenu);
-    // Приєднайте слоти до зміни стану чекбоксів
     connect(allCheckBox, &QCheckBox::stateChanged, this, &MainWindow::onAllCheckBoxChanged);
     connect(animationCheckBox, &QCheckBox::stateChanged, this, &MainWindow::onAnimationCheckBoxChanged);
     connect(consoleCheckBox, &QCheckBox::stateChanged, this, &MainWindow::onConsoleCheckBoxChanged);
@@ -572,7 +525,6 @@ void MainWindow::exportToWRL(){
     }
 }
 
-// Cube csv export button
 void MainWindow::exportToCSV(){
     if(startButtonPressed == false)
     {
@@ -584,7 +536,6 @@ void MainWindow::exportToCSV(){
     }
 }
 StressAnalysis sa;
-// Estimate elastic stress with ANSYS static structure solver
 void MainWindow::estimateStressWithANSYS(){
 
     if(startButtonPressed == false)
@@ -610,7 +561,6 @@ void MainWindow::estimateStressWithANSYS(){
 }
 
 void MainWindow::onAllCheckBoxChanged(int state) {
-    // Обробка зміни стану чекбоксу All
     if (state == Qt::Checked) {
         dataCheckBox->setChecked(true);
         consoleCheckBox->setChecked(true);
@@ -640,7 +590,6 @@ void MainWindow::onConsoleCheckBoxChanged(int state) {
 
 
 void MainWindow::onAnimationCheckBoxChanged(int state) {
-    // Обробка зміни стану чекбоксу All
     if (state == Qt::Checked) {
         ui->frameAnimation->show();
     } else {
@@ -654,12 +603,8 @@ void MainWindow::on_checkBoxAnimation_stateChanged(int arg1)
 {
     if(arg1 == Qt::Checked) {
         isAnimation = 1;
-        isClosedCube = 1;
-        //qDebug() << "Checkbox is checked";
     } else {
         isAnimation = 0;
-        isClosedCube = 0;
-        //qDebug() << "Checkbox is unchecked";
     }
 }
 
@@ -677,7 +622,6 @@ void MainWindow::on_SliderAnimationSpeed_valueChanged(int value)
     double minValueConverted = 1.0;
     double maxValueConverted = 0.01;
 
-    // Конвертація значення слайдера
     double delayAnimation = ((maxValueConverted - minValueConverted) * (value - minValueSlider) / (maxValueSlider - minValueSlider)) + minValueConverted;
 
     ui->myGLWidget->setDelayAnimation(delayAnimation*1000);
