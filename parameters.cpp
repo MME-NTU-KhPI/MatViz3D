@@ -2,7 +2,7 @@
 #include <QDir>
 
 int32_t*** Parameters::voxels;
-short int Parameters::size;
+short int Parameters::size = 1;
 int Parameters::points;
 unsigned int Parameters::seed;
 QString Parameters::algorithm;

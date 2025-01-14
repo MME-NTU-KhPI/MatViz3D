@@ -209,7 +209,7 @@ void MainWindow::executeAlgorithm(Parent_Algorithm& algorithm, const QString& al
     algorithm.Generate_Random_Starting_Points(isWaveGeneration);
     algorithm.remainingPoints = algorithm.numColors - static_cast<int>(0.1 * algorithm.numColors);
 
-    if (isAnimation == 0) {
+    if (!isAnimation) {
         algorithm.Generate_Filling(isAnimation, isWaveGeneration, isPeriodicStructure);
         ui->myGLWidget->setVoxels(algorithm.voxels, algorithm.numCubes);
         ui->myGLWidget->update();

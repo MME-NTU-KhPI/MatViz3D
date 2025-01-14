@@ -31,7 +31,7 @@ public:
     void callExportToCSV();
     bool isAnimation = false;
     bool isWaveGeneration = false;
-    bool isPeriodicStructure = true;
+    bool isPeriodicStructure = false;
     int delayAnimation;
     ~MainWindow();
 

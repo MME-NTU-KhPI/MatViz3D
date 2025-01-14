@@ -759,7 +759,7 @@ void MyGLWidget::drawAxis()
 
 void MyGLWidget::initializeVBO()
 {
-     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
+    QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
     // Create buffers for vertex, color, and normal data
     f->glGenBuffers(1, vboIds);
     // Bind the vertex buffer
@@ -807,7 +807,7 @@ void MyGLWidget::paintGL()
 
     glEnable(GL_NORMALIZE);
 
-     // Draw X-Y-Z axis in Red for X, Green for Y, Blue for Z
+    // Draw X-Y-Z axis in Red for X, Green for Y, Blue for Z
     this->drawAxis();
 
     // Bind VBO
@@ -927,5 +927,4 @@ int32_t*** MyGLWidget::getVoxels()
 {
     return voxels;
 }
-
 

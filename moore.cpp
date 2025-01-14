@@ -34,8 +34,6 @@ void Moore::Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPer
     omp_set_num_threads(omp_get_max_threads());
     const unsigned int counter_max = pow(numCubes, 3);
     
-    auto start = std::chrono::high_resolution_clock::now();
-    
     while (!grains.empty())
     {
         const size_t current_size = grains.size();
@@ -105,8 +103,4 @@ void Moore::Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPer
             break;
         }
     }
-    
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> duration = end - start;
-    qDebug() << "Algorithm execution time: " << duration.count() << " seconds";
 }

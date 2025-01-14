@@ -794,6 +794,9 @@ color: #969696;
 padding: 4px 0;
 padding-left: 4px;</string>
                      </property>
+                     <property name="cursorPosition">
+                      <number>0</number>
+                     </property>
                     </widget>
                    </item>
                   </layout>
