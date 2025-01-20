@@ -89,6 +89,12 @@ public slots:
     void setZRotation(int angle);
 
 public:
+    void setFrontView();
+    void setBackView();
+    void setTopView();
+    void setBottomView();
+    void setLeftView();
+    void setRightView();
     void setIsometricView();
     void setDimetricView();
 

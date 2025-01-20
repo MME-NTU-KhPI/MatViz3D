@@ -87,6 +87,47 @@ void MyGLWidget::setZRotation(int angle)
     }
 }
 
+void MyGLWidget::setFrontView() {
+    xRot = 0;
+    yRot = 0;
+    zRot = 0;
+    update();
+}
+
+void MyGLWidget::setBackView() {
+    xRot = 0;
+    yRot = 180 * 16;
+    zRot = 0;
+    update();
+}
+
+void MyGLWidget::setTopView() {
+    xRot = -90 * 16;
+    yRot = 0;
+    zRot = 0;
+    update();
+}
+
+void MyGLWidget::setBottomView() {
+    xRot = 90 * 16;
+    yRot = 0;
+    zRot = 0;
+    update();
+}
+
+void MyGLWidget::setLeftView() {
+    xRot = 0;
+    yRot = 90 * 16;
+    zRot = 0;
+    update();
+}
+
+void MyGLWidget::setRightView() {
+    xRot = 0;
+    yRot = -90 * 16;
+    zRot = 0;
+    update();
+}
 
 /**
  * Set the view to standard isometric projection.
@@ -109,8 +150,6 @@ void MyGLWidget::setDimetricView()
     zRot =  0;
     update();
 }
-
-
 
 void MyGLWidget::setNumCubes(int numCubes)
 {

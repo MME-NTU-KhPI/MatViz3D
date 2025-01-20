@@ -44,7 +44,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->AlgorithmsBox, &QComboBox::currentTextChanged, this, &MainWindow::onProbabilityAlgorithmChanged);
     //connect(this, &MainWindow::on_Start_clicked, this, &MainWindow::on_Start_clicked);
 
-    ui->myGLWidget->setDimetricView();
+    ui->myGLWidget->setTopView();
     connect(ui->Rectangle8, &QLineEdit::editingFinished, this, [=]() {
         bool ok;
         Parameters::size = ui->Rectangle8->text().toInt(&ok);
