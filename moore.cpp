@@ -31,7 +31,6 @@ const std::array<std::array<int32_t, 3>, 26> MOORE_OFFSETS = {{
 
 void Moore::Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPeriodicStructure)
 {
-    omp_set_num_threads(omp_get_max_threads());
     const unsigned int counter_max = pow(numCubes, 3);
     
     while (!grains.empty())

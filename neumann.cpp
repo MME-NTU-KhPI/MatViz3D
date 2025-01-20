@@ -22,7 +22,6 @@ const std::array<std::array<int32_t, 3>, 6> NEUMANN_OFFSETS = {{
 
 void Neumann::Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPeriodicStructure)
 {
-    omp_set_num_threads(omp_get_max_threads());
     unsigned int counter_max = pow(numCubes, 3);
     auto start = std::chrono::high_resolution_clock::now();
     while (!grains.empty())

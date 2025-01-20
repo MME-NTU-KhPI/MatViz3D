@@ -14,6 +14,7 @@ public:
     static unsigned int seed;
     static QString filename;
     static int num_rnd_loads;
+    static int num_threads;
     static QString working_directory; // save working directory
 };
 

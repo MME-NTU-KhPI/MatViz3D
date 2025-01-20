@@ -20,9 +20,6 @@ void Composite::setRadius(short int radius)
 }
 
 void Composite::FillWithCylinder(bool isAnimation, bool isWaveGeneration) {
-    int num_threads = 6;
-    omp_set_num_threads(num_threads);
-
     auto start = std::chrono::high_resolution_clock::now();
 
     #pragma omp parallel for collapse(3)

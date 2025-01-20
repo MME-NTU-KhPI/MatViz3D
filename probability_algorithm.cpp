@@ -233,7 +233,6 @@ void Probability_Algorithm::processValuesGrid()
 
 void Probability_Algorithm::Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPeriodicStructure)
 {
-    omp_set_num_threads(omp_get_max_threads());
     const unsigned int counter_max = static_cast<unsigned int>(pow(numCubes, 3));
     auto start = std::chrono::high_resolution_clock::now();
 

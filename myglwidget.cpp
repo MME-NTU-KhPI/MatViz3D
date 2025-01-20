@@ -3,7 +3,7 @@
 #include <QtWidgets>
 #include "myglwidget.h"
 
-#include <cmath> // include for sin and cos functions
+#include <cmath>
 #include <vector>
 #include <cstdlib>
 #include <ctime>
@@ -864,8 +864,12 @@ void MyGLWidget::resizeGL(int width, int height)
     // Set up perspective projection using glFrustum
     GLfloat aspect = (GLfloat)width / (GLfloat)height;
     GLfloat fov = 45.0f;
-    GLfloat nearVal = 1.0f;
-    GLfloat farVal = 1000.0f;
+    GLfloat baseNear = 1.0f;     // Базовое значение ближней границы
+    GLfloat baseFar = 1000.0f;   // Базовое значение дальней границы
+    GLfloat minNear = 0.1f;      // Минимальное значение ближней границы
+    GLfloat maxFar = 5000.0f;    // Максимальное значение дальней границы
+    GLfloat nearVal = std::max(baseNear / zoomFactor, minNear);
+    GLfloat farVal = std::min(baseFar * zoomFactor, maxFar);
     GLfloat top = nearVal * std::tan(fov * 0.5f * 3.14159f / 180.0f);
     GLfloat bottom = -top;
     GLfloat left = bottom * aspect;
@@ -886,9 +890,11 @@ void MyGLWidget::wheelEvent(QWheelEvent *event)
 
     if (numSteps > 0) {
         // zoom in
+        zoomFactor *= 1.1f;
         distance -= numSteps * numCubes * 0.1f; // adjust the distance based on the number of steps
     } else if (numSteps < 0) {
         // zoom out
+        zoomFactor /= 1.1f;
         distance += -numSteps * numCubes * 0.1f; // adjust the distance based on the number of steps (use the absolute value)
     }
 

@@ -63,8 +63,16 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
         Parameters::seed = static_cast<unsigned int>(std::time(nullptr));
     }
     qInfo() << "Random seed value is set to:" << Parameters::seed;
-
-
+    if (parser.isSet("np"))
+    {
+        QString str = parser.value("np");
+        Parameters::num_threads = str.toInt();
+    }
+    else
+    {
+        Parameters::num_threads = omp_get_max_threads();
+    }
+    qInfo() << "Number of threads:" << Parameters::num_threads;
     if (parser.isSet("autostart"))
     {
         qInfo() << "autostart:" << true;

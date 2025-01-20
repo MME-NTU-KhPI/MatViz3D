@@ -117,6 +117,7 @@ protected:
     int delayAnimation;
 
     float distance;
+    float zoomFactor = 1.0f;
 
     QColor bgColor;
 

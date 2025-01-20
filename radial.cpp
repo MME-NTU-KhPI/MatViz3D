@@ -27,7 +27,6 @@ const std::array<std::array<int32_t, 3>, 18> RADIAL_OFFSETS = {
 
 void Radial::Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPeriodicStructure)
 {
-    omp_set_num_threads(omp_get_max_threads());
     const unsigned int counter_max = pow(numCubes, 3);
     auto start = std::chrono::high_resolution_clock::now();
 
