@@ -2,7 +2,6 @@
 
 #include <QtWidgets>
 #include "myglwidget.h"
-
 #include <cmath>
 #include <vector>
 #include <cstdlib>

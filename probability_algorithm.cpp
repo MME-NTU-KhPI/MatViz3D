@@ -234,7 +234,6 @@ void Probability_Algorithm::processValuesGrid()
 void Probability_Algorithm::Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPeriodicStructure)
 {
     const unsigned int counter_max = static_cast<unsigned int>(pow(numCubes, 3));
-    auto start = std::chrono::high_resolution_clock::now();
 
     std::random_device rd;
     std::mt19937 global_gen(rd());
@@ -320,10 +319,6 @@ void Probability_Algorithm::Generate_Filling(bool isAnimation, bool isWaveGenera
             break;
         }
     }
-
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> duration = end - start;
-    qDebug() << "Algorithm execution time: " << duration.count() << " seconds";
 }
 
 void Probability_Algorithm::writeProbabilitiesToCSV(const QString& filePath, uint64_t N)

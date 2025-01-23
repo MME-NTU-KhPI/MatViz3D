@@ -28,8 +28,6 @@ const std::array<std::array<int32_t, 3>, 18> RADIAL_OFFSETS = {
 void Radial::Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPeriodicStructure)
 {
     const unsigned int counter_max = pow(numCubes, 3);
-    auto start = std::chrono::high_resolution_clock::now();
-
     while (!grains.empty())
     {
         const size_t current_size = grains.size();
@@ -103,8 +101,4 @@ void Radial::Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPe
             break;
         }
     }
-
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> duration = end - start;
-    qDebug() << "Algorithm execution time: " << duration.count() << " seconds";
 }
