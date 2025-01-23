@@ -23,6 +23,7 @@
 #include <qgifimage.h>
 #include "statistics.h"
 #include "export.h"
+#include "hdf5wrapper.h"
 #include <hdf5.h>
 #include "stressanalysis.h"
 
@@ -67,7 +68,12 @@ MainWindow::MainWindow(QWidget *parent)
             double PercentOfConcentraion = ui->Rectangle9->text().toFloat()/ 100.0;
             qDebug() << "PercentOfConcentraion:" << PercentOfConcentraion;
 
-            Parameters::points = PercentOfConcentraion * std::pow(static_cast<double>(Parameters::size), 3);
+            double points = PercentOfConcentraion * std::pow(static_cast<double>(Parameters::size), 3);
+            if (points > std::numeric_limits<int>::max()) {
+                QMessageBox::warning(this, "Warning", "Calculated points exceed maximum allowed value");
+                return;
+            }
+            Parameters::points = static_cast<int>(points);
             qDebug() << "Calculated Points:" << Parameters::points;
 
             ui->myGLWidget->setNumColors(Parameters::points);
@@ -507,7 +513,9 @@ void MainWindow::saveAsImage() {
 
     QString fileName = QFileDialog::getSaveFileName(this, "Save Image", "", "Image Files (*.png);;All Files (*.*)");
     if (!fileName.isEmpty()) {
-        pixmap.save(fileName);
+        if (!pixmap.save(fileName)) {
+            QMessageBox::critical(this, "Error", "Failed to save image to " + fileName);
+        }
     }
 
     ui->backgrAnim->show();
@@ -666,8 +674,6 @@ void MainWindow::callExportToCSV()
 {
     emit exportToCSV();
 }
-#include "hdf5wrapper.h"
-
 
 void MainWindow::saveHDF()
 {

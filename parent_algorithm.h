@@ -3,6 +3,7 @@
 #define PARENT_ALGORITHM_H
 
 #include <omp.h>
+#include <memory>
 #include <cstdint>
 #include <vector>
 

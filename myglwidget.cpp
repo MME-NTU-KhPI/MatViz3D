@@ -469,7 +469,11 @@ void MyGLWidget::setComponent(int index)
 std::vector<std::array<GLubyte, 4>> MyGLWidget::generateDistinctColors()
 {
     std::vector<std::array<GLubyte, 4>> colors;
+    if (numColors <= 0) {
+        return std::vector<std::array<GLubyte, 4>>();
+    }
     float hueIncrement = 360.0f / numColors;
+
 
     for (int i = 0; i < numColors; ++i) {
         float hue = i * hueIncrement;
@@ -477,7 +481,6 @@ std::vector<std::array<GLubyte, 4>> MyGLWidget::generateDistinctColors()
         float value = 1.0f;
         float alpha = 0.85f;
 
-        // Convert HSV to RGB
         float chroma = saturation * value;
         float huePrime = hue / 60.0f;
         float x = chroma * (1.0f - std::abs(std::fmod(huePrime, 2.0f) - 1.0f));
