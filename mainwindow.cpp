@@ -310,8 +310,25 @@ void MainWindow::executeComposite()
 
 void MainWindow::executeDLCA()
 {
-    DLCA algorithm(Parameters::size, Parameters::points);
-    executeAlgorithm(algorithm, "DLCA");
+    DLCA start(Parameters::size, Parameters::points);
+    Parameters::voxels = start.Generate_Initial_Cube();
+    start.Generate_Random_Starting_Points();
+    if (isAnimation == 0)
+    {
+        start.Generate_Filling(isAnimation, isWaveGeneration, isPeriodicStructure);
+        ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
+        ui->myGLWidget->update();
+    }
+    else
+    {
+        while (!start.grains.empty())
+        {
+            start.Generate_Filling(isAnimation, isWaveGeneration, isPeriodicStructure);
+            QApplication::processEvents();
+            ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
+        }
+    }
+    qDebug() << "DLCA";
 }
 
 void MainWindow::finalizeUIAfterCompletion()
