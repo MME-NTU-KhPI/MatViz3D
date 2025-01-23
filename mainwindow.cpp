@@ -65,18 +65,12 @@ MainWindow::MainWindow(QWidget *parent)
         }
         else if (ui->concentrationRadioButton->isChecked() == true)
         {
-            double PercentOfConcentraion = ui->Rectangle9->text().toFloat()/ 100.0;
-            qDebug() << "PercentOfConcentraion:" << PercentOfConcentraion;
-
-            double points = PercentOfConcentraion * std::pow(static_cast<double>(Parameters::size), 3);
-            if (points > std::numeric_limits<int>::max()) {
-                QMessageBox::warning(this, "Warning", "Calculated points exceed maximum allowed value");
-                return;
+            double concentrationPercentage = ui->Rectangle9->text().toDouble(&ok);
+            if (ok) {
+                Parameters::points = static_cast<int>(concentrationPercentage / 100.0 * std::pow(static_cast<double>(Parameters::size), 3));
+                ui->myGLWidget->setNumColors(Parameters::points);
             }
-            Parameters::points = static_cast<int>(points);
             qDebug() << "Calculated Points:" << Parameters::points;
-
-            ui->myGLWidget->setNumColors(Parameters::points);
         }
 
     });
@@ -97,18 +91,31 @@ MainWindow::MainWindow(QWidget *parent)
     ui->LegendView->setScene(scene);
     ui->LegendView->show();
     scene->setMinMax(0,1);
-
-
 }
 
 MainWindow::~MainWindow()
 {
+    clearVoxels();
     delete ui;
 }
 
 void MainWindow::onLogMessageWritten(const QString &message)
 {
     ui->textEdit->append(message);
+}
+
+void MainWindow::clearVoxels()
+{
+    if (Parameters::voxels) {
+        for (int i = 0; i < Parameters::size; ++i) {
+            for (int j = 0; j < Parameters::size; ++j) {
+                delete[] Parameters::voxels[i][j];
+            }
+            delete[] Parameters::voxels[i];
+        }
+        delete[] Parameters::voxels;
+        Parameters::voxels = nullptr;
+    }
 }
 
 void MainWindow::onProbabilityAlgorithmChanged(const QString &text)
