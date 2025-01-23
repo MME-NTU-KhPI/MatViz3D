@@ -41,7 +41,6 @@ public:
      * @return Pointer to the 3D voxel array.
      */
     int32_t*** getVoxels();
-    void repaint_function();
 
     QImage captureScreenshot();
     QImage captureScreenshotWithWhiteBackground();

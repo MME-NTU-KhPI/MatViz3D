@@ -45,7 +45,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->AlgorithmsBox, &QComboBox::currentTextChanged, this, &MainWindow::onProbabilityAlgorithmChanged);
     //connect(this, &MainWindow::on_Start_clicked, this, &MainWindow::on_Start_clicked);
 
-    ui->myGLWidget->setTopView();
+    ui->myGLWidget->setIsometricView();
     connect(ui->Rectangle8, &QLineEdit::editingFinished, this, [=]() {
         bool ok;
         Parameters::size = ui->Rectangle8->text().toInt(&ok);
@@ -327,7 +327,6 @@ void MainWindow::logExecutionTime(clock_t start_time)
 void MainWindow::on_statistics_clicked()
 {
     clock_t start_time = clock();
-    //QMessageBox::information(nullptr, "Warning!", "The structure was not generated.");
     if(startButtonPressed == false)
     {
         QMessageBox::information(nullptr, "Warning!", "The structure was not generated.");
