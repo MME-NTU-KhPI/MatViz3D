@@ -530,9 +530,10 @@ void MainWindow::saveAsImage() {
 }
 
 void MainWindow::exportToWRL(){
-    if(startButtonPressed == false)
+    if (!startButtonPressed || !Parameters::voxels)
     {
         QMessageBox::information(nullptr, "Warning!", "The structure was not generated.");
+        return;
     }
     else
     {
@@ -543,9 +544,10 @@ void MainWindow::exportToWRL(){
 }
 
 void MainWindow::exportToCSV(){
-    if(startButtonPressed == false)
+    if (!startButtonPressed || !Parameters::voxels)
     {
         QMessageBox::information(nullptr, "Warning!", "The structure was not generated.");
+        return;
     }
     else
     {

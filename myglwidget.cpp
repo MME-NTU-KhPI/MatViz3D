@@ -36,6 +36,19 @@ MyGLWidget::~MyGLWidget()
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
     f->glDeleteBuffers(1, vboIds);
     doneCurrent(); // Release context
+    deleteVoxels(voxels, numCubes);
+}
+
+void MyGLWidget::deleteVoxels(int32_t*** voxels, int numCubes) {
+    if (voxels) {
+        for (int i = 0; i < numCubes; ++i) {
+            for (int j = 0; j < numCubes; ++j) {
+                delete[] voxels[i][j];
+            }
+            delete[] voxels[i];
+        }
+        delete[] voxels;
+    }
 }
 
 QSize MyGLWidget::minimumSizeHint() const
@@ -767,11 +780,6 @@ void MyGLWidget::drawCube(float cubeSize, GLenum type)
         glVertex3fv(&v[faces[i][3]][0]);
         glEnd();
     }
-}
-
-void MyGLWidget::update_function()
-{
-    update();
 }
 
 void MyGLWidget::drawAxis()
