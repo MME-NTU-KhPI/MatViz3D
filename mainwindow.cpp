@@ -165,6 +165,7 @@ void MainWindow::on_Start_clicked()
 {
     clock_t start_time = clock();
     QString selectedAlgorithm = ui->AlgorithmsBox->currentText();
+
     omp_set_num_threads(Parameters::num_threads);
 
     initializeUIForStart();
@@ -193,6 +194,7 @@ void MainWindow::on_Start_clicked()
 
     finalizeUIAfterCompletion();
     logExecutionTime(start_time);
+    startButtonPressed = true;
 }
 
 void MainWindow::initializeUIForStart()
