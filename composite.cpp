@@ -20,8 +20,6 @@ void Composite::setRadius(short int radius)
 }
 
 void Composite::FillWithCylinder(bool isAnimation, bool isWaveGeneration) {
-    auto start = std::chrono::high_resolution_clock::now();
-
     #pragma omp parallel for collapse(3)
     for (int k = 0; k < numCubes; k++)
         for (int i = 0; i < numCubes; i++)
@@ -29,33 +27,30 @@ void Composite::FillWithCylinder(bool isAnimation, bool isWaveGeneration) {
                 voxels[k][i][j] = 1;
 
     short int cylinderDiameter = static_cast<short int>(2 * radius);
+
     short int gap = 5;
     short int centerOffset = cylinderDiameter + gap;
-    short int maxCylindersPerRow = numCubes / centerOffset + 1;
-    short int xStartOffset = (numCubes - (maxCylindersPerRow * centerOffset)) / 2;
-    const float radius_squared = static_cast<float>(radius * radius);
 
-    #pragma omp parallel for collapse(2) schedule(dynamic, 8)
+    short int maxCylindersPerRow = (numCubes + centerOffset - 1) / centerOffset;
+
+    short int xStartOffset = (numCubes - (maxCylindersPerRow - 1) * centerOffset) / 2;
+    short int yStartOffset = xStartOffset;
+
     for (int i = 0; i < maxCylindersPerRow; i++) {
         for (int j = 0; j < maxCylindersPerRow; j++) {
             short int shiftX = (j % 2 == 0) ? 0 : centerOffset / 2;
-            short int centerX = xStartOffset + i * centerOffset + radius + shiftX;
-            short int centerY = xStartOffset + j * centerOffset + radius;
 
-            int xStart = std::max(0, centerX - radius);
-            int xEnd = std::min(static_cast<int>(numCubes), centerX + radius);
+            short int centerX = xStartOffset + i * centerOffset + shiftX;
+            short int centerY = yStartOffset + j * centerOffset;
 
-            int yStart = std::max(0, centerY - radius);
-            int yEnd = std::min(static_cast<int>(numCubes), centerY + radius);
+            if (centerX >= numCubes || centerY >= numCubes) {
+                continue;
+            }
 
-            for (int x = xStart; x < xEnd; x++) {
-                for (int y = yStart; y < yEnd; y++) {
-                    float dx = static_cast<float>((x - centerX + numCubes) % numCubes - numCubes * ((x - centerX + numCubes) % numCubes > radius));
-                    float dy = static_cast<float>((y - centerY + numCubes) % numCubes - numCubes * ((y - centerY + numCubes) % numCubes > radius));
-                    float distance_squared = dx * dx + dy * dy;
-
-                    if (distance_squared <= radius_squared) {
-                        #pragma omp simd
+            for (int x = 0; x < numCubes; x++) {
+                for (int y = 0; y < numCubes; y++) {
+                    int distance = sqrt(pow(x - centerX, 2) + pow(y - centerY, 2));
+                    if (distance <= radius) {
                         for (int z = 0; z < numCubes; z++) {
                             voxels[x][y][z] = 5;
                         }
@@ -64,10 +59,6 @@ void Composite::FillWithCylinder(bool isAnimation, bool isWaveGeneration) {
             }
         }
     }
-
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> duration = end - start;
-    qDebug() << "Algorithm execution time: " << duration.count() << " seconds";
 }
 
 void Composite::FillWithTetra(bool isAnimation, bool isWaveGeneration, short int offsetX, short int offsetY, short int offsetZ)
