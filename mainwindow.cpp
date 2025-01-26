@@ -122,8 +122,28 @@ void MainWindow::onProbabilityAlgorithmChanged(const QString &text)
 {
     if (text == "Probability Algorithm")
     {
-        probability_algorithm = new Probability_Algorithm;
-        probability_algorithm->show();
+
+        bool parametersSet = (Parameters::halfaxis_a != 0.0f) &&
+                             (Parameters::halfaxis_b != 0.0f) &&
+                             (Parameters::halfaxis_c != 0.0f);
+
+        if (!parametersSet) // Якщо параметри НЕ встановлені
+        {
+            if (probability_algorithm == nullptr) {
+                probability_algorithm = new Probability_Algorithm;
+                probability_algorithm->show();
+            } else {
+                // Якщо вікно вже відкрите, закриваємо його
+                probability_algorithm->close();
+                delete probability_algorithm;
+                probability_algorithm = nullptr;
+            }
+        }
+        else
+        {
+            probability_algorithm = new Probability_Algorithm;
+            qDebug() << "Parameters are set. Probability Algorithm window not required.";
+        }
     }
 }
 

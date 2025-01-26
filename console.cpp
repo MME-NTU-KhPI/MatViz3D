@@ -38,6 +38,54 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
         qInfo() << "points:" << Parameters::points;
         window.setNumColors(Parameters::points);
     }
+    if (parser.isSet("halfaxis_a"))
+    {
+        QString str = parser.value("halfaxis_a");
+        Parameters::halfaxis_a = str.toFloat();
+        qInfo() << "halfaxis_a:" << Parameters::halfaxis_a;
+    }
+
+    if (parser.isSet("halfaxis_b"))
+    {
+        QString str = parser.value("halfaxis_b");
+        Parameters::halfaxis_b = str.toFloat();
+        qInfo() << "halfaxis_b:" << Parameters::halfaxis_b;
+    }
+
+    if (parser.isSet("halfaxis_c"))
+    {
+        QString str = parser.value("halfaxis_c");
+        Parameters::halfaxis_c = str.toFloat();
+        qInfo() << "halfaxis_c:" << Parameters::halfaxis_c;
+    }
+
+    if (parser.isSet("orientation_angle_a"))
+    {
+        QString str = parser.value("orientation_angle_a");
+        Parameters::orientation_angle_a = str.toFloat();
+        qInfo() << "orientation_angle_a:" << Parameters::orientation_angle_a;
+    }
+
+    if (parser.isSet("orientation_angle_b"))
+    {
+        QString str = parser.value("orientation_angle_b");
+        Parameters::orientation_angle_b = str.toFloat();
+        qInfo() << "orientation_angle_b:" << Parameters::orientation_angle_b;
+    }
+
+    if (parser.isSet("orientation_angle_c"))
+    {
+        QString str = parser.value("orientation_angle_c");
+        Parameters::orientation_angle_c = str.toFloat();
+        qInfo() << "orientation_angle_c:" << Parameters::orientation_angle_c;
+    }
+
+    if (parser.isSet("wave_coefficient"))
+    {
+        QString str = parser.value("wave_coefficient");
+        Parameters::wave_coefficient = str.toFloat();
+        qInfo() << "wave_coefficient:" << Parameters::wave_coefficient;
+    }
     if (parser.isSet("algorithm"))
     {
         Parameters::algorithm = parser.value("algorithm");
