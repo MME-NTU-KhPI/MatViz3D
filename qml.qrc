@@ -1,5 +1,9 @@
 <RCC>
     <qresource prefix="/">
         <file>main.qml</file>
+        <file>MainWindow.qml</file>
+        <file>AboutView.qml</file>
+        <file>StatisticsView.qml</file>
+        <file>ProbabilityAlgorithmView.qml</file>
     </qresource>
 </RCC>

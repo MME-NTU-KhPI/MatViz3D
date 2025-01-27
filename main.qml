@@ -1,9 +1,21 @@
-import QtQuick 2.15
-import QtQuick.Window 2.15
+import "."
 
-Window {
-    width: 640
-    height: 480
+MainWindow {
+    id: mainWindow
     visible: true
-    title: qsTr("Hello World")
+
+    ProbabilityAlgorithmView {
+        id: probabilityAlgorithmView
+        visible: false
+    }
+
+    StatisticsView {
+        id: statisticsView
+        visible: false
+    }
+
+    AboutView {
+        id: aboutView
+        visible: false
+    }
 }
