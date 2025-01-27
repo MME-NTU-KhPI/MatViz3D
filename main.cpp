@@ -91,6 +91,7 @@ int main(int argc, char *argv[])
     parser.addOption(QCommandLineOption("concentration","Set the concentration of initial points in the cube(%)", "concentration"));
     parser.addOption(QCommandLineOption("algorithm", "Set the algorithm of generation", "algorithm"));
     parser.addOption(QCommandLineOption("seed","Set the seed of generation","seed"));
+    parser.addOption(QCommandLineOption("np", "Set the number of processors for single or multi-threaded execution of algorithms.", "num_threads"));
     parser.addOption(QCommandLineOption("wave_coefficient", "Coefficient for wave generation", "value"));
     parser.addOption(QCommandLineOption("halfaxis_a", "The length of the semi-axis A for the Probability algorithm", "value"));
     parser.addOption(QCommandLineOption("halfaxis_b", "The length of the semi-axis B for the Probability algorithm", "value"));

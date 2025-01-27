@@ -11,6 +11,7 @@
 #include "messagehandler.h"
 #include "about.h"
 #include "probability_algorithm.h"
+#include "algorithmfactory.h"
 #include "legendview.h"
 
 QT_BEGIN_NAMESPACE
@@ -50,14 +51,7 @@ private slots:
     void clearVoxels();
     void executeAlgorithm(Parent_Algorithm& algorithm, const QString& algorithmName);
 
-    void executeNeumann();
-    void executeProbabilityCircle();
-    void executeProbabilityEllipse();
     void executeProbabilityAlgorithm();
-    void executeMoore();
-    void executeRadial();
-    void executeComposite();
-    void executeDLCA();
     void finalizeUIAfterCompletion();
     void logExecutionTime(clock_t start_time);
 

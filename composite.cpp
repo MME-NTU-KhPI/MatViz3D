@@ -20,45 +20,7 @@ void Composite::setRadius(short int radius)
 }
 
 void Composite::FillWithCylinder(bool isAnimation, bool isWaveGeneration) {
-    #pragma omp parallel for collapse(3)
-    for (int k = 0; k < numCubes; k++)
-        for (int i = 0; i < numCubes; i++)
-            for (int j = 0; j < numCubes; j++)
-                voxels[k][i][j] = 1;
 
-    short int cylinderDiameter = static_cast<short int>(2 * radius);
-
-    short int gap = 5;
-    short int centerOffset = cylinderDiameter + gap;
-
-    short int maxCylindersPerRow = (numCubes + centerOffset - 1) / centerOffset;
-
-    short int xStartOffset = (numCubes - (maxCylindersPerRow - 1) * centerOffset) / 2;
-    short int yStartOffset = xStartOffset;
-
-    for (int i = 0; i < maxCylindersPerRow; i++) {
-        for (int j = 0; j < maxCylindersPerRow; j++) {
-            short int shiftX = (j % 2 == 0) ? 0 : centerOffset / 2;
-
-            short int centerX = xStartOffset + i * centerOffset + shiftX;
-            short int centerY = yStartOffset + j * centerOffset;
-
-            if (centerX >= numCubes || centerY >= numCubes) {
-                continue;
-            }
-
-            for (int x = 0; x < numCubes; x++) {
-                for (int y = 0; y < numCubes; y++) {
-                    int distance = sqrt(pow(x - centerX, 2) + pow(y - centerY, 2));
-                    if (distance <= radius) {
-                        for (int z = 0; z < numCubes; z++) {
-                            voxels[x][y][z] = 5;
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
 void Composite::FillWithTetra(bool isAnimation, bool isWaveGeneration, short int offsetX, short int offsetY, short int offsetZ)
@@ -132,5 +94,44 @@ void Composite::FillWithHexa(bool isAnimation, bool isWaveGeneration,short int o
 
 void Composite::Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPeriodicStructure)
 {
+    radius = numColors;
+    #pragma omp parallel for collapse(3)
+    for (int k = 0; k < numCubes; k++)
+        for (int i = 0; i < numCubes; i++)
+            for (int j = 0; j < numCubes; j++)
+                voxels[k][i][j] = 1;
 
+    short int cylinderDiameter = static_cast<short int>(2 * radius);
+
+    short int gap = 5;
+    short int centerOffset = cylinderDiameter + gap;
+
+    short int maxCylindersPerRow = (numCubes + centerOffset - 1) / centerOffset;
+
+    short int xStartOffset = (numCubes - (maxCylindersPerRow - 1) * centerOffset) / 2;
+    short int yStartOffset = xStartOffset;
+
+    for (int i = 0; i < maxCylindersPerRow; i++) {
+        for (int j = 0; j < maxCylindersPerRow; j++) {
+            short int shiftX = (j % 2 == 0) ? 0 : centerOffset / 2;
+
+            short int centerX = xStartOffset + i * centerOffset + shiftX;
+            short int centerY = yStartOffset + j * centerOffset;
+
+            if (centerX >= numCubes || centerY >= numCubes) {
+                continue;
+            }
+
+            for (int x = 0; x < numCubes; x++) {
+                for (int y = 0; y < numCubes; y++) {
+                    int distance = sqrt(pow(x - centerX, 2) + pow(y - centerY, 2));
+                    if (distance <= radius) {
+                        for (int z = 0; z < numCubes; z++) {
+                            voxels[x][y][z] = 5;
+                        }
+                    }
+                }
+            }
+        }
+    }
 };

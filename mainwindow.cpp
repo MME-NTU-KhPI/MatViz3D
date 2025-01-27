@@ -122,28 +122,8 @@ void MainWindow::onProbabilityAlgorithmChanged(const QString &text)
 {
     if (text == "Probability Algorithm")
     {
-
-        bool parametersSet = (Parameters::halfaxis_a != 0.0f) &&
-                             (Parameters::halfaxis_b != 0.0f) &&
-                             (Parameters::halfaxis_c != 0.0f);
-
-        if (!parametersSet) // Якщо параметри НЕ встановлені
-        {
-            if (probability_algorithm == nullptr) {
-                probability_algorithm = new Probability_Algorithm;
-                probability_algorithm->show();
-            } else {
-                // Якщо вікно вже відкрите, закриваємо його
-                probability_algorithm->close();
-                delete probability_algorithm;
-                probability_algorithm = nullptr;
-            }
-        }
-        else
-        {
-            probability_algorithm = new Probability_Algorithm;
-            qDebug() << "Parameters are set. Probability Algorithm window not required.";
-        }
+        probability_algorithm = new Probability_Algorithm;
+        probability_algorithm->show();
     }
 }
 
@@ -188,29 +168,22 @@ void MainWindow::on_Start_clicked()
 
     omp_set_num_threads(Parameters::num_threads);
 
-    initializeUIForStart();
-
     if (!validateParameters()) {
         return;
     }
 
-    if (selectedAlgorithm == "Neumann") {
-        executeNeumann();
-    } else if (selectedAlgorithm == "Probability Circle") {
-        executeProbabilityCircle();
-    } else if (selectedAlgorithm == "Probability Ellipse") {
-        executeProbabilityEllipse();
-    } else if (selectedAlgorithm == "Probability Algorithm") {
-        executeProbabilityAlgorithm();
-    } else if (selectedAlgorithm == "Moore") {
-        executeMoore();
-    } else if (selectedAlgorithm == "Radial") {
-        executeRadial();
-    } else if (selectedAlgorithm == "Composite") {
-        executeComposite();
-    } else if (selectedAlgorithm == "DLCA") {
-        executeDLCA();
+    initializeUIForStart();
+
+    registerAlgorithms();
+    Parameters params;
+    auto algorithm = AlgorithmFactory::instance().createAlgorithm(selectedAlgorithm, params);
+    if (!algorithm) {
+        QMessageBox::warning(this, "Error", "Unknown algorithm selected.");
+        return;
     }
+
+    executeAlgorithm(*algorithm, selectedAlgorithm);
+    //executeProbabilityAlgorithm();
 
     finalizeUIAfterCompletion();
     logExecutionTime(start_time);
@@ -262,35 +235,15 @@ void MainWindow::executeAlgorithm(Parent_Algorithm& algorithm, const QString& al
     qDebug() << "Algorithm execution time: " << duration.count() << " seconds";
 }
 
-void MainWindow::executeNeumann()
-{
-    Neumann algorithm(Parameters::size, Parameters::points);
-    executeAlgorithm(algorithm, "NEUMANN");
-}
-
-void MainWindow::executeProbabilityCircle()
-{
-    Probability_Circle algorithm(Parameters::size, Parameters::points);
-    executeAlgorithm(algorithm, "PROBABILITY CIRCLE");
-}
-
-void MainWindow::executeProbabilityEllipse()
-{
-    Probability_Ellipse algorithm(Parameters::size, Parameters::points);
-    executeAlgorithm(algorithm, "PROBABILITY ELLIPSE");
-}
-
 void MainWindow::executeProbabilityAlgorithm()
 {
-    probability_algorithm->setNumCubes(Parameters::size);
-    probability_algorithm->setNumColors(Parameters::points);
     Parameters::voxels = probability_algorithm->Generate_Initial_Cube();
     probability_algorithm->Generate_Random_Starting_Points(isWaveGeneration);
     probability_algorithm->remainingPoints = probability_algorithm->numColors - static_cast<int>(0.1 * probability_algorithm->numColors);
 
-    probability_algorithm->processValuesGrid();
+    //probability_algorithm->processValuesGrid();
 
-    if (isAnimation == 0) {
+    if (!isAnimation) {
         probability_algorithm->Generate_Filling(isAnimation, isWaveGeneration, isPeriodicStructure);
         ui->myGLWidget->setVoxels(probability_algorithm->voxels, probability_algorithm->numCubes);
         ui->myGLWidget->update();
@@ -301,54 +254,6 @@ void MainWindow::executeProbabilityAlgorithm()
             ui->myGLWidget->updateGLWidget(probability_algorithm->voxels, probability_algorithm->numCubes);
         }
     }
-}
-
-void MainWindow::executeMoore()
-{
-    Moore algorithm(Parameters::size, Parameters::points);
-    executeAlgorithm(algorithm, "MOORE");
-}
-
-void MainWindow::executeRadial()
-{
-    Radial algorithm(Parameters::size, Parameters::points);
-    executeAlgorithm(algorithm, "RADIAL");
-}
-
-void MainWindow::executeComposite()
-{
-    Composite algorithm(Parameters::size, Parameters::points);
-    Parameters::voxels = algorithm.Generate_Initial_Cube();
-    algorithm.Generate_Random_Starting_Points(isWaveGeneration);
-    algorithm.remainingPoints = algorithm.numColors - static_cast<int>(0.1 * algorithm.numColors);
-    algorithm.setRadius(Parameters::points);
-    algorithm.FillWithCylinder(isAnimation, isWaveGeneration);
-
-    ui->myGLWidget->setVoxels(algorithm.voxels, algorithm.numCubes);
-    ui->myGLWidget->update();
-}
-
-void MainWindow::executeDLCA()
-{
-    DLCA start(Parameters::size, Parameters::points);
-    Parameters::voxels = start.Generate_Initial_Cube();
-    start.Generate_Random_Starting_Points();
-    if (isAnimation == 0)
-    {
-        start.Generate_Filling(isAnimation, isWaveGeneration, isPeriodicStructure);
-        ui->myGLWidget->setVoxels(start.voxels,start.numCubes);
-        ui->myGLWidget->update();
-    }
-    else
-    {
-        while (!start.grains.empty())
-        {
-            start.Generate_Filling(isAnimation, isWaveGeneration, isPeriodicStructure);
-            QApplication::processEvents();
-            ui->myGLWidget->updateGLWidget(start.voxels,start.numCubes);
-        }
-    }
-    qDebug() << "DLCA";
 }
 
 void MainWindow::finalizeUIAfterCompletion()

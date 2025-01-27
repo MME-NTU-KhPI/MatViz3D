@@ -14,14 +14,17 @@ class Probability_Algorithm : public QWidget, public Parent_Algorithm
 
 public:
     explicit Probability_Algorithm(QWidget *parent = nullptr);
+    Probability_Algorithm(short int numCubes, int numColors, QWidget *parent = nullptr);
     ~Probability_Algorithm();
+
     void setHalfAxis();
     void Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPeriodicStructure);
     void processValues();
     void processValuesGrid();
-    void writeProbabilitiesToCSV(const QString& filePath, uint64_t N); // Method
+    void writeProbabilitiesToCSV(const QString& filePath, uint64_t N);
     void setNumCubes(short int numCubes);
     void setNumColors(int numColors);
+
 private:
     Ui::Probability_Algorithm *ui;
     bool isPointIn(double x,double y,double z);

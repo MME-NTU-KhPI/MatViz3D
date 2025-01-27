@@ -18,6 +18,18 @@ Probability_Algorithm::Probability_Algorithm(QWidget *parent) :
     connect(ui->cancelPushButton,&QPushButton::clicked,this,&QWidget::close);
 }
 
+Probability_Algorithm::Probability_Algorithm(short int numCubes, int numColors, QWidget *parent)
+    : QWidget(parent), ui(new Ui::Probability_Algorithm)
+{
+    ui->setupUi(this);
+    connect(ui->applyPushButton,&QPushButton::clicked,this,&Probability_Algorithm::setHalfAxis);
+    connect(ui->applyPushButton,&QPushButton::clicked,this,&QWidget::close);
+    connect(ui->cancelPushButton,&QPushButton::clicked,this,&QWidget::close);
+
+    setNumCubes(numCubes);
+    setNumColors(numColors);
+}
+
 Probability_Algorithm::~Probability_Algorithm()
 {
     delete ui;
@@ -233,6 +245,7 @@ void Probability_Algorithm::processValuesGrid()
 
 void Probability_Algorithm::Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPeriodicStructure)
 {
+    processValuesGrid();
     const unsigned int counter_max = static_cast<unsigned int>(pow(numCubes, 3));
 
     std::random_device rd;

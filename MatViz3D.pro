@@ -60,6 +60,7 @@ DEPENDPATH += $$PWD/libs/hdf5-1.14.4-2-win-vs2022_cl/hdf5/HDF5-1.14.4-win64/incl
 
 SOURCES += \
     about.cpp \
+    algorithmfactory.cpp \
     ansyswrapper.cpp \
     composite.cpp \
     console.cpp \
@@ -84,6 +85,7 @@ SOURCES += \
 
 HEADERS += \
     about.h \
+    algorithmfactory.h \
     ansyswrapper.h \
     composite.h \
     console.h \

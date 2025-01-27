@@ -31,7 +31,7 @@ public:
     Parent_Algorithm();
     virtual void Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPeriodicStructure) = 0;
     int32_t*** Generate_Initial_Cube();
-    void Generate_Random_Starting_Points(bool isWaveGeneration);
+    virtual void Generate_Random_Starting_Points(bool isWaveGeneration);
     std::vector<Coordinate> Add_New_Points(std::vector<Coordinate> grains, int numPoints);
     std::vector<Coordinate> Delete_Points(std::vector<Coordinate> grains,size_t i);
     int initialWave;

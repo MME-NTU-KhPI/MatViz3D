@@ -87,7 +87,7 @@ DLCA::DLCA(short int numCubes, int numColors)
     this->numColors = numColors;
 }
 
-void DLCA::Generate_Random_Starting_Points()
+void DLCA::Generate_Random_Starting_Points(bool isWaveGeneration)
 {
     std::random_device rd;
     std::mt19937 generator(rd());
