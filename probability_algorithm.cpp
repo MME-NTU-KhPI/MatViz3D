@@ -28,6 +28,7 @@ Probability_Algorithm::Probability_Algorithm(short int numCubes, int numColors, 
 
     setNumCubes(numCubes);
     setNumColors(numColors);
+    processValuesGrid();
 }
 
 Probability_Algorithm::~Probability_Algorithm()
@@ -245,7 +246,6 @@ void Probability_Algorithm::processValuesGrid()
 
 void Probability_Algorithm::Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPeriodicStructure)
 {
-    processValuesGrid();
     const unsigned int counter_max = static_cast<unsigned int>(pow(numCubes, 3));
 
     std::random_device rd;

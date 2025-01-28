@@ -130,7 +130,7 @@ void MainWindow::onProbabilityAlgorithmChanged(const QString &text)
 {
     if (text == "Probability Algorithm")
     {
-        probability_algorithm = new Probability_Algorithm(Parameters::size, Parameters::points);
+        probability_algorithm = new Probability_Algorithm();
         probability_algorithm->show();
 
     }
