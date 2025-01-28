@@ -74,6 +74,15 @@ MainWindow::MainWindow(QWidget *parent)
 
     });
 
+    connect (ui->AlgorithmsBox, &QComboBox::currentIndexChanged, [this]() {
+        if (ui->AlgorithmsBox->currentText() == "Composite") {
+            ui->numOfPointsRadioButton->setText("Radius");
+        }
+        else {
+            ui->numOfPointsRadioButton->setText("Number of points");
+        }
+    });
+
     ui->Rectangle10->setMinimum(0);
     ui->Rectangle10->setMaximum(20);
     ui->Rectangle10->setSingleStep(1);

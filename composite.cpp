@@ -101,31 +101,42 @@ void Composite::Generate_Filling(bool isAnimation, bool isWaveGeneration, bool i
             for (int j = 0; j < numCubes; j++)
                 voxels[k][i][j] = 1;
 
+    // Диаметр цилиндра
     short int cylinderDiameter = static_cast<short int>(2 * radius);
 
-    short int gap = 5;
+    // Зазор между цилиндрами
+    short int gap = 5; // Фиксированное расстояние между цилиндрами
     short int centerOffset = cylinderDiameter + gap;
 
+    // Определяем количество рядов и столбцов в ромбовидной структуре
     short int maxCylindersPerRow = (numCubes + centerOffset - 1) / centerOffset;
 
-    short int xStartOffset = (numCubes - (maxCylindersPerRow - 1) * centerOffset) / 2;
-    short int yStartOffset = xStartOffset;
+    // Вычисляем смещения для центрирования структуры
+    short int xStartOffset = (numCubes - ((maxCylindersPerRow - 1) * centerOffset)) / 2;
+    short int yStartOffset = xStartOffset; // Для симметрии
 
-    for (int i = 0; i < maxCylindersPerRow; i++) {
-        for (int j = 0; j < maxCylindersPerRow; j++) {
+    // Итерация по сетке
+    for (int j = 0; j < maxCylindersPerRow; j++) {
+        for (int i = 0; i < maxCylindersPerRow; i++) {
+            // Смещение для создания ромбовидного узора
             short int shiftX = (j % 2 == 0) ? 0 : centerOffset / 2;
 
+            // Центры цилиндров
             short int centerX = xStartOffset + i * centerOffset + shiftX;
             short int centerY = yStartOffset + j * centerOffset;
 
+            // Проверяем, чтобы центр не выходил за границы куба
             if (centerX >= numCubes || centerY >= numCubes) {
                 continue;
             }
 
+            // Создание цилиндра вдоль оси Z
             for (int x = 0; x < numCubes; x++) {
                 for (int y = 0; y < numCubes; y++) {
-                    int distance = sqrt(pow(x - centerX, 2) + pow(y - centerY, 2));
+                    // Расстояние до центра цилиндра
+                    float distance = sqrt(pow(x - centerX, 2) + pow(y - centerY, 2));
                     if (distance <= radius) {
+                        // Заполнение вдоль Z
                         for (int z = 0; z < numCubes; z++) {
                             voxels[x][y][z] = 5;
                         }

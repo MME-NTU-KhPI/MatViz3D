@@ -11,6 +11,11 @@ Parent_Algorithm::Parent_Algorithm()
 {
 
 }
+
+Parent_Algorithm::~Parent_Algorithm()
+{
+
+}
 /*
  * The array is dynamic but continuous so it's a huge plus over the vector<> approach and loops of new[] calls.
  * https://stackoverflow.com/questions/8027958/c-3d-array-dynamic-memory-allocation-aligned-in-one-line
