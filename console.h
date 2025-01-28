@@ -10,6 +10,7 @@ class Console
 {
 public:
     Console();
+    static void setupParser(QCommandLineParser &parser);
     static void processOptions(const QCommandLineParser &parser, MainWindow &window);
 };
 
