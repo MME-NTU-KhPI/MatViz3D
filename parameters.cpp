@@ -14,10 +14,10 @@ QString Parameters::working_directory;
 
 float Parameters::wave_coefficient;
 
-float Parameters::halfaxis_a;
-float Parameters::halfaxis_b;
-float Parameters::halfaxis_c;
+float Parameters::halfaxis_a = 0.0f;
+float Parameters::halfaxis_b = 0.0f;
+float Parameters::halfaxis_c = 0.0f;
 
-float Parameters::orientation_angle_a = 0.0;
-float Parameters::orientation_angle_b = 0.0;
-float Parameters::orientation_angle_c = 0.0;
+float Parameters::orientation_angle_a = 0.0f;
+float Parameters::orientation_angle_b = 0.0f;
+float Parameters::orientation_angle_c = 0.0f;

@@ -128,8 +128,7 @@ void MainWindow::clearVoxels()
 
 void MainWindow::onProbabilityAlgorithmChanged(const QString &text)
 {
-    if (probability_algorithm->getHalfaxisA() != 0.0f && probability_algorithm->getHalfaxisB() != 0.0f && probability_algorithm->getHalfaxisC() != 0.0f &&
-        probability_algorithm->getOrientationAngleA() != 0.0f && probability_algorithm->getOrientationAngleB() != 0.0f && probability_algorithm->getOrientationAngleC() != 0.0f)
+    if (Parameters::halfaxis_a != 0.0f && Parameters::halfaxis_b != 0.0f && Parameters::halfaxis_c != 0.0f)
     {
         return;
     }

@@ -1,5 +1,6 @@
 #include "probability_algorithm.h"
 #include "ui_probability_algorithm.h"
+#include "parameters.h"
 #include <random>
 #include <cmath>
 #include <omp.h>
@@ -38,18 +39,18 @@ Probability_Algorithm::~Probability_Algorithm()
 
 void Probability_Algorithm::setHalfAxis()
 {
-    halfaxis_a = ui->axisALineEdit->text().toFloat();
-    halfaxis_b = ui->axisBLineEdit->text().toFloat();
-    halfaxis_c = ui->axisCLineEdit->text().toFloat();
-    orientation_angle_a = ui->orintationAngleLineEdit->text().toFloat();
-    orientation_angle_b = ui->lineEdit->text().toFloat();
-    orientation_angle_c = ui->lineEdit_2->text().toFloat();
+    Parameters::halfaxis_a = ui->axisALineEdit->text().toFloat();
+    Parameters::halfaxis_b = ui->axisBLineEdit->text().toFloat();
+    Parameters::halfaxis_c = ui->axisCLineEdit->text().toFloat();
+    Parameters::orientation_angle_a = ui->orintationAngleLineEdit->text().toFloat();
+    Parameters::orientation_angle_b = ui->lineEdit->text().toFloat();
+    Parameters::orientation_angle_c = ui->lineEdit_2->text().toFloat();
 }
 
 bool Probability_Algorithm::isPointIn(double x, double y, double z)
 {
     rotatePoint(x,y,z);
-    return (pow((x - 1.5) / halfaxis_a, 2) + pow((y-1.5)  / halfaxis_b, 2) + pow((z-1.5) / halfaxis_c, 2)) <= 1.0;
+    return (pow((x - 1.5) / Parameters::halfaxis_a, 2) + pow((y-1.5)  / Parameters::halfaxis_b, 2) + pow((z-1.5) / Parameters::halfaxis_c, 2)) <= 1.0;
 }
 
 void Probability_Algorithm::setNumCubes(short int size)
@@ -83,19 +84,19 @@ void Probability_Algorithm::rotatePoint(double& x, double& y, double& z)
 {
     double Rx[3][3] = {
         {1, 0, 0},
-        {0, cos(toRadians(orientation_angle_a)), -sin(toRadians(orientation_angle_a))},
-        {0, sin(toRadians(orientation_angle_a)), cos(toRadians(orientation_angle_a))}
+        {0, cos(toRadians(Parameters::orientation_angle_a)), -sin(toRadians(Parameters::orientation_angle_a))},
+        {0, sin(toRadians(Parameters::orientation_angle_a)), cos(toRadians(Parameters::orientation_angle_a))}
     };
 
     double Ry[3][3] = {
-        {cos(toRadians(orientation_angle_b)), 0, sin(toRadians(orientation_angle_b))},
+        {cos(toRadians(Parameters::orientation_angle_b)), 0, sin(toRadians(Parameters::orientation_angle_b))},
         {0, 1, 0},
-        {-sin(toRadians(orientation_angle_b)), 0, cos(toRadians(orientation_angle_b))}
+        {-sin(toRadians(Parameters::orientation_angle_b)), 0, cos(toRadians(Parameters::orientation_angle_b))}
     };
 
     double Rz[3][3] = {
-        {cos(toRadians(orientation_angle_c)), -sin(toRadians(orientation_angle_c)), 0},
-        {sin(toRadians(orientation_angle_c)), cos(toRadians(orientation_angle_c)), 0},
+        {cos(toRadians(Parameters::orientation_angle_c)), -sin(toRadians(Parameters::orientation_angle_c)), 0},
+        {sin(toRadians(Parameters::orientation_angle_c)), cos(toRadians(Parameters::orientation_angle_c)), 0},
         {0, 0, 1}
     };
     double x1 = Rx[0][0] * x + Rx[0][1] * y + Rx[0][2] * z;
