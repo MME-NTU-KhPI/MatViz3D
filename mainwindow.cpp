@@ -233,27 +233,6 @@ void MainWindow::executeAlgorithm(Parent_Algorithm& algorithm, const QString& al
     qDebug() << "Algorithm execution time: " << duration.count() << " seconds";
 }
 
-void MainWindow::executeProbabilityAlgorithm()
-{
-    Parameters::voxels = probability_algorithm->Generate_Initial_Cube();
-    probability_algorithm->Generate_Random_Starting_Points(isWaveGeneration);
-    probability_algorithm->remainingPoints = probability_algorithm->numColors - static_cast<int>(0.1 * probability_algorithm->numColors);
-
-    //probability_algorithm->processValuesGrid();
-
-    if (!isAnimation) {
-        probability_algorithm->Generate_Filling(isAnimation, isWaveGeneration, isPeriodicStructure);
-        ui->myGLWidget->setVoxels(probability_algorithm->voxels, probability_algorithm->numCubes);
-        ui->myGLWidget->update();
-    } else {
-        while (!probability_algorithm->grains.empty()) {
-            probability_algorithm->Generate_Filling(isAnimation, isWaveGeneration, isPeriodicStructure);
-            QApplication::processEvents();
-            ui->myGLWidget->updateGLWidget(probability_algorithm->voxels, probability_algorithm->numCubes);
-        }
-    }
-}
-
 void MainWindow::finalizeUIAfterCompletion()
 {
     ui->Start->setText("RELOAD");

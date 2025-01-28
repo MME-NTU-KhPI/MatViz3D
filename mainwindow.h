@@ -50,11 +50,8 @@ private slots:
     bool validateParameters();
     void clearVoxels();
     void executeAlgorithm(Parent_Algorithm& algorithm, const QString& algorithmName);
-
-    void executeProbabilityAlgorithm();
     void finalizeUIAfterCompletion();
     void logExecutionTime(clock_t start_time);
-
     void setupWindowMenu();
     void onConsoleCheckBoxChanged(int state);
     void onAnimationCheckBoxChanged(int state);
