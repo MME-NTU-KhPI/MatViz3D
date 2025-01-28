@@ -183,7 +183,7 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
     if (parser.isSet("nogui"))
     {
         qInfo() << "nogui:" << true << "Termination application with code 0";
-        QApplication::exit(0); // terminating app -- all is done
+        exit(0); // terminating app -- all is done
     }
     else
     {
