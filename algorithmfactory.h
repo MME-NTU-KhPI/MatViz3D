@@ -11,7 +11,7 @@
 
 class AlgorithmFactory {
 public:
-    using AlgorithmCreator = std::function<std::unique_ptr<Parent_Algorithm>(const Parameters&)>;
+    using AlgorithmCreator = std::function<std::shared_ptr<Parent_Algorithm>(const Parameters&)>;
 
     static AlgorithmFactory& instance() {
         static AlgorithmFactory factory;
@@ -22,7 +22,7 @@ public:
         creators[name] = std::move(creator);
     }
 
-    std::unique_ptr<Parent_Algorithm> createAlgorithm(const QString& name, const Parameters& params) {
+    std::shared_ptr<Parent_Algorithm> createAlgorithm(const QString& name, const Parameters& params) {
         auto it = creators.find(name);
         if (it != creators.end()) {
             return it->second(params);

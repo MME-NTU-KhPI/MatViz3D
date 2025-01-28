@@ -43,9 +43,8 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->numOfPointsRadioButton, &QRadioButton::clicked, this, &MainWindow::onInitialConditionSelectionChanged);
     connect(ui->concentrationRadioButton, &QRadioButton::clicked, this, &MainWindow::onInitialConditionSelectionChanged);
     connect(ui->AlgorithmsBox, &QComboBox::currentTextChanged, this, &MainWindow::onProbabilityAlgorithmChanged);
-    //connect(this, &MainWindow::on_Start_clicked, this, &MainWindow::on_Start_clicked);
 
-    ui->myGLWidget->setTopView();
+    ui->myGLWidget->setIsometricView();
     connect(ui->Rectangle8, &QLineEdit::editingFinished, this, [=]() {
         bool ok;
         Parameters::size = ui->Rectangle8->text().toInt(&ok);
@@ -122,8 +121,9 @@ void MainWindow::onProbabilityAlgorithmChanged(const QString &text)
 {
     if (text == "Probability Algorithm")
     {
-        probability_algorithm = new Probability_Algorithm;
+        probability_algorithm = new Probability_Algorithm(Parameters::size, Parameters::points);
         probability_algorithm->show();
+
     }
 }
 
@@ -181,9 +181,7 @@ void MainWindow::on_Start_clicked()
         QMessageBox::warning(this, "Error", "Unknown algorithm selected.");
         return;
     }
-
     executeAlgorithm(*algorithm, selectedAlgorithm);
-    //executeProbabilityAlgorithm();
 
     finalizeUIAfterCompletion();
     logExecutionTime(start_time);

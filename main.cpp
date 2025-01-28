@@ -5,6 +5,7 @@
 #include <QProcessEnvironment>
 #include <QCoreApplication>
 #include <QDir>
+#include <crtdbg.h>
 
 #include <iostream>
 
@@ -80,6 +81,7 @@ int main(int argc, char *argv[])
     QApplication::setApplicationName("MatViz3D");
     QApplication::setApplicationVersion("2.01");
     QCommandLineParser parser;
+    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 
     std::cout << logo_full_qstr.toLatin1().constData() << std::endl;
     std::cout.flush();
