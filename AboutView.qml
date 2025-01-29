@@ -11,39 +11,52 @@ Window {
     maximumWidth: 800
     title: qsTr("About MatViz3D")
 
+    FontLoader {
+        id: montserrat
+        source: "fonts/Montserrat-VariableFont_wght.tff"
+    }
+
     Grid {
         id: grid
-        anchors.fill: parent
+        width: grid.childrenRect.width
+        height: grid.childrenRect.height
         columns: 1
         rows: 3
         rowSpacing: 20
+        anchors.centerIn: parent
 
         Text {
             id: overview
-            width: grid.width * 0.8
+            width: 650
             color: "#ffffff"
-            text: qsTr("MaterialViz3D - this is a computer application for studying the structure of a material, which implements four algorithms for analyzing the structure of a material: Moore, von Neumann, probability circle, probability ellipse. \nA detailed overview of the material structure using visualization")
+            textFormat: Text.RichText
+            text: qsTr("<span style='color: #06B09E;'>MaterialViz3D</span> - this is a computer application for studying the structure of a material, which implements four algorithms for analyzing the structure of a material: Moore, von Neumann, probability circle, probability ellipse. <br>A detailed overview of the material structure using visualization")
             font.pixelSize: 22
             wrapMode: Text.WordWrap
+            font.family: montserrat.name
         }
 
         Text {
             id: team
-            width: grid.width  * 0.8
+            width: 650
             color: "#ffffff"
-            text: qsTr("Project team\nSoftware developers: Oleh Semenenko, Valeriia Hritskova, \nOleksii Vodka, Nikita Mityasov\nTesters: Anastasiia Korzh, Hanna Khominich\nUX/UA designers: Kateryna Skrynnyk, Violetta Katsylo\n 3D technology developer: Yulia Chepela\nMentors: Oleksii Vodka, Lyudmila Rozova")
+            textFormat: Text.RichText
+            text: qsTr("Project team<br>Software developers: Oleh Semenenko, Valeriia Hritskova, <br>Oleksii Vodka, Nikita Mityasov<br>Testers: Anastasiia Korzh, Hanna Khominich<br>UX/UA designers: Kateryna Skrynnyk, Violetta Katsylo<br> 3D technology developer: Yulia Chepela<br>Mentors: Oleksii Vodka, Lyudmila Rozova")
             font.pixelSize: 22
             horizontalAlignment: Text.AlignHCenter
             wrapMode: Text.WordWrap
+            font.family: montserrat.name
         }
 
         Text {
             id: link
-            width: grid.width  * 0.8
+            width: 650
             color: "#ffffff"
-            text: qsTr("Link to Github, where the project is hosted:\nhttps://github.com/MME-NTU-KhPI/MatViz3D")
+            textFormat: Text.RichText
+            text: qsTr("Link to Github, where the project is hosted: <br><a href='https://github.com/MME-NTU-KhPI/MatViz3D' style='color: #0E8E80; text-decoration: none;'>https://github.com/MME-NTU-KhPI/MatViz3D</a>")
             font.pixelSize: 22
             wrapMode: Text.WordWrap
+            font.family: montserrat.name
         }
     }
 }
