@@ -1,5 +1,7 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
+#include <QIcon>
+
 
 int main(int argc, char *argv[])
 {
@@ -7,6 +9,9 @@ int main(int argc, char *argv[])
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 #endif
     QGuiApplication app(argc, argv);
+
+    QIcon icon(":/img/Plugin icon - 1icon.ico");
+    app.setWindowIcon(icon);
 
     QQmlApplicationEngine engine;
     const QUrl url(QStringLiteral("qrc:/main.qml"));

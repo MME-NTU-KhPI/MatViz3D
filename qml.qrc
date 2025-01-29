@@ -6,5 +6,16 @@
         <file>StatisticsView.qml</file>
         <file>ProbabilityAlgorithmView.qml</file>
         <file>fonts/Montserrat-VariableFont_wght.ttf</file>
+        <file>img/AniOFF.png</file>
+        <file>img/AniON.png</file>
+        <file>img/check.png</file>
+        <file>img/checkOff.png</file>
+        <file>img/Consol_Icon.png</file>
+        <file>img/EllipseExplodedView.png</file>
+        <file>img/iconMenu.png</file>
+        <file>img/Plugin icon - 1icon.ico</file>
+        <file>img/roll.png</file>
+        <file>img/VerticalMenuIcon.png</file>
+        <file>fonts/Inter-VariableFont_opsz,wght.ttf</file>
     </qresource>
 </RCC>
