@@ -7,6 +7,7 @@ Window {
     width: 534
     height: 522
     color: "#282828"
+    property alias _item_b1_pav: _item_b1_pav
     minimumHeight: 522
     minimumWidth: 534
     title: qsTr("Probability Alghorithm Settings")
@@ -324,10 +325,40 @@ Window {
 
                 Button {
                     id: button_cancel_pav
+                    width: 228
+                    height: 56
                     text: qsTr("CANCEL")
                     anchors.centerIn: parent
+                    background: Rectangle {
+                        id: buttonBackground1
+                        width: 228
+                        height: 56
+                        radius: 15
+                        color: "#282828"
+                        border.color: "#969696"
+                        border.width: 1
+
+                        MouseArea {
+                            id: hoverArea1
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onEntered: buttonBackground1.color = "#3a3a3a"
+                            onExited: buttonBackground1.color = "#282828"
+                        }
+                    }
+                    contentItem: Text {
+                        text: button_cancel_pav.text
+                        font.pixelSize: 20
+                        font.family: inter.name
+                        color: Qt.rgba(150 / 255, 150 / 255, 150 / 255, 0.5)
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        anchors.centerIn: parent
+                    }
                 }
             }
+
 
             Item {
                 id: _item_b2_pav
@@ -336,8 +367,37 @@ Window {
 
                 Button {
                     id: button_apply_pav
+                    width: 228
+                    height: 56
                     text: qsTr("APPLY")
                     anchors.centerIn: parent
+                    background: Rectangle {
+                        id: buttonBackground2
+                        width: 228
+                        height: 56
+                        radius: 15
+                        color: "#282828"
+                        border.color: "#969696"
+                        border.width: 1
+
+                        MouseArea {
+                            id: hoverArea2
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onEntered: buttonBackground2.color = "#3a3a3a"
+                            onExited: buttonBackground2.color = "#282828"
+                        }
+                    }
+                    contentItem: Text {
+                        text: button_apply_pav.text
+                        font.pixelSize: 20
+                        font.family: inter.name
+                        color: Qt.rgba(150 / 255, 150 / 255, 150 / 255, 0.5)
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        anchors.centerIn: parent
+                    }
                 }
             }
         }

@@ -1,5 +1,6 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
+#include <QtQuickControls2>
 #include <QIcon>
 
 
@@ -12,6 +13,8 @@ int main(int argc, char *argv[])
 
     QIcon icon(":/img/Plugin icon - 1icon.ico");
     app.setWindowIcon(icon);
+
+    QQuickStyle::setStyle("Material");
 
     QQmlApplicationEngine engine;
     const QUrl url(QStringLiteral("qrc:/main.qml"));
