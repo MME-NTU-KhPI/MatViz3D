@@ -17,5 +17,6 @@
         <file>img/roll.png</file>
         <file>img/VerticalMenuIcon.png</file>
         <file>fonts/Inter-VariableFont_opsz,wght.ttf</file>
+        <file>img/closeData.png</file>
     </qresource>
 </RCC>

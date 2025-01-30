@@ -7,6 +7,12 @@ Window {
     width: 1280
     height: 832
     color: "#363636"
+    property alias row: row
+    property alias size_radioButton: size_radioButton
+    property alias _item4: _item4
+    property alias size_textInput: size_textInput
+    property alias _item: _item
+    property alias comboBox: comboBox
     property alias _item6_menuBar: _item6_menuBar
     property alias _item5_menuBar: _item5_menuBar
     property alias _item4_menuBar: _item4_menuBar
@@ -194,32 +200,56 @@ Window {
                             font.family: montserrat.name
 
                             MenuItem {
+                                id: checkAll
                                 text: qsTr("All")
                                 checkable: true
                                 checked: true
                                 onTriggered: {
-                                    console.log("All selected: " + checked)
+                                    checkAnimation.checked = checked;
+                                    checkConsole.checked = checked;
+                                    checkData.checked = checked;
+
+                                    checkAnimation.triggered();
+                                    checkConsole.triggered();
+                                    checkData.triggered();
                                 }
                             }
                             MenuItem {
+                                id: checkAnimation
                                 text: qsTr("Animation")
                                 checkable: true
+                                checked: true
+
                                 onTriggered: {
-                                    console.log("Animation selected: " + checked)
+                                    if (!checked) {
+                                        checkAll.checked = false;
+                                    }
                                 }
                             }
                             MenuItem {
+                                id: checkConsole
                                 text: qsTr("Console")
                                 checkable: true
+                                checked: true
+
                                 onTriggered: {
-                                    console.log("Console selected: " + checked)
+                                    if (!checked) {
+                                        checkAll.checked = false;
+                                    }
                                 }
                             }
                             MenuItem {
+                                id: checkData
                                 text: qsTr("Data")
                                 checkable: true
+                                checked: true
+
                                 onTriggered: {
-                                    console.log("Data selected: " + checked)
+                                    _itemData.visible = checked;
+
+                                    if (!checked) {
+                                        checkAll.checked = false;
+                                    }
                                 }
                             }
                         }
@@ -358,6 +388,430 @@ Window {
             }
         }
     }
+
+    Item {
+        id: _itemData
+        x: 30
+        y: 97
+        width: 350
+        height: 455
+        visible: true
+
+        Rectangle {
+            id: data_rec
+            color: "#80282828"
+            radius: 13
+            anchors.fill: parent
+
+            Column {
+                id: data_column
+                anchors.fill: parent
+
+                Row {
+                    id: headerData_row
+                    width: data_column.width
+                    height: 32
+                    rightPadding: 29
+                    leftPadding: 29
+                    bottomPadding: 5
+                    topPadding: 10
+
+                    Item {
+                        id: _item1
+                        width: headerData_row.width * 0.5 - 29
+                        height: 17
+
+                        Text {
+                            id: _text
+                            color: "#d9d9d9"
+                            text: qsTr("Data")
+                            font.pixelSize: 14
+                            font.family: montserrat.name
+                        }
+                    }
+
+                    Item {
+                        id: _item2
+                        width: headerData_row.width * 0.5 - 29
+                        height: 17
+
+                        Image {
+                            id: image
+                            width: 10
+                            height: 10
+                            source: "qrc:/img/closeData.png"
+                            fillMode: Image.PreserveAspectFit
+
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.right: parent.right
+
+                            MouseArea {
+                                anchors.fill: parent  // MouseArea займає всю площу зображення
+                                cursorShape: Qt.PointingHandCursor  // Змінює курсор на руку при наведенні
+
+                                onClicked: {
+                                    _itemData.visible = false;
+                                    checkData.checked = false;
+                                    checkAll.checked = false;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Item {
+                    id: _item_column_alg
+                    width: data_column.width
+                    height: 70
+
+                    Column {
+                        id: column
+                        x: 0
+                        y: 0
+                        width: column.childrenRect.width
+                        height: column.childrenRect.height
+                        spacing: 10
+                        anchors.centerIn: parent
+
+                        Text {
+                            id: _text1
+                            width: 224
+                            height: 24
+                            color: "#969696"
+                            text: qsTr("Algorithm:")
+                            font.pixelSize: 20
+                            font.styleName: "Bold"
+                            font.family: inter.name
+                        }
+
+                        ComboBox {
+                            id: comboBox
+                            width: 224
+                            height: 28
+                            leftPadding: 10
+                            displayText: "---"
+                            font.pointSize: 10
+                            font.family: montserrat.name
+                            editable: true
+                            background: Rectangle {
+                                color: "#282828"
+                                radius: 11
+                                border.color: "#969696"
+                            }
+
+                            model: ListModel {
+                                id: model
+                                ListElement { text: "von Neumann" }
+                                ListElement { text: "Moore" }
+                                ListElement { text: "Probability Ellipse" }
+                                ListElement { text: "Probability Circle" }
+                                ListElement { text: "Probability Algorithm" }
+                                ListElement { text: "Composite" }
+                                ListElement { text: "DLCA" }
+                            }
+
+                            onActivated: {
+                                if (comboBox.currentIndex === 0) {
+                                    poly_alg_item.visible = true
+                                    comp_alg_item.visible = false
+                                }
+
+                                else if (comboBox.currentIndex === 1) {
+                                    poly_alg_item.visible = true
+                                    comp_alg_item.visible = false
+                                }
+
+                                else if (comboBox.currentIndex === 2) {
+                                    poly_alg_item.visible = true
+                                    comp_alg_item.visible = false
+                                }
+
+                                else if (comboBox.currentIndex === 3) {
+                                    poly_alg_item.visible = true
+                                    comp_alg_item.visible = false
+                                }
+
+                                else if (comboBox.currentIndex === 4) {
+                                    poly_alg_item.visible = true
+                                    comp_alg_item.visible = false
+                                    probabilityAlgorithmLoader.active = true;
+                                    probabilityAlgorithmLoader.item.visible = true;
+                                }
+
+                                else if (comboBox.currentIndex === 5) {
+                                    comp_alg_item.visible = true
+                                    poly_alg_item.visible = false
+                                }
+
+                                else if (comboBox.currentIndex === 6) {
+                                    poly_alg_item.visible = true
+                                    comp_alg_item.visible = false
+                                }
+
+                                else {
+                                    empty_alg_item.visible = true
+                                    comp_alg_item.visible = false
+                                    poly_alg_item.visible = false
+                                }
+                            }
+
+                            onAccepted: {
+                                if (find(editText) === -1)
+                                    model.append({text: editText})
+                            }
+                        }
+                    }
+                }
+
+                Item {
+                    id: _item3
+                    width: data_column.width
+                    height: parent.height - (headerData_row.height + _item_column_alg.height + _item_start.height)
+                    visible: true
+
+                    Item {
+                        id: empty_alg_item
+                        anchors.fill: parent
+                        visible: true
+                    }
+
+                    Item {
+                        id: poly_alg_item
+                        anchors.fill: parent
+                        visible: false
+
+                        Column {
+                            id: column1
+                            anchors.fill: parent
+
+
+                            Item {
+                                id: _item
+                                width: 224
+                                height: 77
+                                anchors.horizontalCenter: parent.horizontalCenter
+
+                                Column {
+                                    id: size_column
+                                    anchors.fill: parent
+                                    topPadding: 15
+                                    spacing: 10
+
+                                    Text {
+                                        id: size_text
+                                        width: 224
+                                        height: 24
+                                        color: "#969696"
+                                        text: qsTr("Cube size:")
+                                        font.pixelSize: 20
+                                        font.styleName: "Bold"
+                                        font.family: inter.name
+                                    }
+
+                                    Rectangle {
+                                        id: recInput1_pav
+                                        width: 224
+                                        height: 28
+                                        color: "#282828"
+                                        border.color: "#969696"
+                                        border.width: 1
+                                        radius: 11
+
+                                        TextInput {
+                                            id: size_textInput
+                                            anchors.fill: parent
+                                            anchors.margins: 5
+                                            color: "#969696"
+                                            text: qsTr("0")
+                                            font.pixelSize: 12
+                                            font.family: montserrat.name
+                                            verticalAlignment: Text.AlignTop
+                                            font.bold: true
+                                            bottomPadding: 1
+                                            topPadding: 1
+                                            rightPadding: 10
+                                            leftPadding: 10
+                                            horizontalAlignment: Text.AlignLeft
+                                            padding: 3.5
+                                        }
+                                    }
+                                }
+                            }
+
+                            Item {
+                                id: _item4
+                                width: 224
+                                height: 110
+                                anchors.horizontalCenter: parent.horizontalCenter
+
+                                Column {
+                                    id: num_column
+                                    anchors.fill: parent
+                                    topPadding: 15
+                                    spacing: 10
+
+                                    Row {
+                                        id: row
+                                        width: parent.width
+                                        height: size_radioButton.height
+                                        leftPadding: -2
+
+                                        RadioButton {
+                                            id: size_radioButton
+                                            text: qsTr("Size")
+                                            font.pixelSize: 15
+                                            font.family: montserrat.name
+                                        }
+
+                                        RadioButton {
+                                            id: concentration_radioButton
+                                            text: qsTr("Concentration")
+                                            font.pixelSize: 15
+                                            font.family: montserrat.name
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        id: recInput2_pav
+                                        width: 224
+                                        height: 28
+                                        color: "#282828"
+                                        border.color: "#969696"
+                                        border.width: 1
+                                        radius: 11
+
+                                        TextInput {
+                                            id: num_textInput
+                                            anchors.fill: parent
+                                            anchors.margins: 5
+                                            color: "#969696"
+                                            text: qsTr("0")
+                                            font.pixelSize: 12
+                                            font.family: montserrat.name
+                                            verticalAlignment: Text.AlignTop
+                                            font.bold: true
+                                            rightPadding: 10
+                                            leftPadding: 10
+                                            bottomPadding: 1
+                                            topPadding: 1
+                                            horizontalAlignment: Text.AlignLeft
+                                        }
+                                    }
+
+                                }
+                            }
+
+                            Item {
+                                id: _item5
+                                width: 224
+                                height: 77
+                                Column {
+                                    id: num_column1
+                                    anchors.fill: parent
+                                    topPadding: 15
+                                    spacing: 10
+                                    Text {
+                                        id: num_text1
+                                        width: 224
+                                        height: 24
+                                        color: "#969696"
+                                        text: qsTr("Wave coefficient:")
+                                        font.pixelSize: 20
+                                        font.styleName: "Bold"
+                                        font.family: inter.name
+                                    }
+
+                                    Rectangle {
+                                        id: recInput2_pav1
+                                        width: 224
+                                        height: 28
+                                        color: "#282828"
+                                        radius: 11
+                                        border.color: "#969696"
+                                        border.width: 1
+                                        TextInput {
+                                            id: num_textInput1
+                                            color: "#969696"
+                                            text: qsTr("0")
+                                            anchors.fill: parent
+                                            anchors.margins: 5
+                                            font.pixelSize: 12
+                                            horizontalAlignment: Text.AlignLeft
+                                            verticalAlignment: Text.AlignTop
+                                            topPadding: 1
+                                            rightPadding: 10
+                                            leftPadding: 10
+                                            font.family: montserrat.name
+                                            font.bold: true
+                                            bottomPadding: 1
+                                        }
+                                    }
+                                }
+                                anchors.horizontalCenter: parent.horizontalCenter
+                            }
+                        }
+                    }
+
+                    Item {
+                        id: comp_alg_item
+                        anchors.fill: parent
+                        visible: false
+                    }
+                }
+
+                Item {
+                    id: _item_start
+                    width: data_column.width
+                    height: 80
+
+                    Button {
+                        id: start_button
+                        width: 105
+                        height: 50
+                        text: qsTr("START")
+                        font.pixelSize: 20
+                        font.family: inter.name
+                        font.bold: true
+                        anchors.centerIn: parent
+
+                        background: Rectangle {
+                            id: buttonBackground2
+                            width: 105
+                            height: 50
+                            radius: 12
+                            color: "#282828"
+                            border.color: "#969696"
+                            border.width: 1
+
+                            MouseArea {
+                                id: hoverArea2
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onEntered: buttonBackground2.color = "#3a3a3a"
+                                onExited: buttonBackground2.color = "#282828"
+                            }
+                        }
+                        contentItem: Text {
+                            text: start_button.text
+                            font.pixelSize: 20
+                            font.family: inter.name
+                            color: "#CFCECE"
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            anchors.centerIn: parent
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 
+
+/*##^##
+Designer {
+    D{i:0}D{i:78;invisible:true}D{i:79;invisible:true}D{i:81;invisible:true}
+}
+##^##*/
