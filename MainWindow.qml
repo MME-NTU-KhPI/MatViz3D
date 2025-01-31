@@ -7,6 +7,9 @@ Window {
     width: 1280
     height: 832
     color: "#363636"
+    property alias size_column1: size_column1
+    property alias _item7: _item7
+    property alias num_text1: num_text1
     property alias row: row
     property alias size_radioButton: size_radioButton
     property alias _item4: _item4
@@ -141,6 +144,10 @@ Window {
                             }
                             Action {
                                 text: qsTr("Save project as HDF5")
+                                onTriggered: console.log("Save project as HDF5")
+                            }
+                            Action {
+                                text: qsTr("Open project")
                                 onTriggered: console.log("Save project as HDF5")
                             }
                             MenuSeparator { }
@@ -477,7 +484,7 @@ Window {
                             id: _text1
                             width: 224
                             height: 24
-                            color: "#969696"
+                            color: "#c6c6c6"
                             text: qsTr("Algorithm:")
                             font.pixelSize: 20
                             font.styleName: "Bold"
@@ -601,7 +608,7 @@ Window {
                                         id: size_text
                                         width: 224
                                         height: 24
-                                        color: "#969696"
+                                        color: "#c6c6c6"
                                         text: qsTr("Cube size:")
                                         font.pixelSize: 20
                                         font.styleName: "Bold"
@@ -714,7 +721,7 @@ Window {
                                         id: num_text1
                                         width: 224
                                         height: 24
-                                        color: "#969696"
+                                        color: "#c6c6c6"
                                         text: qsTr("Wave coefficient:")
                                         font.pixelSize: 20
                                         font.styleName: "Bold"
@@ -756,6 +763,180 @@ Window {
                         id: comp_alg_item
                         anchors.fill: parent
                         visible: false
+
+                        Column {
+                            id: column2
+                            x: 0
+                            y: 0
+                            anchors.fill: parent
+
+
+                            Item {
+                                id: _item6
+                                width: 224
+                                height: 85
+
+                                Column {
+                                    id: column3
+                                    x: 0
+                                    y: 106
+                                    anchors.fill: parent
+                                    topPadding: 20
+                                    spacing: 10
+                                    Text {
+                                        id: _text2
+                                        width: 224
+                                        height: 24
+                                        color: "#c6c6c6"
+                                        text: qsTr("Algorithm:")
+                                        font.pixelSize: 20
+                                        font.styleName: "Bold"
+                                        font.family: inter.name
+                                    }
+
+                                    ComboBox {
+                                        id: comboBox1
+                                        width: 224
+                                        height: 28
+                                        onAccepted: {
+                                            if (find(editText) === -1)
+                                                model1.append({text: editText})
+                                        }
+                                        model: ListModel {
+                                            id: model1
+                                            ListElement {
+                                                text: "compo 1"
+                                            }
+
+                                            ListElement {
+                                                text: "compo 5"
+                                            }
+                                        }
+                                        leftPadding: 10
+                                        font.pointSize: 10
+                                        font.family: montserrat.name
+                                        editable: true
+                                        displayText: "---"
+                                        background: Rectangle {
+                                            color: "#282828"
+                                            radius: 11
+                                            border.color: "#969696"
+                                        }
+                                    }
+                                    anchors.centerIn: parent
+                                }
+                                anchors.horizontalCenter: parent.horizontalCenter
+                            }
+
+                            Item {
+                                id: _item7
+                                width: 224
+                                height: 85
+                                anchors.horizontalCenter: parent.horizontalCenter
+
+                                Column {
+                                    id: size_column1
+                                    x: -63
+                                    y: 0
+                                    anchors.fill: parent
+                                    topPadding: 20
+                                    spacing: 10
+                                    Text {
+                                        id: size_text1
+                                        width: 224
+                                        height: 24
+                                        color: "#c6c6c6"
+                                        text: qsTr("Cube size:")
+                                        font.pixelSize: 20
+                                        font.styleName: "Bold"
+                                        font.family: inter.name
+                                    }
+
+                                    Rectangle {
+                                        id: recInput1_pav1
+                                        width: 224
+                                        height: 28
+                                        color: "#282828"
+                                        radius: 11
+                                        border.color: "#969696"
+                                        border.width: 1
+                                        TextInput {
+                                            id: size_textInput1
+                                            color: "#969696"
+                                            text: qsTr("0")
+                                            anchors.fill: parent
+                                            anchors.margins: 5
+                                            font.pixelSize: 12
+                                            horizontalAlignment: Text.AlignLeft
+                                            verticalAlignment: Text.AlignTop
+                                            topPadding: 1
+                                            rightPadding: 10
+                                            padding: 3.5
+                                            leftPadding: 10
+                                            font.family: montserrat.name
+                                            font.bold: true
+                                            bottomPadding: 1
+                                        }
+                                    }
+                                }
+                            }
+
+                            Item {
+                                id: _item8
+                                width: 224
+                                height: 85
+                                anchors.horizontalCenter: parent.horizontalCenter
+
+                                Column {
+                                    id: size_column2
+                                    x: -63
+                                    y: -187
+                                    anchors.fill: parent
+                                    topPadding: 20
+                                    spacing: 10
+                                    Text {
+                                        id: size_text2
+                                        width: 224
+                                        height: 24
+                                        color: "#c6c6c6"
+                                        text: qsTr("Radius:")
+                                        font.pixelSize: 20
+                                        font.styleName: "Bold"
+                                        font.family: inter.name
+                                    }
+
+                                    Rectangle {
+                                        id: recInput1_pav2
+                                        width: 224
+                                        height: 28
+                                        color: "#282828"
+                                        radius: 11
+                                        border.color: "#969696"
+                                        border.width: 1
+                                        TextInput {
+                                            id: size_textInput2
+                                            color: "#969696"
+                                            text: qsTr("0")
+                                            anchors.fill: parent
+                                            anchors.margins: 5
+                                            font.pixelSize: 12
+                                            horizontalAlignment: Text.AlignLeft
+                                            verticalAlignment: Text.AlignTop
+                                            topPadding: 1
+                                            rightPadding: 10
+                                            padding: 3.5
+                                            leftPadding: 10
+                                            font.family: montserrat.name
+                                            font.bold: true
+                                            bottomPadding: 1
+                                        }
+                                    }
+                                }
+                            }
+
+
+
+                        }
                     }
                 }
 
@@ -812,6 +993,7 @@ Window {
 
 /*##^##
 Designer {
-    D{i:0}D{i:78;invisible:true}D{i:79;invisible:true}D{i:81;invisible:true}
+    D{i:0}D{i:79;invisible:true}D{i:80;invisible:true}D{i:82;invisible:true}D{i:92}D{i:94}
+D{i:101;invisible:true}D{i:102}D{i:107}
 }
 ##^##*/
