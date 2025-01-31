@@ -7,20 +7,6 @@ Window {
     width: 1280
     height: 832
     color: "#363636"
-    property alias size_column1: size_column1
-    property alias _item7: _item7
-    property alias num_text1: num_text1
-    property alias row: row
-    property alias size_radioButton: size_radioButton
-    property alias _item4: _item4
-    property alias size_textInput: size_textInput
-    property alias _item: _item
-    property alias comboBox: comboBox
-    property alias _item6_menuBar: _item6_menuBar
-    property alias _item5_menuBar: _item5_menuBar
-    property alias _item4_menuBar: _item4_menuBar
-    property alias _item3_menuBar: _item3_menuBar
-    property alias _item1_menuBar: _item1_menuBar
     minimumHeight: 832
     minimumWidth: 1280
     title: qsTr("MatViz3D")
@@ -228,6 +214,8 @@ Window {
                                 checked: true
 
                                 onTriggered: {
+                                    _itemAnimationWidget.visible = checked;
+
                                     if (!checked) {
                                         checkAll.checked = false;
                                     }
@@ -521,26 +509,31 @@ Window {
                                 if (comboBox.currentIndex === 0) {
                                     poly_alg_item.visible = true
                                     comp_alg_item.visible = false
+                                    dlca_alg_item.visible = false
                                 }
 
                                 else if (comboBox.currentIndex === 1) {
                                     poly_alg_item.visible = true
                                     comp_alg_item.visible = false
+                                    dlca_alg_item.visible = false
                                 }
 
                                 else if (comboBox.currentIndex === 2) {
                                     poly_alg_item.visible = true
                                     comp_alg_item.visible = false
+                                    dlca_alg_item.visible = false
                                 }
 
                                 else if (comboBox.currentIndex === 3) {
                                     poly_alg_item.visible = true
                                     comp_alg_item.visible = false
+                                    dlca_alg_item.visible = false
                                 }
 
                                 else if (comboBox.currentIndex === 4) {
                                     poly_alg_item.visible = true
                                     comp_alg_item.visible = false
+                                    dlca_alg_item.visible = false
                                     probabilityAlgorithmLoader.active = true;
                                     probabilityAlgorithmLoader.item.visible = true;
                                 }
@@ -548,17 +541,20 @@ Window {
                                 else if (comboBox.currentIndex === 5) {
                                     comp_alg_item.visible = true
                                     poly_alg_item.visible = false
+                                    dlca_alg_item.visible = false
                                 }
 
                                 else if (comboBox.currentIndex === 6) {
-                                    poly_alg_item.visible = true
+                                    dlca_alg_item.visible = true
                                     comp_alg_item.visible = false
+                                    poly_alg_item.visible = false
                                 }
 
                                 else {
                                     empty_alg_item.visible = true
                                     comp_alg_item.visible = false
                                     poly_alg_item.visible = false
+                                    dlca_alg_item.visible = false
                                 }
                             }
 
@@ -938,6 +934,181 @@ Window {
 
                         }
                     }
+
+                    Item {
+                        id: dlca_alg_item
+                        visible: false
+                        anchors.fill: parent
+                        Column {
+                            id: column4
+                            anchors.fill: parent
+
+
+                            Item {
+                                id: _item9
+                                width: 224
+                                height: 85
+                                Column {
+                                    id: size_column3
+                                    anchors.fill: parent
+                                    topPadding: 20
+                                    spacing: 10
+                                    Text {
+                                        id: size_text3
+                                        width: 224
+                                        height: 24
+                                        color: "#c6c6c6"
+                                        text: qsTr("Cube size:")
+                                        font.pixelSize: 20
+                                        font.styleName: "Bold"
+                                        font.family: inter.name
+                                    }
+
+                                    Rectangle {
+                                        id: recInput1_pav3
+                                        width: 224
+                                        height: 28
+                                        color: "#282828"
+                                        radius: 11
+                                        border.color: "#969696"
+                                        border.width: 1
+                                        TextInput {
+                                            id: size_textInput3
+                                            color: "#969696"
+                                            text: qsTr("0")
+                                            anchors.fill: parent
+                                            anchors.margins: 5
+                                            font.pixelSize: 12
+                                            horizontalAlignment: Text.AlignLeft
+                                            verticalAlignment: Text.AlignTop
+                                            topPadding: 1
+                                            rightPadding: 10
+                                            padding: 3.5
+                                            leftPadding: 10
+                                            font.family: montserrat.name
+                                            font.bold: true
+                                            bottomPadding: 1
+                                        }
+                                    }
+                                }
+                                anchors.horizontalCenter: parent.horizontalCenter
+                            }
+
+                            Item {
+                                id: _item10
+                                width: 224
+                                height: 100
+                                Column {
+                                    id: num_column2
+                                    anchors.fill: parent
+                                    topPadding: 15
+                                    spacing: 10
+                                    Row {
+                                        id: row1
+                                        width: parent.width
+                                        height: size_radioButton1.height
+                                        leftPadding: -2
+                                        RadioButton {
+                                            id: size_radioButton1
+                                            text: qsTr("Size")
+                                            font.pixelSize: 15
+                                            font.family: montserrat.name
+                                        }
+
+                                        RadioButton {
+                                            id: concentration_radioButton1
+                                            text: qsTr("Concentration")
+                                            font.pixelSize: 15
+                                            font.family: montserrat.name
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        id: recInput2_pav2
+                                        width: 224
+                                        height: 28
+                                        color: "#282828"
+                                        radius: 11
+                                        border.color: "#969696"
+                                        border.width: 1
+                                        TextInput {
+                                            id: num_textInput2
+                                            color: "#969696"
+                                            text: qsTr("0")
+                                            anchors.fill: parent
+                                            anchors.margins: 5
+                                            font.pixelSize: 12
+                                            horizontalAlignment: Text.AlignLeft
+                                            verticalAlignment: Text.AlignTop
+                                            topPadding: 1
+                                            rightPadding: 10
+                                            leftPadding: 10
+                                            font.family: montserrat.name
+                                            font.bold: true
+                                            bottomPadding: 1
+                                        }
+                                    }
+                                }
+                                anchors.horizontalCenter: parent.horizontalCenter
+                            }
+
+                            Item {
+                                id: _item11
+                                width: 224
+                                height: 85
+                                Column {
+                                    id: column5
+                                    x: 0
+                                    y: 106
+                                    anchors.fill: parent
+                                    topPadding: 20
+                                    spacing: 10
+                                    Text {
+                                        id: _text3
+                                        width: 224
+                                        height: 24
+                                        color: "#c6c6c6"
+                                        text: qsTr("Material:")
+                                        font.pixelSize: 20
+                                        font.styleName: "Bold"
+                                        font.family: inter.name
+                                    }
+
+                                    ComboBox {
+                                        id: comboBox2
+                                        width: 224
+                                        height: 28
+                                        onAccepted: {
+                                            if (find(editText) === -1)
+                                                model2.append({text: editText})
+                                        }
+                                        model: ListModel {
+                                            id: model2
+                                            ListElement {
+                                                text: "fcc"
+                                            }
+
+                                            ListElement {
+                                                text: "bcc"
+                                            }
+                                        }
+                                        leftPadding: 10
+                                        font.pointSize: 10
+                                        font.family: montserrat.name
+                                        editable: true
+                                        displayText: "---"
+                                        background: Rectangle {
+                                            color: "#282828"
+                                            radius: 11
+                                            border.color: "#969696"
+                                        }
+                                    }
+                                    anchors.centerIn: parent
+                                }
+                                anchors.horizontalCenter: parent.horizontalCenter
+                            }
+                        }
+                    }
                 }
 
                 Item {
@@ -987,13 +1158,214 @@ Window {
             }
         }
     }
+
+    Item {
+        id: _itemAnimationWidget
+        x: parent.width - (_itemAnimationWidget.width + 30)
+        y: 97
+        width: 350
+        height: 275
+
+        Rectangle {
+            id: aniWidget_rec
+            color: "#80282828"
+            radius: 13
+            anchors.fill: parent
+
+            Column {
+                id: column6
+                anchors.fill: parent
+
+                Row {
+                    id: headerAnimWidget_row
+                    width: data_column.width
+                    height: 32
+                    topPadding: 10
+                    rightPadding: 29
+                    leftPadding: 29
+                    Item {
+                        id: _item12
+                        width: headerAnimWidget_row.width * 0.5 - 29
+                        height: 17
+                        Text {
+                            id: _text4
+                            color: "#d9d9d9"
+                            text: qsTr("Animation controller")
+                            font.pixelSize: 14
+                            font.family: montserrat.name
+                        }
+                    }
+
+                    Item {
+                        id: _item13
+                        width: headerAnimWidget_row.width * 0.5 - 29
+                        height: 17
+                        Image {
+                            id: image1
+                            width: 10
+                            height: 10
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.right: parent.right
+                            source: "qrc:/img/closeData.png"
+                            fillMode: Image.PreserveAspectFit
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: {
+                                    _itemAnimationWidget.visible = false;
+                                    checkAnimation.checked = false;
+                                    checkAll.checked = false;
+                                }
+                                cursorShape: Qt.PointingHandCursor
+                            }
+                        }
+                    }
+                    bottomPadding: 5
+                }
+
+                Item {
+                    id: _item14
+                    width: parent.width
+                    height: (parent.height - headerAnimWidget_row.height) / 4
+
+                    Column {
+                        id: column7
+                        width: 228
+                        height: parent.height
+                        topPadding: 5
+                        spacing: 15
+                        anchors.centerIn: parent
+
+                        Text {
+                            id: exploded_text
+                            width: 224
+                            height: 24
+                            color: "#c6c6c6"
+                            text: qsTr("Exploded view")
+                            font.pixelSize: 20
+                            leftPadding: 12
+                            font.styleName: "Bold"
+                            font.family: inter.name
+                        }
+
+                        Slider {
+                            id: slider
+                            value: 0
+                            width: 228
+                            height: 18
+                        }
+                    }
+                }
+
+                Item {
+                    id: _item15
+                    width: parent.width
+                    height: (parent.height - headerAnimWidget_row.height) / 4
+                    Column {
+                        id: column8
+                        width: 228
+                        height: parent.height
+                        topPadding: 15
+                        spacing: 15
+                        Text {
+                            id: exploded_text1
+                            width: 224
+                            height: 24
+                            color: "#c6c6c6"
+                            text: qsTr("Animation speed")
+                            font.pixelSize: 20
+                            leftPadding: 12
+                            font.styleName: "Bold"
+                            font.family: inter.name
+                        }
+
+                        Slider {
+                            id: slider1
+                            width: 228
+                            height: 18
+                            value: 0
+                        }
+                        anchors.centerIn: parent
+                    }
+                }
+
+                Item {
+                    id: _item16
+                    width: parent.width
+                    height: (parent.height - headerAnimWidget_row.height) / 4
+
+                    Row {
+                        id: row2
+                        width: 235
+                        height: parent.height
+                        anchors.centerIn: parent
+                        anchors.verticalCenterOffset: 15
+
+                        Text {
+                            id: exploded_text2
+                            width: parent.width * 0.8
+                            height: parent.height
+                            color: "#c6c6c6"
+                            text: qsTr("Animation on/off")
+                            font.pixelSize: 20
+                            verticalAlignment: Text.AlignVCenter
+                            leftPadding: 12
+                            font.styleName: "Bold"
+                            font.family: inter.name
+                        }
+
+                        Switch {
+                            id: _switch_animation
+                            display: AbstractButton.IconOnly
+                            width: 50
+                            height: 20
+                            scale: 0.7
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+                }
+
+                Item {
+                    id: _item17
+                    width: parent.width
+                    height: (parent.height - headerAnimWidget_row.height) / 4
+                    Row {
+                        id: row3
+                        width: 235
+                        height: parent.height
+                        Text {
+                            id: exploded_text3
+                            width: parent.width * 0.8
+                            height: parent.height
+                            color: "#c6c6c6"
+                            text: qsTr("Wireframe on/off")
+                            font.pixelSize: 20
+                            verticalAlignment: Text.AlignVCenter
+                            leftPadding: 12
+                            font.styleName: "Bold"
+                            font.family: inter.name
+                        }
+
+                        Switch {
+                            id: _switch_animation1
+                            width: 50
+                            height: 20
+                            anchors.verticalCenter: parent.verticalCenter
+                            scale: 0.7
+                            display: AbstractButton.IconOnly
+                        }
+                        anchors.centerIn: parent
+                    }
+                }
+            }
+        }
+    }
 }
 
 
 
 /*##^##
 Designer {
-    D{i:0}D{i:79;invisible:true}D{i:80;invisible:true}D{i:82;invisible:true}D{i:92}D{i:94}
-D{i:101;invisible:true}D{i:102}D{i:107}
+    D{i:0}D{i:101;invisible:true}D{i:111}D{i:113}D{i:139}D{i:140}D{i:141}D{i:149}D{i:151}
+D{i:155}D{i:159}
 }
 ##^##*/
