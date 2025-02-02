@@ -18,5 +18,11 @@
         <file>img/VerticalMenuIcon.png</file>
         <file>fonts/Inter-VariableFont_opsz,wght.ttf</file>
         <file>img/closeData.png</file>
+        <file>img/toolBar/cubeIcon.png</file>
+        <file>img/toolBar/saveIcon.png</file>
+        <file>img/toolBar/zoom-inIcon.png</file>
+        <file>img/toolBar/zoom-outIcon.png</file>
+        <file>img/toolBar/viewIcon.png</file>
+        <file>img/toolBar/viewIconHidden.png</file>
     </qresource>
 </RCC>

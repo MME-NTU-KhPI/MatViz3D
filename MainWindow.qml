@@ -1,5 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
+import QtQuick.Controls.Material 2.15
+
 
 
 Window {
@@ -160,7 +162,7 @@ Window {
 
                 Item {
                     id: _item3_menuBar
-                    width: 128
+                    width: 140
                     height: 49
 
                     MenuBar {
@@ -266,14 +268,14 @@ Window {
 
                 Item {
                     id: _item4_menuBar
-                    width: 149
+                    width: 146
                     height: 49
 
                     Button {
                         id: buttonStatistics
                         x: 0
                         y: 0
-                        width: 109
+                        width: 95
                         height: _item4_menuBar.height
                         text: qsTr("Statistics")
 
@@ -303,7 +305,11 @@ Window {
                             color: "#CFCECE"
                             horizontalAlignment: Text.AlignLeft
                             verticalAlignment: Text.AlignVCenter
-                            anchors.centerIn: parent
+                            anchors {
+                                left: parent.left
+                                leftMargin: 1
+                                verticalCenter: parent.verticalCenter
+                            }
                         }
 
                         onClicked: {
@@ -352,7 +358,11 @@ Window {
                             color: "#CFCECE"
                             horizontalAlignment: Text.AlignLeft
                             verticalAlignment: Text.AlignVCenter
-                            anchors.centerIn: parent
+                            anchors {
+                                left: parent.left
+                                leftMargin: 1
+                                verticalCenter: parent.verticalCenter
+                            }
                         }
 
                         onClicked: {
@@ -768,44 +778,43 @@ Window {
 
 
                             Item {
-                                id: _item6
+                                id: _item23
                                 width: 224
                                 height: 85
-
                                 Column {
-                                    id: column3
+                                    id: column9
                                     x: 0
                                     y: 106
                                     anchors.fill: parent
                                     topPadding: 20
                                     spacing: 10
                                     Text {
-                                        id: _text2
+                                        id: _text5
                                         width: 224
                                         height: 24
                                         color: "#c6c6c6"
-                                        text: qsTr("Algorithm:")
+                                        text: qsTr("Material:")
                                         font.pixelSize: 20
                                         font.styleName: "Bold"
                                         font.family: inter.name
                                     }
 
                                     ComboBox {
-                                        id: comboBox1
+                                        id: comboBox3
                                         width: 224
                                         height: 28
                                         onAccepted: {
                                             if (find(editText) === -1)
-                                                model1.append({text: editText})
+                                                model3.append({text: editText})
                                         }
                                         model: ListModel {
-                                            id: model1
+                                            id: model3
                                             ListElement {
-                                                text: "compo 1"
+                                                text: "fcc"
                                             }
 
                                             ListElement {
-                                                text: "compo 5"
+                                                text: "bcc"
                                             }
                                         }
                                         leftPadding: 10
@@ -878,31 +887,36 @@ Window {
                             }
 
                             Item {
-                                id: _item8
+                                id: _item6
                                 width: 224
-                                height: 85
-                                anchors.horizontalCenter: parent.horizontalCenter
-
+                                height: 110
                                 Column {
-                                    id: size_column2
-                                    x: -63
-                                    y: -187
+                                    id: num_column3
                                     anchors.fill: parent
-                                    topPadding: 20
+                                    topPadding: 15
                                     spacing: 10
-                                    Text {
-                                        id: size_text2
-                                        width: 224
-                                        height: 24
-                                        color: "#c6c6c6"
-                                        text: qsTr("Radius:")
-                                        font.pixelSize: 20
-                                        font.styleName: "Bold"
-                                        font.family: inter.name
+                                    Row {
+                                        id: row5
+                                        width: parent.width
+                                        height: size_radioButton2.height
+                                        leftPadding: -2
+                                        RadioButton {
+                                            id: size_radioButton2
+                                            text: qsTr("Radius")
+                                            font.pixelSize: 15
+                                            font.family: montserrat.name
+                                        }
+
+                                        RadioButton {
+                                            id: concentration_radioButton2
+                                            text: qsTr("Concentration")
+                                            font.pixelSize: 15
+                                            font.family: montserrat.name
+                                        }
                                     }
 
                                     Rectangle {
-                                        id: recInput1_pav2
+                                        id: recInput2_pav3
                                         width: 224
                                         height: 28
                                         color: "#282828"
@@ -910,7 +924,7 @@ Window {
                                         border.color: "#969696"
                                         border.width: 1
                                         TextInput {
-                                            id: size_textInput2
+                                            id: num_textInput3
                                             color: "#969696"
                                             text: qsTr("0")
                                             anchors.fill: parent
@@ -920,7 +934,6 @@ Window {
                                             verticalAlignment: Text.AlignTop
                                             topPadding: 1
                                             rightPadding: 10
-                                            padding: 3.5
                                             leftPadding: 10
                                             font.family: montserrat.name
                                             font.bold: true
@@ -928,7 +941,9 @@ Window {
                                         }
                                     }
                                 }
+                                anchors.horizontalCenter: parent.horizontalCenter
                             }
+
 
 
 
@@ -1107,6 +1122,7 @@ Window {
                                 }
                                 anchors.horizontalCenter: parent.horizontalCenter
                             }
+
                         }
                     }
                 }
@@ -1359,13 +1375,151 @@ Window {
             }
         }
     }
+
+    Item {
+        id: _itemToolBar
+        y: 97
+        x: mainWindow.width - (mainWindow.width / 2) - (_itemToolBar.width / 2)
+        width: 198
+        height: 26
+
+        Row {
+            id: row4
+            anchors.fill: parent
+
+            Item {
+                id: _item18
+                width: parent.height + 17
+                height: parent.height
+
+                Image {
+                    id: image2
+                    width: 26
+                    height: 26
+                    property bool widgetsHidden: false
+                    source: widgetsHidden ? "qrc:/img/toolBar/viewIconHidden.png" : "qrc:/img/toolBar/viewIcon.png"
+                    fillMode: Image.PreserveAspectFit
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+                            image2.widgetsHidden = !image2.widgetsHidden;
+
+                            _itemAnimationWidget.visible = !image2.widgetsHidden;
+                            _itemData.visible = !image2.widgetsHidden;
+                            checkData.checked = !image2.widgetsHidden;
+                            checkAnimation.checked = !image2.widgetsHidden;
+                            checkAll.checked = !image2.widgetsHidden;
+                        }
+                        cursorShape: Qt.PointingHandCursor
+                    }
+                }
+            }
+
+            Item {
+                id: _item19
+                width: parent.height + 17
+                height: parent.height
+
+                Image {
+                    id: image3
+                    x: 0
+                    y: 0
+                    width: 26
+                    height: 26
+                    source: "qrc:/img/toolBar/saveIcon.png"
+                    fillMode: Image.PreserveAspectFit
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+
+                        }
+                        cursorShape: Qt.PointingHandCursor
+                    }
+                }
+            }
+
+            Item {
+                id: _item20
+                width: parent.height + 17
+                height: parent.height
+
+                Image {
+                    id: image4
+                    x: 0
+                    y: 0
+                    width: 26
+                    height: 26
+                    source: "qrc:/img/toolBar/zoom-inIcon.png"
+                    fillMode: Image.PreserveAspectFit
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+
+                        }
+                        cursorShape: Qt.PointingHandCursor
+                    }
+                }
+            }
+
+            Item {
+                id: _item21
+                width: parent.height + 17
+                height: parent.height
+
+                Image {
+                    id: image5
+                    x: 0
+                    y: 0
+                    width: 26
+                    height: 26
+                    source: "qrc:/img/toolBar/zoom-outIcon.png"
+                    fillMode: Image.PreserveAspectFit
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+
+                        }
+                        cursorShape: Qt.PointingHandCursor
+                    }
+                }
+            }
+
+            Item {
+                id: _item22
+                width: parent.height
+                height: parent.height
+
+                Image {
+                    id: image6
+                    x: 0
+                    y: 0
+                    width: 26
+                    height: 26
+                    source: "qrc:/img/toolBar/cubeIcon.png"
+                    fillMode: Image.PreserveAspectFit
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+
+                        }
+                        cursorShape: Qt.PointingHandCursor
+                    }
+                }
+            }
+
+        }
+    }
 }
 
 
 
 /*##^##
 Designer {
-    D{i:0}D{i:101;invisible:true}D{i:111}D{i:113}D{i:139}D{i:140}D{i:141}D{i:149}D{i:151}
-D{i:155}D{i:159}
+    D{i:0}D{i:93}D{i:101;invisible:true}D{i:106}D{i:166}D{i:171}D{i:174}D{i:177}D{i:180}
 }
 ##^##*/
