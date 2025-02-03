@@ -24,5 +24,13 @@
         <file>img/toolBar/zoom-outIcon.png</file>
         <file>img/toolBar/viewIcon.png</file>
         <file>img/toolBar/viewIconHidden.png</file>
+        <file>img/toolBar/views3d/back_cube.png</file>
+        <file>img/toolBar/views3d/bottom_cube.png</file>
+        <file>img/toolBar/views3d/dimetric_cube.png</file>
+        <file>img/toolBar/views3d/front_Cube.png</file>
+        <file>img/toolBar/views3d/isometric_cube.png</file>
+        <file>img/toolBar/views3d/left_cube.png</file>
+        <file>img/toolBar/views3d/rigft_cube.png</file>
+        <file>img/toolBar/views3d/top_cube.png</file>
     </qresource>
 </RCC>

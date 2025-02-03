@@ -230,6 +230,8 @@ Window {
                                 checked: true
 
                                 onTriggered: {
+                                    _itemConsole.visible = checked;
+
                                     if (!checked) {
                                         checkAll.checked = false;
                                     }
@@ -243,6 +245,21 @@ Window {
 
                                 onTriggered: {
                                     _itemData.visible = checked;
+
+                                    if (!checked) {
+                                        checkAll.checked = false;
+                                    }
+                                }
+                            }
+
+                            MenuItem {
+                                id: checkToolBar
+                                text: qsTr("Tool Bar")
+                                checkable: true
+                                checked: true
+
+                                onTriggered: {
+                                    _itemToolBar.visible = checked;
 
                                     if (!checked) {
                                         checkAll.checked = false;
@@ -392,6 +409,73 @@ Window {
                 }
             }
         }
+
+        Item {
+            id: _item_GLWidget
+            width: mainWindow.width
+            height: mainWindow.height - menuBar_rec.height - (_itemConsole.visible ? _itemConsole.height : 0)
+        }
+
+        Item {
+            id: _itemConsole
+            width: mainWindow.width
+            height: 220
+            visible: true
+
+            Rectangle {
+                id: recConsole
+                anchors.fill: parent
+                color: "#282828"
+                border.color: "#00000000"
+
+                Column {
+                    id: columnConsole
+                    anchors.fill: parent
+                    bottomPadding: 15
+                    topPadding: 15
+                    rightPadding: 20
+                    leftPadding: 20
+
+                    Item {
+                        id: _item8
+                        height: 10
+                        width: columnConsole.width - 40
+
+                        Image {
+                            id: image6
+                            x: _item8.width - 10
+                            width: 10
+                            height: 10
+                            source: "qrc:/img/closeData.png"
+                            fillMode: Image.PreserveAspectFit
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+
+                                onClicked: {
+                                    _itemConsole.visible = false;
+                                    checkConsole.checked = false;
+                                    checkAll.checked = false;
+                                }
+                            }
+                        }
+                    }
+
+                    Item {
+                        id: _item24
+                        width: columnConsole.width - 40
+                        height: columnConsole.height - _item8.height - 30
+
+                        Text {
+                            id: consoleOutput
+                            anchors.fill: parent
+                            wrapMode: TextArea.Wrap
+                        }
+                    }
+                }
+            }
+        }
     }
 
     Item {
@@ -451,8 +535,8 @@ Window {
                             anchors.right: parent.right
 
                             MouseArea {
-                                anchors.fill: parent  // MouseArea займає всю площу зображення
-                                cursorShape: Qt.PointingHandCursor  // Змінює курсор на руку при наведенні
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
 
                                 onClicked: {
                                     _itemData.visible = false;
@@ -1407,8 +1491,10 @@ Window {
 
                             _itemAnimationWidget.visible = !image2.widgetsHidden;
                             _itemData.visible = !image2.widgetsHidden;
+                            _itemConsole.visible = !image2.widgetsHidden;
                             checkData.checked = !image2.widgetsHidden;
                             checkAnimation.checked = !image2.widgetsHidden;
+                            checkConsole.checked = !image2.widgetsHidden;
                             checkAll.checked = !image2.widgetsHidden;
                         }
                         cursorShape: Qt.PointingHandCursor
@@ -1494,9 +1580,7 @@ Window {
                 height: parent.height
 
                 Image {
-                    id: image6
-                    x: 0
-                    y: 0
+                    id: cubeIcon
                     width: 26
                     height: 26
                     source: "qrc:/img/toolBar/cubeIcon.png"
@@ -1504,14 +1588,129 @@ Window {
 
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: {
-
-                        }
                         cursorShape: Qt.PointingHandCursor
+                        onClicked: cubeMenu.popup()
+                    }
+                }
+
+                Menu {
+                    id: cubeMenu
+                    title: ""
+                    width: 70
+
+                    MenuItem {
+                        onTriggered: console.log("Isometric View selected")
+                        contentItem: Item {
+                            width: 26
+                            height: 26
+                            Image {
+                                source: "qrc:/img/toolBar/views3d/isometric_cube.png"
+                                width: parent.width
+                                height: parent.height
+                                fillMode: Image.PreserveAspectFit
+                            }
+                        }
+                    }
+
+                    MenuItem {
+                        onTriggered: console.log("Dimetric View selected")
+                        contentItem: Item {
+                            width: 26
+                            height: 26
+                            Image {
+                                source: "qrc:/img/toolBar/views3d/dimetric_cube.png"
+                                width: parent.width
+                                height: parent.height
+                                fillMode: Image.PreserveAspectFit
+                            }
+                        }
+                    }
+
+                    MenuItem {
+                        onTriggered: console.log("Front View selected")
+                        contentItem: Item {
+                            width: 26
+                            height: 26
+                            Image {
+                                source: "qrc:/img/toolBar/views3d/front_Cube.png"
+                                width: parent.width
+                                height: parent.height
+                                fillMode: Image.PreserveAspectFit
+                            }
+                        }
+                    }
+
+                    MenuItem {
+                        onTriggered: console.log("Back View selected")
+                        contentItem: Item {
+                            width: 26
+                            height: 26
+                            Image {
+                                source: "qrc:/img/toolBar/views3d/back_cube.png"
+                                width: parent.width
+                                height: parent.height
+                                fillMode: Image.PreserveAspectFit
+                            }
+                        }
+                    }
+
+                    MenuItem {
+                        onTriggered: console.log("Top View selected")
+                        contentItem: Item {
+                            width: 26
+                            height: 26
+                            Image {
+                                source: "qrc:/img/toolBar/views3d/top_cube.png"
+                                width: parent.width
+                                height: parent.height
+                                fillMode: Image.PreserveAspectFit
+                            }
+                        }
+                    }
+
+                    MenuItem {
+                        onTriggered: console.log("Bottom View selected")
+                        contentItem: Item {
+                            width: 26
+                            height: 26
+                            Image {
+                                source: "qrc:/img/toolBar/views3d/bottom_cube.png"
+                                width: parent.width
+                                height: parent.height
+                                fillMode: Image.PreserveAspectFit
+                            }
+                        }
+                    }
+
+                    MenuItem {
+                        onTriggered: console.log("Left View selected")
+                        contentItem: Item {
+                            width: 26
+                            height: 26
+                            Image {
+                                source: "qrc:/img/toolBar/views3d/left_cube.png"
+                                width: parent.width
+                                height: parent.height
+                                fillMode: Image.PreserveAspectFit
+                            }
+                        }
+                    }
+
+                    MenuItem {
+                        onTriggered: console.log("Right View selected")
+                        contentItem: Item {
+                            width: 26
+                            height: 26
+                            Image {
+                                source: "qrc:/img/toolBar/views3d/rigft_cube.png"
+                                width: parent.width
+                                height: parent.height
+                                fillMode: Image.PreserveAspectFit
+                            }
+                        }
                     }
                 }
             }
-
         }
     }
 }
@@ -1520,6 +1719,6 @@ Window {
 
 /*##^##
 Designer {
-    D{i:0}D{i:93}D{i:101;invisible:true}D{i:106}D{i:166}D{i:171}D{i:174}D{i:177}D{i:180}
+    D{i:0}D{i:111;invisible:true}
 }
 ##^##*/
