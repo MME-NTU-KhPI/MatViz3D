@@ -32,5 +32,6 @@
         <file>img/toolBar/views3d/left_cube.png</file>
         <file>img/toolBar/views3d/rigft_cube.png</file>
         <file>img/toolBar/views3d/top_cube.png</file>
+        <file>img/toolBar/screenIcon.png</file>
     </qresource>
 </RCC>
