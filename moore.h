@@ -13,7 +13,7 @@ class Moore : public Parent_Algorithm {
 public:
     Moore();
     Moore(short int numCubes, int numColors);
-    void Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPeriodicStructure);
+    void Generate_Filling();
 };
 
 #endif // MOORE_H

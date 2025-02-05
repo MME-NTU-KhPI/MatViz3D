@@ -14,7 +14,7 @@ class Neumann : public Parent_Algorithm
 public:
     Neumann();
     Neumann(short int numCubes, int numColors);
-    void Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPeriodicStructure);
+    void Generate_Filling();
 };
 
 #endif // NEUMANN_H

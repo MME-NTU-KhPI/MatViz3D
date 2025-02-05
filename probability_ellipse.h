@@ -12,7 +12,7 @@ class Probability_Ellipse : public Parent_Algorithm
 public:
     Probability_Ellipse();
     Probability_Ellipse(short int numCubes, int numColors);
-    void Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPeriodicStructure);
+    void Generate_Filling();
 };
 
 #endif // PROBABILITY_ELLIPSE_H

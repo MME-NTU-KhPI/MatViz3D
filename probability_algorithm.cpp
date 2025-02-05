@@ -245,7 +245,7 @@ void Probability_Algorithm::processValuesGrid()
     writeProbabilitiesToCSV("D:/Project(MatViz3D)/fall2024/", N);
 }
 
-void Probability_Algorithm::Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPeriodicStructure)
+void Probability_Algorithm::Generate_Filling()
 {
     const unsigned int counter_max = static_cast<unsigned int>(pow(numCubes, 3));
 
@@ -253,85 +253,82 @@ void Probability_Algorithm::Generate_Filling(bool isAnimation, bool isWaveGenera
     std::mt19937 global_gen(rd());
     std::uniform_real_distribution<> global_dis(0.0, 1.0);
 
-    while (!grains.empty())
+    const size_t current_size = grains.size();
+    std::vector<Coordinate> newGrains;
+    newGrains.reserve(current_size * 26);
+
+    std::atomic<unsigned int> local_counter(0);
+
+    #pragma omp parallel
     {
-        const size_t current_size = grains.size();
-        std::vector<Coordinate> newGrains;
-        newGrains.reserve(current_size * 26);
+        std::vector<Coordinate> privateGrains;
+        privateGrains.reserve(current_size * 26 / omp_get_num_threads());
 
-        std::atomic<unsigned int> local_counter(0);
+        std::mt19937 local_gen(global_gen());
+        std::uniform_real_distribution<> local_dis(0.0, 1.0);
 
-        #pragma omp parallel
+        #pragma omp for schedule(guided) nowait
+        for (size_t i = 0; i < current_size; i++)
         {
-            std::vector<Coordinate> privateGrains;
-            privateGrains.reserve(current_size * 26 / omp_get_num_threads());
+            const Coordinate& temp = grains[i];
+            const int16_t x = temp.x, y = temp.y, z = temp.z;
+            const int32_t current_value = voxels[x][y][z];
 
-            std::mt19937 local_gen(global_gen());
-            std::uniform_real_distribution<> local_dis(0.0, 1.0);
-
-            #pragma omp for schedule(guided) nowait
-            for (size_t i = 0; i < current_size; i++)
+            for (const auto& offset : PROBABILITY_OFFSETS)
             {
-                const Coordinate& temp = grains[i];
-                const int16_t x = temp.x, y = temp.y, z = temp.z;
-                const int32_t current_value = voxels[x][y][z];
+                int16_t newX = x + offset[0];
+                int16_t newY = y + offset[1];
+                int16_t newZ = z + offset[2];
 
-                for (const auto& offset : PROBABILITY_OFFSETS)
+                if (flags.isPeriodicStructure == 1)
                 {
-                    int16_t newX = x + offset[0];
-                    int16_t newY = y + offset[1];
-                    int16_t newZ = z + offset[2];
-
-                    if (isPeriodicStructure == 1)
+                    newX = (newX + numCubes) % numCubes;
+                    newY = (newY + numCubes) % numCubes;
+                    newZ = (newZ + numCubes) % numCubes;
+                }
+                else if (newX < 0 || newX >= numCubes ||
+                         newY < 0 || newY >= numCubes ||
+                         newZ < 0 || newZ >= numCubes)
+                {
+                    continue;
+                }
+                if (voxels[newX][newY][newZ] == 0 && local_dis(local_gen) >= probability[1 + offset[0]][1 + offset[1]][1 + offset[2]])
+                {
+                    if (voxels[newX][newY][newZ] == 0 &&
+                        __sync_bool_compare_and_swap(&voxels[newX][newY][newZ], 0, current_value))
                     {
-                        newX = (newX + numCubes) % numCubes;
-                        newY = (newY + numCubes) % numCubes;
-                        newZ = (newZ + numCubes) % numCubes;
-                    }
-                    else if (newX < 0 || newX >= numCubes ||
-                             newY < 0 || newY >= numCubes ||
-                             newZ < 0 || newZ >= numCubes)
-                    {
-                        continue;
-                    }
-                    if (voxels[newX][newY][newZ] == 0 && local_dis(local_gen) >= probability[1 + offset[0]][1 + offset[1]][1 + offset[2]])
-                    {
-                        if (voxels[newX][newY][newZ] == 0 &&
-                            __sync_bool_compare_and_swap(&voxels[newX][newY][newZ], 0, current_value))
-                        {
-                            privateGrains.emplace_back(Coordinate{newX, newY, newZ});
-                            local_counter.fetch_add(1, std::memory_order_relaxed);
-                        }
+                        privateGrains.emplace_back(Coordinate{newX, newY, newZ});
+                        local_counter.fetch_add(1, std::memory_order_relaxed);
                     }
                 }
             }
-
-            #pragma omp critical
-            {
-                newGrains.insert(newGrains.end(),
-                                 std::make_move_iterator(privateGrains.begin()),
-                                 std::make_move_iterator(privateGrains.end()));
-            }
         }
 
-        counter += local_counter.load(std::memory_order_relaxed);
-        grains = std::move(newGrains);
-        IterationNumber++;
-
-        double progress = static_cast<double>(counter) / counter_max;
-        qDebug().nospace() << progress << "\t" << IterationNumber << "\t" << grains.size();
-
-        if (isAnimation)
+        #pragma omp critical
         {
-            if (isWaveGeneration && remainingPoints > 0)
-            {
-                pointsForThisStep = std::max(1, static_cast<int>(0.1 * remainingPoints));
-                auto newPoints = Add_New_Points(grains, pointsForThisStep);
-                grains.insert(grains.end(), newPoints.begin(), newPoints.end());
-                remainingPoints -= pointsForThisStep;
-            }
-            break;
+            newGrains.insert(newGrains.end(),
+                             std::make_move_iterator(privateGrains.begin()),
+                             std::make_move_iterator(privateGrains.end()));
         }
+    }
+
+    counter += local_counter.load(std::memory_order_relaxed);
+    grains = std::move(newGrains);
+    IterationNumber++;
+
+    double progress = static_cast<double>(counter) / counter_max;
+    qDebug().nospace() << progress << "\t" << IterationNumber << "\t" << grains.size();
+
+    if (flags.isAnimation)
+    {
+        if (flags.isWaveGeneration && remainingPoints > 0)
+        {
+            pointsForThisStep = std::max(1, static_cast<int>(0.1 * remainingPoints));
+            auto newPoints = Add_New_Points(grains, pointsForThisStep);
+            grains.insert(grains.end(), newPoints.begin(), newPoints.end());
+            remainingPoints -= pointsForThisStep;
+        }
+        return;
     }
 }
 

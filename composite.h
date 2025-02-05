@@ -9,10 +9,10 @@ public:
     Composite();
     Composite(short int numCubes, int numColors);
     void setRadius(short int radius);
-    void FillWithCylinder(bool isAnimation, bool isWaveGeneration);
-    void FillWithTetra(bool isAnimation, bool isWaveGeneration, short int offsetX, short int offsetY, short int offsetZ);
-    void FillWithHexa(bool isAnimation, bool isWaveGeneration, short int offsetX, short int offsetY, short int offsetZ);
-    void Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPeriodicStructure);
+    void FillWithCylinder();
+    void FillWithTetra();
+    void FillWithHexa();
+    void Generate_Filling();
 private:
     short int radius;
 };

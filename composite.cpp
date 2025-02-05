@@ -19,11 +19,49 @@ void Composite::setRadius(short int radius)
     this->radius = radius;
 }
 
-void Composite::FillWithCylinder(bool isAnimation, bool isWaveGeneration) {
+void Composite::FillWithCylinder()
+{
+    radius = numColors;
+    #pragma omp parallel for collapse(3)
+    for (int k = 0; k < numCubes; k++)
+        for (int i = 0; i < numCubes; i++)
+            for (int j = 0; j < numCubes; j++)
+                voxels[k][i][j] = 1;
 
+    for (int x = 0; x < numCubes; x++) {
+        for (int y = 0; y < numCubes; y++) {
+            double dist = sqrt((x - numCubes / 2) * (x - numCubes / 2) + (y - numCubes / 2) * (y - numCubes / 2));
+            if (round(dist) <= radius)
+            {
+                for (int z = 0; z < numCubes; z++)
+                {
+                    voxels[x][y][z] = 5;
+                }
+            }
+        }
+    }
+
+    int cornerRadius = radius;
+    int maxIdx = numCubes - 1;
+
+    for (int x = 0; x < numCubes; x++) {
+        for (int y = 0; y < numCubes; y++) {
+            double dist1 = sqrt(x * x + y * y);
+            double dist2 = sqrt((maxIdx - x) * (maxIdx - x) + y * y);
+            double dist3 = sqrt(x * x + (maxIdx - y) * (maxIdx - y));
+            double dist4 = sqrt((maxIdx - x) * (maxIdx - x) + (maxIdx - y) * (maxIdx - y));
+
+            if (dist1 <= cornerRadius || dist2 <= cornerRadius ||
+                dist3 <= cornerRadius || dist4 <= cornerRadius) {
+                for (int z = 0; z < numCubes; z++) {
+                    voxels[x][y][z] = 5;
+                }
+            }
+        }
+    }
 }
 
-void Composite::FillWithTetra(bool isAnimation, bool isWaveGeneration, short int offsetX, short int offsetY, short int offsetZ)
+void Composite::FillWithTetra()
 {
     #pragma omp parallel for collapse(3)
     for(int k = 0; k < numCubes; k++)
@@ -61,38 +99,17 @@ void Composite::FillWithTetra(bool isAnimation, bool isWaveGeneration, short int
     }
 }
 
-void Composite::FillWithHexa(bool isAnimation, bool isWaveGeneration,short int offsetX, short int offsetY, short int offsetZ)
+void Composite::FillWithHexa()
 {
     #pragma omp parallel for collapse(3)
         for(int k = 0; k < numCubes; k++)
             for(int i = 0; i < numCubes; i++)
                 for(int j = 0; j < numCubes; j++)
                     voxels[k][i][j] = 1;
-
-    short int centerX = offsetX + radius;
-    short int centerY = offsetY + radius;
-    const float sqrt3 = sqrt(3.0);
-
-    for (int z = offsetZ; z < offsetZ + 2 * radius && z < numCubes; z++) {
-        for (int y = offsetY; y < offsetY + 2 * radius && y < numCubes; y++) {
-            for (int x = offsetX; x < offsetX + 2 * radius && x < numCubes; x++) {
-                short int relX = x - centerX;
-                short int relY = y - centerY;
-
-                if (abs(relX) <= radius &&
-                    abs(relY) <= sqrt3 * radius / 2 &&
-                    relY <= sqrt3 * radius - sqrt3 * abs(relX) &&
-                    relY >= -sqrt3 * radius + sqrt3 * abs(relX))
-                {
-                    voxels[x][y][z] = 4;
-                }
-            }
-        }
-    }
 }
 
 
-void Composite::Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPeriodicStructure)
+void Composite::Generate_Filling()
 {
     radius = numColors;
     #pragma omp parallel for collapse(3)
@@ -101,46 +118,33 @@ void Composite::Generate_Filling(bool isAnimation, bool isWaveGeneration, bool i
             for (int j = 0; j < numCubes; j++)
                 voxels[k][i][j] = 1;
 
-    // Диаметр цилиндра
-    short int cylinderDiameter = static_cast<short int>(2 * radius);
-
-    // Зазор между цилиндрами
-    short int gap = 5; // Фиксированное расстояние между цилиндрами
-    short int centerOffset = cylinderDiameter + gap;
-
-    // Определяем количество рядов и столбцов в ромбовидной структуре
-    short int maxCylindersPerRow = (numCubes + centerOffset - 1) / centerOffset;
-
-    // Вычисляем смещения для центрирования структуры
-    short int xStartOffset = (numCubes - ((maxCylindersPerRow - 1) * centerOffset)) / 2;
-    short int yStartOffset = xStartOffset; // Для симметрии
-
-    // Итерация по сетке
-    for (int j = 0; j < maxCylindersPerRow; j++) {
-        for (int i = 0; i < maxCylindersPerRow; i++) {
-            // Смещение для создания ромбовидного узора
-            short int shiftX = (j % 2 == 0) ? 0 : centerOffset / 2;
-
-            // Центры цилиндров
-            short int centerX = xStartOffset + i * centerOffset + shiftX;
-            short int centerY = yStartOffset + j * centerOffset;
-
-            // Проверяем, чтобы центр не выходил за границы куба
-            if (centerX >= numCubes || centerY >= numCubes) {
-                continue;
+    for (int x = 0; x < numCubes; x++) {
+        for (int y = 0; y < numCubes; y++) {
+            double dist = sqrt((x - numCubes / 2) * (x - numCubes / 2) + (y - numCubes / 2) * (y - numCubes / 2));
+            if (round(dist) <= radius)
+            {
+                for (int z = 0; z < numCubes; z++)
+                {
+                    voxels[x][y][z] = 5;
+                }
             }
+        }
+    }
 
-            // Создание цилиндра вдоль оси Z
-            for (int x = 0; x < numCubes; x++) {
-                for (int y = 0; y < numCubes; y++) {
-                    // Расстояние до центра цилиндра
-                    float distance = sqrt(pow(x - centerX, 2) + pow(y - centerY, 2));
-                    if (distance <= radius) {
-                        // Заполнение вдоль Z
-                        for (int z = 0; z < numCubes; z++) {
-                            voxels[x][y][z] = 5;
-                        }
-                    }
+    int cornerRadius = radius;
+    int maxIdx = numCubes - 1;
+
+    for (int x = 0; x < numCubes; x++) {
+        for (int y = 0; y < numCubes; y++) {
+            double dist1 = sqrt(x * x + y * y);
+            double dist2 = sqrt((maxIdx - x) * (maxIdx - x) + y * y);
+            double dist3 = sqrt(x * x + (maxIdx - y) * (maxIdx - y));
+            double dist4 = sqrt((maxIdx - x) * (maxIdx - x) + (maxIdx - y) * (maxIdx - y));
+
+            if (dist1 <= cornerRadius || dist2 <= cornerRadius ||
+                dist3 <= cornerRadius || dist4 <= cornerRadius) {
+                for (int z = 0; z < numCubes; z++) {
+                    voxels[x][y][z] = 5;
                 }
             }
         }

@@ -194,6 +194,7 @@ void MainWindow::on_Start_clicked()
         QMessageBox::warning(this, "Error", "Unknown algorithm selected.");
         return;
     }
+    setAlgorithmFlags(*algorithm);
     executeAlgorithm(*algorithm, selectedAlgorithm);
 
     finalizeUIAfterCompletion();
@@ -227,17 +228,20 @@ void MainWindow::executeAlgorithm(Parent_Algorithm& algorithm, const QString& al
 {
     Parameters::voxels = algorithm.Generate_Initial_Cube();
     algorithm.Generate_Random_Starting_Points(isWaveGeneration);
-    algorithm.remainingPoints = algorithm.numColors - static_cast<int>(0.1 * algorithm.numColors);
+    algorithm.setRemainingPoints(algorithm.getNumColors() - static_cast<int>(0.1 * algorithm.getNumColors()));
     auto start = std::chrono::high_resolution_clock::now();
-    if (!isAnimation) {
-        algorithm.Generate_Filling(isAnimation, isWaveGeneration, isPeriodicStructure);
-        ui->myGLWidget->setVoxels(algorithm.voxels, algorithm.numCubes);
-        ui->myGLWidget->update();
-    } else {
-        while (!algorithm.grains.empty()) {
-            algorithm.Generate_Filling(isAnimation, isWaveGeneration, isPeriodicStructure);
+    while (!algorithm.grains.empty())
+    {
+        algorithm.Generate_Filling();
+        if (isAnimation)
+        {
             QApplication::processEvents();
-            ui->myGLWidget->updateGLWidget(algorithm.voxels, algorithm.numCubes);
+            ui->myGLWidget->updateGLWidget(algorithm.getVoxels(), algorithm.getNumCubes());
+        }
+        else
+        {
+            ui->myGLWidget->setVoxels(algorithm.getVoxels(), algorithm.getNumCubes());
+            ui->myGLWidget->update();
         }
     }
     qDebug() << algorithmName;
@@ -605,6 +609,13 @@ void MainWindow::setConcentration(int arg)
 void MainWindow::setAlgorithms(QString arg)
 {
     ui->AlgorithmsBox->setCurrentText(arg);
+}
+
+void MainWindow::setAlgorithmFlags(Parent_Algorithm& algorithm)
+{
+    algorithm.setAnimation(isAnimation);
+    algorithm.setWaveGeneration(isWaveGeneration);
+    algorithm.setPeriodicStructure(false);
 }
 
 void MainWindow::onStartClicked()

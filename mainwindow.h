@@ -29,6 +29,7 @@ public:
     void setNumColors(int arg);
     void setConcentration(int arg);
     void setAlgorithms(QString arg);
+    void setAlgorithmFlags(Parent_Algorithm& algorithm);
     void callExportToCSV();
     bool isAnimation = false;
     bool isWaveGeneration = false;

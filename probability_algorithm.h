@@ -18,7 +18,7 @@ public:
     ~Probability_Algorithm();
 
     void setHalfAxis();
-    void Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPeriodicStructure);
+    void Generate_Filling();
     void processValues();
     void processValuesGrid();
     void writeProbabilitiesToCSV(const QString& filePath, uint64_t N);

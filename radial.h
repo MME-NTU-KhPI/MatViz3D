@@ -11,7 +11,7 @@ class Radial : public Parent_Algorithm
 public:
     Radial();
     Radial(short int numCubes, int numColors);
-    void Generate_Filling(bool isAnimation, bool isWaveGeneration, bool isPeriodicStructure);
+    void Generate_Filling();
 };
 
 #endif // RADIAL_H
