@@ -230,7 +230,7 @@ void MainWindow::executeAlgorithm(Parent_Algorithm& algorithm, const QString& al
     algorithm.Generate_Random_Starting_Points(isWaveGeneration);
     algorithm.setRemainingPoints(algorithm.getNumColors() - static_cast<int>(0.1 * algorithm.getNumColors()));
     auto start = std::chrono::high_resolution_clock::now();
-    while (!algorithm.grains.empty())
+    while (algorithm.getFilled_Voxels() < pow(algorithm.getNumCubes(),3))
     {
         algorithm.Generate_Filling();
         if (isAnimation)

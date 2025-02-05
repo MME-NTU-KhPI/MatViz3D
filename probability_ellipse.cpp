@@ -57,7 +57,7 @@ void Probability_Ellipse::Generate_Filling()
                             {
                                 voxels[newX][newY][newZ] = voxels[x][y][z];
                                 newGrains.push_back({newX,newY,newZ});
-                                counter++;
+                                filled_voxels++;
                             }
                             else
                             {
@@ -70,7 +70,7 @@ void Probability_Ellipse::Generate_Filling()
                             {
                                 voxels[newX][newY][newZ] = voxels[x][y][z];
                                 newGrains.push_back({newX,newY,newZ});
-                                counter++;
+                                filled_voxels++;
                             }
                             else
                             {
@@ -83,7 +83,7 @@ void Probability_Ellipse::Generate_Filling()
                             {
                                 voxels[newX][newY][newZ] = voxels[x][y][z];
                                 newGrains.push_back({newX,newY,newZ});
-                                counter++;
+                                filled_voxels++;
                             }
                             else
                             {
@@ -98,6 +98,7 @@ void Probability_Ellipse::Generate_Filling()
     grains.clear();
     grains.insert(grains.end(), newGrains.begin(), newGrains.end());
     newGrains.clear();
+    qDebug() << filled_voxels << "\t" << pow(numCubes,3);
     IterationNumber++;
     double o = (double)counter/counter_max;
     qDebug().nospace() << o << "\t" << IterationNumber << "\t" << grains.size();

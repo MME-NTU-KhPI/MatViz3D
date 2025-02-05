@@ -32,20 +32,19 @@ void Radial::Generate_Filling()
     std::vector<Coordinate> newGrains;
     newGrains.reserve(current_size * 18);
 
-    unsigned int local_counter = 0;
-#pragma omp parallel reduction(+:local_counter)
+    #pragma omp parallel
     {
         std::vector<Coordinate> privateGrains;
         privateGrains.reserve(current_size * 18 / omp_get_max_threads());
 
-#pragma omp for schedule(guided) nowait
+        #pragma omp for schedule(guided) nowait
         for (size_t i = 0; i < current_size; i++)
         {
             const Coordinate& temp = grains[i];
             const int32_t x = temp.x, y = temp.y, z = temp.z;
             const int32_t current_value = voxels[x][y][z];
 
-#pragma omp simd
+            #pragma omp simd
             for (const auto& offset : RADIAL_OFFSETS)
             {
                 int32_t newX = x + offset[0];
@@ -66,13 +65,14 @@ void Radial::Generate_Filling()
                     if (__sync_bool_compare_and_swap(&voxels[newX][newY][newZ], 0, current_value))
                     {
                         privateGrains.push_back({newX, newY, newZ});
-                        local_counter++;
+                        #pragma omp atomic
+                        filled_voxels++;
                     }
                 }
             }
         }
 
-#pragma omp critical
+        #pragma omp critical
         {
             newGrains.insert(newGrains.end(),
                              std::make_move_iterator(privateGrains.begin()),
@@ -80,7 +80,7 @@ void Radial::Generate_Filling()
         }
     }
 
-    counter += local_counter;
+    counter += filled_voxels;
     grains = std::move(newGrains);
     IterationNumber++;
 

@@ -126,7 +126,7 @@ void Probability_Algorithm::processValues()
     uint64_t fileld_in[3][3][3] = {{{0}}};
     uint64_t fileld_total[3][3][3] = {{{0}}};
 
-#pragma omp parallel
+    #pragma omp parallel
     {
         int nthreads = omp_get_num_threads();
         uint64_t fileld_in_local[3][3][3] = {{{0}}};
@@ -147,7 +147,7 @@ void Probability_Algorithm::processValues()
             }
         }
 
-#pragma omp critical
+        #pragma omp critical
         {
             for (int i = 0; i < 3; i++)
                 for (int j = 0; j < 3; j++)
@@ -256,9 +256,6 @@ void Probability_Algorithm::Generate_Filling()
     const size_t current_size = grains.size();
     std::vector<Coordinate> newGrains;
     newGrains.reserve(current_size * 26);
-
-    std::atomic<unsigned int> local_counter(0);
-
     #pragma omp parallel
     {
         std::vector<Coordinate> privateGrains;
@@ -298,7 +295,8 @@ void Probability_Algorithm::Generate_Filling()
                         __sync_bool_compare_and_swap(&voxels[newX][newY][newZ], 0, current_value))
                     {
                         privateGrains.emplace_back(Coordinate{newX, newY, newZ});
-                        local_counter.fetch_add(1, std::memory_order_relaxed);
+                        #pragma omp atomic
+                        filled_voxels++;
                     }
                 }
             }
@@ -312,7 +310,7 @@ void Probability_Algorithm::Generate_Filling()
         }
     }
 
-    counter += local_counter.load(std::memory_order_relaxed);
+    counter += filled_voxels;
     grains = std::move(newGrains);
     IterationNumber++;
 

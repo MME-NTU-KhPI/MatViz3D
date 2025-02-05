@@ -35,8 +35,7 @@ void Moore::Generate_Filling()
     const size_t current_size = grains.size();
     std::vector<Coordinate> newGrains;
     newGrains.reserve(current_size * 26);
-    unsigned int local_counter = 0;
-    #pragma omp parallel reduction(+:local_counter)
+    #pragma omp parallel
     {
         std::vector<Coordinate> privateGrains;
         privateGrains.reserve(current_size * 26 / omp_get_max_threads());
@@ -69,7 +68,8 @@ void Moore::Generate_Filling()
                     if (__sync_bool_compare_and_swap(&voxels[newX][newY][newZ], 0, current_value))
                     {
                         privateGrains.push_back({newX, newY, newZ});
-                        local_counter++;
+                        #pragma omp atomic
+                        filled_voxels++;
                     }
                 }
             }
@@ -81,8 +81,9 @@ void Moore::Generate_Filling()
                              std::make_move_iterator(privateGrains.end()));
         }
     }
-    counter += local_counter;
+    counter += filled_voxels;
     grains = std::move(newGrains);
+    qDebug() << filled_voxels << counter_max;
     IterationNumber++;
     double o = static_cast<double>(counter) / counter_max;
     qDebug().nospace() << o << "\t" << IterationNumber << "\t" << grains.size();

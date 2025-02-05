@@ -26,8 +26,7 @@ void Neumann::Generate_Filling()
     const size_t current_size = grains.size();
     std::vector<Coordinate> newGrains;
     newGrains.reserve(current_size * 6);
-    unsigned int local_counter = 0;
-    #pragma omp parallel reduction(+:local_counter)
+    #pragma omp parallel
     {
         std::vector<Coordinate> privateGrains;
         privateGrains.reserve(current_size * 6 / omp_get_max_threads());
@@ -55,20 +54,23 @@ void Neumann::Generate_Filling()
                 if (__sync_bool_compare_and_swap(&voxels[newX][y][z], 0, voxels[x][y][z]))
                 {
                     privateGrains.push_back({newX, y, z});
-                    local_counter++;
+                    #pragma omp atomic
+                    filled_voxels++;
                 }
                 if (!(newY >= 0 && newY < numCubes)) continue;
                 if (__sync_bool_compare_and_swap(&voxels[x][newY][z], 0, voxels[x][y][z]))
                 {
                     privateGrains.push_back({x, newY, z});
-                    local_counter++;
+                    #pragma omp atomic
+                    filled_voxels++;
                 }
 
                 if (!(newZ >= 0 && newZ < numCubes)) continue;
                 if (__sync_bool_compare_and_swap(&voxels[x][y][newZ], 0, voxels[x][y][z]))
                 {
                     privateGrains.push_back({x, y, newZ});
-                    local_counter++;
+                    #pragma omp atomic
+                    filled_voxels++;
                 }
             }
 
@@ -76,7 +78,7 @@ void Neumann::Generate_Filling()
         #pragma omp critical
         newGrains.insert(newGrains.end(), privateGrains.begin(), privateGrains.end());
     }
-    counter += local_counter;
+    counter += filled_voxels;
     grains = std::move(newGrains);
     IterationNumber++;
     double o = (double)counter / counter_max;

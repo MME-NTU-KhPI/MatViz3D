@@ -89,7 +89,7 @@ void Parent_Algorithm::Generate_Random_Starting_Points(bool isWaveGeneration)
         a.z = distribution(generator);
         voxels[a.x][a.y][a.z] = ++color;
         grains.push_back(a);
-        counter++;
+        filled_voxels++;
     }
 }
 
