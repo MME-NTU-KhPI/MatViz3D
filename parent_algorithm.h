@@ -15,6 +15,15 @@ struct AlgorithmFlags {
     bool isDone = false;
 };
 
+#pragma pack(push, 4)
+struct Coordinate
+{
+    int32_t x;
+    int32_t y;
+    int32_t z;
+};
+#pragma pack(pop)
+
 class Parent_Algorithm
 {
 private:
@@ -32,18 +41,10 @@ protected:
     short int numCubes;
     int numColors;
     int32_t color = 0;
+    std::vector<Coordinate> grains;
     unsigned int filled_voxels = 0;
 
 public:
-    #pragma pack(push, 4)
-    struct Coordinate
-    {
-        int32_t x;
-        int32_t y;
-        int32_t z;
-    };
-    #pragma pack(pop)
-    std::vector<Coordinate> grains;
     void setNumCubes(short int numCubes) { this->numCubes = numCubes; };
     void setNumColors(int numColors) {this->numColors = numColors; };
     void setRemainingPoints(int remainingPoints) { this->remainingPoints = remainingPoints; };
@@ -65,8 +66,9 @@ public:
     Parent_Algorithm();
     virtual ~Parent_Algorithm();
     virtual void Generate_Filling() = 0;
-    virtual int32_t*** Generate_Initial_Cube();
     virtual void Generate_Random_Starting_Points(bool isWaveGeneration);
+    virtual int32_t*** Generate_Initial_Cube();
+    virtual void CleanUp();
     std::vector<Coordinate> Add_New_Points(std::vector<Coordinate> grains, int numPoints);
     std::vector<Coordinate> Delete_Points(std::vector<Coordinate> grains,size_t i);
 };

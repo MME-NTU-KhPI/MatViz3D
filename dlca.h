@@ -11,7 +11,7 @@ class DLCA_Aggregate
     int32_t*** voxels;
 public:
     int id;
-    std::vector <Parent_Algorithm::Coordinate> aggr;
+    std::vector <Coordinate> aggr;
     void move_aggregate(int dx, int dy, int dz);
     void map_to_voxels();
     bool is_can_move_aggregate(int dx, int dy, int dz);

@@ -41,7 +41,7 @@ void DLCA_Aggregate::map_to_voxels()
 {
     for (size_t i = 0; i < aggr.size(); i++)
     {
-        DLCA::Coordinate c = aggr[i];
+        Coordinate c = aggr[i];
         voxels[c.x][c.y][c.z] = this->id;
     }
 }
@@ -143,8 +143,8 @@ bool DLCA::check_collision(size_t _i, size_t _j)
     for (size_t i = 0; i < a1_size; i++)
         for (size_t j = 0; j < a2_size; j++)
         {
-            const DLCA::Coordinate &c1 = a1.aggr[i];
-            const DLCA::Coordinate &c2 = a2.aggr[j];
+            const Coordinate &c1 = a1.aggr[i];
+            const Coordinate &c2 = a2.aggr[j];
 
             dist_ij = my_abs(c1.x - c2.x) +
                       my_abs(c1.y - c2.y) +

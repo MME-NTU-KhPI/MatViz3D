@@ -83,7 +83,6 @@ void Moore::Generate_Filling()
     }
     counter += filled_voxels;
     grains = std::move(newGrains);
-    qDebug() << filled_voxels << counter_max;
     IterationNumber++;
     double o = static_cast<double>(counter) / counter_max;
     qDebug().nospace() << o << "\t" << IterationNumber << "\t" << grains.size();

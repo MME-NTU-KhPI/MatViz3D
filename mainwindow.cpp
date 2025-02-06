@@ -5,14 +5,7 @@
 #include <QtWidgets>
 #include <QMessageBox>
 #include <QPushButton>
-#include "radial.h"
-#include "neumann.h"
-#include "moore.h"
-#include "composite.h"
-#include "dlca.h"
 #include "probability_algorithm.h"
-#include "probability_ellipse.h"
-#include "probability_circle.h"
 #include <QFileDialog>
 #include <QDebug>
 #include <QPropertyAnimation>
@@ -230,7 +223,7 @@ void MainWindow::executeAlgorithm(Parent_Algorithm& algorithm, const QString& al
     algorithm.Generate_Random_Starting_Points(isWaveGeneration);
     algorithm.setRemainingPoints(algorithm.getNumColors() - static_cast<int>(0.1 * algorithm.getNumColors()));
     auto start = std::chrono::high_resolution_clock::now();
-    while (algorithm.getFilled_Voxels() < pow(algorithm.getNumCubes(),3))
+    while (!algorithm.getDone())
     {
         algorithm.Generate_Filling();
         if (isAnimation)
@@ -243,6 +236,7 @@ void MainWindow::executeAlgorithm(Parent_Algorithm& algorithm, const QString& al
             ui->myGLWidget->setVoxels(algorithm.getVoxels(), algorithm.getNumCubes());
             ui->myGLWidget->update();
         }
+        algorithm.setDone();
     }
     qDebug() << algorithmName;
     auto end = std::chrono::high_resolution_clock::now();
