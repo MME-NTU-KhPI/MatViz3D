@@ -1481,7 +1481,7 @@ Window {
                     width: 26
                     height: 26
                     property bool widgetsHidden: false
-                    source: widgetsHidden ? "qrc:/img/toolBar/viewIconHidden.png" : "qrc:/img/toolBar/viewIcon.png"
+                    source: widgetsHidden ? "qrc:/img/toolBar/viewIconHidden.svg" : "qrc:/img/toolBar/viewIcon.svg"
                     fillMode: Image.PreserveAspectFit
 
                     MouseArea {
@@ -1513,7 +1513,7 @@ Window {
                     y: 0
                     width: 26
                     height: 26
-                    source: "qrc:/img/toolBar/saveIcon.png"
+                    source: "qrc:/img/toolBar/saveIcon.svg"
                     fillMode: Image.PreserveAspectFit
 
                     MouseArea {
@@ -1537,7 +1537,7 @@ Window {
                     y: 0
                     width: 26
                     height: 26
-                    source: "qrc:/img/toolBar/screenIcon.png"
+                    source: "qrc:/img/toolBar/screenIcon.svg"
                     fillMode: Image.PreserveAspectFit
 
                     MouseArea {
@@ -1561,7 +1561,7 @@ Window {
                     y: 0
                     width: 26
                     height: 26
-                    source: "qrc:/img/toolBar/zoom-inIcon.png"
+                    source: "qrc:/img/toolBar/zoom-inIcon.svg"
                     fillMode: Image.PreserveAspectFit
 
                     MouseArea {
@@ -1585,7 +1585,7 @@ Window {
                     y: 0
                     width: 26
                     height: 26
-                    source: "qrc:/img/toolBar/zoom-outIcon.png"
+                    source: "qrc:/img/toolBar/zoom-outIcon.svg"
                     fillMode: Image.PreserveAspectFit
 
                     MouseArea {
@@ -1607,7 +1607,7 @@ Window {
                     id: cubeIcon
                     width: 26
                     height: 26
-                    source: "qrc:/img/toolBar/cubeIcon.png"
+                    source: "qrc:/img/toolBar/cubeIcon.svg"
                     fillMode: Image.PreserveAspectFit
 
                     MouseArea {
@@ -1628,7 +1628,7 @@ Window {
                             width: 26
                             height: 26
                             Image {
-                                source: "qrc:/img/toolBar/views3d/isometric_cube.png"
+                                source: "qrc:/img/toolBar/views3d/isometric_cube.svg"
                                 width: parent.width
                                 height: parent.height
                                 fillMode: Image.PreserveAspectFit
@@ -1642,7 +1642,7 @@ Window {
                             width: 26
                             height: 26
                             Image {
-                                source: "qrc:/img/toolBar/views3d/dimetric_cube.png"
+                                source: "qrc:/img/toolBar/views3d/dimetric_cube.svg"
                                 width: parent.width
                                 height: parent.height
                                 fillMode: Image.PreserveAspectFit
@@ -1656,7 +1656,7 @@ Window {
                             width: 26
                             height: 26
                             Image {
-                                source: "qrc:/img/toolBar/views3d/front_Cube.png"
+                                source: "qrc:/img/toolBar/views3d/front_Cube.svg"
                                 width: parent.width
                                 height: parent.height
                                 fillMode: Image.PreserveAspectFit
@@ -1670,7 +1670,7 @@ Window {
                             width: 26
                             height: 26
                             Image {
-                                source: "qrc:/img/toolBar/views3d/back_cube.png"
+                                source: "qrc:/img/toolBar/views3d/back_cube.svg"
                                 width: parent.width
                                 height: parent.height
                                 fillMode: Image.PreserveAspectFit
@@ -1684,7 +1684,7 @@ Window {
                             width: 26
                             height: 26
                             Image {
-                                source: "qrc:/img/toolBar/views3d/top_cube.png"
+                                source: "qrc:/img/toolBar/views3d/top_cube.svg"
                                 width: parent.width
                                 height: parent.height
                                 fillMode: Image.PreserveAspectFit
@@ -1698,7 +1698,7 @@ Window {
                             width: 26
                             height: 26
                             Image {
-                                source: "qrc:/img/toolBar/views3d/bottom_cube.png"
+                                source: "qrc:/img/toolBar/views3d/bottom_cube.svg"
                                 width: parent.width
                                 height: parent.height
                                 fillMode: Image.PreserveAspectFit
@@ -1712,7 +1712,7 @@ Window {
                             width: 26
                             height: 26
                             Image {
-                                source: "qrc:/img/toolBar/views3d/left_cube.png"
+                                source: "qrc:/img/toolBar/views3d/left_cube.svg"
                                 width: parent.width
                                 height: parent.height
                                 fillMode: Image.PreserveAspectFit
@@ -1726,7 +1726,7 @@ Window {
                             width: 26
                             height: 26
                             Image {
-                                source: "qrc:/img/toolBar/views3d/rigft_cube.png"
+                                source: "qrc:/img/toolBar/views3d/rigft_cube.svg"
                                 width: parent.width
                                 height: parent.height
                                 fillMode: Image.PreserveAspectFit

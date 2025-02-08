@@ -18,20 +18,20 @@
         <file>img/VerticalMenuIcon.png</file>
         <file>fonts/Inter-VariableFont_opsz,wght.ttf</file>
         <file>img/closeData.png</file>
-        <file>img/toolBar/cubeIcon.png</file>
-        <file>img/toolBar/saveIcon.png</file>
-        <file>img/toolBar/zoom-inIcon.png</file>
-        <file>img/toolBar/zoom-outIcon.png</file>
-        <file>img/toolBar/viewIcon.png</file>
-        <file>img/toolBar/viewIconHidden.png</file>
-        <file>img/toolBar/views3d/back_cube.png</file>
-        <file>img/toolBar/views3d/bottom_cube.png</file>
-        <file>img/toolBar/views3d/dimetric_cube.png</file>
-        <file>img/toolBar/views3d/front_Cube.png</file>
-        <file>img/toolBar/views3d/isometric_cube.png</file>
-        <file>img/toolBar/views3d/left_cube.png</file>
-        <file>img/toolBar/views3d/rigft_cube.png</file>
-        <file>img/toolBar/views3d/top_cube.png</file>
-        <file>img/toolBar/screenIcon.png</file>
+        <file>img/toolBar/screenIcon.svg</file>
+        <file>img/toolBar/views3d/back_cube.svg</file>
+        <file>img/toolBar/views3d/bottom_cube.svg</file>
+        <file>img/toolBar/views3d/dimetric_cube.svg</file>
+        <file>img/toolBar/views3d/front_Cube.svg</file>
+        <file>img/toolBar/views3d/isometric_cube.svg</file>
+        <file>img/toolBar/views3d/left_cube.svg</file>
+        <file>img/toolBar/views3d/rigft_cube.svg</file>
+        <file>img/toolBar/views3d/top_cube.svg</file>
+        <file>img/toolBar/cubeIcon.svg</file>
+        <file>img/toolBar/saveIcon.svg</file>
+        <file>img/toolBar/viewIcon.svg</file>
+        <file>img/toolBar/viewIconHidden.svg</file>
+        <file>img/toolBar/zoom-inIcon.svg</file>
+        <file>img/toolBar/zoom-outIcon.svg</file>
     </qresource>
 </RCC>
