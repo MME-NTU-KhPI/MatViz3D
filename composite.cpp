@@ -11,7 +11,7 @@ Composite::Composite() {}
 Composite::Composite(short int numCubes, int numColors)
 {
     this->numCubes = numCubes;
-    this->radius = numColors;
+    this->numColors = numColors;
 }
 
 void Composite::setRadius(short int radius)
@@ -111,11 +111,16 @@ void Composite::FillWithHexa()
 
 void Composite::Generate_Filling()
 {
+    setRadius(numColors);
+
     #pragma omp parallel for collapse(3)
     for (int k = 0; k < numCubes; k++)
         for (int i = 0; i < numCubes; i++)
             for (int j = 0; j < numCubes; j++)
+            {
                 voxels[k][i][j] = 1;
+                filled_voxels++;
+            }
 
     for (int x = 0; x < numCubes; x++) {
         for (int y = 0; y < numCubes; y++) {
@@ -130,5 +135,5 @@ void Composite::Generate_Filling()
         }
     }
 
-    filled_voxels = pow(numCubes,3);
+    qDebug() << filled_voxels << "\t" << pow(numCubes, 3);
 };

@@ -96,27 +96,12 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow()
 {
-    clearVoxels();
     delete ui;
 }
 
 void MainWindow::onLogMessageWritten(const QString &message)
 {
     ui->textEdit->append(message);
-}
-
-void MainWindow::clearVoxels()
-{
-    if (Parameters::voxels) {
-        for (int i = 0; i < Parameters::size; ++i) {
-            for (int j = 0; j < Parameters::size; ++j) {
-                delete[] Parameters::voxels[i][j];
-            }
-            delete[] Parameters::voxels[i];
-        }
-        delete[] Parameters::voxels;
-        Parameters::voxels = nullptr;
-    }
 }
 
 void MainWindow::onProbabilityAlgorithmChanged(const QString &text)
@@ -238,6 +223,7 @@ void MainWindow::executeAlgorithm(Parent_Algorithm& algorithm, const QString& al
         }
         algorithm.setDone();
     }
+    algorithm.CleanUp();
     qDebug() << algorithmName;
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = end - start;

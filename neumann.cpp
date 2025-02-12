@@ -24,19 +24,20 @@ void Neumann::Generate_Filling()
 {
     unsigned int counter_max = pow(numCubes, 3);
     const size_t current_size = grains.size();
-    std::vector<Coordinate> newGrains;
-    newGrains.reserve(current_size * 6);
+    std::vector<std::vector<Coordinate>> threadGrains(omp_get_max_threads());
+
     #pragma omp parallel
     {
-        std::vector<Coordinate> privateGrains;
+        int thread_id = omp_get_thread_num();
+        std::vector<Coordinate>& privateGrains = threadGrains[thread_id];
         privateGrains.reserve(current_size * 6 / omp_get_max_threads());
-        #pragma omp for schedule(guided) nowait
+
+        #pragma omp for schedule(guided)
         for (size_t i = 0; i < grains.size(); i++)
         {
             Coordinate temp = grains[i];
             int32_t x = temp.x, y = temp.y, z = temp.z;
 
-            #pragma omp simd
             for (const auto& offset : NEUMANN_OFFSETS)
             {
                 int32_t newX = x + offset[0];
@@ -50,46 +51,43 @@ void Neumann::Generate_Filling()
                     newZ = (newZ + numCubes) % numCubes;
                 }
 
-                if (!(newX >= 0 && newX < numCubes)) continue;
-                if (__sync_bool_compare_and_swap(&voxels[newX][y][z], 0, voxels[x][y][z]))
+                if (newX >= 0 && newX < numCubes &&
+                    __sync_bool_compare_and_swap(&voxels[newX][y][z], 0, voxels[x][y][z]))
                 {
                     privateGrains.push_back({newX, y, z});
-                    #pragma omp atomic
-                    filled_voxels++;
                 }
-                if (!(newY >= 0 && newY < numCubes)) continue;
-                if (__sync_bool_compare_and_swap(&voxels[x][newY][z], 0, voxels[x][y][z]))
+                if (newY >= 0 && newY < numCubes &&
+                    __sync_bool_compare_and_swap(&voxels[x][newY][z], 0, voxels[x][y][z]))
                 {
                     privateGrains.push_back({x, newY, z});
-                    #pragma omp atomic
-                    filled_voxels++;
                 }
-
-                if (!(newZ >= 0 && newZ < numCubes)) continue;
-                if (__sync_bool_compare_and_swap(&voxels[x][y][newZ], 0, voxels[x][y][z]))
+                if (newZ >= 0 && newZ < numCubes &&
+                    __sync_bool_compare_and_swap(&voxels[x][y][newZ], 0, voxels[x][y][z]))
                 {
                     privateGrains.push_back({x, y, newZ});
-                    #pragma omp atomic
-                    filled_voxels++;
                 }
             }
-
         }
-        #pragma omp critical
-        newGrains.insert(newGrains.end(), privateGrains.begin(), privateGrains.end());
     }
-    counter += filled_voxels;
-    grains = std::move(newGrains);
+
+    grains.clear();
+    for (auto& tg : threadGrains)
+    {
+        grains.insert(grains.end(), tg.begin(), tg.end());
+    }
+
+    filled_voxels += grains.size();
     IterationNumber++;
-    double o = (double)counter / counter_max;
+    double o = (double)filled_voxels / counter_max;
     qDebug().nospace() << o << "\t" << IterationNumber << "\t" << grains.size();
+
     if (flags.isAnimation)
     {
         if (flags.isWaveGeneration && remainingPoints > 0)
         {
             pointsForThisStep = std::max(1, static_cast<int>(0.1 * remainingPoints));
-            newGrains = Add_New_Points(newGrains, pointsForThisStep);
-            grains.insert(grains.end(), newGrains.begin(), newGrains.end());
+            std::vector<Coordinate> newPoints = Add_New_Points(grains, pointsForThisStep);
+            grains.insert(grains.end(), newPoints.begin(), newPoints.end());
             remainingPoints -= pointsForThisStep;
         }
         return;

@@ -310,11 +310,10 @@ void Probability_Algorithm::Generate_Filling()
         }
     }
 
-    counter += filled_voxels;
     grains = std::move(newGrains);
     IterationNumber++;
 
-    double progress = static_cast<double>(counter) / counter_max;
+    double progress = static_cast<double>(filled_voxels) / counter_max;
     qDebug().nospace() << progress << "\t" << IterationNumber << "\t" << grains.size();
 
     if (flags.isAnimation)

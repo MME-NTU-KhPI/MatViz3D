@@ -69,9 +69,8 @@ template <class T> void Parent_Algorithm::Delete3D(T ***array)
 void Parent_Algorithm::CleanUp()
 {
     if (voxels) {
-        Delete3D(voxels);
-        voxels = nullptr;
         filled_voxels = 0;
+        flags.isDone = false;
     }
 }
 
@@ -102,7 +101,7 @@ void Parent_Algorithm::Generate_Random_Starting_Points(bool isWaveGeneration)
     }
 }
 
-std::vector<Coordinate> Parent_Algorithm::Add_New_Points(std::vector<Coordinate> grains, int numPoints)
+std::vector<Parent_Algorithm::Coordinate> Parent_Algorithm::Add_New_Points(std::vector<Coordinate> grains, int numPoints)
 {
     std::random_device rd;
     std::mt19937 generator(rd());
@@ -116,12 +115,12 @@ std::vector<Coordinate> Parent_Algorithm::Add_New_Points(std::vector<Coordinate>
         a.z = distribution(generator);
         voxels[a.x][a.y][a.z] = ++color;
         grains.push_back(a);
-        counter++;
+        filled_voxels++;
     }
     return grains;
 }
 
-std::vector<Coordinate> Parent_Algorithm::Delete_Points(std::vector<Coordinate> grains, size_t i)
+std::vector<Parent_Algorithm::Coordinate> Parent_Algorithm::Delete_Points(std::vector<Coordinate> grains, size_t i)
 {
     grains.erase(grains.begin() + i);
     i--;

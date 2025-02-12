@@ -81,10 +81,9 @@ void Moore::Generate_Filling()
                              std::make_move_iterator(privateGrains.end()));
         }
     }
-    counter += filled_voxels;
     grains = std::move(newGrains);
     IterationNumber++;
-    double o = static_cast<double>(counter) / counter_max;
+    double o = static_cast<double>(filled_voxels) / counter_max;
     qDebug().nospace() << o << "\t" << IterationNumber << "\t" << grains.size();
 
     if (flags.isAnimation)

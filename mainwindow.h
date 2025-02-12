@@ -49,7 +49,6 @@ private slots:
     void exportToWRL();
     void initializeUIForStart();
     bool validateParameters();
-    void clearVoxels();
     void executeAlgorithm(Parent_Algorithm& algorithm, const QString& algorithmName);
     void finalizeUIAfterCompletion();
     void logExecutionTime(clock_t start_time);

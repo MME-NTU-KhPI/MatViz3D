@@ -99,7 +99,7 @@ void Probability_Circle::Generate_Filling()
     newGrains.clear();
     qDebug() << filled_voxels << "\t" << pow(numCubes,3);
     IterationNumber++;
-    double o = (double)counter/counter_max;
+    double o = (double)filled_voxels/counter_max;
     qDebug().nospace() << o << "\t" << IterationNumber << "\t" << grains.size();
     if (flags.isAnimation == 1)
     {

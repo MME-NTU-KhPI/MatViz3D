@@ -41,7 +41,7 @@ void DLCA_Aggregate::map_to_voxels()
 {
     for (size_t i = 0; i < aggr.size(); i++)
     {
-        Coordinate c = aggr[i];
+        Parent_Algorithm::Coordinate c = aggr[i];
         voxels[c.x][c.y][c.z] = this->id;
     }
 }
