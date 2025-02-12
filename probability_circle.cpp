@@ -22,7 +22,7 @@ Probability_Circle::Probability_Circle(short int numCubes, int numColors)
     this->numColors = numColors;
 }
 
-void Probability_Circle::Generate_Filling()
+void Probability_Circle::Next_Iteration()
 {
     srand(time(NULL));
     unsigned int counter_max = pow(numCubes,3);

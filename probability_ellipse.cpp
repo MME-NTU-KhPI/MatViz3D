@@ -23,7 +23,7 @@ Probability_Ellipse::Probability_Ellipse(short int numCubes, int numColors)
 }
 
 
-void Probability_Ellipse::Generate_Filling()
+void Probability_Ellipse::Next_Iteration()
 {
     srand(time(NULL));
     unsigned int counter_max = pow(numCubes,3);

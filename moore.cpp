@@ -29,7 +29,7 @@ const std::array<std::array<int32_t, 3>, 26> MOORE_OFFSETS = {{
     {1, 1, -1},   {1, 1, 0},   {1, 1, 1}
 }};
 
-void Moore::Generate_Filling()
+void Moore::Next_Iteration()
 {
     const unsigned int counter_max = pow(numCubes, 3);
     const size_t current_size = grains.size();

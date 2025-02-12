@@ -13,7 +13,7 @@ class Moore : public Parent_Algorithm {
 public:
     Moore();
     Moore(short int numCubes, int numColors);
-    void Generate_Filling();
+    void Next_Iteration() override;
 };
 
 #endif // MOORE_H

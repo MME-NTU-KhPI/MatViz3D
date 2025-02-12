@@ -245,7 +245,7 @@ void Probability_Algorithm::processValuesGrid()
     writeProbabilitiesToCSV("D:/Project(MatViz3D)/fall2024/", N);
 }
 
-void Probability_Algorithm::Generate_Filling()
+void Probability_Algorithm::Next_Iteration()
 {
     const unsigned int counter_max = static_cast<unsigned int>(pow(numCubes, 3));
 

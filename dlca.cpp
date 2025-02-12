@@ -87,7 +87,7 @@ DLCA::DLCA(short int numCubes, int numColors)
     this->numColors = numColors;
 }
 
-void DLCA::Generate_Random_Starting_Points(bool isWaveGeneration)
+void DLCA::Initialization(bool isWaveGeneration)
 {
     std::random_device rd;
     std::mt19937 generator(rd());
@@ -172,7 +172,7 @@ void DLCA::join_aggregates(size_t _i, size_t _j)
     }
 }
 
-void DLCA::Generate_Filling()
+void DLCA::Next_Iteration()
 {
     if (this->aggregates.size() > 1)
     {

@@ -18,7 +18,7 @@ public:
     ~Probability_Algorithm();
 
     void setHalfAxis();
-    void Generate_Filling();
+    void Next_Iteration() override;
     void processValues();
     void processValuesGrid();
     void writeProbabilitiesToCSV(const QString& filePath, uint64_t N);

@@ -14,7 +14,7 @@ class Neumann : public Parent_Algorithm
 public:
     Neumann();
     Neumann(short int numCubes, int numColors);
-    void Generate_Filling();
+    void Next_Iteration() override;
 };
 
 #endif // NEUMANN_H

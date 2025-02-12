@@ -109,7 +109,7 @@ void Composite::FillWithHexa()
 }
 
 
-void Composite::Generate_Filling()
+void Composite::Next_Iteration()
 {
     setRadius(numColors);
 

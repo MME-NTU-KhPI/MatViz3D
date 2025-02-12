@@ -44,7 +44,7 @@ template <class T> T ***Parent_Algorithm::Create3D(int N1, int N2, int N3)
     return array;
 };
 
-int32_t*** Parent_Algorithm::Generate_Initial_Cube()
+int32_t*** Parent_Algorithm::Allocate_Memory()
 {
     voxels = this->Create3D<int32_t>(numCubes, numCubes, numCubes); // create continТius allocated 3d dynamic array
 
@@ -75,7 +75,7 @@ void Parent_Algorithm::CleanUp()
 }
 
 
-void Parent_Algorithm::Generate_Random_Starting_Points(bool isWaveGeneration)
+void Parent_Algorithm::Initialization(bool isWaveGeneration)
 {
     std::random_device rd;
     std::mt19937 generator(Parameters::seed);

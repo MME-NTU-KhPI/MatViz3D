@@ -12,7 +12,7 @@ public:
     void FillWithCylinder();
     void FillWithTetra();
     void FillWithHexa();
-    void Generate_Filling();
+    void Next_Iteration() override;
 private:
     short int radius;
 };

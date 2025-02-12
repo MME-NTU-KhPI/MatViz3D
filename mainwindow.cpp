@@ -204,13 +204,13 @@ bool MainWindow::validateParameters()
 
 void MainWindow::executeAlgorithm(Parent_Algorithm& algorithm, const QString& algorithmName)
 {
-    Parameters::voxels = algorithm.Generate_Initial_Cube();
-    algorithm.Generate_Random_Starting_Points(isWaveGeneration);
+    Parameters::voxels = algorithm.Allocate_Memory();
+    algorithm.Initialization(isWaveGeneration);
     algorithm.setRemainingPoints(algorithm.getNumColors() - static_cast<int>(0.1 * algorithm.getNumColors()));
     auto start = std::chrono::high_resolution_clock::now();
     while (!algorithm.getDone())
     {
-        algorithm.Generate_Filling();
+        algorithm.Next_Iteration();
         if (isAnimation)
         {
             QApplication::processEvents();

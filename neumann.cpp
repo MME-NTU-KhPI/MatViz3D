@@ -20,7 +20,7 @@ const std::array<std::array<int32_t, 3>, 6> NEUMANN_OFFSETS = {{
 }};
 
 
-void Neumann::Generate_Filling()
+void Neumann::Next_Iteration()
 {
     unsigned int counter_max = pow(numCubes, 3);
     const size_t current_size = grains.size();

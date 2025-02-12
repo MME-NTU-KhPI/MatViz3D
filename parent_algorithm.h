@@ -123,17 +123,17 @@ public:
     /** @brief Class constructor. */
     Parent_Algorithm();
 
-    /** @brief Virtual destructor. */
-    virtual ~Parent_Algorithm();
+    /** @brief Class destructor. */
+    ~Parent_Algorithm();
 
     /** @brief Generates the filling of the structure. */
-    virtual void Generate_Filling() = 0;
+    virtual void Next_Iteration() = 0;
 
-    /** @brief Generates random starting points. */
-    virtual void Generate_Random_Starting_Points(bool isWaveGeneration);
+    /** @brief Generates random starting points in cube. */
+    void Initialization(bool isWaveGeneration);
 
-    /** @brief Generates the initial cube. */
-    virtual int32_t*** Generate_Initial_Cube();
+    /** @brief Allocate memory for the initial cube. */
+    int32_t*** Allocate_Memory();
 
     /** @brief Cleans up the data. */
     virtual void CleanUp();

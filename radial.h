@@ -11,7 +11,7 @@ class Radial : public Parent_Algorithm
 public:
     Radial();
     Radial(short int numCubes, int numColors);
-    void Generate_Filling();
+    void Next_Iteration() override;
 };
 
 #endif // RADIAL_H

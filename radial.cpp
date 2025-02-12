@@ -25,7 +25,7 @@ const std::array<std::array<int32_t, 3>, 18> RADIAL_OFFSETS = {
      {0, -1, 1}, {0, 1, -1}, {0, 1, 1}
 }};
 
-void Radial::Generate_Filling()
+void Radial::Next_Iteration()
 {
     const unsigned int counter_max = pow(numCubes, 3);
     const size_t current_size = grains.size();
