@@ -130,10 +130,10 @@ public:
     virtual void Next_Iteration() = 0;
 
     /** @brief Generates random starting points in cube. */
-    void Initialization(bool isWaveGeneration);
+    virtual void Initialization(bool isWaveGeneration);
 
     /** @brief Allocate memory for the initial cube. */
-    int32_t*** Allocate_Memory();
+    virtual int32_t*** Allocate_Memory();
 
     /** @brief Cleans up the data. */
     virtual void CleanUp();

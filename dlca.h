@@ -25,7 +25,7 @@ public:
     DLCA(short int numCubes, int numColors);
     DLCA(int cubeSize);
     void Next_Iteration() override;
-    void Initialization(bool isWaveGeneration);
+    void Initialization(bool isWaveGeneration) override;
     void random_walk();
     std::vector<DLCA_Aggregate> aggregates;
     bool check_collision(size_t i, size_t j);
