@@ -18,4 +18,9 @@ MainWindow {
         id: aboutView
         visible: false
     }
+
+    MaterialDatabaseView {
+        id: materialDatabaseView
+        visible: false
+    }
 }

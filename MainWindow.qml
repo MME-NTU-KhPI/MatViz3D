@@ -44,6 +44,12 @@ Window {
         active: false
     }
 
+    Loader {
+        id: materialdataLoader
+        source: "MaterialDatabaseView.qml"
+        active: false
+    }
+
     Grid {
         id: grid
         anchors.fill: parent
@@ -142,6 +148,13 @@ Window {
                             Action {
                                 text: qsTr("Estimate stresses")
                                 onTriggered: console.log("Estimate stresses")
+                            }
+                            Action {
+                                text: qsTr("Edit material data")
+                                onTriggered: {
+                                    materialdataLoader.active = true;
+                                    materialdataLoader.item.visible = true;
+                                }
                             }
                         }
                     }
