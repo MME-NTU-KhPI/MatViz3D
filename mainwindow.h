@@ -50,12 +50,6 @@ private slots:
     void initializeUIForStart();
     bool validateParameters();
     void executeAlgorithm(Parent_Algorithm& algorithm, const QString& algorithmName);
-    void animate = [&]() {
-        ui->myGLWidget->setVoxels(algorithm.getVoxels(), algorithm.getNumCubes());
-        ui->myGLWidget->DelayFrameUpdate();
-        ui->myGLWidget->update();
-        QApplication::processEvents();
-    };
     void finalizeUIAfterCompletion();
     void logExecutionTime(clock_t start_time);
     void setupWindowMenu();
