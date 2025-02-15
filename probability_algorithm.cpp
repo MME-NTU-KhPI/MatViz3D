@@ -167,7 +167,7 @@ void Probability_Algorithm::processValues()
                          << fileld_in[i][j][k] << "\t" << fileld_total[i][j][k] << "\t"
                          << (double)fileld_in[i][j][k] / fileld_total[i][j][k] << "\n";
             }
-    writeProbabilitiesToCSV("D:/Project(MatViz3D)/fall2024/", N);
+    writeProbabilitiesToCSV(QDir::currentPath(), N);
 }
 
 void Probability_Algorithm::processValuesGrid()
@@ -242,106 +242,131 @@ void Probability_Algorithm::processValuesGrid()
             }
         }
     }
-    writeProbabilitiesToCSV("D:/Project(MatViz3D)/fall2024/", N);
+    writeProbabilitiesToCSV(QDir::currentPath(), N);
 }
 
 void Probability_Algorithm::Next_Iteration()
 {
-    const unsigned int counter_max = static_cast<unsigned int>(pow(numCubes, 3));
+    const unsigned int counter_max = pow(numCubes, 3);
+    auto start = std::chrono::high_resolution_clock::now();
 
-    std::random_device rd;
-    std::mt19937 global_gen(rd());
-    std::uniform_real_distribution<> global_dis(0.0, 1.0);
-
-    const size_t current_size = grains.size();
-    std::vector<Coordinate> newGrains;
-    newGrains.reserve(current_size * 26);
-    #pragma omp parallel
+    while (!grains.empty())
     {
-        std::vector<Coordinate> privateGrains;
-        privateGrains.reserve(current_size * 26 / omp_get_num_threads());
+        const size_t current_size = grains.size();
+        std::vector<Coordinate> newGrains;
+        newGrains.reserve(current_size * 26);
+        unsigned int local_counter = 0;
 
-        std::mt19937 local_gen(global_gen());
-        std::uniform_real_distribution<> local_dis(0.0, 1.0);
-
-        #pragma omp for schedule(guided) nowait
-        for (size_t i = 0; i < current_size; i++)
+        #pragma omp parallel reduction(+:local_counter)
         {
-            const Coordinate& temp = grains[i];
-            const int16_t x = temp.x, y = temp.y, z = temp.z;
-            const int32_t current_value = voxels[x][y][z];
+            std::vector<Coordinate> privateGrains;
+            privateGrains.reserve(current_size * 26 / omp_get_max_threads());
 
-            for (const auto& offset : PROBABILITY_OFFSETS)
+            std::mt19937 local_gen(std::random_device{}());
+            std::uniform_real_distribution<> local_dis(0.0, 1.0);
+
+            #pragma omp for schedule(guided) nowait
+            for (size_t i = 0; i < current_size; i++)
             {
-                int16_t newX = x + offset[0];
-                int16_t newY = y + offset[1];
-                int16_t newZ = z + offset[2];
+                const Coordinate& temp = grains[i];
+                const int32_t x = temp.x, y = temp.y, z = temp.z;
+                const int32_t current_value = voxels[x][y][z];
 
-                if (flags.isPeriodicStructure == 1)
+                #pragma omp simd
+                for (const auto& offset : PROBABILITY_OFFSETS)
                 {
-                    newX = (newX + numCubes) % numCubes;
-                    newY = (newY + numCubes) % numCubes;
-                    newZ = (newZ + numCubes) % numCubes;
-                }
-                else if (newX < 0 || newX >= numCubes ||
-                         newY < 0 || newY >= numCubes ||
-                         newZ < 0 || newZ >= numCubes)
-                {
-                    continue;
-                }
-                if (voxels[newX][newY][newZ] == 0 && local_dis(local_gen) >= probability[1 + offset[0]][1 + offset[1]][1 + offset[2]])
-                {
-                    if (voxels[newX][newY][newZ] == 0 &&
-                        __sync_bool_compare_and_swap(&voxels[newX][newY][newZ], 0, current_value))
+                    int32_t newX = x + offset[0];
+                    int32_t newY = y + offset[1];
+                    int32_t newZ = z + offset[2];
+
+                    if (flags.isPeriodicStructure == 1)
                     {
-                        privateGrains.emplace_back(Coordinate{newX, newY, newZ});
-                        #pragma omp atomic
+                        newX = (newX + numCubes) % numCubes;
+                        newY = (newY + numCubes) % numCubes;
+                        newZ = (newZ + numCubes) % numCubes;
+                    }
+
+                    if (newX >= 0 && newX < numCubes &&
+                        newY >= 0 && newY < numCubes &&
+                        newZ >= 0 && newZ < numCubes)
+                    {
+                        if (voxels[newX][newY][newZ] == 0 &&
+                            local_dis(local_gen) >= probability[1 + offset[0]][1 + offset[1]][1 + offset[2]])
+                        {
+                            if (__sync_bool_compare_and_swap(&voxels[newX][newY][newZ], 0, current_value))
+                            {
+                                privateGrains.push_back({newX, newY, newZ});
+                                local_counter++;
+                            }
+                        }
+                    }
+                }
+            }
+
+            #pragma omp critical
+            {
+                newGrains.insert(newGrains.end(),
+                                 std::make_move_iterator(privateGrains.begin()),
+                                 std::make_move_iterator(privateGrains.end()));
+            }
+        }
+        filled_voxels += local_counter;
+        grains = std::move(newGrains);
+        IterationNumber++;
+
+        double progress = static_cast<double>(filled_voxels) / counter_max;
+        qDebug().nospace() << progress << "\t" << IterationNumber << "\t" << grains.size();
+
+        if (flags.isAnimation)
+        {
+            if (flags.isWaveGeneration && remainingPoints > 0)
+            {
+                pointsForThisStep = std::max(1, static_cast<int>(Parameters::wave_coefficient * remainingPoints));
+                auto newPoints = Add_New_Points(grains, pointsForThisStep);
+                grains.insert(grains.end(), newPoints.begin(), newPoints.end());
+                remainingPoints -= pointsForThisStep;
+            }
+            break;
+        }
+    }
+
+    if (grains.empty() && filled_voxels != counter_max)
+    {
+        for (int x = 0; x < numCubes; ++x)
+        {
+            for (int y = 0; y < numCubes; ++y)
+            {
+                for (int z = 0; z < numCubes; ++z)
+                {
+                    if (voxels[x][y][z] == 0)
+                    {
+                        voxels[x][y][z] = ++color;
                         filled_voxels++;
+                        qDebug() << "Point added after stagnation at:" << x << y << z;
                     }
                 }
             }
         }
-
-        #pragma omp critical
-        {
-            newGrains.insert(newGrains.end(),
-                             std::make_move_iterator(privateGrains.begin()),
-                             std::make_move_iterator(privateGrains.end()));
-        }
     }
 
-    grains = std::move(newGrains);
-    IterationNumber++;
-
-    double progress = static_cast<double>(filled_voxels) / counter_max;
-    qDebug().nospace() << progress << "\t" << IterationNumber << "\t" << grains.size();
-
-    if (flags.isAnimation)
-    {
-        if (flags.isWaveGeneration && remainingPoints > 0)
-        {
-            pointsForThisStep = std::max(1, static_cast<int>(0.1 * remainingPoints));
-            auto newPoints = Add_New_Points(grains, pointsForThisStep);
-            grains.insert(grains.end(), newPoints.begin(), newPoints.end());
-            remainingPoints -= pointsForThisStep;
-        }
-        return;
-    }
+    qDebug() << filled_voxels << "\t" << counter_max;
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end - start;
+    qDebug() << "Algorithm execution time: " << duration.count() << " seconds";
 }
 
 void Probability_Algorithm::writeProbabilitiesToCSV(const QString& filePath, uint64_t N)
 {
-    QString fileName = filePath + QDir::separator() + "N_" + QString::number(N) + ".csv";
-    QFile file(fileName);
+    QString tempFileName = filePath + QDir::separator() + "temp_N_" + QString::number(N) + ".csv";
+    QFile tempFile(tempFileName);
 
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+    if (!tempFile.open(QIODevice::WriteOnly | QIODevice::Text))
     {
-        qDebug() << "Помилка відкриття файлу для запису ймовірностей.";
+        qDebug() << "Ошибка открытия временного файла для записи.";
         return;
     }
 
-    QTextStream out(&file);
-
+    QTextStream out(&tempFile);
     out << "X,Y,Z,Probability\n";
 
     for (int i = 0; i < 3; i++)
@@ -355,5 +380,18 @@ void Probability_Algorithm::writeProbabilitiesToCSV(const QString& filePath, uin
         }
     }
 
-    file.close();
+    tempFile.close();
+
+    QString finalFileName = filePath + QDir::separator() + "N_" + QString::number(N) + ".csv";
+
+    QFile::remove(finalFileName);
+
+    if (QFile::rename(tempFileName, finalFileName))
+    {
+        qDebug() << "Файл успешно записан в: " << finalFileName;
+    }
+    else
+    {
+        qDebug() << "Ошибка переименования временного файла.";
+    }
 }

@@ -134,6 +134,4 @@ void Composite::Next_Iteration()
             }
         }
     }
-
-    qDebug() << filled_voxels << "\t" << pow(numCubes, 3);
 };

@@ -111,6 +111,10 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
         Parameters::wave_coefficient = str.toFloat();
         qInfo() << "wave_coefficient:" << Parameters::wave_coefficient;
     }
+    else
+    {
+        Parameters::wave_coefficient = 0.1;
+    }
     if (parser.isSet("algorithm"))
     {
         Parameters::algorithm = parser.value("algorithm");

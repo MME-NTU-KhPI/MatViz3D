@@ -102,8 +102,7 @@ public:
     void setDistanceFactor(int factor);
     void setDelayAnimation(int delayAnimation);
     void setAnsysWrapper(ansysWrapper *wr);
-    void deleteVoxels(int32_t*** voxels, int numCubes);
-    void updateGLWidget(int32_t*** voxels, short int numCubes);
+    void DelayFrameUpdate();
 signals:
     // signaling rotation from mouse movement
     void xRotationChanged(int angle);

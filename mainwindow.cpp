@@ -206,29 +206,21 @@ void MainWindow::executeAlgorithm(Parent_Algorithm& algorithm, const QString& al
 {
     Parameters::voxels = algorithm.Allocate_Memory();
     algorithm.Initialization(isWaveGeneration);
-    algorithm.setRemainingPoints(algorithm.getNumColors() - static_cast<int>(0.1 * algorithm.getNumColors()));
-    auto start = std::chrono::high_resolution_clock::now();
+    algorithm.setRemainingPoints(algorithm.getNumColors() - static_cast<int>(Parameters::wave_coefficient * algorithm.getNumColors()));
     while (!algorithm.getDone())
     {
         algorithm.Next_Iteration();
+        ui->myGLWidget->setVoxels(algorithm.getVoxels(), algorithm.getNumCubes());
         if (isAnimation)
-        {
-            QApplication::processEvents();
-            ui->myGLWidget->updateGLWidget(algorithm.getVoxels(), algorithm.getNumCubes());
-        }
-        else
-        {
-            ui->myGLWidget->setVoxels(algorithm.getVoxels(), algorithm.getNumCubes());
-            ui->myGLWidget->update();
-        }
+            ui->myGLWidget->DelayFrameUpdate();
+        ui->myGLWidget->update();
+        QApplication::processEvents();
         algorithm.setDone();
     }
     algorithm.CleanUp();
     qDebug() << algorithmName;
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> duration = end - start;
-    qDebug() << "Algorithm execution time: " << duration.count() << " seconds";
 }
+
 
 void MainWindow::finalizeUIAfterCompletion()
 {

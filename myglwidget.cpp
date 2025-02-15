@@ -36,19 +36,6 @@ MyGLWidget::~MyGLWidget()
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
     f->glDeleteBuffers(1, vboIds);
     doneCurrent(); // Release context
-    deleteVoxels(voxels, numCubes);
-}
-
-void MyGLWidget::deleteVoxels(int32_t*** voxels, int numCubes) {
-    if (voxels) {
-        for (int i = 0; i < numCubes; ++i) {
-            for (int j = 0; j < numCubes; ++j) {
-                delete[] voxels[i][j];
-            }
-            delete[] voxels[i];
-        }
-        delete[] voxels;
-    }
 }
 
 QSize MyGLWidget::minimumSizeHint() const
@@ -971,11 +958,9 @@ void MyGLWidget::mouseMoveEvent(QMouseEvent *event)
     lastPos = event->pos();
 }
 
-void MyGLWidget::updateGLWidget(int32_t*** voxels, short int numCubes)
+void MyGLWidget::DelayFrameUpdate()
 {
-    setVoxels(voxels, numCubes);
     QThread::msleep(delayAnimation);
-    repaint();
 }
 
 int32_t*** MyGLWidget::getVoxels()
