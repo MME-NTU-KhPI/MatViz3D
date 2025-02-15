@@ -29,11 +29,9 @@ const std::array<std::array<int32_t, 3>, 26> MOORE_OFFSETS = {{
     {1, 1, -1},   {1, 1, 0},   {1, 1, 1}
 }};
 
-void Moore::Next_Iteration()
+void Moore::Next_Iteration(std::function<void()> callback)
 {
     const unsigned int counter_max = pow(numCubes, 3);
-
-    auto start = std::chrono::high_resolution_clock::now();
 
     while (!grains.empty())
     {
@@ -101,11 +99,7 @@ void Moore::Next_Iteration()
                 grains.insert(grains.end(), newGrains.begin(), newGrains.end());
                 remainingPoints -= pointsForThisStep;
             }
-            break;
+            callback();
         }
     }
-
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> duration = end - start;
-    qDebug() << "Algorithm execution time: " << duration.count() << " seconds";
 }

@@ -12,7 +12,7 @@ public:
     void FillWithCylinder();
     void FillWithTetra();
     void FillWithHexa();
-    void Next_Iteration() override;
+    void Next_Iteration(std::function<void()> callback) override;
 private:
     short int radius;
 };

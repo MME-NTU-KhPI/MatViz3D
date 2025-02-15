@@ -109,7 +109,7 @@ void Composite::FillWithHexa()
 }
 
 
-void Composite::Next_Iteration()
+void Composite::Next_Iteration(std::function<void()> callback)
 {
     setRadius(numColors);
 

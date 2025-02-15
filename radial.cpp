@@ -25,10 +25,9 @@ const std::array<std::array<int32_t, 3>, 18> RADIAL_OFFSETS = {
      {0, -1, 1}, {0, 1, -1}, {0, 1, 1}
 }};
 
-void Radial::Next_Iteration()
+void Radial::Next_Iteration(std::function<void()> callback)
 {
     const unsigned int counter_max = pow(numCubes, 3);
-    auto start = std::chrono::high_resolution_clock::now();
 
     while (!grains.empty())
     {
@@ -95,16 +94,12 @@ void Radial::Next_Iteration()
         {
             if (flags.isWaveGeneration && remainingPoints > 0)
             {
-                pointsForThisStep = std::max(1, static_cast<int>(0.1 * remainingPoints));
+                pointsForThisStep = std::max(1, static_cast<int>(Parameters::wave_coefficient * remainingPoints));
                 newGrains = Add_New_Points(newGrains, pointsForThisStep);
                 grains.insert(grains.end(), newGrains.begin(), newGrains.end());
                 remainingPoints -= pointsForThisStep;
             }
-            break;
+            callback();
         }
     }
-
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> duration = end - start;
-    qDebug() << "Algorithm execution time: " << duration.count() << " seconds";
 }

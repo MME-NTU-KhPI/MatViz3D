@@ -5,6 +5,8 @@
 #include <cmath>
 #include <cstdint>
 #include <vector>
+#include <functional>
+#include <Parameters.h>
 
 /**
  * @brief Structure containing algorithm flags.
@@ -90,8 +92,8 @@ public:
     /** @brief Enables or disables periodic structure. */
     void setPeriodicStructure(bool value) { flags.isPeriodicStructure = value; }
 
-    /** @brief Checks if the algorithm is complete. */
-    void setDone() { if (filled_voxels >= pow(numCubes,3)) { flags.isDone = true; } };
+    /** @brief Set if the algorithm is complete or not. */
+    void setDone(bool Done) { flags.isDone = Done; };
 
     /** @brief Returns the number of cubes. */
     short int getNumCubes() { return numCubes; };
@@ -118,7 +120,7 @@ public:
     bool getAnimation() const { return flags.isAnimation; };
 
     /** @brief Checks if the algorithm is complete. */
-    bool getDone() { return flags.isDone; };
+    bool getDone() { if (filled_voxels >= pow(numCubes,3)) { setDone(true); } else { setDone(false); } return flags.isDone; };
 
     /** @brief Class constructor. */
     Parent_Algorithm();
@@ -127,7 +129,7 @@ public:
     ~Parent_Algorithm();
 
     /** @brief Generates the filling of the structure. */
-    virtual void Next_Iteration() = 0;
+    virtual void Next_Iteration(std::function<void()> callback) = 0;
 
     /** @brief Generates random starting points in cube. */
     virtual void Initialization(bool isWaveGeneration);

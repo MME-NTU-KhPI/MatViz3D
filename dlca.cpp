@@ -172,7 +172,7 @@ void DLCA::join_aggregates(size_t _i, size_t _j)
     }
 }
 
-void DLCA::Next_Iteration()
+void DLCA::Next_Iteration(std::function<void()> callback)
 {
     if (this->aggregates.size() > 1)
     {

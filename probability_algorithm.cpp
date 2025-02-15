@@ -245,10 +245,9 @@ void Probability_Algorithm::processValuesGrid()
     writeProbabilitiesToCSV(QDir::currentPath(), N);
 }
 
-void Probability_Algorithm::Next_Iteration()
+void Probability_Algorithm::Next_Iteration(std::function<void()> callback)
 {
     const unsigned int counter_max = pow(numCubes, 3);
-    auto start = std::chrono::high_resolution_clock::now();
 
     while (!grains.empty())
     {
@@ -326,7 +325,7 @@ void Probability_Algorithm::Next_Iteration()
                 grains.insert(grains.end(), newPoints.begin(), newPoints.end());
                 remainingPoints -= pointsForThisStep;
             }
-            break;
+            callback();
         }
     }
 
@@ -348,11 +347,6 @@ void Probability_Algorithm::Next_Iteration()
             }
         }
     }
-
-    qDebug() << filled_voxels << "\t" << counter_max;
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> duration = end - start;
-    qDebug() << "Algorithm execution time: " << duration.count() << " seconds";
 }
 
 void Probability_Algorithm::writeProbabilitiesToCSV(const QString& filePath, uint64_t N)

@@ -24,7 +24,7 @@ class DLCA : public Parent_Algorithm {
 public:
     DLCA(short int numCubes, int numColors);
     DLCA(int cubeSize);
-    void Next_Iteration() override;
+    void Next_Iteration(std::function<void()> callback) override;
     void Initialization(bool isWaveGeneration) override;
     void random_walk();
     std::vector<DLCA_Aggregate> aggregates;
