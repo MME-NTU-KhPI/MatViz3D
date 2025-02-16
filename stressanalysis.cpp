@@ -12,7 +12,7 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
         wr->setWorkingDirectory(Parameters::working_directory);
 
     wr->setSeed(Parameters::seed);
-    //wr->setNP(1);
+    wr->setNP(Parameters::num_threads);
     //wr.setMaterial(2.1e11, 0.3, 0);
 
     double c11 = 168.40e9, c12=121.40e9, c44=75.40e9; // copper bcc single crystal  https://solidmechanics.org/Text/Chapter3_2/Chapter3_2.php#Sect3_2_17
@@ -59,36 +59,49 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
         qCritical() << "Ansys run was unsuccessfull. Exiting...";
         return;
     }
-    HDF5Wrapper hdf5(Parameters::filename.toStdString());
-
-    int last_set = hdf5.readInt("/", "last_set");
-    if (last_set == -1) // Handle missing dataset case
+    if (Parameters::filename.length())
     {
-        last_set = 1;
-        hdf5.write("/", "last_set", last_set);
+        qDebug() << "Saving results to " << Parameters::filename;
+        HDF5Wrapper hdf5(Parameters::filename.toStdString());
+
+        int last_set = hdf5.readInt("/", "last_set");
+        if (last_set == -1) // Handle missing dataset case
+        {
+            last_set = 1;
+            hdf5.write("/", "last_set", last_set);
+        }
+        else
+        {
+            last_set += 1;
+            hdf5.update("/", "last_set", last_set);
+        }
+
+        std::string prefix = ("/" + QString::number(last_set)).toStdString();
+
+        hdf5.write(prefix, "voxels", Parameters::voxels, Parameters::size);
+        hdf5.write(prefix, "cubeSize", Parameters::size);
+        hdf5.write(prefix, "numPoints", Parameters::points);
+        hdf5.write(prefix, "local_cs", wr->local_cs);
+        for (size_t ls_num = 1; ls_num <= wr->eps_as_loading.size(); ls_num++)
+        {
+            std::string ls_str = "/ls_" + std::to_string(ls_num);
+            wr->load_loadstep(ls_num);
+
+            hdf5.write(prefix + ls_str, "results_avg", wr->loadstep_results_avg);
+            hdf5.write(prefix + ls_str, "results_max", wr->loadstep_results_max);
+            hdf5.write(prefix + ls_str, "results_min", wr->loadstep_results_min);
+            hdf5.write(prefix + ls_str, "results", wr->loadstep_results);
+            hdf5.write(prefix + ls_str, "eps_as_loading", wr->eps_as_loading[ls_num-1]);
+        }
     }
     else
     {
-        last_set += 1;
-        hdf5.update("/", "last_set", last_set);
-    }
-
-    std::string prefix = ("/" + QString::number(last_set)).toStdString();
-
-    hdf5.write(prefix, "voxels", Parameters::voxels, Parameters::size);
-    hdf5.write(prefix, "cubeSize", Parameters::size);
-    hdf5.write(prefix, "numPoints", Parameters::points);
-    hdf5.write(prefix, "local_cs", wr->local_cs);
-    for (size_t ls_num = 1; ls_num <= wr->eps_as_loading.size(); ls_num++)
-    {
-        std::string ls_str = "/ls_" + std::to_string(ls_num);
-        wr->load_loadstep(ls_num);
-
-        hdf5.write(prefix + ls_str, "results_avg", wr->loadstep_results_avg);
-        hdf5.write(prefix + ls_str, "results_max", wr->loadstep_results_max);
-        hdf5.write(prefix + ls_str, "results_min", wr->loadstep_results_min);
-        hdf5.write(prefix + ls_str, "results", wr->loadstep_results);
-        hdf5.write(prefix + ls_str, "eps_as_loading", wr->eps_as_loading[ls_num-1]);
+        qDebug() << "No output file with -o option. Just loading results to memory...";
+        for (size_t ls_num = 1; ls_num <= wr->eps_as_loading.size(); ls_num++)
+        {
+            wr->load_loadstep(ls_num);
+        }
+        qDebug() << "Done ";
     }
 
     wr->clear_temp_data();
