@@ -26,6 +26,7 @@ MyGLWidget::MyGLWidget(QWidget *parent)
     wr = nullptr;
     timer = new QTimer(this);
     plotComponent = 0;
+    delayAnimation = 0;
     bgColor.setRgbF(0.21f, 0.21f, 0.21f);
 }
 
