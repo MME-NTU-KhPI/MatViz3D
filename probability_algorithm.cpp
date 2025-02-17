@@ -332,20 +332,29 @@ void Probability_Algorithm::Next_Iteration(std::function<void()> callback)
     if (grains.empty() && filled_voxels != counter_max)
     {
         for (int x = 0; x < numCubes; ++x)
-        {
             for (int y = 0; y < numCubes; ++y)
-            {
                 for (int z = 0; z < numCubes; ++z)
                 {
-                    if (voxels[x][y][z] == 0)
+                    if (voxels[x][y][z] != 0) continue;
+
+                    for (const auto& offset : PROBABILITY_OFFSETS)
                     {
-                        voxels[x][y][z] = ++color;
+                        int nx = x + offset[0];
+                        int ny = y + offset[1];
+                        int nz = z + offset[2];
+
+                        if (nx < 0 || nx >= numCubes || ny < 0 || ny >= numCubes || nz < 0 || nz >= numCubes)
+                            continue;
+
+                        if (voxels[nx][ny][nz] == 0)
+                            continue;
+
+                        voxels[x][y][z] = voxels[nx][ny][nz];
                         filled_voxels++;
-                        qDebug() << "Point added after stagnation at:" << x << y << z;
+                        qDebug() << "Voxel filled at:" << x << y << z << "with color:" << voxels[x][y][z];
+                        break;
                     }
                 }
-            }
-        }
     }
 }
 
@@ -356,7 +365,7 @@ void Probability_Algorithm::writeProbabilitiesToCSV(const QString& filePath, uin
 
     if (!tempFile.open(QIODevice::WriteOnly | QIODevice::Text))
     {
-        qDebug() << "Ошибка открытия временного файла для записи.";
+        qDebug() << "Error opening a temporary file for writing.";
         return;
     }
 
@@ -382,10 +391,10 @@ void Probability_Algorithm::writeProbabilitiesToCSV(const QString& filePath, uin
 
     if (QFile::rename(tempFileName, finalFileName))
     {
-        qDebug() << "Файл успешно записан в: " << finalFileName;
+        qDebug() << "The file has been successfully written to: " << finalFileName;
     }
     else
     {
-        qDebug() << "Ошибка переименования временного файла.";
+        qDebug() << "Temporary file renaming error.";
     }
 }
