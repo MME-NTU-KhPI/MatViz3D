@@ -607,13 +607,13 @@ void MainWindow::callExportToCSV()
 
 void MainWindow::saveHDF()
 {
-    HDF5Wrapper hdf5Wrapper(Parameters::filename.toStdString());
+    HDF5Wrapper hdf5Wrapper("hdf5_save.hdf");
 
     if (Parameters::voxels)
     {
-        hdf5Wrapper.write("", "voxels", Parameters::voxels, Parameters::size);
-        hdf5Wrapper.write("", "cubeSize", Parameters::size);
-        hdf5Wrapper.write("", "numPoints", Parameters::points);
+        hdf5Wrapper.write("1", "voxels", Parameters::voxels, Parameters::size);
+        hdf5Wrapper.write("2", "cubeSize", Parameters::size);
+        hdf5Wrapper.write("3", "numPoints", Parameters::points);
     }
 }
 
@@ -643,5 +643,3 @@ void MainWindow::on_ComponentID_currentIndexChanged(int index)
        ui->myGLWidget->update();
     }
 }
-
-
