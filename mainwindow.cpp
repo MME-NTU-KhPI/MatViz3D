@@ -33,6 +33,8 @@ MainWindow::MainWindow(QWidget *parent)
     setupFileMenu();
     setupWindowMenu();
 
+    ui->backgrAnim_2->hide();
+
     connect(ui->numOfPointsRadioButton, &QRadioButton::clicked, this, &MainWindow::onInitialConditionSelectionChanged);
     connect(ui->concentrationRadioButton, &QRadioButton::clicked, this, &MainWindow::onInitialConditionSelectionChanged);
     connect(ui->AlgorithmsBox, &QComboBox::currentTextChanged, this, &MainWindow::onProbabilityAlgorithmChanged);
@@ -154,6 +156,8 @@ void MainWindow::keyPressEvent(QKeyEvent *e)
 
 void MainWindow::on_Start_clicked()
 {
+    ui->backgrAnim_2->hide();
+
     clock_t start_time = clock();
     QString selectedAlgorithm = ui->AlgorithmsBox->currentText();
 
@@ -469,6 +473,7 @@ void MainWindow::exportToCSV(){
         Export::ExportToCSV(Parameters::size, Parameters::voxels);
     }
 }
+
 StressAnalysis sa;
 void MainWindow::estimateStressWithANSYS(){
 
@@ -478,6 +483,8 @@ void MainWindow::estimateStressWithANSYS(){
     }
     else
     {
+        ui->backgrAnim_2->show();
+
         sa.estimateStressWithANSYS(Parameters::size, Parameters::points, Parameters::voxels);
         ui->myGLWidget->setAnsysWrapper(sa.wr);
         auto cmap = ui->myGLWidget->getColorMap(9);
