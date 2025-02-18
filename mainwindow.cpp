@@ -609,11 +609,25 @@ void MainWindow::saveHDF()
 {
     HDF5Wrapper hdf5Wrapper("hdf5_save.hdf");
 
+    int last_set = hdf5Wrapper.readInt("/", "last_set");
+    if (last_set == -1)
+    {
+        last_set = 1;
+        hdf5Wrapper.write("/", "last_set", last_set);
+    }
+    else
+    {
+        last_set += 1;
+        hdf5Wrapper.update("/", "last_set", last_set);
+    }
+
+    std::string prefix = ("/" + QString::number(last_set)).toStdString();
+
     if (Parameters::voxels)
     {
-        hdf5Wrapper.write("1", "voxels", Parameters::voxels, Parameters::size);
-        hdf5Wrapper.write("2", "cubeSize", Parameters::size);
-        hdf5Wrapper.write("3", "numPoints", Parameters::points);
+        hdf5Wrapper.write(prefix, "voxels", Parameters::voxels, Parameters::size);
+        hdf5Wrapper.write(prefix, "cubeSize", Parameters::size);
+        hdf5Wrapper.write(prefix, "numPoints", Parameters::points);
     }
 }
 
