@@ -2,6 +2,7 @@
 #include <QQmlApplicationEngine>
 #include <QtQuickControls2>
 #include <QIcon>
+#include "dbmanager.h"
 
 
 int main(int argc, char *argv[])
@@ -17,6 +18,9 @@ int main(int argc, char *argv[])
     QQuickStyle::setStyle("Material");
 
     QQmlApplicationEngine engine;
+
+    qmlRegisterType<DBManager>("DBModule", 1, 0, "DataBase");
+
     const QUrl url(QStringLiteral("qrc:/main.qml"));
     QObject::connect(
         &engine,
