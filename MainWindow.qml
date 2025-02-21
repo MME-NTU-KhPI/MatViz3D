@@ -427,6 +427,11 @@ Window {
             id: _item_GLWidget
             width: mainWindow.width
             height: mainWindow.height - menuBar_rec.height - (_itemConsole.visible ? _itemConsole.height : 0)
+
+            Item {
+                id: sceneOpenGL
+                anchors.fill: parent
+            }
         }
 
         Item {
@@ -1040,10 +1045,6 @@ Window {
                                 }
                                 anchors.horizontalCenter: parent.horizontalCenter
                             }
-
-
-
-
                         }
                     }
 
@@ -1266,6 +1267,8 @@ Window {
                             verticalAlignment: Text.AlignVCenter
                             anchors.centerIn: parent
                         }
+
+                        onClicked: mainWindowWrapper.showMessage()
                     }
                 }
             }

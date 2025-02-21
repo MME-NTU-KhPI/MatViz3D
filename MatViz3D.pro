@@ -1,11 +1,39 @@
-QT += quick quickcontrols2
+QT += quick quickcontrols2 printsupport
+QT += core gui opengl widgets
+QT += openglwidgets
+QT += quickwidgets
+
+
+LIBS += -lopengl32
+
+QMAKE_CXXFLAGS += -fopenmp
+LIBS += -fopenmp
+
+
 
 # You can make your code fail to compile if it uses deprecated APIs.
 # In order to do so, uncomment the following line.
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
-        main.cpp
+        algorithmfactory.cpp \
+        ansyswrapper.cpp \
+        composite.cpp \
+        dlca.cpp \
+        legendview.cpp \
+        main.cpp \
+        mainwindowwrapper.cpp \
+        materialdatabaseviewwrapper.cpp \
+        moore.cpp \
+        myglwidget.cpp \
+        neumann.cpp \
+        parameters.cpp \
+        parent_algorithm.cpp \
+        probability_algorithm.cpp \
+        probability_circle.cpp \
+        probability_ellipse.cpp \
+        probabilityalgorithmviewwrapper.cpp \
+        radial.cpp
 
 RESOURCES += qml.qrc
 
@@ -19,3 +47,22 @@ QML_DESIGNER_IMPORT_PATH =
 qnx: target.path = /tmp/$${TARGET}/bin
 else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
+
+HEADERS += \
+    algorithmfactory.h \
+    ansyswrapper.h \
+    composite.h \
+    dlca.h \
+    legendview.h \
+    mainwindowwrapper.h \
+    materialdatabaseviewwrapper.h \
+    moore.h \
+    myglwidget.h \
+    neumann.h \
+    parameters.h \
+    parent_algorithm.h \
+    probability_algorithm.h \
+    probability_circle.h \
+    probability_ellipse.h \
+    probabilityalgorithmviewwrapper.h \
+    radial.h
