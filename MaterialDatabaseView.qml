@@ -16,6 +16,9 @@ Window {
     Material.theme: Material.Dark
     Material.accent: Material.Teal
 
+    property int selectedRow: -1  // Вибраний рядок
+    property int editingColumn: -1  // Колонка, що редагується
+
     FontLoader {
         id: inter
         source: "qrc:/fonts/Inter-VariableFont_opsz,wght.ttf"
@@ -24,7 +27,7 @@ Window {
     Column {
         id: mainColumnData
         anchors.fill: parent
-        // spacing: 20
+        spacing: 20
 
         Row {
             id: rowButton
@@ -67,11 +70,11 @@ Window {
                     anchors.centerIn: parent
                 }
 
-                // onClicked: {
-                //     dbManager.addUser("", 0);
-                //     selectedRow = dbManager.getModel().rowCount - 1;
-                //     editingColumn = 0;
-                // }
+                onClicked: {
+                    dbManager.addMaterial("");
+                    selectedRow = dbManager.getModel().rowCount - 1;
+                    editingColumn = 0;
+                }
             }
 
             Button {
@@ -108,10 +111,10 @@ Window {
                     anchors.centerIn: parent
                 }
 
-                // enabled: selectedRow >= 0
-                // onClicked: {
-                //     dbManager.getModel().submitAll();
-                // }
+                enabled: selectedRow >= 0
+                onClicked: {
+                    dbManager.getModel().submitAll();
+                }
             }
 
             Button {
@@ -148,12 +151,12 @@ Window {
                     anchors.centerIn: parent
                 }
 
-                // enabled: selectedRow >= 0
-                // onClicked: {
-                //     dbManager.removeUser(selectedRow);
-                //     selectedRow = -1;
-                //     editingColumn = -1;
-                // }
+                enabled: selectedRow >= 0
+                onClicked: {
+                    dbManager.removeMaterial(selectedRow);
+                    selectedRow = -1;
+                    editingColumn = -1;
+                }
             }
         }
 
@@ -164,46 +167,46 @@ Window {
 
         }
 
-        // TableView {
-        //     id: tableView
-        //     Layout.fillWidth: true
-        //     Layout.fillHeight: true
-        //     model: dbManager.getModel()
+        TableView {
+            id: tableView
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            model: dbManager.getModel()
 
-        //     columnSpacing: 1
-        //     rowSpacing: 1
+            columnSpacing: 1
+            rowSpacing: 1
 
-        //     delegate: Rectangle {
-        //         implicitWidth: 150
-        //         implicitHeight: 50
-        //         color: "transparent"  // Прозорий фон або можна "#282828"
-        //         border.color: "#3a3a3a"
+            delegate: Rectangle {
+                implicitWidth: 150
+                implicitHeight: 50
+                color: "transparent"  // Прозорий фон або можна "#282828"
+                border.color: "#3a3a3a"
 
-        //         TextField {
-        //             id: textField
-        //             anchors.fill: parent
-        //             anchors.margins: 5
-        //             text: model.display
-        //             readOnly: !(selectedRow === row && editingColumn === column)
+                TextField {
+                    id: textField
+                    anchors.fill: parent
+                    anchors.margins: 5
+                    text: model.display
+                    readOnly: !(selectedRow === row && editingColumn === column)
 
-        //             background: Rectangle { color: "transparent" } // Фон текстового поля прозорий
-        //             color: "white"  // Білий текст для кращої видимості в темній темі
+                    background: Rectangle { color: "transparent" } // Фон текстового поля прозорий
+                    color: "white"  // Білий текст для кращої видимості в темній темі
 
-        //             onEditingFinished: {
-        //                 if (selectedRow === row && editingColumn === column) {
-        //                     dbManager.updateUser(row, column, text)
-        //                 }
-        //                 editingColumn = -1
-        //             }
+                    onEditingFinished: {
+                        if (selectedRow === row && editingColumn === column) {
+                            dbManager.updateMaterial(row, column, text)
+                        }
+                        editingColumn = -1
+                    }
 
-        //             onPressed: {
-        //                 selectedRow = row
-        //                 editingColumn = column
-        //             }
-        //         }
-        //     }
+                    onPressed: {
+                        selectedRow = row
+                        editingColumn = column
+                    }
+                }
+            }
 
-        //     ScrollBar.vertical: ScrollBar {}
-        // }
+            ScrollBar.vertical: ScrollBar {}
+        }
     }
 }

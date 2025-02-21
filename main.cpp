@@ -19,7 +19,9 @@ int main(int argc, char *argv[])
 
     QQmlApplicationEngine engine;
 
-    qmlRegisterType<DBManager>("DBModule", 1, 0, "DataBase");
+    DBManager dbManager;
+    engine.rootContext()->setContextProperty("dbManager", &dbManager);
+    engine.rootContext()->setContextProperty("materialModel", dbManager.getModel());
 
     const QUrl url(QStringLiteral("qrc:/main.qml"));
     QObject::connect(
