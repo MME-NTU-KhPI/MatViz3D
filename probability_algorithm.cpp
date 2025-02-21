@@ -167,7 +167,7 @@ void Probability_Algorithm::processValues()
                          << fileld_in[i][j][k] << "\t" << fileld_total[i][j][k] << "\t"
                          << (double)fileld_in[i][j][k] / fileld_total[i][j][k] << "\n";
             }
-    writeProbabilitiesToCSV(QDir::currentPath(), N);
+    writeProbabilitiesToCSV(QCoreApplication::applicationDirPath(), N);
 }
 
 void Probability_Algorithm::processValuesGrid()
@@ -242,7 +242,7 @@ void Probability_Algorithm::processValuesGrid()
             }
         }
     }
-    writeProbabilitiesToCSV(QDir::currentPath(), N);
+    writeProbabilitiesToCSV(QCoreApplication::applicationDirPath(), N);
 }
 
 void Probability_Algorithm::Next_Iteration(std::function<void()> callback)
