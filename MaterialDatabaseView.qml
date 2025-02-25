@@ -1,40 +1,97 @@
-import QtQuick 2.15
-import QtQuick.Controls 6.2
+import QtQuick 6.5
+import QtQuick.Controls 6.5
+
 import QtQuick.Layouts 1.15
 import QtQuick.Controls.Basic 6.2
 import QtQuick.Controls.Material 2.15
 
 Window {
     id: materialDatabaseView
-    width: 800
+    width: 1200
     height: 600
     color: "#282828"
     minimumHeight: 600
-    minimumWidth: 800
+    minimumWidth: 1200
     title: qsTr("Material Data")
 
     Material.theme: Material.Dark
     Material.accent: Material.Teal
 
-    property int selectedRow: -1  // Вибраний рядок
-    property int editingColumn: -1  // Колонка, що редагується
+    property int selectedRow: -1
+    property int editingColumn: -1
 
     FontLoader {
         id: inter
         source: "qrc:/fonts/Inter-VariableFont_opsz,wght.ttf"
     }
 
-    Column {
+    ColumnLayout {
         id: mainColumnData
         anchors.fill: parent
-        spacing: 20
+        spacing: 25
+
+        TableView {
+            id: tableView
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            model: dbManager.getModel()
+
+            columnSpacing: 1
+            rowSpacing: 1
+
+            // Component.onCompleted: {
+            //     var headerRow = tableView.createRow();
+            //     headerRow.addItem({ text: "ID", width: 70 });
+            //     headerRow.addItem({ text: "Назва", width: 150 });
+            //     headerRow.addItem({ text: "Тип", width: 150 });
+            //     tableView.insertRow(0, headerRow);
+            // }
+
+            delegate: Rectangle {
+                implicitWidth: {
+                    if (column === 1 || column === 2) return 150;
+                    return 60;
+                }
+                implicitHeight: 40
+                color: "transparent"
+                border.color: "#3a3a3a"
+
+                TextField {
+                    id: textField
+                    anchors.fill: parent
+                    anchors.margins: 4
+                    text: model.display
+                    readOnly: !(selectedRow === row && editingColumn === column)
+
+                    background: Rectangle { color: "transparent" }
+                    color: "white"
+
+                    onEditingFinished: {
+                        if (selectedRow === row && editingColumn === column) {
+                            dbManager.updateMaterial(row, column, text)
+                        }
+                        editingColumn = -1
+                    }
+
+                    onPressed: {
+                        selectedRow = row
+                        editingColumn = column
+                    }
+                }
+            }
+
+            ScrollBar.vertical: ScrollBar {}
+            ScrollBar.horizontal: ScrollBar {}
+        }
 
         Row {
             id: rowButton
             spacing: 20
             topPadding: 10
-            x: (materialDatabaseView.width / 2) - (rowButton.width / 2)
-            width: rowButton.childrenRect.width
+            bottomPadding: 15
+            width: (addButton.width * 3) + 40
+            height: 70
+            Layout.alignment: Qt.AlignHCenter
 
             Button {
                 id: addButton
@@ -158,55 +215,6 @@ Window {
                     editingColumn = -1;
                 }
             }
-        }
-
-        Row {
-            id: headerDataRow
-            width: parent.width
-            height: 10
-
-        }
-
-        TableView {
-            id: tableView
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            model: dbManager.getModel()
-
-            columnSpacing: 1
-            rowSpacing: 1
-
-            delegate: Rectangle {
-                implicitWidth: 150
-                implicitHeight: 50
-                color: "transparent"  // Прозорий фон або можна "#282828"
-                border.color: "#3a3a3a"
-
-                TextField {
-                    id: textField
-                    anchors.fill: parent
-                    anchors.margins: 5
-                    text: model.display
-                    readOnly: !(selectedRow === row && editingColumn === column)
-
-                    background: Rectangle { color: "transparent" } // Фон текстового поля прозорий
-                    color: "white"  // Білий текст для кращої видимості в темній темі
-
-                    onEditingFinished: {
-                        if (selectedRow === row && editingColumn === column) {
-                            dbManager.updateMaterial(row, column, text)
-                        }
-                        editingColumn = -1
-                    }
-
-                    onPressed: {
-                        selectedRow = row
-                        editingColumn = column
-                    }
-                }
-            }
-
-            ScrollBar.vertical: ScrollBar {}
         }
     }
 }
