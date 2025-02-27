@@ -13,6 +13,7 @@ private:
     QSqlDatabase db;
     QSqlTableModel *model;
     void createTable();
+    void insertInitialData();
 public:
     explicit DBManager(QObject *parent = nullptr);
     ~DBManager();

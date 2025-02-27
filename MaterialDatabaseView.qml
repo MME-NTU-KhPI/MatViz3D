@@ -49,8 +49,8 @@ Window {
 
             delegate: Rectangle {
                 implicitWidth: {
-                    if (column === 1 || column === 2) return 150;
-                    return 60;
+                    if (column === 1 || column === 2) return 110;
+                    return 70;
                 }
                 implicitHeight: 40
                 color: "transparent"
