@@ -113,15 +113,17 @@ void Composite::Next_Iteration(std::function<void()> callback)
 {
     setRadius(numColors);
 
-    #pragma omp parallel for collapse(3)
+#pragma omp parallel for collapse(3)
     for (int k = 0; k < numCubes; k++)
         for (int i = 0; i < numCubes; i++)
             for (int j = 0; j < numCubes; j++)
             {
                 voxels[k][i][j] = 1;
+#pragma omp atomic
                 filled_voxels++;
             }
 
+#pragma omp parallel for collapse(2)
     for (int x = 0; x < numCubes; x++) {
         for (int y = 0; y < numCubes; y++) {
             double dist = sqrt((x - numCubes / 2) * (x - numCubes / 2) + (y - numCubes / 2) * (y - numCubes / 2));
@@ -134,4 +136,4 @@ void Composite::Next_Iteration(std::function<void()> callback)
             }
         }
     }
-};
+}
