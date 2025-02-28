@@ -29,6 +29,7 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+    recordTimer = new QTimer(this);
 
     setupFileMenu();
     setupWindowMenu();
@@ -38,6 +39,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->numOfPointsRadioButton, &QRadioButton::clicked, this, &MainWindow::onInitialConditionSelectionChanged);
     connect(ui->concentrationRadioButton, &QRadioButton::clicked, this, &MainWindow::onInitialConditionSelectionChanged);
     connect(ui->AlgorithmsBox, &QComboBox::currentTextChanged, this, &MainWindow::onProbabilityAlgorithmChanged);
+    connect(recordTimer, &QTimer::timeout, this, &MainWindow::captureFrame);
 
     ui->myGLWidget->setIsometricView();
     connect(ui->Rectangle8, &QLineEdit::editingFinished, this, [=]() {
@@ -88,7 +90,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(messageHandlerInstance, &MessageHandler::messageWrittenSignal, this, &MainWindow::onLogMessageWritten);
 
     startButtonPressed = false;
-
+    gif = nullptr;
 
     scene = new LegendView(this);
     ui->LegendView->setScene(scene);
@@ -177,12 +179,24 @@ void MainWindow::on_Start_clicked()
         return;
     }
     setAlgorithmFlags(*algorithm);
+
+    isRecording = false;
+    if (isAnimation) {
+        startGifRecording();
+        isRecording = true;
+    }
+
     executeAlgorithm(*algorithm, selectedAlgorithm);
+
+    if (isRecording) {
+        stopGifRecording();
+    }
 
     finalizeUIAfterCompletion();
     logExecutionTime(start_time);
     startButtonPressed = true;
 }
+
 
 void MainWindow::initializeUIForStart()
 {
@@ -664,3 +678,51 @@ void MainWindow::on_ComponentID_currentIndexChanged(int index)
        ui->myGLWidget->update();
     }
 }
+
+void MainWindow::startGifRecording()
+{
+    if (isRecording) return;
+
+    isRecording = true;
+
+    if (gif) delete gif;
+    gif = new QGifImage(QSize(ui->myGLWidget->width(), ui->myGLWidget->height()));
+
+    delayAnimation = 100; // 10 FPS (100 * 10 мс)
+    gif->setDefaultDelay(delayAnimation);
+
+    int frameInterval = qMax(16, delayAnimation / 10); // Мінімум 16 мс (60 FPS)
+    recordTimer->start(frameInterval);
+
+    qDebug() << "GIF recording started, timer interval:" << frameInterval << "ms";
+}
+
+
+
+void MainWindow::stopGifRecording()
+{
+    isRecording = false;
+    recordTimer->stop();
+
+    if (gif) {
+        gif->save("animation.gif");
+        qDebug() << "Animation has been saved!";
+        delete gif;
+        gif = nullptr;
+    }
+}
+
+void MainWindow::captureFrame()
+{
+    if (!isRecording || !gif) return;
+
+    QImage frame = ui->myGLWidget->grabFramebuffer();
+    if (frame.isNull()) {
+        qCritical() << "Error: Captured an empty frame!";
+        return;
+    }
+
+    gif->addFrame(frame);
+    qDebug() << "Frame added! Total frames:" << gif->frameCount();
+}
+

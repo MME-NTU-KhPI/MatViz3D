@@ -103,6 +103,7 @@ public:
     void setDelayAnimation(int delayAnimation);
     void setAnsysWrapper(ansysWrapper *wr);
     void DelayFrameUpdate();
+    QImage grabFrame();
 signals:
     // signaling rotation from mouse movement
     void xRotationChanged(int angle);

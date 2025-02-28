@@ -13,6 +13,7 @@
 #include "probability_algorithm.h"
 #include "algorithmfactory.h"
 #include "legendview.h"
+#include "qgifimage.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -60,6 +61,9 @@ private slots:
     void exportToCSV();
     void onInitialConditionSelectionChanged();
     void onProbabilityAlgorithmChanged(const QString &text);
+    void startGifRecording();
+    void stopGifRecording();
+    void captureFrame();
     void saveHDF();
     void openHDF();
 
@@ -92,6 +96,9 @@ private:
     QCheckBox *animationCheckBox;
     bool startButtonPressed;
     LegendView* scene;
+    QGifImage *gif;
+    QTimer *recordTimer;
+    bool isRecording;
 };
 
 #endif // MAINWINDOW_H

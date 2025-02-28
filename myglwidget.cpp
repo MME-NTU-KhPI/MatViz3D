@@ -969,3 +969,10 @@ int32_t*** MyGLWidget::getVoxels()
     return voxels;
 }
 
+QImage MyGLWidget::grabFrame()
+{
+    QImage image(width(), height(), QImage::Format_RGB888);
+    glReadPixels(0, 0, width(), height(), GL_RGB, GL_UNSIGNED_BYTE, image.bits());
+
+    return image.flipped(Qt::Vertical);
+}
