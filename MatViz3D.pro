@@ -9,7 +9,9 @@ LIBS += -lopengl32
 QMAKE_CXXFLAGS += -fopenmp
 LIBS += -fopenmp
 
-
+CONFIG += qmltypes
+QML_IMPORT_NAME = OpenGLUnderQML
+QML_IMPORT_MAJOR_VERSION = 1
 
 # You can make your code fail to compile if it uses deprecated APIs.
 # In order to do so, uncomment the following line.
@@ -27,13 +29,15 @@ SOURCES += \
         moore.cpp \
         myglwidget.cpp \
         neumann.cpp \
+        openglwidgetqml.cpp \
         parameters.cpp \
         parent_algorithm.cpp \
         probability_algorithm.cpp \
         probability_circle.cpp \
         probability_ellipse.cpp \
         probabilityalgorithmviewwrapper.cpp \
-        radial.cpp
+        radial.cpp \
+        renderopengl.cpp
 
 RESOURCES += qml.qrc
 
@@ -59,10 +63,12 @@ HEADERS += \
     moore.h \
     myglwidget.h \
     neumann.h \
+    openglwidgetqml.h \
     parameters.h \
     parent_algorithm.h \
     probability_algorithm.h \
     probability_circle.h \
     probability_ellipse.h \
     probabilityalgorithmviewwrapper.h \
-    radial.h
+    radial.h \
+    renderopengl.h
