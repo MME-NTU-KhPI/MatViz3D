@@ -29,7 +29,6 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-    recordTimer = new QTimer(this);
 
     setupFileMenu();
     setupWindowMenu();
@@ -39,7 +38,6 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->numOfPointsRadioButton, &QRadioButton::clicked, this, &MainWindow::onInitialConditionSelectionChanged);
     connect(ui->concentrationRadioButton, &QRadioButton::clicked, this, &MainWindow::onInitialConditionSelectionChanged);
     connect(ui->AlgorithmsBox, &QComboBox::currentTextChanged, this, &MainWindow::onProbabilityAlgorithmChanged);
-    connect(recordTimer, &QTimer::timeout, this, &MainWindow::captureFrame);
 
     ui->myGLWidget->setIsometricView();
     connect(ui->Rectangle8, &QLineEdit::editingFinished, this, [=]() {
@@ -159,43 +157,33 @@ void MainWindow::keyPressEvent(QKeyEvent *e)
 void MainWindow::on_Start_clicked()
 {
     ui->backgrAnim_2->hide();
-
     clock_t start_time = clock();
-    QString selectedAlgorithm = ui->AlgorithmsBox->currentText();
 
-    omp_set_num_threads(Parameters::num_threads);
-
-    if (!validateParameters()) {
-        return;
-    }
+    if (!validateParameters()) return;
 
     initializeUIForStart();
-
     registerAlgorithms();
+
     Parameters params;
-    auto algorithm = AlgorithmFactory::instance().createAlgorithm(selectedAlgorithm, params);
+    auto algorithm = AlgorithmFactory::instance().createAlgorithm(ui->AlgorithmsBox->currentText(), params);
     if (!algorithm) {
         QMessageBox::warning(this, "Error", "Unknown algorithm selected.");
         return;
     }
+
     setAlgorithmFlags(*algorithm);
 
-    isRecording = false;
-    if (isAnimation) {
-        startGifRecording();
-        isRecording = true;
-    }
+    if (isAnimation) startGifRecording();
 
-    executeAlgorithm(*algorithm, selectedAlgorithm);
+    executeAlgorithm(*algorithm, ui->AlgorithmsBox->currentText());
 
-    if (isRecording) {
-        stopGifRecording();
-    }
+    if (isAnimation) stopGifRecording();
 
     finalizeUIAfterCompletion();
     logExecutionTime(start_time);
     startButtonPressed = true;
 }
+
 
 
 void MainWindow::initializeUIForStart()
@@ -225,24 +213,30 @@ void MainWindow::executeAlgorithm(Parent_Algorithm& algorithm, const QString& al
     Parameters::voxels = algorithm.Allocate_Memory();
     algorithm.Initialization(isWaveGeneration);
     algorithm.setRemainingPoints(algorithm.getNumColors() - static_cast<int>(Parameters::wave_coefficient * algorithm.getNumColors()));
-    auto animate_func = [&]() {
+
+    auto updateScene = [&]() {
         ui->myGLWidget->setVoxels(algorithm.getVoxels(), algorithm.getNumCubes());
         ui->myGLWidget->DelayFrameUpdate();
         ui->myGLWidget->update();
         QApplication::processEvents();
     };
+
+    updateScene();
+
     auto start = std::chrono::high_resolution_clock::now();
-    while (!algorithm.getDone())
-    {
-        algorithm.Next_Iteration(animate_func);
+
+    while (!algorithm.getDone()) {
+        algorithm.Next_Iteration(updateScene);
     }
+
     auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> duration = end - start;
-    qDebug() << "Algorithm execution time: " << duration.count() << " seconds";
-    animate_func();
+    qDebug() << "Algorithm execution time: " << std::chrono::duration<double>(end - start).count() << " seconds";
+
+    updateScene();
     algorithm.CleanUp();
     qDebug() << algorithmName;
 }
+
 
 
 void MainWindow::finalizeUIAfterCompletion()
@@ -688,21 +682,18 @@ void MainWindow::startGifRecording()
     if (gif) delete gif;
     gif = new QGifImage(QSize(ui->myGLWidget->width(), ui->myGLWidget->height()));
 
-    delayAnimation = 100; // 10 FPS (100 * 10 мс)
-    gif->setDefaultDelay(delayAnimation);
+    gif->setDefaultDelay(100); // 10 FPS (100 мс)
 
-    int frameInterval = qMax(16, delayAnimation / 10); // Мінімум 16 мс (60 FPS)
-    recordTimer->start(frameInterval);
+    connect(ui->myGLWidget, &QOpenGLWidget::frameSwapped, this, &MainWindow::captureFrame);
 
-    qDebug() << "GIF recording started, timer interval:" << frameInterval << "ms";
+    qDebug() << "GIF recording started!";
 }
-
-
 
 void MainWindow::stopGifRecording()
 {
     isRecording = false;
-    recordTimer->stop();
+
+    disconnect(ui->myGLWidget, &QOpenGLWidget::frameSwapped, this, &MainWindow::captureFrame);
 
     if (gif) {
         gif->save("animation.gif");

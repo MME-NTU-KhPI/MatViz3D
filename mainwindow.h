@@ -97,7 +97,6 @@ private:
     bool startButtonPressed;
     LegendView* scene;
     QGifImage *gif;
-    QTimer *recordTimer;
     bool isRecording;
 };
 
