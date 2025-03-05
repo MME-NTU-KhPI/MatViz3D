@@ -37,11 +37,11 @@ void DBManager::createTable()
         "Type VARCHAR(6) DEFAULT '', "
         "c11 REAL DEFAULT 0, c12 REAL DEFAULT 0, c13 REAL DEFAULT 0, "
         "c14 REAL DEFAULT 0, c15 REAL DEFAULT 0, c16 REAL DEFAULT 0, "
-        "c21 REAL DEFAULT 0, c22 REAL DEFAULT 0, c23 REAL DEFAULT 0, "
-        "c24 REAL DEFAULT 0, c25 REAL DEFAULT 0, c26 REAL DEFAULT 0, "
-        "c31 REAL DEFAULT 0, c32 REAL DEFAULT 0, c33 REAL DEFAULT 0, "
+        "c22 REAL DEFAULT 0, c23 REAL DEFAULT 0, c24 REAL DEFAULT 0, "
+        "c25 REAL DEFAULT 0, c26 REAL DEFAULT 0, c33 REAL DEFAULT 0, "
         "c34 REAL DEFAULT 0, c35 REAL DEFAULT 0, c36 REAL DEFAULT 0, "
-        "c44 REAL DEFAULT 0, c55 REAL DEFAULT 0, c66 REAL DEFAULT 0"
+        "c44 REAL DEFAULT 0, c45 REAL DEFAULT 0, c46 REAL DEFAULT 0, "
+        "c55 REAL DEFAULT 0, c56 REAL DEFAULT 0, c66 REAL DEFAULT 0"
         ");";
     if (!query.exec(createTableSQL))
         qCritical() << "Error creating table: " << query.lastError().text();
@@ -66,16 +66,16 @@ void DBManager::insertInitialData()
     }
 
     query.prepare("INSERT INTO material_properties (Material, Type, c11, c12, c13, c14, c15, c16, "
-                  "c21, c22, c23, c24, c25, c26, c31, c32, c33, c34, c35, c36, c44, c55, c66) "
+                  "c22, c23, c24, c25, c26, c33, c34, c35, c36, c44, c45, c46, c55, c56, c66) "
                   "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
     struct Material {
         QString material;
         QString type;
         double c11, c12, c13, c14, c15, c16;
-        double c21, c22, c23, c24, c25, c26;
-        double c31, c32, c33, c34, c35, c36;
-        double c44, c55, c66;
+        double c22, c23, c24, c25, c26, c33;
+        double c34, c35, c36, c44, c45, c46;
+        double c55, c56, c66;
     };
 
 
@@ -107,9 +107,9 @@ void DBManager::insertInitialData()
     for (const auto &mat : materials) {
         std::array<double, 21> coefficients = {
             mat.c11, mat.c12, mat.c13, mat.c14, mat.c15, mat.c16,
-            mat.c21, mat.c22, mat.c23, mat.c24, mat.c25, mat.c26,
-            mat.c31, mat.c32, mat.c33, mat.c34, mat.c35, mat.c36,
-            mat.c44, mat.c55, mat.c66
+            mat.c22, mat.c23, mat.c24, mat.c25, mat.c26, mat.c33,
+            mat.c34, mat.c35, mat.c36, mat.c44, mat.c45, mat.c46,
+            mat.c55, mat.c56, mat.c66
         };
 
         query.addBindValue(mat.material);
