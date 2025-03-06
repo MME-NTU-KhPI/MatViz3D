@@ -48,7 +48,10 @@ private slots:
 
 private:
     Ui::Statistics *ui;
-    QVector<Object> allObjects;
+
+    QList<Object> allObjects2D;
+    QList<Object> allObjects3D;
+
     void updatePropertyBox();
 
     std::map<int, double> surface_area_3D;

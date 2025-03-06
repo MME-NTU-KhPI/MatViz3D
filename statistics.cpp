@@ -21,8 +21,9 @@ Statistics::Statistics(QWidget *parent)
     connect(ui->d2RadiaoButton, &QRadioButton::toggled, this, &Statistics::updatePropertyBox);
     connect(ui->d3RadiaoButton, &QRadioButton::toggled, this, &Statistics::updatePropertyBox);
 
-    // Ініціалізуємо allObjects
-    allObjects = QList<Object>();
+    allObjects2D = QList<Object>();
+    allObjects3D = QList<Object>();
+
     ui->propertyBox->setCurrentText("-----");
     selectProperty();
     connect(ui->propertyBox, QOverload<int>::of(&QComboBox::activated), [this](int index){
@@ -42,7 +43,6 @@ void Statistics::setPropertyBoxText(const QString &text)
     ui->propertyBox->setCurrentText(text);
 }
 
-// Структура для представлення координати пікселя
 struct Point {
     int x, y;
     Point(int _x, int _y) : x(_x), y(_y) {}
@@ -79,12 +79,12 @@ QChart* Statistics::createChart(const QString& selectedTitleProperty) {
 
 QValueAxis* Statistics::createAxisX() {
     QValueAxis *axisX = new QValueAxis();
-    axisX->setTitleText("Value"); // Підпис осі X
+    axisX->setTitleText("Value");
     axisX->setTitleBrush(QBrush(QColor(0, 0, 0)));
     axisX->setTitleFont(QFont("Arial", 14));
-    axisX->setLabelsColor(QColor(0, 0, 0)); // Колір міток на осі X
-    axisX->setLinePenColor(QColor(0, 0, 0)); // Колір лінії осі X
-    axisX->setGridLineColor(QColor(0, 0, 0, 90)); // Колір сітки осі X з напівпрозорістю
+    axisX->setLabelsColor(QColor(0, 0, 0));
+    axisX->setLinePenColor(QColor(0, 0, 0));
+    axisX->setGridLineColor(QColor(0, 0, 0, 90));
     return axisX;
 }
 
@@ -109,12 +109,11 @@ void Statistics::adjustAxisX(QValueAxis *axisX, const QVector<float>& counts) {
     float tickMinValue = minValue - binSize;
     float tickMaxValue = maxValue + binSize;
 
-    // Мінімальне значення на осі X не менше нуля
     tickMinValue = qMax(0.0f, tickMinValue);
 
-    int tickCount = qMin(10, numberOfBins); // Задаємо максимальну кількість міток
+    int tickCount = qMin(10, numberOfBins);
     axisX->setTickCount(tickCount);
-    axisX->setLabelFormat("%.4f"); // Відображення чисел з плаваючою комою
+    axisX->setLabelFormat("%.4g");
     axisX->setMin(tickMinValue);
     axisX->setMax(tickMaxValue);
 }
@@ -210,61 +209,59 @@ void Statistics::clearLayout(QLayout *layout)
 }
 
 void Statistics::selectProperty() {
-    // Створення вектора для зберігання значень властивості
     QVector<float> propertyValues;
 
     QString selectedProperty = ui->propertyBox->currentText();
     QString selectedTitleProperty;
 
-    // Додаємо значення відповідно до вибраної властивості
     if (selectedProperty == "Norm Area") {
         selectedTitleProperty = "Distribution of normalized grain area";
-        for (const auto& obj : allObjects) {
+        for (const auto& obj : allObjects2D) {
             propertyValues.push_back(obj.normArea);
         }
     } else if (selectedProperty == "Perimeter") {
         selectedTitleProperty = "Distribution of grain perimeter";
-        for (const auto& obj : allObjects) {
+        for (const auto& obj : allObjects2D) {
             propertyValues.push_back(obj.perimeter);
         }
     } else if (selectedProperty == "ECR") {
         selectedTitleProperty = "Distribution of ECR";
-        for (const auto& obj : allObjects) {
+        for (const auto& obj : allObjects2D) {
             propertyValues.push_back(obj.ecr);
         }
     } else if (selectedProperty == "Shape factor") {
         selectedTitleProperty = "Distribution of Shape factor";
-        for (const auto& obj : allObjects) {
+        for (const auto& obj : allObjects2D) {
             propertyValues.push_back(obj.shape_factor);
         }
     } else if (selectedProperty == "Area") {
         selectedTitleProperty = "Distribution of grain area";
-        for (const auto& obj : allObjects) {
+        for (const auto& obj : allObjects2D) {
             propertyValues.push_back(obj.size);
         }
     } else if (selectedProperty == "Volume") {
         selectedTitleProperty = "Distribution of grain volume";
-        for (const auto& obj : allObjects) {
+        for (const auto& obj : allObjects3D) {
             propertyValues.push_back(obj.volume_3D);
         }
     } else if (selectedProperty == "Norm Volume") {
         selectedTitleProperty = "Distribution of normalized grain volume";
-        for (const auto& obj : allObjects) {
+        for (const auto& obj : allObjects3D) {
             propertyValues.push_back(obj.norm_volume_3D);
         }
     } else if (selectedProperty == "Surface Area") {
         selectedTitleProperty = "Distribution of grain surface Area";
-        for (const auto& obj : allObjects) {
+        for (const auto& obj : allObjects3D) {
             propertyValues.push_back(obj.surface_area_3D);
         }
     } else if (selectedProperty == "ESR") {
         selectedTitleProperty = "Distribution of ESR";
-        for (const auto& obj : allObjects) {
+        for (const auto& obj : allObjects3D) {
             propertyValues.push_back(obj.ESR_3D);
         }
     } else if (selectedProperty == "Inertia Moment") {
         selectedTitleProperty = "Distribution of grain Inertia moment";
-        for (const auto& obj : allObjects) {
+        for (const auto& obj : allObjects3D) {
             propertyValues.push_back(obj.moment_inertia_3D);
         }
     } else {
@@ -272,39 +269,32 @@ void Statistics::selectProperty() {
         propertyValues.clear();
     }
 
-    // Видалення Inf, -Inf, NaN та нульових значень з propertyValues
     propertyValues.erase(std::remove_if(propertyValues.begin(), propertyValues.end(), [](float value) {
                              return std::isinf(value) || std::isnan(value) || value == 0.0f;
                          }), propertyValues.end());
 
-    //qDebug() << propertyValues;
-
     clearLayout(ui->horizontalFrame->layout());
-    // Викликаємо функцію для побудови гістограми з оновленими значеннями властивостей
     buildHistogram(propertyValues, selectedTitleProperty);
 }
 
 
 void saveToCSV(const QList<Object>& objects, const std::string& filename) {
-    std::ofstream file(filename); // Відкриття файлу для запису
+    std::ofstream file(filename);
     if (!file.is_open()) {
         qDebug() << "Error: Unable to open file for writing";
         return;
     }
 
-    // Запис заголовка CSV файлу
     file << "NormArea,Perimeter,Shape Factor,ECR,Volume,NormVolume,SurfaceArea,MomentInertia3D,ESR\n";
 
-    // Запис даних про об'єкти у CSV файл
     for (const auto& obj : objects) {
         file << obj.normArea << "," << obj.perimeter << "," << obj.shape_factor << "," << obj.ecr << "," << obj.volume_3D << "," << obj.norm_volume_3D << "," << obj.surface_area_3D << "," << obj.moment_inertia_3D << "," << obj.ESR_3D << "\n";
     }
 
-    file.close(); // Закриття файлу
+    file.close();
 }
 
 
-// Обчислення периметру для об'єкта
 int compute_perimeter(const std::vector<std::vector<int>>& image, int i, int j) {
     int rows = image.size();
     int cols = image[0].size();
@@ -312,7 +302,6 @@ int compute_perimeter(const std::vector<std::vector<int>>& image, int i, int j) 
     int color = image[i][j];
     bool onEdge = false;
 
-    // Перевірка сусідніх пікселів
     std::vector<Point> neighbors = {{i - 1, j}, {i + 1, j}, {i, j - 1}, {i, j + 1}};
     for (const auto& neighbor : neighbors) {
         int ni = neighbor.x;
@@ -323,7 +312,6 @@ int compute_perimeter(const std::vector<std::vector<int>>& image, int i, int j) 
         }
     }
 
-    // Враховуємо тільки один раз кожен піксель на краю зерна
     if (onEdge) {
         perimeter = 1;
     } else {
@@ -335,7 +323,6 @@ int compute_perimeter(const std::vector<std::vector<int>>& image, int i, int j) 
 
 const double pi = 3.14159;
 
-// Маркування з'єднаних областей та обчислення їх площі та периметру
 std::vector<Object> label_connected_regions(const std::vector<std::vector<int>>& image) {
     int rows = image.size();
     int cols = image[0].size();
@@ -400,47 +387,24 @@ std::vector<Object> label_connected_regions(const std::vector<std::vector<int>>&
 
 void Statistics::layersProcessing(int32_t*** voxels, int numCubes)
 {
-    // Очищення allObjects перед обробкою нових даних
-    allObjects.clear();
+    allObjects2D.clear();
+    allObjects3D.clear();
 
-    // Отримання розмірів масиву
     int sizeX = numCubes;
     int sizeY = numCubes;
     int sizeZ = numCubes;
 
-    // Виконання обробки кожного шару
     for (int z = 0; z < sizeZ; ++z) {
-        // Створення масиву для поточного шару
         std::vector<std::vector<int>> layerImage(sizeY, std::vector<int>(sizeX));
 
-        // Заповнення масиву значеннями з масиву voxels
         for (int y = 0; y < sizeY; ++y) {
             for (int x = 0; x < sizeX; ++x) {
-                // Просто копіюємо значення з масиву voxels
                 layerImage[y][x] = voxels[x][y][z];
             }
         }
-
-//        // Вивід поточного шару у консоль для перевірки
-//        qDebug() << "Layer" << z << "Contents:";
-//        for (int y = 0; y < sizeY; ++y) {
-//            QString line;
-//            for (int x = 0; x < sizeX; ++x) {
-//                line += QString::number(layerImage[y][x]) + " ";
-//            }
-//            qDebug() << line;
-//        }
-
-        // Застосування функції маркування з'єднаних областей для поточного шару
         std::vector<Object> objects = label_connected_regions(layerImage);
-
-//        // Вивід площі та периметру кожного нового зерна у консоль
-//        for (const auto& obj : objects) {
-//            qDebug() << "Layer" << z << ", Grain" << obj.label << "Area:" << obj.size << "Perimeter:" << obj.perimeter << "NormArea:" << obj.normArea;
-//        }
-        // Додавання властивостей об'єктів для поточного шару до загального вектору
         QList<Object> objectList(objects.begin(), objects.end());
-        allObjects.append(objectList);
+        allObjects2D.append(objectList);
     }
 
     surfaceArea3D(voxels, numCubes);
@@ -450,8 +414,8 @@ void Statistics::layersProcessing(int32_t*** voxels, int numCubes)
     calcMomentInertia();
 
     // Збереження властивостей у CSV файл
-    std::string filename = "All_Layers_Properties_3.csv";
-    saveToCSV(allObjects, filename);
+    // std::string filename = "All_Layers_Properties_3.csv";
+    // saveToCSV(allObjects, filename);
 }
 
 
@@ -501,10 +465,10 @@ void Statistics::surfaceArea3D(int32_t ***voxels, int numCubes) {
     }
 
     for (const auto& pair : surface_area_3D) {
-        if (pair.first < allObjects.size()) {
-            allObjects[pair.first].surface_area_3D = pair.second;
+        if (pair.first >= allObjects3D.size()) {
+            allObjects3D.resize(pair.first + 1);
         }
-        qDebug() << "Grain ID:" << pair.first << "Surface Area:" << pair.second;
+        allObjects3D[pair.first].surface_area_3D = pair.second;
     }
 }
 
@@ -526,13 +490,13 @@ void Statistics::calcVolume3D(int32_t ***voxels, int numCubes) {
 
     for (const auto& pair : local_volume_counts) {
         volume_3D[pair.first] += pair.second;
-        qDebug() << "Grain ID:" << pair.first << "Volume:" << pair.second;
     }
 
     for (const auto& pair : volume_3D) {
-        if (pair.first < allObjects.size()) {
-            allObjects[pair.first].volume_3D = pair.second;
+        if (pair.first >= allObjects3D.size()) {
+            allObjects3D.resize(pair.first + 1);
         }
+        allObjects3D[pair.first].volume_3D = pair.second;
     }
 }
 
@@ -549,13 +513,15 @@ void Statistics::calcNormVolume3D() {
     if (max_volume > 0) {
         for (const auto& pair : volume_3D) {
             norm_volume_3D[pair.first] = pair.second / max_volume;
-            if (pair.first < allObjects.size()) {
-                allObjects[pair.first].norm_volume_3D = norm_volume_3D[pair.first];
+
+            if (pair.first >= allObjects3D.size()) {
+                allObjects3D.resize(pair.first + 1);
             }
-            qDebug() << "Grain ID:" << pair.first << "Normalized Volume:" << norm_volume_3D[pair.first];
+            allObjects3D[pair.first].norm_volume_3D = norm_volume_3D[pair.first];
         }
     }
 }
+
 
 void Statistics::calcESR() {
     ESR_3D.clear();
@@ -563,12 +529,15 @@ void Statistics::calcESR() {
     for (const auto& pair : volume_3D) {
         double esr = std::pow((3.0 / (4.0 * M_PI)) * pair.second, 1.0 / 3.0);
         ESR_3D[pair.first] = esr;
-        if (pair.first < allObjects.size()) {
-            allObjects[pair.first].ESR_3D = esr;
+
+        if (pair.first >= allObjects3D.size()) {
+            allObjects3D.resize(pair.first + 1);
         }
-        qDebug() << "Grain ID:" << pair.first << "ESR:" << esr;
+
+        allObjects3D[pair.first].ESR_3D = esr;
     }
 }
+
 
 void Statistics::calcMomentInertia() {
     moment_inertia_3D.clear();
@@ -576,9 +545,12 @@ void Statistics::calcMomentInertia() {
     for (const auto& pair : ESR_3D) {
         double moment_inertia = (2.0 / 5.0) * std::pow(pair.second, 2);
         moment_inertia_3D[pair.first] = moment_inertia;
-        if (pair.first < allObjects.size()) {
-            allObjects[pair.first].moment_inertia_3D = moment_inertia;
+
+        if (pair.first >= allObjects3D.size()) {
+            allObjects3D.resize(pair.first + 1);
         }
-        qDebug() << "Grain ID:" << pair.first << "Moment of Inertia:" << moment_inertia;
+
+        allObjects3D[pair.first].moment_inertia_3D = moment_inertia;
     }
 }
+
