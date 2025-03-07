@@ -6,7 +6,7 @@
 #include <QImage>
 #include <QThread>
 
-RenderOpenGL* OpenGLWidgetQML::m_render = nullptr;
+RenderOpenGL* OpenGLWidgetQML::m_render = nullptr; 
 
 OpenGLWidgetQML::OpenGLWidgetQML(QQuickItem *parent) : QQuickFramebufferObject(parent) {
     setAcceptedMouseButtons(Qt::AllButtons);
@@ -23,7 +23,8 @@ OpenGLWidgetQML::OpenGLWidgetQML(QQuickItem *parent) : QQuickFramebufferObject(p
     plotComponent = 0;
     delayAnimation = 0;
     bgColor.setRgbF(0.21f, 0.21f, 0.21f);
-
+    connect(this, &QQuickItem::widthChanged, this, &OpenGLWidgetQML::handleResize, Qt::QueuedConnection);
+    connect(this, &QQuickItem::heightChanged, this, &OpenGLWidgetQML::handleResize, Qt::QueuedConnection);
 }
 
 QQuickFramebufferObject::Renderer *OpenGLWidgetQML::createRenderer() const {
@@ -51,7 +52,9 @@ void OpenGLWidgetQML::setXRotation(int angle)
     qNormalizeAngle(angle);
     if (angle != xRot) {
         xRot = angle;
-        m_render->setRotations(xRot, yRot, zRot);
+        if (m_render) {
+            m_render->setRotations(xRot, yRot, zRot);
+        }
         update();
     }
 }
@@ -61,7 +64,9 @@ void OpenGLWidgetQML::setYRotation(int angle)
     qNormalizeAngle(angle);
     if (angle != yRot) {
         yRot = angle;
-        m_render->setRotations(xRot, yRot, zRot);
+        if (m_render) {
+            m_render->setRotations(xRot, yRot, zRot);
+        }
         update();
     }
 }
@@ -71,7 +76,9 @@ void OpenGLWidgetQML::setZRotation(int angle)
     qNormalizeAngle(angle);
     if (angle != zRot) {
         zRot = angle;
-        m_render->setRotations(xRot, yRot, zRot);
+        if (m_render) {
+            m_render->setRotations(xRot, yRot, zRot);
+        }
         update();
     }
 }
@@ -80,7 +87,9 @@ void OpenGLWidgetQML::setFrontView() {
     xRot = 0;
     yRot = 0;
     zRot = 0;
-    m_render->setRotations(xRot, yRot, zRot);
+    if (m_render) {
+        m_render->setRotations(xRot, yRot, zRot);
+    }
     update();
 }
 
@@ -88,7 +97,9 @@ void OpenGLWidgetQML::setBackView() {
     xRot = 0;
     yRot = 180 * 16;
     zRot = 0;
-    m_render->setRotations(xRot, yRot, zRot);
+    if (m_render) {
+        m_render->setRotations(xRot, yRot, zRot);
+    }
     update();
 }
 
@@ -96,7 +107,9 @@ void OpenGLWidgetQML::setTopView() {
     xRot = -90 * 16;
     yRot = 0;
     zRot = 0;
-    m_render->setRotations(xRot, yRot, zRot);
+    if (m_render) {
+        m_render->setRotations(xRot, yRot, zRot);
+    }
     update();
 }
 
@@ -104,7 +117,9 @@ void OpenGLWidgetQML::setBottomView() {
     xRot = 90 * 16;
     yRot = 0;
     zRot = 0;
-    m_render->setRotations(xRot, yRot, zRot);
+    if (m_render) {
+        m_render->setRotations(xRot, yRot, zRot);
+    }
     update();
 }
 
@@ -112,7 +127,9 @@ void OpenGLWidgetQML::setLeftView() {
     xRot = 0;
     yRot = 90 * 16;
     zRot = 0;
-    m_render->setRotations(xRot, yRot, zRot);
+    if (m_render) {
+        m_render->setRotations(xRot, yRot, zRot);
+    }
     update();
 }
 
@@ -120,7 +137,9 @@ void OpenGLWidgetQML::setRightView() {
     xRot = 0;
     yRot = -90 * 16;
     zRot = 0;
-    m_render->setRotations(xRot, yRot, zRot);
+    if (m_render) {
+        m_render->setRotations(xRot, yRot, zRot);
+    }
     update();
 }
 
@@ -132,7 +151,9 @@ void OpenGLWidgetQML::setIsometricView()
     xRot =  35.26 * 16;
     yRot = -45.00 * 16;
     zRot =  0;
-    m_render->setRotations(xRot, yRot, zRot);
+    if (m_render) {
+        m_render->setRotations(xRot, yRot, zRot);
+    }
     update();
 }
 
@@ -144,7 +165,9 @@ void OpenGLWidgetQML::setDimetricView()
     xRot =  26.57 * 16;
     yRot = -45.00 * 16;
     zRot =  0;
-    m_render->setRotations(xRot, yRot, zRot);
+    if (m_render) {
+        m_render->setRotations(xRot, yRot, zRot);
+    }
     update();
 }
 
@@ -153,7 +176,9 @@ void OpenGLWidgetQML::setNumCubes(int numCubes)
     distance = 2 * numCubes;
     this->numCubes = numCubes;
     this->wr = nullptr;
-    m_render->setNumCubes(numCubes);
+    if (m_render) {
+        m_render->setNumCubes(numCubes);
+    }
     update();
 }
 
@@ -188,7 +213,9 @@ void OpenGLWidgetQML::setDistanceFactor(int factor)
 void OpenGLWidgetQML::setPlotWireFrame(bool status)
 {
     this->plotWireFrame = status;
-    m_render->setPlotWireFrame(status);
+    if (m_render) {
+        m_render->setPlotWireFrame(status);
+    }
 }
 
 /**
@@ -252,11 +279,6 @@ QImage OpenGLWidgetQML::captureScreenshotWithWhiteBackground()
     return modifiedScreenshot;
 }
 
-void OpenGLWidgetQML::resizeEvent(QResizeEvent *event)
-{
-    qDebug() << event->size();
-}
-
 void OpenGLWidgetQML::wheelEvent(QWheelEvent *event)
 {
     int numDegrees = event->angleDelta().y() / 8;
@@ -271,7 +293,9 @@ void OpenGLWidgetQML::wheelEvent(QWheelEvent *event)
         zoomFactor /= 1.1f;
         distance += -numSteps * numCubes * 0.1f; // adjust the distance based on the number of steps (use the absolute value)
     }
-    m_render->setDistZoomFactor(distance, zoomFactor);
+    if (m_render) {
+        m_render->setDistZoomFactor(distance, zoomFactor);
+    }
     update(); // redraw the cube with the new camera position
 }
 
@@ -294,6 +318,15 @@ void OpenGLWidgetQML::mouseMoveEvent(QMouseEvent *event)
     }
 
     lastPos = event->pos();
+}
+
+void OpenGLWidgetQML::handleResize()
+{
+    if (m_render) 
+    {
+        m_render->resizeGL(this->width(), this->height());
+    }
+    update();
 }
 
 

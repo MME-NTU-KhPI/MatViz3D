@@ -63,7 +63,6 @@ protected:
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
-    void resizeEvent(QResizeEvent *event);
 
     void qNormalizeAngle(int &angle);
 
@@ -147,6 +146,8 @@ protected:
     std::vector<Voxel> voxelScene;
 
     bool plotWireFrame = false;
+
+    void handleResize();
 
 
 };
