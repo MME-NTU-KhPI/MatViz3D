@@ -5,6 +5,7 @@
 #include <QQuickFramebufferObject>
 #include <QOpenGLFunctions>
 #include "ansyswrapper.h"
+#include "renderopengl.h"
 
 
 class RenderOpenGL;
@@ -15,13 +16,13 @@ class OpenGLWidgetQML : public QQuickFramebufferObject {
     QML_ELEMENT
 protected:
     static RenderOpenGL* m_render;
-
+    static OpenGLWidgetQML* instance;
 public:
     explicit OpenGLWidgetQML(QQuickItem *parent = nullptr);
     Renderer *createRenderer() const override;
     virtual ~OpenGLWidgetQML();
 
-
+    static OpenGLWidgetQML* getInstance();
     /**
      * Set the voxel data.
      * @param voxels 3D array of voxel data.
@@ -49,15 +50,12 @@ public:
     int cubeSize = 1;
 signals:
 protected:
-    struct Voxel;
+    //struct RenderOpenGL::Voxel;
     void initializeGL();
     void paintGL();
     void drawAxis();
     void initLights();
-    void resizeGL(int width, int height);
-    void paintSphere(float radius, int numStacks, int numSlices);
-    void drawCube(float cubeSize, GLenum type = GL_QUADS);
-    void drawCube(short cubeSize, Voxel vox, bool* neighbors, std::vector<std::array<GLubyte, 4>> &node_colors);
+    void drawCube(short cubeSize, RenderOpenGL::Voxel vox, bool* neighbors, std::vector<std::array<GLubyte, 4>> &node_colors);
     QSize minimumSizeHint() const;
     QSize sizeHint() const;
     void mousePressEvent(QMouseEvent *event) override;
@@ -67,8 +65,6 @@ protected:
     void qNormalizeAngle(int &angle);
 
     void calculateScene();
-    void initializeVBO();
-    void updateVBO();
 
     std::vector<std::array<GLubyte, 4>> createColorMap(int numLevels);
 
@@ -133,17 +129,17 @@ protected:
     std::vector<std::array<GLubyte, 4>> colors;
     std::vector<float> directionFactors;
 
-    void updateVoxelColor(Voxel &v1);
+    void updateVoxelColor(RenderOpenGL::Voxel &v1);
 
     bool isVBOupdateRequired = false;
 
-    struct Voxel
-    {
-        GLfloat x, y, z; // Coordinates
-        GLubyte r, g, b, a; // Color attributes
-        GLbyte nx, ny, nz; // Normal attributes
-    };
-    std::vector<Voxel> voxelScene;
+    // struct Voxel
+    // {
+    //     GLfloat x, y, z; // Coordinates
+    //     GLubyte r, g, b, a; // Color attributes
+    //     GLbyte nx, ny, nz; // Normal attributes
+    // };
+    std::vector<RenderOpenGL::Voxel> voxelScene;
 
     bool plotWireFrame = false;
 

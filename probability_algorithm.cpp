@@ -1,5 +1,5 @@
 #include "probability_algorithm.h"
-#include "ui_probability_algorithm.h"
+//#include "ui_probability_algorithm.h"
 #include "parameters.h"
 #include <random>
 #include <cmath>
@@ -10,22 +10,22 @@
 #include <QDir>
 
 Probability_Algorithm::Probability_Algorithm(QWidget *parent) :
-    QWidget(parent), Parent_Algorithm(),
-    ui(new Ui::Probability_Algorithm)
+    QWidget(parent), Parent_Algorithm()//,
+//    ui(new Ui::Probability_Algorithm)
 {
-    ui->setupUi(this);
-    connect(ui->applyPushButton,&QPushButton::clicked,this,&Probability_Algorithm::setHalfAxis);
-    connect(ui->applyPushButton,&QPushButton::clicked,this,&QWidget::close);
-    connect(ui->cancelPushButton,&QPushButton::clicked,this,&QWidget::close);
+//     ui->setupUi(this);
+//     connect(ui->applyPushButton,&QPushButton::clicked,this,&Probability_Algorithm::setHalfAxis);
+//     connect(ui->applyPushButton,&QPushButton::clicked,this,&QWidget::close);
+//     connect(ui->cancelPushButton,&QPushButton::clicked,this,&QWidget::close);
 }
 
 Probability_Algorithm::Probability_Algorithm(short int numCubes, int numColors, QWidget *parent)
-    : QWidget(parent), ui(new Ui::Probability_Algorithm)
+    : QWidget(parent)//, ui(new Ui::Probability_Algorithm)
 {
-    ui->setupUi(this);
-    connect(ui->applyPushButton,&QPushButton::clicked,this,&Probability_Algorithm::setHalfAxis);
-    connect(ui->applyPushButton,&QPushButton::clicked,this,&QWidget::close);
-    connect(ui->cancelPushButton,&QPushButton::clicked,this,&QWidget::close);
+    // ui->setupUi(this);
+    // connect(ui->applyPushButton,&QPushButton::clicked,this,&Probability_Algorithm::setHalfAxis);
+    // connect(ui->applyPushButton,&QPushButton::clicked,this,&QWidget::close);
+    // connect(ui->cancelPushButton,&QPushButton::clicked,this,&QWidget::close);
 
     setNumCubes(numCubes);
     setNumColors(numColors);
@@ -34,17 +34,17 @@ Probability_Algorithm::Probability_Algorithm(short int numCubes, int numColors, 
 
 Probability_Algorithm::~Probability_Algorithm()
 {
-    delete ui;
+//    delete ui;
 }
 
 void Probability_Algorithm::setHalfAxis()
 {
-    Parameters::halfaxis_a = ui->axisALineEdit->text().toFloat();
-    Parameters::halfaxis_b = ui->axisBLineEdit->text().toFloat();
-    Parameters::halfaxis_c = ui->axisCLineEdit->text().toFloat();
-    Parameters::orientation_angle_a = ui->orintationAngleLineEdit->text().toFloat();
-    Parameters::orientation_angle_b = ui->lineEdit->text().toFloat();
-    Parameters::orientation_angle_c = ui->lineEdit_2->text().toFloat();
+    // Parameters::halfaxis_a = ui->axisALineEdit->text().toFloat();
+    // Parameters::halfaxis_b = ui->axisBLineEdit->text().toFloat();
+    // Parameters::halfaxis_c = ui->axisCLineEdit->text().toFloat();
+    // Parameters::orientation_angle_a = ui->orintationAngleLineEdit->text().toFloat();
+    // Parameters::orientation_angle_b = ui->lineEdit->text().toFloat();
+    // Parameters::orientation_angle_c = ui->lineEdit_2->text().toFloat();
 }
 
 bool Probability_Algorithm::isPointIn(double x, double y, double z)

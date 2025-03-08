@@ -3,7 +3,6 @@
 #include <QQuickFramebufferObject>
 #include <QOpenGLFunctions>
 #include <QOpenGLShaderProgram>
-#include "ansyswrapper.h"
 
 /**
  * @class RenderOpenGL
@@ -12,6 +11,8 @@
 
 class RenderOpenGL : public QQuickFramebufferObject::Renderer, protected QOpenGLFunctions, public QObject
 {
+public:
+    struct Voxel;
 
 public:
 
@@ -36,8 +37,11 @@ public:
     void setDistZoomFactor(float distance, float zoomFactor);
     void resizeGL(int width, int height);
 
+    void updateVoxelData(std::vector<Voxel>& voxelScene);
+    QImage captureScreenshot();
+
 protected:
-    struct Voxel;
+
     void initializeGL();
     void paintGL();
     void drawAxis();
@@ -65,20 +69,25 @@ protected:
 
     QColor bgColor;
 
+    int width;
+    int height;
 
     QMatrix4x4 m_projection;
     float distanceFactor = 0;
 
     bool isVBOupdateRequired = false;
 
+
+    std::vector<Voxel> voxelScene;
+
+    bool plotWireFrame = false;
+
+public:
     struct Voxel
     {
         GLfloat x, y, z; // Coordinates
         GLubyte r, g, b, a; // Color attributes
         GLbyte nx, ny, nz; // Normal attributes
     };
-    std::vector<Voxel> voxelScene;
-
-    bool plotWireFrame = false;
 
 };

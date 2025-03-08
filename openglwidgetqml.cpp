@@ -2,11 +2,14 @@
 #include "renderopengl.h"
 #include "ansyswrapper.h"
 
+#include <QGuiApplication>
+#include <QClipboard>
 #include <QTimer>
 #include <QImage>
 #include <QThread>
 
-RenderOpenGL* OpenGLWidgetQML::m_render = nullptr; 
+RenderOpenGL* OpenGLWidgetQML::m_render = nullptr;
+OpenGLWidgetQML* OpenGLWidgetQML::instance = nullptr;
 
 OpenGLWidgetQML::OpenGLWidgetQML(QQuickItem *parent) : QQuickFramebufferObject(parent) {
     setAcceptedMouseButtons(Qt::AllButtons);
@@ -25,6 +28,12 @@ OpenGLWidgetQML::OpenGLWidgetQML(QQuickItem *parent) : QQuickFramebufferObject(p
     bgColor.setRgbF(0.21f, 0.21f, 0.21f);
     connect(this, &QQuickItem::widthChanged, this, &OpenGLWidgetQML::handleResize, Qt::QueuedConnection);
     connect(this, &QQuickItem::heightChanged, this, &OpenGLWidgetQML::handleResize, Qt::QueuedConnection);
+    this->instance = this;
+}
+
+OpenGLWidgetQML* OpenGLWidgetQML::getInstance()
+{
+    return instance;
 }
 
 QQuickFramebufferObject::Renderer *OpenGLWidgetQML::createRenderer() const {
@@ -224,13 +233,11 @@ void OpenGLWidgetQML::setPlotWireFrame(bool status)
  */
 QImage OpenGLWidgetQML::captureScreenshot()
 {
-
-    // Get the dimensions of the widget
-    int width = this->width();
-    int height = this->height();
-
-    // Create a buffer to store pixel data
-    QImage screenshot(width, height, QImage::Format_RGBA8888);
+    QImage screenshot;
+    if (m_render)
+    {
+        screenshot = m_render->captureScreenshot();
+    }
 
     return screenshot;
 }
@@ -240,9 +247,9 @@ QImage OpenGLWidgetQML::captureScreenshot()
  */
 void OpenGLWidgetQML::captureScreenshotToClipboard()
 {
- //   QImage screenshot = captureScreenshotWithWhiteBackground();
- //   QClipboard *clipboard = QGuiApplication::clipboard();
- //   clipboard->setImage(screenshot);
+    QImage screenshot = captureScreenshotWithWhiteBackground();
+    QClipboard *clipboard = QGuiApplication::clipboard();
+    clipboard->setImage(screenshot);
 }
 
 /**
@@ -494,6 +501,12 @@ void OpenGLWidgetQML::calculateScene()
                 }
 
                 int index = voxels[k][i][j] - 1;
+
+                if (colors.size() == 0)
+                {
+                    qCritical() << "Num colors size == 0. Can not render scene";
+                    return;
+                }
                 auto color = colors[index].data();
 
 
@@ -510,7 +523,7 @@ void OpenGLWidgetQML::calculateScene()
                                     directionFactor * diff[1] * distanceFactor,
                                     directionFactor * diff[2] * distanceFactor};
 
-                Voxel v;
+                RenderOpenGL::Voxel v;
                 v.x = -(numCubes/2 - k) * cubeSize + offset[0];
                 v.y = -(numCubes/2 - i) * cubeSize + offset[1];
                 v.z = -(numCubes/2 - j) * cubeSize + offset[2];
@@ -553,9 +566,18 @@ void OpenGLWidgetQML::setVoxels(int32_t*** voxels, short int numCubes)
     this->voxels = voxels;
     this->numCubes = numCubes;
     calculateScene();
+    if (m_render)
+    {
+        this->setNumCubes(numCubes);
+        m_render->setDistZoomFactor(distance, zoomFactor);
+        m_render->setNumCubes(numCubes);
+        m_render->updateVoxelData(voxelScene);
+        m_render->resizeGL(this->width(), this->height());
+        voxelScene.clear();
+    }
 }
 
-void OpenGLWidgetQML::updateVoxelColor(Voxel &v1)
+void OpenGLWidgetQML::updateVoxelColor(RenderOpenGL::Voxel &v1)
 {
     if (wr)
     {
@@ -569,7 +591,7 @@ void OpenGLWidgetQML::updateVoxelColor(Voxel &v1)
     }
 }
 
-void OpenGLWidgetQML::drawCube(short cubeSize, Voxel vox, bool* neighbors, std::vector<std::array<GLubyte, 4>> &node_colors)
+void OpenGLWidgetQML::drawCube(short cubeSize, RenderOpenGL::Voxel vox, bool* neighbors, std::vector<std::array<GLubyte, 4>> &node_colors)
 {
 
     static const GLfloat n[6][3] =
@@ -602,7 +624,7 @@ void OpenGLWidgetQML::drawCube(short cubeSize, Voxel vox, bool* neighbors, std::
     v[0][2] = v[3][2] = v[4][2] = v[7][2] = vox.z + offset;
     v[1][2] = v[2][2] = v[5][2] = v[6][2] = vox.z + cubeSize - offset;
 
-    Voxel v1;
+    RenderOpenGL::Voxel v1;
     for (int i = 0; i < 6; i++) // for each of 6 face of cube
     {
         if (neighbors[i] )
@@ -640,51 +662,6 @@ void OpenGLWidgetQML::drawCube(short cubeSize, Voxel vox, bool* neighbors, std::
 
     }
 }
-
-void OpenGLWidgetQML::drawCube(float cubeSize, GLenum type)
-{
-    float cb2 = cubeSize / 2.0;
-
-    static const GLfloat n[6][3] =
-        {
-            {-1.0, 0.0, 0.0},
-            {0.0, 1.0, 0.0},
-            {1.0, 0.0, 0.0},
-            {0.0, -1.0, 0.0},
-            {0.0, 0.0, 1.0},
-            {0.0, 0.0, -1.0}
-        };
-    static const GLint faces[6][4] =
-        {
-            {0, 1, 2, 3},
-            {3, 2, 6, 7},
-            {7, 6, 5, 4},
-            {4, 5, 1, 0},
-            {5, 6, 2, 1},
-            {7, 4, 0, 3}
-        };
-    GLfloat v[8][3];
-    GLint i;
-
-    v[0][0] = v[1][0] = v[2][0] = v[3][0] = -cb2;
-    v[4][0] = v[5][0] = v[6][0] = v[7][0] =  cb2 ;
-    v[0][1] = v[1][1] = v[4][1] = v[5][1] = -cb2;
-    v[2][1] = v[3][1] = v[6][1] = v[7][1] =  cb2;
-    v[0][2] = v[3][2] = v[4][2] = v[7][2] = -cb2;
-    v[1][2] = v[2][2] = v[5][2] = v[6][2] =  cb2;
-
-    for (i = 5; i >= 0; i--) {
-        glBegin(type);
-
-        glNormal3fv(&n[i][0]);
-        glVertex3fv(&v[faces[i][0]][0]);
-        glVertex3fv(&v[faces[i][1]][0]);
-        glVertex3fv(&v[faces[i][2]][0]);
-        glVertex3fv(&v[faces[i][3]][0]);
-        glEnd();
-    }
-}
-
 
 void OpenGLWidgetQML::DelayFrameUpdate()
 {

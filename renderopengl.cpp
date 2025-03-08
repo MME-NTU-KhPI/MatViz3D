@@ -37,14 +37,16 @@ void RenderOpenGL::render()
     update();
 }
 
-
+void RenderOpenGL::updateVoxelData(std::vector<Voxel>& voxelScene)
+{
+    this->voxelScene = voxelScene;
+    isVBOupdateRequired = true;
+}
 
 RenderOpenGL::~RenderOpenGL()
 {
-//    makeCurrent(); // Ensure context is active before cleanup
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
     f->glDeleteBuffers(1, vboIds);
-//    doneCurrent(); // Release context
 }
 
 QSize RenderOpenGL::minimumSizeHint() const
@@ -171,7 +173,7 @@ void RenderOpenGL::initializeGL()
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_LIGHTING);
     glEnable(GL_TEXTURE_2D);
-    glEnable(GL_CULL_FACE);
+    //glEnable(GL_CULL_FACE);
 
     glEnable(GL_NORMALIZE); // normalize normals length to 1
 
@@ -181,15 +183,15 @@ void RenderOpenGL::initializeGL()
 
     glClearColor(bgColor.redF(), bgColor.greenF(), bgColor.blueF(), bgColor.alphaF());     // background color
     glClearStencil(0);                          // clear stencil buffer
-    glClearDepth(numCubes);                     // 0 is near, 1 is far
-    glDepthFunc(GL_LESS);
+    glClearDepth(2*numCubes);                     // 0 is near, 1 is far
+    glDepthFunc(GL_LEQUAL);
 
     glEnable(GL_LINE_SMOOTH); //smooth line drawing
 
     // TODO: fix transperancy
-    glEnable(GL_ALPHA_TEST);
-    glEnable(GL_BLEND); // enbale blending
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    //glEnable(GL_ALPHA_TEST);
+    //glEnable(GL_BLEND); // enbale blending
+    //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     initLights(); // introduce light sources
 
@@ -267,18 +269,18 @@ void RenderOpenGL::paintGL()
     glPushMatrix();
 
     glLoadIdentity();
-
     glTranslatef(0.0, 0.0, -distance);
     glRotatef(xRot / 16.0, 1.0, 0.0, 0.0);
     glRotatef(yRot / 16.0, 0.0, 1.0, 0.0);
     glRotatef(zRot / 16.0, 0.0, 0.0, 1.0);
     //qDebug() << "paintGL rotations angles:" << xRot / 16.0 << yRot / 16.0 << zRot / 16.0;
 
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    //glEnable(GL_BLEND);
+    //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);
+    //glEnable(GL_CULL_FACE);
+    //glFrontFace(GL_CW);
+    //glCullFace(GL_BACK);
 
     glEnable(GL_NORMALIZE);
 
@@ -333,18 +335,20 @@ void RenderOpenGL::paintGL()
 void RenderOpenGL::resizeGL(int width, int height)
 {
     //   int side = qMin(width, height);
+    this->width = width;
+    this->height = height;
     glViewport(0, 0, width, height);
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-
+    glScalef(1.0f, -1.0f, 1.0f);
     // Set up perspective projection using glFrustum
     GLfloat aspect = (GLfloat)width / (GLfloat)height;
     GLfloat fov = 45.0f;
     GLfloat baseNear = 1.0f;     // Базовое значение ближней границы
-    GLfloat baseFar = 1000.0f;   // Базовое значение дальней границы
+    GLfloat baseFar = 15 * numCubes;   // Базовое значение дальней границы
     GLfloat minNear = 0.1f;      // Минимальное значение ближней границы
-    GLfloat maxFar = 5000.0f;    // Максимальное значение дальней границы
+    GLfloat maxFar = 30 * numCubes;    // Максимальное значение дальней границы
     GLfloat nearVal = std::max(baseNear / zoomFactor, minNear);
     GLfloat farVal = std::min(baseFar * zoomFactor, maxFar);
     GLfloat top = nearVal * std::tan(fov * 0.5f * 3.14159f / 180.0f);
@@ -381,10 +385,38 @@ void RenderOpenGL::setDistZoomFactor(float distance, float zoomFactor)
 {
     this->distance = distance;
     this->zoomFactor = zoomFactor;
+    update();
 }
 
 
 void RenderOpenGL::setPlotWireFrame(bool status)
 {
     plotWireFrame = status;
+}
+
+
+
+/**
+ * Capture a screenshot of the OpenGL widget and store it in a buffer.
+ * @return A QImage containing the screenshot.
+ */
+QImage RenderOpenGL::captureScreenshot()
+{
+    QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
+
+    // Get the dimensions of the widget
+    int width = this->width;
+    int height = this->height;
+
+    // Create a buffer to store pixel data
+    QImage screenshot(width, height, QImage::Format_RGBA8888);
+
+    // Read pixels from OpenGL framebuffer
+    f->glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, screenshot.bits());
+
+    // Convert the image from bottom-left origin to top-left origin
+    screenshot = screenshot.mirrored();
+
+
+    return screenshot;
 }
