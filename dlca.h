@@ -25,7 +25,9 @@ public:
     DLCA(short int numCubes, int numColors);
     DLCA(int cubeSize);
     void Next_Iteration(std::function<void()> callback) override;
+    void Generate_Filling_With_Spatial_Hashing();
     void Initialization(bool isWaveGeneration) override;
+    bool getDone() override {  if (aggregates.size() <= 1) { setDone(true); } else { setDone(false); } return flags.isDone; };
     void random_walk();
     std::vector<DLCA_Aggregate> aggregates;
     bool check_collision(size_t i, size_t j);

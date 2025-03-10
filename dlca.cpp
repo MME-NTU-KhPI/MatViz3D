@@ -4,6 +4,50 @@
 
 using namespace std;
 
+struct HashGrid {
+    int cellSize;
+    std::unordered_map<int64_t, std::vector<size_t>> grid; // Map from hashed cell index to aggregate indices
+
+    HashGrid(int cellSize) : cellSize(cellSize) {}
+
+    // Compute hash for a 3D cell
+    int64_t hash(int x, int y, int z) const {
+        return (static_cast<int64_t>(x) << 40) | (static_cast<int64_t>(y) << 20) | static_cast<int64_t>(z);
+    }
+
+    // Add aggregate to the grid
+    void insert(const DLCA_Aggregate &aggregate, size_t index) {
+        for (const auto &coord : aggregate.aggr) {
+            int cellX = coord.x / cellSize;
+            int cellY = coord.y / cellSize;
+            int cellZ = coord.z / cellSize;
+            grid[hash(cellX, cellY, cellZ)].push_back(index);
+        }
+    }
+
+    // Query neighboring cells for potential collisions
+    std::vector<size_t> query(int x, int y, int z) const {
+        std::vector<size_t> neighbors;
+        for (int dx = -1; dx <= 1; ++dx) {
+            for (int dy = -1; dy <= 1; ++dy) {
+                for (int dz = -1; dz <= 1; ++dz) {
+                    int64_t h = hash(x + dx, y + dy, z + dz);
+                    if (grid.count(h)) {
+                        neighbors.insert(neighbors.end(), grid.at(h).begin(), grid.at(h).end());
+                    }
+                }
+            }
+        }
+        return neighbors;
+    }
+
+    // Clear the grid for the next update
+    void clear() {
+        grid.clear();
+    }
+};
+
+
 DLCA_Aggregate::DLCA_Aggregate(int32_t*** voxels, int cubeSize)
 {
     this->cubeSize = cubeSize;
@@ -41,7 +85,7 @@ void DLCA_Aggregate::map_to_voxels()
 {
     for (size_t i = 0; i < aggr.size(); i++)
     {
-        Parent_Algorithm::Coordinate c = aggr[i];
+        DLCA::Coordinate c = aggr[i];
         voxels[c.x][c.y][c.z] = this->id;
     }
 }
@@ -58,9 +102,9 @@ void DLCA::random_walk()
     for (size_t i = 0; i < this->aggregates.size(); i++)
     {
         do {
-          dx = int_distro(rand_engine);
-          dy = int_distro(rand_engine);
-          dz = int_distro(rand_engine);
+            dx = int_distro(rand_engine);
+            dy = int_distro(rand_engine);
+            dz = int_distro(rand_engine);
         } while (dx == 0 && dy == 0 && dz == 0);
 
         if (aggregates[i].is_can_move_aggregate(dx, dy, dz))
@@ -143,8 +187,8 @@ bool DLCA::check_collision(size_t _i, size_t _j)
     for (size_t i = 0; i < a1_size; i++)
         for (size_t j = 0; j < a2_size; j++)
         {
-            const Coordinate &c1 = a1.aggr[i];
-            const Coordinate &c2 = a2.aggr[j];
+            const DLCA::Coordinate &c1 = a1.aggr[i];
+            const DLCA::Coordinate &c2 = a2.aggr[j];
 
             dist_ij = my_abs(c1.x - c2.x) +
                       my_abs(c1.y - c2.y) +
@@ -174,6 +218,10 @@ void DLCA::join_aggregates(size_t _i, size_t _j)
 
 void DLCA::Next_Iteration(std::function<void()> callback)
 {
+    this->Generate_Filling_With_Spatial_Hashing();
+    callback();
+    return;
+    /*
     if (this->aggregates.size() > 1)
     {
         grains.push_back({0,0,0});
@@ -207,4 +255,52 @@ void DLCA::Next_Iteration(std::function<void()> callback)
     {
         aggregates[i].map_to_voxels();
     }
+*/
+}
+
+
+void DLCA::Generate_Filling_With_Spatial_Hashing()
+{
+    HashGrid hashGrid(cubeSize / 10); // Example cell size: cubeSize divided by 10
+
+    // Populate the spatial hash grid with aggregates
+    for (size_t i = 0; i < aggregates.size(); ++i) {
+        hashGrid.insert(aggregates[i], i);
+    }
+
+    // Random walk for aggregates
+    this->random_walk();
+
+    // Check collisions using spatial hashing
+    std::vector<bool> joined(aggregates.size(), false);
+    for (size_t i = 0; i < aggregates.size(); ++i) {
+        if (joined[i]) continue;
+        for (const auto &neighborIndex : hashGrid.query(aggregates[i].aggr[0].x / hashGrid.cellSize,
+                                                        aggregates[i].aggr[0].y / hashGrid.cellSize,
+                                                        aggregates[i].aggr[0].z / hashGrid.cellSize)) {
+            if (i != neighborIndex && !joined[neighborIndex] && check_collision(i, neighborIndex)) {
+                join_aggregates(i, neighborIndex);
+                joined[neighborIndex] = true;
+            }
+        }
+    }
+
+    // Clean up empty aggregates
+    this->aggregates.erase(std::remove_if(this->aggregates.begin(), this->aggregates.end(),
+                                          [](const DLCA_Aggregate &a) { return a.aggr.empty(); }), this->aggregates.end());
+
+    // Clear and repopulate the voxel array
+    for (int i = 0; i < cubeSize; ++i)
+        for (int j = 0; j < cubeSize; ++j)
+            for (int k = 0; k < cubeSize; ++k)
+                voxels[i][j][k] = 0;
+
+    for (auto &aggregate : aggregates) {
+        aggregate.map_to_voxels();
+    }
+
+    if (aggregates.size() == 1)
+        grains.clear();
+
+    hashGrid.clear();
 }

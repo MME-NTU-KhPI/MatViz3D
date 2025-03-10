@@ -120,7 +120,7 @@ public:
     bool getAnimation() const { return flags.isAnimation; };
 
     /** @brief Checks if the algorithm is complete. */
-    bool getDone() { if (filled_voxels >= pow(numCubes,3)) { setDone(true); } else { setDone(false); } return flags.isDone; };
+    virtual bool getDone() { if (filled_voxels >= pow(numCubes,3)) { setDone(true); } else { setDone(false); } return flags.isDone; };
 
     /** @brief Class constructor. */
     Parent_Algorithm();
