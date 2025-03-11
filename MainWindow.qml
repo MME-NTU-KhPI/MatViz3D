@@ -1483,7 +1483,7 @@ Window {
         id: _itemToolBar
         y: 97
         x: mainWindow.width - (mainWindow.width / 2) - (_itemToolBar.width / 2)
-        width: 241
+        width: 284
         height: 26
 
         Row {
@@ -1533,6 +1533,30 @@ Window {
                     width: 26
                     height: 26
                     source: "qrc:/img/toolBar/saveIcon.svg"
+                    fillMode: Image.PreserveAspectFit
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+
+                        }
+                        cursorShape: Qt.PointingHandCursor
+                    }
+                }
+            }
+
+            Item {
+                id: _itemGif
+                width: parent.height + 17
+                height: parent.height
+
+                Image {
+                    id: imagegif
+                    x: 0
+                    y: 0
+                    width: 26
+                    height: 26
+                    source: "qrc:/img/toolBar/gifIcon.svg"
                     fillMode: Image.PreserveAspectFit
 
                     MouseArea {

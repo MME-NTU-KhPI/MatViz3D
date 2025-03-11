@@ -34,5 +34,6 @@
         <file>img/toolBar/zoom-inIcon.svg</file>
         <file>img/toolBar/zoom-outIcon.svg</file>
         <file>MaterialDatabaseView.qml</file>
+        <file>img/toolBar/gifIcon.svg</file>
     </qresource>
 </RCC>
