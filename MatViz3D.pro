@@ -89,6 +89,7 @@ HEADERS += \
     ansyswrapper.h \
     composite.h \
     console.h \
+    cpuinfo.hpp \
     export.h \
     dlca.h \
     hdf5wrapper.h \

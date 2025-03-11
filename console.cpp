@@ -1,4 +1,4 @@
-
+#include "cpuinfo.hpp"
 #include "console.h"
 #include "stressanalysis.h"
 #include "QDebug"
@@ -148,8 +148,12 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
     else
     {
         Parameters::num_threads = omp_get_max_threads();
+        int cores = CpuInfo::getPhysicalCores(); // try to get number of physical cores (not threads)
+        Parameters::num_threads = (cores > 0 ? cores : Parameters::num_threads);
+        qDebug() << "Physical CPU cores:" << Parameters::num_threads;
+
     }
-    qInfo() << "Number of threads:" << Parameters::num_threads;
+    qInfo() << "Number of threads (--np):" << Parameters::num_threads;
     if (parser.isSet("autostart"))
     {
         qInfo() << "autostart:" << true;
