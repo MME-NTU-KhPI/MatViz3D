@@ -9,8 +9,8 @@ Window {
     width: 1280
     height: 832
     color: "#363636"
-    minimumHeight: 832
-    minimumWidth: 1280
+    minimumHeight: 768
+    minimumWidth: 1024
     title: qsTr("MatViz3D")
 
     Material.theme: Material.Dark
@@ -440,7 +440,7 @@ Window {
         Item {
             id: _itemConsole
             width: mainWindow.width
-            height: 220
+            height: mainWindow.height < 780 ? "170" : "220"
             visible: true
 
             Rectangle {
@@ -503,8 +503,8 @@ Window {
         id: _itemData
         x: 30
         y: 97
-        width: 350
-        height: 455
+        width: mainWindow.width < 1250 ? "310" : "350"
+        height: mainWindow.height < 780 ? "440" : "455"
         visible: true
 
         Rectangle {
@@ -1282,7 +1282,7 @@ Window {
         id: _itemAnimationWidget
         x: parent.width - (_itemAnimationWidget.width + 30)
         y: 97
-        width: 350
+        width: mainWindow.width < 1250 ? "310" : "350"
         height: 275
 
         Rectangle {
@@ -1781,11 +1781,3 @@ Window {
         }
     }
 }
-
-
-
-/*##^##
-Designer {
-    D{i:0}D{i:111;invisible:true}
-}
-##^##*/
