@@ -2,7 +2,7 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Controls.Material 2.15
 
-
+import OpenGLUnderQML 1.0
 
 Window {
     id: mainWindow
@@ -427,6 +427,14 @@ Window {
             id: _item_GLWidget
             width: mainWindow.width
             height: mainWindow.height - menuBar_rec.height - (_itemConsole.visible ? _itemConsole.height : 0)
+
+            // width: 300
+            // height: 300
+
+            OpenGLWidgetQML {
+                width: _item_GLWidget.width
+                height: _item_GLWidget.height
+            }
         }
 
         Item {
@@ -1040,10 +1048,6 @@ Window {
                                 }
                                 anchors.horizontalCenter: parent.horizontalCenter
                             }
-
-
-
-
                         }
                     }
 
@@ -1266,6 +1270,8 @@ Window {
                             verticalAlignment: Text.AlignVCenter
                             anchors.centerIn: parent
                         }
+
+                        onClicked: mainWindowWrapper.showMessage()
                     }
                 }
             }
