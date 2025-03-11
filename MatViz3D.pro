@@ -53,7 +53,7 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
 HEADERS += \
-    dbmanager.h
+    dbmanager.h \
     algorithmfactory.h \
     ansyswrapper.h \
     composite.h \
