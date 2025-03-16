@@ -77,7 +77,6 @@ void Parent_Algorithm::CleanUp()
 
 void Parent_Algorithm::Initialization(bool isWaveGeneration)
 {
-    std::random_device rd;
     std::mt19937 generator(Parameters::seed);
     std::uniform_int_distribution<int> distribution(0, numCubes - 1);
     int currentPoints;
@@ -103,8 +102,7 @@ void Parent_Algorithm::Initialization(bool isWaveGeneration)
 
 std::vector<Parent_Algorithm::Coordinate> Parent_Algorithm::Add_New_Points(std::vector<Coordinate> grains, int numPoints)
 {
-    std::random_device rd;
-    std::mt19937 generator(rd());
+    std::mt19937 generator(Parameters::seed);
     std::uniform_int_distribution<int> distribution(0, numCubes - 1);
 
     Coordinate a;
