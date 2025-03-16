@@ -119,8 +119,7 @@ void Probability_Algorithm::rotatePoint(double& x, double& y, double& z)
 void Probability_Algorithm::processValues()
 {
     const uint64_t N = 1000000;
-    std::random_device rd;
-    std::mt19937 gen(rd());
+    std::mt19937 gen(Parameters::seed);
     std::uniform_real_distribution<double> dis(0, 3);
 
     uint64_t fileld_in[3][3][3] = {{{0}}};
@@ -261,7 +260,7 @@ void Probability_Algorithm::Next_Iteration(std::function<void()> callback)
             std::vector<Coordinate> privateGrains;
             privateGrains.reserve(current_size * 26 / omp_get_max_threads());
 
-            std::mt19937 local_gen(std::random_device{}());
+            std::mt19937 local_gen(Parameters::seed);
             std::uniform_real_distribution<> local_dis(0.0, 1.0);
 
             #pragma omp for schedule(guided) nowait
