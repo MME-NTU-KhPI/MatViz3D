@@ -10,11 +10,11 @@
 #ifndef ANSYSWRAPPER_CPP_INCLUDED
 #define ANSYSWRAPPER_CPP_INCLUDED
 
-#define ANS_HI_VER 250	// ANSYS 25.0
+#define ANS_HI_VER 300	// ANSYS 30.0
 #define ANS_LOW_VER 50	// ANSYS 5.0
 #define BUFLEN 255
 
-#define ANSLIC "ane3fl"
+#define ANSLIC "ansys"
 
 #define INPUTFILE "input.dat"
 #define OUTPUTFILE "output.dat"
@@ -45,7 +45,7 @@ ansysWrapper::ansysWrapper(bool isBatch)
 
 void ansysWrapper::setWorkingDirectory(QString path)
 {
-    //tempDir = QTemporaryDir(path);
+    tempDir = QTemporaryDir(path);
     m_projectPath = tempDir.path();
     m_projectPath = QDir::toNativeSeparators(m_projectPath);
     qDebug() << "Woring directory is set to: " << m_projectPath;
@@ -609,17 +609,21 @@ void ansysWrapper::findPathVersion()
     }
     if (m_ansVersion == -1)
     {
-        qDebug() << "Ansys not found";
+        qCritical() << "Ansys not found";
+        std::terminate();
         return;
     }
     assert(m_ansVersion != -1);
-    env += "\\bin\\";
+    env += QString(QDir::separator()) + "bin" + QString(QDir::separator());
     m_pathToAns = env;
 
     env = qEnvironmentVariable("ANSYS_SYSDIR");
 
     m_pathToAns += env;
-    m_pathToAns += "\\ansys" + QString::number(m_ansVersion) + ".exe";
+    m_pathToAns += QString(QDir::separator()) + "ansys" + QString::number(m_ansVersion);
+    #if (defined (_WIN32) || defined (_WIN64))
+        m_pathToAns += ".exe";
+    #endif
 }
 
 int ansysWrapper::kp(double x, double y)
@@ -632,7 +636,7 @@ int ansysWrapper::spline(std::vector<int> kps, int left_boundary, int right_boun
 {
     if (kps.size() < 2) return -1;
 
-    m_apdl += QString::asprintf("FLST,3,%lld,3\n", kps.size());
+    m_apdl += QString::asprintf("FLST,3,%zu,3\n", kps.size());
 
     for (size_t i = 0; i < kps.size(); i++)
     {
@@ -1242,7 +1246,7 @@ NSEL,S,S,EQV,,, ,0 !- Select nodes with results
 !
 !WRITING TO A FILE: !set the file name as desired.  includes the time step in the file name as a variable
 
-*cfopen,ls_%current_time%,CSV
+*cfopen,ls_%current_time%,csv
 
 *vwrite,'ID','X','Y','Z','UX','UY','UZ','SX','SY','SZ','SXY','SYZ','SXZ','EpsX','EpsY','EpsZ','EpsXY','EpsYZ','EpsXZ'
 %C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C
