@@ -11,16 +11,26 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 CONFIG += c++17 console
 
-unix: LIBS += -L"/usr/lib/x86_64-linux-gnu" -lhdf5_serial
-win32:LIBS += -lhdf5
+unix {
+    HDF5_INCLUDEPATH = "/usr/include/hdf5/serial"
+    HDF5_LIBPATH = "/usr/lib/x86_64-linux-gnu"
+    LIBS += -L$${HDF5_LIBPATH} -lhdf5
+}
 
-
-#INCLUDEPATH += $$PWD/libs/hdf5_1.14.3/include
-#DEPENDPATH += $$PWD/libs/hdf5_1.14.3/include
-
-unix:INCLUDEPATH += /usr/include/hdf5/serial
-#unix:DEPENDPATH += /usr/lib/x86_64-linux-gnu
-
+win32 {
+    HDF5_ROOT = "C:\Program Files\HDF_Group\HDF5"
+    message(HDF5_ROOT = $$HDF5_ROOT)
+    HCMD = dir /B /AD \"$$HDF5_ROOT\" | findstr \"^[0-9]\"
+    message(HCMD = $$HCMD)
+    HDF5_VERSION = $$system($$HCMD)
+    message(HDF5_VERSION = $$HDF5_VERSION)
+    HDF5_LIBPATH = "$$HDF5_ROOT/$$HDF5_VERSION/lib"
+    message(HDF5_LIBPATH = $$HDF5_LIBPATH)
+    HDF5_INCLUDEPATH = "$$HDF5_ROOT/$$HDF5_VERSION/include"
+    message(HDF5_INCLUDEPATH = $$HDF5_INCLUDEPATH)
+    INCLUDEPATH += $$HDF5_INCLUDEPATH
+    LIBS += -L$$HDF5_LIBPATH -lhdf5
+}
 
 include(3rdparty/qtgifimage/src/gifimage/qtgifimage.pri)
 
