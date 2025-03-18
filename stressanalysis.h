@@ -2,7 +2,7 @@
 #define STRESSANALYSIS_H
 
 #include <cstdint>
-#include <ansysWrapper.h>
+#include "ansyswrapper.h"
 
 class StressAnalysis
 {

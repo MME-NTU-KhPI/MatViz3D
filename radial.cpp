@@ -1,8 +1,7 @@
 #include "radial.h"
-#include <windows.h>
 #include <ctime>
 #include <cmath>
-#include "QDebug"
+#include <QDebug>
 #include <omp.h>
 
 Radial::Radial()

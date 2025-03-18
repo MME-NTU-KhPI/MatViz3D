@@ -1,11 +1,8 @@
-#include <iostream>
-#include <windows.h>
+#include <QDebug>
 #include <ctime>
-#include <list>
 #include <cmath>
 #include <cstdint>
 #include "probability_circle.h"
-#include <myglwidget.h>
 #include "parent_algorithm.h"
 
 

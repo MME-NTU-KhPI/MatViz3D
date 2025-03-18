@@ -7,7 +7,7 @@
 #include <QtOpenGLWidgets/QOpenGLWidget>
 #include <QMatrix4x4>
 #include <QOpenGLFunctions>
-#include "ansysWrapper.h"
+#include "ansyswrapper.h"
 
 /**
  * @class MyGLWidget

@@ -5,7 +5,6 @@
 #include <QProcessEnvironment>
 #include <QCoreApplication>
 #include <QDir>
-#include <crtdbg.h>
 
 #include <iostream>
 

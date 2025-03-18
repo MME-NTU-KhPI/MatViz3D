@@ -1,5 +1,5 @@
 #include "stressanalysis.h"
-#include "ansysWrapper.h"
+#include "ansyswrapper.h"
 #include "hdf5wrapper.h"
 #include "parameters.h"
 #include <random>

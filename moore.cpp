@@ -1,7 +1,6 @@
-#include <windows.h>
 #include <ctime>
 #include <cmath>
-#include <myglwidget.h>
+#include "myglwidget.h"
 #include "parent_algorithm.h"
 #include "moore.h"
 

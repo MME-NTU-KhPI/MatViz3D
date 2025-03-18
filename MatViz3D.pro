@@ -1,57 +1,28 @@
-QT       += core gui opengl printsupport
-QT       += core gui charts
+QT       += core gui opengl printsupport openglwidgets charts
 
-LIBS += -lopengl32
+unix: LIBS += -lGL
+win32: LIBS += -lopengl32
 
 QMAKE_CXXFLAGS += -fopenmp
 LIBS += -fopenmp
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
-QT += openglwidgets
+
 
 CONFIG += c++17 console
 
-LIBS += -L$$PWD/libs/hdf5_1.14.3/lib/
-
-LIBS        += -lhdf5
-#LIBS        += -lhdf5_cpp
-#LIBS        += -lhdf5_hl
-#LIBS        += -lhdf5_hl_cpp
-#LIBS        += -lhdf5_tools
-#LIBS        += -lzlib
-
-#LIBS        += -llibhdf5
-#LIBS        += -llibhdf5_cpp
-#LIBS        += -llibhdf5_hl
-#LIBS        += -llibhdf5_hl_cpp
-#LIBS        += -llibhdf5_tools
-#LIBS        += -llibzlib
-
-#-lhdf5_cpp -lhdf5_hl_cpp -lhdf5 -lhdf5_hl
-
-INCLUDEPATH += $$PWD/libs/hdf5_1.14.3/include
-DEPENDPATH += $$PWD/libs/hdf5_1.14.3/include
+unix: LIBS += -L"/usr/lib/x86_64-linux-gnu" -lhdf5_serial
+win32:LIBS += -lhdf5
 
 
-#-lszaec -laec -lzlib -lhdf5 -lhdf5_cpp   #for static linking
-# -lhdf5 -lhdf5_cpp                       #for dynamic linking
+#INCLUDEPATH += $$PWD/libs/hdf5_1.14.3/include
+#DEPENDPATH += $$PWD/libs/hdf5_1.14.3/include
 
+unix:INCLUDEPATH += /usr/include/hdf5/serial
+#unix:DEPENDPATH += /usr/lib/x86_64-linux-gnu
 
 
 include(3rdparty/qtgifimage/src/gifimage/qtgifimage.pri)
-
-# Підключення HDF5 бібліотек (відносно кореня проекту)
-LIBS += -L$$PWD/libs/hdf5-1.14.4-2-win-vs2022_cl/hdf5/HDF5-1.14.4-win64/lib/
-
-# Підключення конкретних HDF5 бібліотек
-LIBS += -lhdf5 -lhdf5_cpp -lhdf5_hl -lhdf5_hl_cpp
-
-# Шляхи до заголовків HDF5
-INCLUDEPATH += $$PWD/libs/hdf5-1.14.4-2-win-vs2022_cl/hdf5/HDF5-1.14.4-win64/include/
-
-# Шляхи для пошуку заголовочних файлів
-DEPENDPATH += $$PWD/libs/hdf5-1.14.4-2-win-vs2022_cl/hdf5/HDF5-1.14.4-win64/include/
-
 
 
 # You can make your code fail to compile if it uses deprecated APIs.
