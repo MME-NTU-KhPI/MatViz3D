@@ -1,8 +1,10 @@
 QT       += core gui opengl printsupport openglwidgets charts
 
+#include opengl libs
 unix: LIBS += -lGL
 win32: LIBS += -lopengl32
 
+#enable openmp
 QMAKE_CXXFLAGS += -fopenmp
 LIBS += -fopenmp
 
@@ -11,10 +13,11 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 CONFIG += c++17 console
 
+# define include paths for hdf5 library
 unix {
     HDF5_INCLUDEPATH = "/usr/include/hdf5/serial"
     HDF5_LIBPATH = "/usr/lib/x86_64-linux-gnu"
-    LIBS += -L$${HDF5_LIBPATH} -lhdf5
+    LIBS += -L$${HDF5_LIBPATH} -lhdf5_serial
 }
 
 win32 {
