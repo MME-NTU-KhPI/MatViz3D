@@ -703,9 +703,25 @@ void MainWindow::stopGifRecording()
     }
 }
 
+QImage makeWhiteBackground(const QImage &src, const QColor &bgColor) {
+    QImage img = src.convertToFormat(QImage::Format_ARGB32);
+
+    for (int y = 0; y < img.height(); ++y) {
+        for (int x = 0; x < img.width(); ++x) {
+            QColor color = QColor::fromRgba(img.pixel(x, y));
+            if ((color.rgb() & 0x00FFFFFF) == (bgColor.rgb() & 0x00FFFFFF)) {
+                img.setPixel(x, y, qRgb(255, 255, 255));
+            }
+        }
+    }
+    QImage indexed = img.convertToFormat(QImage::Format_Indexed8, static_cast<Qt::ImageConversionFlags>(0));
+    return indexed;
+}
+
 void MainWindow::captureFrame()
 {
-    if (!isRecording || !gif) return;
+    if (!isRecording || !gif)
+        return;
 
     QImage frame = ui->myGLWidget->grabFramebuffer();
     if (frame.isNull()) {
@@ -713,7 +729,12 @@ void MainWindow::captureFrame()
         return;
     }
 
-    gif->addFrame(frame);
+    frame = frame.convertToFormat(QImage::Format_ARGB32);
+    QColor bgColor = frame.pixelColor(0, 0);
+
+    QImage whiteFrame = makeWhiteBackground(frame, bgColor);
+
+    gif->addFrame(whiteFrame);
     qDebug() << "Frame added! Total frames:" << gif->frameCount();
 }
 
