@@ -6,8 +6,8 @@ import OpenGLUnderQML 1.0
 
 Window {
     id: mainWindow
-    width: 1280
-    height: 832
+    width: 1024
+    height: 768
     color: "#363636"
     minimumHeight: 768
     minimumWidth: 1024
@@ -886,54 +886,108 @@ Window {
                                 id: _item23
                                 width: 224
                                 height: 85
-                                Column {
-                                    id: column9
+                                Row {
+                                    id: comp_row_material
+                                    anchors.fill: parent
+                                    spacing: 7
                                     x: 0
                                     y: 106
-                                    anchors.fill: parent
-                                    topPadding: 20
-                                    spacing: 10
-                                    Text {
-                                        id: _text5
-                                        width: 224
-                                        height: 24
-                                        color: "#c6c6c6"
-                                        text: qsTr("Material:")
-                                        font.pixelSize: 20
-                                        font.styleName: "Bold"
-                                        font.family: inter.name
-                                    }
+                                    Column {
+                                        id: column9
+                                        width: (comp_row_material.width / 2)
+                                        height: 85
+                                        topPadding: 20
+                                        spacing: 10
+                                        Text {
+                                            id: _text5
+                                            width: (comp_row_material.width / 2)
+                                            height: 24
+                                            color: "#c6c6c6"
+                                            text: qsTr("Material 1:")
+                                            font.pixelSize: 20
+                                            font.styleName: "Bold"
+                                            font.family: inter.name
+                                        }
 
-                                    ComboBox {
-                                        id: comboBox3
-                                        width: 224
-                                        height: 28
-                                        onAccepted: {
-                                            if (find(editText) === -1)
-                                                model3.append({text: editText})
-                                        }
-                                        model: ListModel {
-                                            id: model3
-                                            ListElement {
-                                                text: "fcc"
+                                        ComboBox {
+                                            id: comboBox3
+                                            width: (comp_row_material.width / 2)
+                                            height: 28
+                                            onAccepted: {
+                                                if (find(editText) === -1)
+                                                    model3.append({text: editText})
                                             }
+                                            model: ListModel {
+                                                id: model3
+                                                ListElement {
+                                                    text: "fcc"
+                                                }
 
-                                            ListElement {
-                                                text: "bcc"
+                                                ListElement {
+                                                    text: "bcc"
+                                                }
+                                            }
+                                            leftPadding: 10
+                                            font.pointSize: 10
+                                            font.family: montserrat.name
+                                            editable: true
+                                            displayText: "---"
+                                            background: Rectangle {
+                                                color: "#282828"
+                                                radius: 11
+                                                border.color: "#969696"
                                             }
                                         }
-                                        leftPadding: 10
-                                        font.pointSize: 10
-                                        font.family: montserrat.name
-                                        editable: true
-                                        displayText: "---"
-                                        background: Rectangle {
-                                            color: "#282828"
-                                            radius: 11
-                                            border.color: "#969696"
-                                        }
+                                        anchors.verticalCenter : _item23.verticalCenter
                                     }
-                                    anchors.centerIn: parent
+                                    Column {
+                                        id: column9_2
+                                        width: (comp_row_material.width / 2)
+                                        height: 85
+                                        topPadding: 20
+                                        spacing: 10
+                                        Text {
+                                            id: _text5_2
+                                            width: (comp_row_material.width / 2)
+                                            height: 24
+                                            color: "#c6c6c6"
+                                            text: qsTr("Material 2:")
+                                            font.pixelSize: 20
+                                            font.styleName: "Bold"
+                                            font.family: inter.name
+                                        }
+
+                                        ComboBox {
+                                            id: comboBox3_2
+                                            width: (comp_row_material.width / 2)
+                                            height: 28
+                                            onAccepted: {
+                                                if (find(editText) === -1)
+                                                    model3.append({text: editText})
+                                            }
+                                            model: ListModel {
+                                                id: model3_2
+                                                ListElement {
+                                                    text: "fcc"
+                                                }
+
+                                                ListElement {
+                                                    text: "bcc"
+                                                }
+                                            }
+                                            leftPadding: 10
+                                            font.pointSize: 10
+                                            font.family: montserrat.name
+                                            editable: true
+                                            displayText: "---"
+                                            background: Rectangle {
+                                                color: "#282828"
+                                                radius: 11
+                                                border.color: "#969696"
+                                            }
+                                        }
+                                        anchors.verticalCenter : _item23.verticalCenter
+                                    }
                                 }
                                 anchors.horizontalCenter: parent.horizontalCenter
                             }
