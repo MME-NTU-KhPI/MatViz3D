@@ -61,7 +61,7 @@ MainWindow::MainWindow(QWidget *parent)
         {
             double concentrationPercentage = ui->Rectangle9->text().toDouble(&ok);
             if (ok) {
-                Parameters::points = static_cast<int>(concentrationPercentage / 100.0 * std::pow(static_cast<double>(Parameters::size), 3));
+                Parameters::points = static_cast<int>(concentrationPercentage * Parameters::size * Parameters::size * Parameters::size / 100.0);
                 ui->myGLWidget->setNumColors(Parameters::points);
             }
             qDebug() << "Calculated Points:" << Parameters::points;
@@ -122,12 +122,25 @@ void MainWindow::onProbabilityAlgorithmChanged(const QString &text)
 
 void MainWindow::onInitialConditionSelectionChanged()
 {
+    bool ok;
     if (ui->numOfPointsRadioButton->isChecked()) {
         ui->concentrationRadioButton->setChecked(false);
-        qDebug() << "Number of points is checked";
+        Parameters::points = ui->Rectangle9->text().toInt(&ok);
+        if (ok) {
+            ui->myGLWidget->setNumColors(Parameters::points);
+        }
+        qDebug() << "Number of points is checked. Number of points = " << Parameters::points;
+
+
     } else if (ui->concentrationRadioButton->isChecked()) {
+        double concentrationPercentage = ui->Rectangle9->text().toDouble(&ok);
+        if (ok)
+        {
+            Parameters::points = static_cast<int>(concentrationPercentage * Parameters::size * Parameters::size * Parameters::size / 100.0);
+            ui->myGLWidget->setNumColors(Parameters::points);
+        }
         ui->numOfPointsRadioButton->setChecked(false);
-        qDebug() << "Concentration is checked";
+        qDebug() << "Concentration is checked. Number of points = " << Parameters::points;
     }
 }
 

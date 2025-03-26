@@ -95,9 +95,9 @@ private:
     QCheckBox *consoleCheckBox;
     QCheckBox *animationCheckBox;
     bool startButtonPressed;
-    LegendView* scene;
-    QGifImage *gif;
-    bool isRecording;
+    LegendView* scene = nullptr;
+    QGifImage *gif = nullptr;
+    bool isRecording = false;
 };
 
 #endif // MAINWINDOW_H

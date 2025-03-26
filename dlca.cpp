@@ -84,13 +84,6 @@ bool DLCA_Aggregate::is_can_move_aggregate(int dx, int dy, int dz)
 
 void DLCA_Aggregate::map_to_voxels()
 {
-    // Clear and repopulate the voxel array
-    #pragma omp parallel for collapse(3)
-    for (int i = 0; i < cubeSize; ++i)
-        for (int j = 0; j < cubeSize; ++j)
-            for (int k = 0; k < cubeSize; ++k)
-                voxels[i][j][k] = 0;
-
     for (size_t i = 0; i < aggr.size(); i++)
     {
         DLCA::Coordinate c = aggr[i];
@@ -187,7 +180,7 @@ bool DLCA::check_collision(size_t _i, size_t _j)
     auto &a1 = this->aggregates[_i];
     auto &a2 = this->aggregates[_j];
 
-    int dist = cubeSize;
+//    int dist = cubeSize;
     int dist_ij = 0;
     const size_t a1_size = a1.aggr.size();
     const size_t a2_size = a2.aggr.size();
@@ -202,9 +195,10 @@ bool DLCA::check_collision(size_t _i, size_t _j)
                       my_abs(c1.y - c2.y) +
                       my_abs(c1.z - c2.z);
 
-            dist = min(dist, dist_ij);
+            if (dist_ij == 1)
+                return true;
         }
-    return dist == 1;
+    return false;
 }
 
 void DLCA::join_aggregates(size_t _i, size_t _j)
@@ -226,20 +220,16 @@ void DLCA::join_aggregates(size_t _i, size_t _j)
 
 void DLCA::Next_Iteration(std::function<void()> callback)
 {
-    this->Generate_Filling_With_Spatial_Hashing();
-    if (flags.isAnimation)
-    {
-        callback();
-    }
-    return;
-    /*
+//    this->Generate_Filling_With_Spatial_Hashing();
+
+
     if (this->aggregates.size() > 1)
     {
-        grains.push_back({0,0,0});
+        //grains.push_back({0,0,0});
         // qDebug() << this->aggregates.size();
-        if (this->aggregates.size() < 5)
-            for (size_t i = 0; i < this->aggregates.size(); i++)
-                qDebug() << i << this->aggregates[i].id << this->aggregates[i].aggr.size();
+        //if (this->aggregates.size() <= 5)
+        //    for (size_t i = 0; i < this->aggregates.size(); i++)
+        //        qDebug() << i << this->aggregates[i].id << this->aggregates[i].aggr.size();
     }
     this->random_walk();
 
@@ -249,7 +239,7 @@ void DLCA::Next_Iteration(std::function<void()> callback)
             bool status = check_collision(i, j);
             if (status == true)
             {
-                qDebug() << "Collision detected" << i << j;
+                //qDebug() << "Collision detected" << i << j;
                 join_aggregates(i, j);
             }
         }
@@ -257,16 +247,23 @@ void DLCA::Next_Iteration(std::function<void()> callback)
                                           [](const DLCA_Aggregate a)
                                           { return a.aggr.size()==0; }), this->aggregates.end());
 
-    for (int i = 0; i < cubeSize; i++)
-        for (int j = 0; j < cubeSize; j++)
-            for (int k = 0; k < cubeSize; k++)
+    // Clear and repopulate the voxel array
+    #pragma omp parallel for collapse(3)
+    for (int i = 0; i < cubeSize; ++i)
+        for (int j = 0; j < cubeSize; ++j)
+            for (int k = 0; k < cubeSize; ++k)
                 voxels[i][j][k] = 0;
 
     for (size_t i = 0; i < this->aggregates.size(); i++)
     {
-        aggregates[i].map_to_voxels();
+        this->aggregates[i].map_to_voxels();
     }
-*/
+
+    if (flags.isAnimation)
+    {
+        callback();
+    }
+
 }
 
 
@@ -289,7 +286,7 @@ void DLCA::Generate_Filling_With_Spatial_Hashing()
         for (const auto &neighborIndex : hashGrid.query(aggregates[i].aggr[0].x,
                                                         aggregates[i].aggr[0].y,
                                                         aggregates[i].aggr[0].z)) {
-            if (i != neighborIndex && !joined[neighborIndex] && check_collision(i, neighborIndex)) {
+            if (i != neighborIndex && !joined[neighborIndex]) {
                 join_aggregates(i, neighborIndex);
                 joined[neighborIndex] = true;
             }
