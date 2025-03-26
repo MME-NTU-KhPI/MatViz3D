@@ -66,7 +66,7 @@ MainWindow::MainWindow(QWidget *parent)
             }
             qDebug() << "Calculated Points:" << Parameters::points;
         }
-
+        onInitialConditionSelectionChanged();
     });
 
     connect (ui->AlgorithmsBox, &QComboBox::currentIndexChanged, [this]() {
@@ -118,6 +118,7 @@ void MainWindow::onProbabilityAlgorithmChanged(const QString &text)
         probability_algorithm = new Probability_Algorithm();
         probability_algorithm->show();
     }
+    onInitialConditionSelectionChanged();
 }
 
 void MainWindow::onInitialConditionSelectionChanged()
@@ -137,6 +138,13 @@ void MainWindow::onInitialConditionSelectionChanged()
         if (ok)
         {
             Parameters::points = static_cast<int>(concentrationPercentage * Parameters::size * Parameters::size * Parameters::size / 100.0);
+            if (ui->AlgorithmsBox->currentText() == "Composite")
+            {
+                double radius = round(sqrt(concentrationPercentage * Parameters::size * Parameters::size / M_PI / 100.0)); // sqrt(psi * a ^2 / pi)
+
+                Parameters::points = static_cast<int>(radius);
+                qDebug() << "Fiber radius = " << Parameters::points;
+            }
             ui->myGLWidget->setNumColors(Parameters::points);
         }
         ui->numOfPointsRadioButton->setChecked(false);
