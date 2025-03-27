@@ -137,13 +137,13 @@ void RenderOpenGL::debugCallback(GLenum source, GLenum type, GLuint id, GLenum s
     }
 
     // Log the debug message using QDebug
-    qDebug().noquote()
-        << "OpenGL Debug Message:"
-        << "\n    Source: " << sourceStr
-        << "\n    Type: " << typeStr
-        << "\n    ID: " << id
-        << "\n    Severity: " << severityStr
-        << "\n    Message: " << message;
+    // qDebug().noquote()
+    //     << "OpenGL Debug Message:"
+    //     << "\n    Source: " << sourceStr
+    //     << "\n    Type: " << typeStr
+    //     << "\n    ID: " << id
+    //     << "\n    Severity: " << severityStr
+    //     << "\n    Message: " << message;
 }
 
 void RenderOpenGL::initializeGL()

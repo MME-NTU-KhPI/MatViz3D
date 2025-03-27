@@ -3,7 +3,7 @@
 #include <QtQuickControls2>
 #include <QIcon>
 #include "dbmanager.h"
-
+#include "parameters.h"
 #include "mainwindowwrapper.h"
 #include "materialdatabaseviewwrapper.h"
 #include "probabilityalgorithmviewwrapper.h"
@@ -24,6 +24,8 @@ int main(int argc, char *argv[])
     QQuickStyle::setStyle("Material");
 
     QQmlApplicationEngine engine;
+
+    qmlRegisterSingletonInstance<Parameters>("parameters", 1, 0, "Parameters", Parameters::instance());
 
     DBManager dbManager;
     engine.rootContext()->setContextProperty("dbManager", &dbManager);

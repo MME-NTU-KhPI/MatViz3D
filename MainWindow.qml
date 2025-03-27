@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Controls.Material 2.15
+import parameters 1.0
 
 import OpenGLUnderQML 1.0
 
@@ -751,6 +752,11 @@ Window {
                                             leftPadding: 10
                                             horizontalAlignment: Text.AlignLeft
                                             padding: 3.5
+
+                                            onTextChanged: {
+                                                console.log("Change: ", text);
+                                                Parameters.setSize(parseInt(text, 10));
+                                            }
                                         }
                                     }
                                 }
@@ -813,6 +819,11 @@ Window {
                                             bottomPadding: 1
                                             topPadding: 1
                                             horizontalAlignment: Text.AlignLeft
+
+                                            onTextChanged: {
+                                                console.log("Change: ", text);
+                                                Parameters.setPoints(parseInt(text, 10));
+                                            }
                                         }
                                     }
 
@@ -1325,7 +1336,7 @@ Window {
                             anchors.centerIn: parent
                         }
 
-                        onClicked: mainWindowWrapper.showMessage()
+                        onClicked: mainWindowWrapper.startButton()
                     }
                 }
             }
@@ -1720,7 +1731,6 @@ Window {
                     width: 70
 
                     MenuItem {
-                        onTriggered: console.log("Isometric View selected")
                         contentItem: Item {
                             width: 26
                             height: 26
@@ -1731,10 +1741,10 @@ Window {
                                 fillMode: Image.PreserveAspectFit
                             }
                         }
+                        onClicked: mainWindowWrapper.isometricViewButton()
                     }
 
                     MenuItem {
-                        onTriggered: console.log("Dimetric View selected")
                         contentItem: Item {
                             width: 26
                             height: 26
@@ -1745,10 +1755,10 @@ Window {
                                 fillMode: Image.PreserveAspectFit
                             }
                         }
+                        onClicked: mainWindowWrapper.dimetricViewButton()
                     }
 
                     MenuItem {
-                        onTriggered: console.log("Front View selected")
                         contentItem: Item {
                             width: 26
                             height: 26
@@ -1759,10 +1769,10 @@ Window {
                                 fillMode: Image.PreserveAspectFit
                             }
                         }
+                        onClicked: mainWindowWrapper.frontViewButton()
                     }
 
                     MenuItem {
-                        onTriggered: console.log("Back View selected")
                         contentItem: Item {
                             width: 26
                             height: 26
@@ -1773,10 +1783,10 @@ Window {
                                 fillMode: Image.PreserveAspectFit
                             }
                         }
+                        onClicked: mainWindowWrapper.backViewButton()
                     }
 
                     MenuItem {
-                        onTriggered: console.log("Top View selected")
                         contentItem: Item {
                             width: 26
                             height: 26
@@ -1787,10 +1797,10 @@ Window {
                                 fillMode: Image.PreserveAspectFit
                             }
                         }
+                        onClicked: mainWindowWrapper.topViewButton()
                     }
 
                     MenuItem {
-                        onTriggered: console.log("Bottom View selected")
                         contentItem: Item {
                             width: 26
                             height: 26
@@ -1801,10 +1811,10 @@ Window {
                                 fillMode: Image.PreserveAspectFit
                             }
                         }
+                        onClicked: mainWindowWrapper.bottomViewButton()
                     }
 
                     MenuItem {
-                        onTriggered: console.log("Left View selected")
                         contentItem: Item {
                             width: 26
                             height: 26
@@ -1815,10 +1825,10 @@ Window {
                                 fillMode: Image.PreserveAspectFit
                             }
                         }
+                        onClicked: mainWindowWrapper.leftViewButton()
                     }
 
                     MenuItem {
-                        onTriggered: console.log("Right View selected")
                         contentItem: Item {
                             width: 26
                             height: 26
@@ -1829,6 +1839,7 @@ Window {
                                 fillMode: Image.PreserveAspectFit
                             }
                         }
+                        onClicked: mainWindowWrapper.rightViewButton()
                     }
                 }
             }

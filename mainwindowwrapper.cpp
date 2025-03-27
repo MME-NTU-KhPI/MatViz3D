@@ -1,10 +1,11 @@
 #include "mainwindowwrapper.h"
+#include "parameters.h"
 #include "openglwidgetqml.h"
 #include <QDebug>
 
 MainWindowWrapper::MainWindowWrapper(QObject *parent) : QObject(parent) {}
 
-void MainWindowWrapper::showMessage()
+void MainWindowWrapper::startButton()
 {
     const int depth = 3, rows = 3, cols = 3;
 
@@ -29,11 +30,92 @@ void MainWindowWrapper::showMessage()
         }
     }
 
+    // Get Parameters instance
+    Parameters* params = Parameters::instance();
+
+    // Use getters to get the values
+    int size = params->getSize();
+    int points = params->getPoints();
+
+    qDebug() << "size " << size << " points " << points;
+
     OpenGLWidgetQML *ogl = OpenGLWidgetQML::getInstance();
     if (ogl)
     {
         ogl->setNumColors(4);
         ogl->setVoxels(array, 3);
         ogl->setIsometricView();
+    }
+}
+
+void MainWindowWrapper::isometricViewButton()
+{
+    OpenGLWidgetQML *ogl = OpenGLWidgetQML::getInstance();
+    if (ogl)
+    {
+        ogl->setIsometricView();
+    }
+}
+
+void MainWindowWrapper::dimetricViewButton()
+{
+    OpenGLWidgetQML *ogl = OpenGLWidgetQML::getInstance();
+    if (ogl)
+    {
+        ogl->setDimetricView();
+    }
+}
+
+void MainWindowWrapper::frontViewButton()
+{
+    OpenGLWidgetQML *ogl = OpenGLWidgetQML::getInstance();
+    if (ogl)
+    {
+        ogl->setFrontView();
+    }
+}
+
+void MainWindowWrapper::backViewButton()
+{
+    OpenGLWidgetQML *ogl = OpenGLWidgetQML::getInstance();
+    if (ogl)
+    {
+        ogl->setBackView();
+    }
+}
+
+void MainWindowWrapper::topViewButton()
+{
+    OpenGLWidgetQML *ogl = OpenGLWidgetQML::getInstance();
+    if (ogl)
+    {
+        ogl->setTopView();
+    }
+}
+
+void MainWindowWrapper::bottomViewButton()
+{
+    OpenGLWidgetQML *ogl = OpenGLWidgetQML::getInstance();
+    if (ogl)
+    {
+        ogl->setBottomView();
+    }
+}
+
+void MainWindowWrapper::leftViewButton()
+{
+    OpenGLWidgetQML *ogl = OpenGLWidgetQML::getInstance();
+    if (ogl)
+    {
+        ogl->setLeftView();
+    }
+}
+
+void MainWindowWrapper::rightViewButton()
+{
+    OpenGLWidgetQML *ogl = OpenGLWidgetQML::getInstance();
+    if (ogl)
+    {
+        ogl->setRightView();
     }
 }

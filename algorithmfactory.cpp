@@ -1,4 +1,5 @@
 #include "algorithmfactory.h"
+#include "parameters.h"
 #include "neumann.h"
 #include "moore.h"
 #include "radial.h"
@@ -10,13 +11,14 @@
 
 void registerAlgorithms() {
     auto& factory = AlgorithmFactory::instance();
+    Parameters& params = *Parameters::instance();
 
     factory.registerAlgorithm("Neumann", [](const Parameters&) {
         return std::make_shared<Neumann>(Parameters::size, Parameters::points);
     });
 
-    factory.registerAlgorithm("Moore", [](const Parameters&) {
-        return std::make_shared<Moore>(Parameters::size, Parameters::points);
+    factory.registerAlgorithm("Moore", [&params](const Parameters&) {
+        return std::make_shared<Moore>(params.getSize(), params.getPoints());
     });
 
     factory.registerAlgorithm("Radial", [](const Parameters&) {
