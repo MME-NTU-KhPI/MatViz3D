@@ -33,17 +33,17 @@ void MainWindowWrapper::startButton()
     // Get Parameters instance
     Parameters* params = Parameters::instance();
 
-    // Use getters to get the values
-    int size = params->getSize();
-    int points = params->getPoints();
-
-    qDebug() << "size " << size << " points " << points;
+    qDebug() << "size " << params->getSize() << " points " << params->getPoints() << " Algorithm " << params->getAlgorithm();
 
     OpenGLWidgetQML *ogl = OpenGLWidgetQML::getInstance();
     if (ogl)
     {
-        ogl->setNumColors(4);
-        ogl->setVoxels(array, 3);
+        // ogl->setNumColors(4);
+        // ogl->setVoxels(array, 3);
+
+        ogl->setNumColors(params->getPoints());
+        ogl->setVoxels(array, params->getSize());
+
         ogl->setIsometricView();
     }
 }

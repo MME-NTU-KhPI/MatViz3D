@@ -13,36 +13,36 @@ void registerAlgorithms() {
     auto& factory = AlgorithmFactory::instance();
     Parameters& params = *Parameters::instance();
 
-    factory.registerAlgorithm("Neumann", [](const Parameters&) {
-        return std::make_shared<Neumann>(Parameters::size, Parameters::points);
+    factory.registerAlgorithm("Neumann", [&params](const Parameters&) {
+        return std::make_shared<Neumann>(params.getSize(), params.getPoints());
     });
 
     factory.registerAlgorithm("Moore", [&params](const Parameters&) {
         return std::make_shared<Moore>(params.getSize(), params.getPoints());
     });
 
-    factory.registerAlgorithm("Radial", [](const Parameters&) {
-        return std::make_shared<Radial>(Parameters::size, Parameters::points);
+    factory.registerAlgorithm("Radial", [&params](const Parameters&) {
+        return std::make_shared<Radial>(params.getSize(), params.getPoints());
     });
 
-    factory.registerAlgorithm("Composite", [](const Parameters&) {
-        return std::make_shared<Composite>(Parameters::size, Parameters::points);
+    factory.registerAlgorithm("Composite", [&params](const Parameters&) {
+        return std::make_shared<Composite>(params.getSize(), params.getPoints());
     });
 
-    factory.registerAlgorithm("DLCA", [](const Parameters& params) {
-        return std::make_shared<DLCA>(params.size, params.points);
+    factory.registerAlgorithm("DLCA", [&params](const Parameters&) {
+        return std::make_shared<DLCA>(params.getSize(), params.getPoints());
     });
 
-    factory.registerAlgorithm("Probability Algorithm", [](const Parameters& params) {
-        return std::make_shared<Probability_Algorithm>(params.size, params.points);
+    factory.registerAlgorithm("Probability Algorithm", [&params](const Parameters&) {
+        return std::make_shared<Probability_Algorithm>(params.getSize(), params.getPoints());
     });
 
-    factory.registerAlgorithm("Probability Circle", [](const Parameters& params) {
-        return std::make_shared<Probability_Circle>(params.size, params.points);
+    factory.registerAlgorithm("Probability Circle", [&params](const Parameters&) {
+        return std::make_shared<Probability_Circle>(params.getSize(), params.getPoints());
     });
 
-    factory.registerAlgorithm("Probability Ellipse", [](const Parameters& params) {
-        return std::make_shared<Probability_Ellipse>(params.size, params.points);
+    factory.registerAlgorithm("Probability Ellipse", [&params](const Parameters&) {
+        return std::make_shared<Probability_Ellipse>(params.getSize(), params.getPoints());
     });
 }
 

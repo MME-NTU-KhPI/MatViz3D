@@ -76,8 +76,8 @@ public:
     Q_INVOKABLE void setOrientationAngleC(float value);
 
     static Parameters* m_instance;
-    static int size;
-    static int points;
+    // static int size;
+    // static int points;
     static QString algorithm;
     static unsigned int seed;
     static QString filename;
@@ -111,8 +111,8 @@ signals:
 
 private:
     // static Parameters* m_instance;
-    // static int size;
-    // static int points;
+    static int size;
+    static int points;
     // static QString algorithm;
     // static unsigned int seed;
     // static QString filename;

@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
+import parameters 1.0
 
 
 Window {
@@ -67,6 +68,10 @@ Window {
                             font.pixelSize: 15
                             verticalAlignment: Text.AlignTop
                             horizontalAlignment: Text.AlignLeft
+                            onTextChanged: {
+                                console.log("Change: ", text);
+                                Parameters.setHalfAxisA(parseInt(text, 10));
+                            }
                         }
                     }
                 }
@@ -111,6 +116,10 @@ Window {
                             font.pixelSize: 15
                             verticalAlignment: Text.AlignTop
                             horizontalAlignment: Text.AlignLeft
+                            onTextChanged: {
+                                console.log("Change: ", text);
+                                Parameters.setHalfAxisB(parseInt(text, 10));
+                            }
                         }
                     }
                 }
@@ -155,6 +164,10 @@ Window {
                             font.pixelSize: 15
                             verticalAlignment: Text.AlignTop
                             horizontalAlignment: Text.AlignLeft
+                            onTextChanged: {
+                                console.log("Change: ", text);
+                                Parameters.setHalfAxisC(parseInt(text, 10));
+                            }
                         }
                     }
                 }
@@ -199,6 +212,10 @@ Window {
                             font.pixelSize: 15
                             verticalAlignment: Text.AlignTop
                             horizontalAlignment: Text.AlignLeft
+                            onTextChanged: {
+                                console.log("Change: ", text);
+                                Parameters.setOrientationAngleA(parseInt(text, 10));
+                            }
                         }
                     }
                 }
@@ -243,6 +260,10 @@ Window {
                             font.pixelSize: 15
                             verticalAlignment: Text.AlignTop
                             horizontalAlignment: Text.AlignLeft
+                            onTextChanged: {
+                                console.log("Change: ", text);
+                                Parameters.setOrientationAngleB(parseInt(text, 10));
+                            }
                         }
                     }
                 }
@@ -287,6 +308,10 @@ Window {
                             font.pixelSize: 15
                             verticalAlignment: Text.AlignTop
                             horizontalAlignment: Text.AlignLeft
+                            onTextChanged: {
+                                console.log("Change: ", text);
+                                Parameters.setOrientationAngleC(parseInt(text, 10));
+                            }
                         }
                     }
                 }

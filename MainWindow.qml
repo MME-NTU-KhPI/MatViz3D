@@ -672,6 +672,11 @@ Window {
                                     poly_alg_item.visible = false
                                     dlca_alg_item.visible = false
                                 }
+
+                                Qt.callLater(() => {
+                                    console.log("Algorithm selected:", currentText)
+                                    Parameters.setAlgorithm(currentText)
+                                })
                             }
 
                             onAccepted: {
