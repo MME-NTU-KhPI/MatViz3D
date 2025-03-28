@@ -113,7 +113,7 @@ void OpenGLWidgetQML::setBackView() {
 }
 
 void OpenGLWidgetQML::setTopView() {
-    xRot = -90 * 16;
+    xRot = 90 * 16;
     yRot = 0;
     zRot = 0;
     if (m_render) {
@@ -123,7 +123,7 @@ void OpenGLWidgetQML::setTopView() {
 }
 
 void OpenGLWidgetQML::setBottomView() {
-    xRot = 90 * 16;
+    xRot = -90 * 16;
     yRot = 0;
     zRot = 0;
     if (m_render) {
