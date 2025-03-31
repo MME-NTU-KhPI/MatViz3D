@@ -338,7 +338,7 @@ void MainWindow::setupFileMenu() {
     fileMenu->addAction(saveAsHDF);
     fileMenu->addAction(estimateStressWithANSYS);
     fileMenu->addAction(MakeScreenshot);
-
+    fileMenu->addAction(openHDF);
 
     fileMenu->setStyleSheet("QMenu {"
                             "    background-color: #282828;" // фон меню
@@ -670,8 +670,61 @@ void MainWindow::saveHDF()
 
 void MainWindow::openHDF()
 {
-    QString path;
-    path = QFileDialog::getOpenFileName(this , "Choose file" , "" ,"H5file (*.h5)");
+    QString fileName = QFileDialog::getOpenFileName(this , "Choose MatViz3d HDF5 file" , "" ,"MV3D HDF5 (*.hdf5)");
+    if (fileName.length() == 0)
+    {
+        qDebug() << "OpenHDF: no file selected";
+        return;
+    }
+
+    HDF5Wrapper hdf5(fileName.toStdString());
+
+    // Read the last set number
+    int last_set = hdf5.readInt("/", "last_set");
+    if (last_set == -1) {
+        qCritical() << "No data found in the HDF5 file.";
+        return;
+    }
+
+    qDebug() << "Last set number:" << last_set;
+
+    for (int set_num = 1; set_num <= last_set; ++set_num) {
+        std::string set_prefix = "/" + std::to_string(set_num);
+
+        // Read voxels
+        int cubeSize = hdf5.readInt(set_prefix, "cubeSize");
+        int numPoints = hdf5.readInt(set_prefix, "numPoints");
+        std::vector<std::vector<float>> local_cs = hdf5.readVectorVectorFloat(set_prefix, "local_cs");
+
+        qDebug() << "Set:" << set_num;
+        qDebug() << "Cube Size:" << cubeSize;
+        qDebug() << "Num Points:" << numPoints;
+        qDebug() << "Local Coordinate System:" << local_cs.size() << "elements";
+
+        // Iterate through load steps
+        std::vector<std::string> loadSteps = hdf5.listDataGroups(set_prefix);
+        for (const auto& group : loadSteps)
+        {
+            // std::string::npos way to say nothing found
+            if (group.find("ls_") != std::string::npos) // Check if the group is a load step
+            {
+                std::string ls_prefix = set_prefix + "/" + group;
+
+                std::vector<float> results_avg = hdf5.readVectorFloat(ls_prefix, "results_avg");
+                std::vector<float> results_max = hdf5.readVectorFloat(ls_prefix, "results_max");
+                std::vector<float> results_min = hdf5.readVectorFloat(ls_prefix, "results_min");
+                std::vector<std::vector<float>> results = hdf5.readVectorVectorFloat(ls_prefix, "results");
+                std::vector<float> eps_as_loading = hdf5.readVectorFloat(ls_prefix, "eps_as_loading");
+
+                qDebug() << "Load Step:" << group.c_str();
+                qDebug() << "Results Avg:" << results_avg.size() << "elements";
+                qDebug() << "Results Max:" << results_max.size() << "elements";
+                qDebug() << "Results Min:" << results_min.size() << "elements";
+                qDebug() << "Results:" << results.size() << "rows";
+                qDebug() << "Eps as Loading:" << eps_as_loading.size() << "elements";
+            }
+        }
+    }
 
 }
 

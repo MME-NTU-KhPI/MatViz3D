@@ -24,6 +24,7 @@ public:
     int readInt(const std::string& dataGroup, const std::string& dataSetName);
     QString readQString(const std::string& dataGroup, const std::string& dataSetName);
 
+    std::vector<std::string> listDataGroups(const std::string& path);
     std::vector<std::string> listDataGroups();
 
     void update(const std::string& dataGroup, const std::string& dataSetName, int newValue);

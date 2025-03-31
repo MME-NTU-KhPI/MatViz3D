@@ -257,6 +257,9 @@ void ansysWrapper::createFEfromArray(int32_t*** voxels, short int numCubes, int 
         for (int j = 0; j < numCubes; j++)
             for (int k = 0; k < numCubes; k++)
             {
+                if (voxels[i][j][k] == 0) // skip empty cells
+                    continue;
+
                 for (int l = 1; l <= 20; l++)
                 {
                     key.data[0] = node_coordinates[l][0] + i;

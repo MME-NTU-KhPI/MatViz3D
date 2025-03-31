@@ -350,7 +350,8 @@ std::vector<std::vector<float>> HDF5Wrapper::readVectorVectorFloat(const std::st
     return data;
 }
 
-float HDF5Wrapper::readFloat(const std::string& dataGroup, const std::string& dataSetName) {
+float HDF5Wrapper::readFloat(const std::string& dataGroup, const std::string& dataSetName)
+{
     hid_t dataset = H5Dopen(file, (dataGroup + "/" + dataSetName).c_str(), H5P_DEFAULT);
     float data;
     H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &data);
@@ -380,7 +381,8 @@ int HDF5Wrapper::readInt(const std::string& dataGroup, const std::string& dataSe
     return data;
 }
 
-QString HDF5Wrapper::readQString(const std::string& dataGroup, const std::string& dataSetName) {
+QString HDF5Wrapper::readQString(const std::string& dataGroup, const std::string& dataSetName)
+{
     hid_t dataset = H5Dopen(file, (dataGroup + "/" + dataSetName).c_str(), H5P_DEFAULT);
     hid_t dataspace = H5Dget_space(dataset);
 
@@ -396,16 +398,36 @@ QString HDF5Wrapper::readQString(const std::string& dataGroup, const std::string
     return QString::fromUtf8(byteArray);
 }
 
-herr_t groupIterationCallback(hid_t loc_id, const char* name, const H5L_info_t* info, void* opdata) {
+herr_t groupIterationCallback(hid_t loc_id, const char* name, const H5L_info_t* info, void* opdata)
+{
+    Q_UNUSED(loc_id);
+    Q_UNUSED(info);
     std::vector<std::string>* groups = static_cast<std::vector<std::string>*>(opdata);
     groups->emplace_back(name);
     return 0;
 }
 
-std::vector<std::string> HDF5Wrapper::listDataGroups() {
+// Updated listDataGroups to allow listing groups at a specific path
+std::vector<std::string> HDF5Wrapper::listDataGroups(const std::string& path)
+{
     std::vector<std::string> groups;
-    H5Literate(file, H5_INDEX_NAME, H5_ITER_NATIVE, nullptr, groupIterationCallback, &groups);
+
+    hid_t group_id = H5Gopen(file, path.c_str(), H5P_DEFAULT);
+    if (group_id < 0) {
+        qCritical() << "Failed to open group:" << QString::fromStdString(path);
+        return groups;
+    }
+
+    H5Literate(group_id, H5_INDEX_NAME, H5_ITER_NATIVE, nullptr, groupIterationCallback, &groups);
+
+    H5Gclose(group_id);
     return groups;
+}
+
+// Overloaded version of listDataGroups for root-level groups
+std::vector<std::string> HDF5Wrapper::listDataGroups()
+{
+    return listDataGroups("/");
 }
 
 void HDF5Wrapper::update(const std::string& dataGroup, const std::string& dataSetName, int newValue)

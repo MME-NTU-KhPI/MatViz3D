@@ -13,11 +13,22 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
 
     wr->setSeed(Parameters::seed);
     wr->setNP(Parameters::num_threads);
-    //wr.setMaterial(2.1e11, 0.3, 0);
+    //wr->setMaterial(2.1e10, 0.3, 0);
 
     double c11 = 168.40e9, c12=121.40e9, c44=75.40e9; // copper bcc single crystal  https://solidmechanics.org/Text/Chapter3_2/Chapter3_2.php#Sect3_2_17
     wr->setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44) ;
-
+/*
+    double  c11 = 9e9, // test material
+            c12 = 2e9,
+            c13 = 3e9,
+            c22 = 8e9,
+            c23 = 5e9,
+            c33 = 7e9,
+            c44 = 6e9,
+            c55 = 4e9,
+            c66 = 1e9;
+    wr->setAnisoMaterial(c11, c12, c13, c22, c23, c33, c44, c55, c66) ;
+*/
     wr->setElemByNum(186);
 
     wr->createFEfromArray(voxels, N, numPoints, true);
