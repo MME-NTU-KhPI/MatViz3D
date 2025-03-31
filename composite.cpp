@@ -111,6 +111,7 @@ void Composite::FillWithHexa()
 
 void Composite::Next_Iteration(std::function<void()> callback)
 {
+    Q_UNUSED(callback);
     setRadius(numColors);
 
     int local_filled_voxels = 0;

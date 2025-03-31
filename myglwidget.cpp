@@ -306,6 +306,7 @@ void MyGLWidget::debugCallback(GLenum source, GLenum type, GLuint id, GLenum sev
 
     // Get the OpenGL widget instance
     const MyGLWidget* widget = static_cast<const MyGLWidget*>(userParam);
+    Q_UNUSED(widget);
 
     // Map enums to human-readable strings
     QString sourceStr;

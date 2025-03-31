@@ -449,10 +449,10 @@ void MainWindow::setupWindowMenu() {
                               "}");
 
     ui->WindowButton->setMenu(windowMenu);
-    connect(allCheckBox, &QCheckBox::stateChanged, this, &MainWindow::onAllCheckBoxChanged);
-    connect(animationCheckBox, &QCheckBox::stateChanged, this, &MainWindow::onAnimationCheckBoxChanged);
-    connect(consoleCheckBox, &QCheckBox::stateChanged, this, &MainWindow::onConsoleCheckBoxChanged);
-    connect(dataCheckBox, &QCheckBox::stateChanged, this, &MainWindow::onDataCheckBoxChanged);
+    connect(allCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::onAllCheckBoxChanged);
+    connect(animationCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::onAnimationCheckBoxChanged);
+    connect(consoleCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::onConsoleCheckBoxChanged);
+    connect(dataCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::onDataCheckBoxChanged);
 }
 
 void MainWindow::saveAsImage() {
@@ -756,7 +756,7 @@ void MainWindow::on_checkBoxWiregrid_stateChanged(int arg1)
 
 void MainWindow::on_ComponentID_currentIndexChanged(int index)
 {
-    if (sa.wr && sa.wr->loadstep_results_max.size() > index)
+    if (sa.wr && sa.wr->loadstep_results_max.size() > (size_t)index)
     {
        float maxv = sa.wr->loadstep_results_max[index];
        float minv = sa.wr->loadstep_results_min[index];
@@ -772,7 +772,9 @@ void MainWindow::startGifRecording()
 
     isRecording = true;
 
-    if (gif) delete gif;
+    if (gif)
+        delete gif;
+
     gif = new QGifImage(QSize(ui->myGLWidget->width(), ui->myGLWidget->height()));
 
     gif->setDefaultDelay(100); // 10 FPS (100 мс)

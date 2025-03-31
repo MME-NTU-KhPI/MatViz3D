@@ -22,6 +22,7 @@ void MessageHandler::installMessageHandler(QTextEdit *textEdit)
 
 void MessageHandler::messageHandlerFunction(QtMsgType type, const QMessageLogContext &context, const QString &msg)
 {
+    Q_UNUSED(context);
     QString logType;
     QColor textColor;
     QColor bracketColor;
