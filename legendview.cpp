@@ -1,4 +1,5 @@
 #include "legendview.h"
+#include <QPainter>
 #include <QGraphicsTextItem>
 #include <QString>
 
@@ -36,29 +37,64 @@ void LegendView::setMinMax(float minv, float maxv)
     this->draw();
 }
 
+#include <QDebug>
+
+#include <QGraphicsRectItem>
+#include <QGraphicsPixmapItem>
+#include <QLinearGradient>
+#include <QPainter>
+#include <QPixmap>
+#include <QColor>
+
 void LegendView::draw()
 {
     this->clear();
-    QFont font;
-    font.setFamily("Inter");
-    font.setPixelSize(20);
-    const int lineHeight = 30;
-    for (int i = 0; i < numLevels; ++i)
-    {
-        QGraphicsRectItem *rect = this->addRect(10, 15 + i * lineHeight, lineHeight, lineHeight, QPen(Qt::darkGray, 2), QBrush(colors[numLevels - i - 1]));
-    }
-    for (int i = 0; i <= numLevels; ++i)
-    {
-        if (i == 0 || i == numLevels)
-            font.setBold(true);
-        else
-            font.setBold(false);
 
-        QGraphicsTextItem *text = this->addText(labels[i], font);
-        text->setPos(lineHeight + 20, 0 + i * lineHeight);
+    const int width = 600;
+    const int height = 40;
+    const int margin = 20;
+
+    if (numLevels <= 0 || colors.size() < numLevels) {
+        qCritical() << "Incorrect data in LegendView::draw()";
+        return;
     }
 
+    setSceneRect(0, 0, width + 40, height + 60);
+
+    QPixmap pixmap(width, height);
+    QPainter painter(&pixmap);
+    QLinearGradient gradient(0, 0, width, 0);
+
+    for (int i = 0; i < numLevels; ++i) {
+        float position = float(i) / (numLevels - 1);
+        gradient.setColorAt(position, colors[i]);
+    }
+
+    painter.fillRect(0, 0, width, height, gradient);
+    painter.end();
+
+    QGraphicsPixmapItem *gradientItem = addPixmap(pixmap);
+    gradientItem->setPos(margin, margin + 20);
+
+    QFont font("Inter", 12);
+    QPen textPen(Qt::gray);
+
+    for (int i = 0; i <= numLevels; ++i) {
+        float value = minValue + i * (maxValue - minValue) / numLevels;
+        QString textValue = QString::number(value, 'g', 2);
+        QGraphicsTextItem *text = addText(textValue, font);
+        text->setDefaultTextColor(Qt::gray);
+
+        int textX = margin + i * (width / numLevels) - text->boundingRect().width() / 2;
+        int textY = height + margin + 25;
+
+        text->setPos(textX, textY);
+    }
+
+    update();
 }
+
+
 
 QVector<QColor> LegendView::getCmap()
 {
