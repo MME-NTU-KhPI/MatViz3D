@@ -92,8 +92,8 @@ MainWindow::MainWindow(QWidget *parent)
 
     scene = new LegendView(this);
     ui->LegendView->setScene(scene);
-    ui->LegendView->show();
     scene->setMinMax(0,1);
+    ui->LegendView->show();
 }
 
 MainWindow::~MainWindow()
@@ -521,14 +521,30 @@ void MainWindow::estimateStressWithANSYS(){
 
         float maxv = sa.wr->loadstep_results_max[comp];
         float minv = sa.wr->loadstep_results_min[comp];
-        this->scene->setMinMax(minv, maxv);
 
+        if (!this->scene) {
+            qDebug() << "LegendView is not initialized!";
+            return;
+        }
+
+        qDebug() << "Min/Max values:" << minv << maxv;
+        qDebug() << "ColorMap size:" << cmap.size();
+
+        if (minv == maxv) {
+            minv -= 0.01f;
+            maxv += 0.01f;
+        }
+
+        this->scene->setMinMax(minv, maxv);
         this->scene->setCmap(cmap);
         this->scene->draw();
-        ui->myGLWidget->update();
 
+        ui->LegendView->scene()->update();
+        ui->LegendView->viewport()->update();
+        ui->LegendView->show();
     }
 }
+
 
 void MainWindow::onAllCheckBoxChanged(int state) {
     if (state == Qt::Checked) {

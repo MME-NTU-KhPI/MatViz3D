@@ -1617,6 +1617,7 @@ background-color: transparent;</string>
 
 QComboBox QAbstractItemView {
     width: 140px;
+	max-height: 200px;
     background-color: rgba(65, 65, 65, 1);
     color: #969696;
     font-family: Montserrat;
@@ -1654,7 +1655,42 @@ QComboBox QAbstractItemView:hover {
     font-weight: 500;
     line-height: normal;
 }
+
+QComboBox QAbstractScrollArea {
+    min-width: 100px;
+}
+
+QComboBox QScrollBar:vertical {
+    border: none;
+    background: #333; /* Тёмно-серый фон скроллбара */
+    width: 8px;
+    margin: 2px 2px 2px 2px;
+    border-radius: 4px;
+}
+
+QComboBox QScrollBar::handle:vertical {
+    background: #666; /* Тёмно-серый цвет ползунка */
+    min-height: 20px;
+    border-radius: 4px;
+}
+
+QComboBox QScrollBar::handle:vertical:hover {
+    background: #888; /* Светлее при наведении */
+}
+
+QComboBox QScrollBar::handle:vertical:pressed {
+    background: #aaa; /* Ещё светлее при нажатии */
+}
+
+QComboBox QScrollBar::add-line:vertical,
+QComboBox QScrollBar::sub-line:vertical {
+    border: none;
+    background: none;
+}
 </string>
+                </property>
+                <property name="sizeAdjustPolicy">
+                 <enum>QComboBox::SizeAdjustPolicy::AdjustToContents</enum>
                 </property>
                 <item>
                  <property name="text">
