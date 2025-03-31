@@ -92,7 +92,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     scene = new LegendView(this);
     ui->LegendView->setScene(scene);
-    scene->setMinMax(0,1);
+    scene->setMinMax(0,1000);
+    ui->LegendView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
+    ui->LegendView->viewport()->update();
     ui->LegendView->show();
 }
 
@@ -539,9 +541,10 @@ void MainWindow::estimateStressWithANSYS(){
         this->scene->setCmap(cmap);
         this->scene->draw();
 
-        ui->LegendView->scene()->update();
+        ui->LegendView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
         ui->LegendView->viewport()->update();
         ui->LegendView->show();
+        ui->myGLWidget->update();
     }
 }
 
