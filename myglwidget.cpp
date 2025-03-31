@@ -419,17 +419,39 @@ void MyGLWidget::initializeGL()
 
 std::vector<std::array<GLubyte, 4>> MyGLWidget::createColorMap(int numLevels)
 {
-    std::vector<std::array<GLubyte, 4>> colorMap(9);
+    // Predefined colors
+    std::vector<std::array<GLubyte, 4>> predefinedColors = {
+        {0,   0,   255, 255},  // Blue
+        {0,   178, 255, 255},  // Light Blue
+        {0,   255, 255, 255},  // Cyan
+        {0,   255, 178, 255},  // Greenish Cyan
+        {0,   255, 0,   255},  // Green
+        {178, 255, 0,   255},  // Yellowish Green
+        {255, 255, 0,   255},  // Yellow
+        {255, 178, 0,   255},  // Orange
+        {255, 0,   0,   255}   // Red
+    };
 
-    colorMap[8] = {255, 0,      0,   255};
-    colorMap[7] = {255, 178,    0,   255};
-    colorMap[6] = {255, 255,    0,   255};
-    colorMap[5] = {178, 255,    0,   255};
-    colorMap[4] = {0,   255,    0,   255};
-    colorMap[3] = {0,   255,    178, 255};
-    colorMap[2] = {0,   255,    255, 255};
-    colorMap[1] = {0,   178,    255, 255};
-    colorMap[0] = {0,   0,      255, 255};
+    std::vector<std::array<GLubyte, 4>> colorMap(numLevels);
+
+    for (int i = 0; i < numLevels; ++i) {
+        float t = static_cast<float>(i) / (numLevels - 1) * (predefinedColors.size() - 1);
+        int lowerIndex = static_cast<int>(std::floor(t));
+        int upperIndex = static_cast<int>(std::ceil(t));
+        float fraction = t - lowerIndex;
+
+        // Interpolate between the two nearest predefined colors
+        const auto& lowerColor = predefinedColors[lowerIndex];
+        const auto& upperColor = predefinedColors[upperIndex];
+        std::array<GLubyte, 4> interpolatedColor = {
+            static_cast<GLubyte>(lowerColor[0] + fraction * (upperColor[0] - lowerColor[0])),
+            static_cast<GLubyte>(lowerColor[1] + fraction * (upperColor[1] - lowerColor[1])),
+            static_cast<GLubyte>(lowerColor[2] + fraction * (upperColor[2] - lowerColor[2])),
+            255 // Alpha remains constant
+        };
+
+        colorMap[i] = interpolatedColor;
+    }
 
     return colorMap;
 }
@@ -609,7 +631,7 @@ void MyGLWidget::calculateScene()
                 std::vector<std::array<GLubyte, 4>> node_colors(8);
                 if (wr)
                 {
-                    auto cmap = this->createColorMap(0);
+                    auto cmap = this->createColorMap(9);
                     for (int l = 0; l < 8; l++)
                     {
                         n3d::node3d key;
