@@ -18,6 +18,7 @@ unix {
     HDF5_INCLUDEPATH = "/usr/include/hdf5/serial"
     HDF5_LIBPATH = "/usr/lib/x86_64-linux-gnu"
     LIBS += -L$${HDF5_LIBPATH} -lhdf5_serial
+    INCLUDEPATH += $$HDF5_INCLUDEPATH
 }
 
 win32 {
