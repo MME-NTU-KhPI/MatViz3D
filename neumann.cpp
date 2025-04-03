@@ -1,5 +1,6 @@
 #include <ctime>
 #include <cmath>
+#include <QDebug>
 #include "neumann.h"
 
 Neumann::Neumann()
