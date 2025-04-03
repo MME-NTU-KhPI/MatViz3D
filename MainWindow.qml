@@ -1341,7 +1341,7 @@ Window {
                             anchors.centerIn: parent
                         }
 
-                        onClicked: mainWindowWrapper.startButton()
+                        onClicked: mainWindowWrapper.onStartButton()
                     }
                 }
             }

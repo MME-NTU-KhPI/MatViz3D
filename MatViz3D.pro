@@ -24,10 +24,10 @@ SOURCES += \
         dlca.cpp \
         legendview.cpp \
         main.cpp \
+        mainwindowalgorithmhandler.cpp \
         mainwindowwrapper.cpp \
         materialdatabaseviewwrapper.cpp \
         moore.cpp \
-        myglwidget.cpp \
         neumann.cpp \
         openglwidgetqml.cpp \
         parameters.cpp \
@@ -59,10 +59,10 @@ HEADERS += \
     composite.h \
     dlca.h \
     legendview.h \
+    mainwindowalgorithmhandler.h \
     mainwindowwrapper.h \
     materialdatabaseviewwrapper.h \
     moore.h \
-    myglwidget.h \
     neumann.h \
     openglwidgetqml.h \
     parameters.h \
