@@ -1589,7 +1589,7 @@ background-color: transparent;</string>
                <x>0</x>
                <y>30</y>
                <width>380</width>
-               <height>185</height>
+               <height>191</height>
               </rect>
              </property>
              <property name="styleSheet">
@@ -1601,9 +1601,233 @@ background-color: transparent;</string>
              </property>
              <layout class="QGridLayout" name="gridLayout_10">
               <item row="3" column="1">
+               <widget class="QComboBox" name="geom_ID">
+                <property name="styleSheet">
+                 <string notr="true">QComboBox {
+    color: #969696;
+    padding: 4px 0;
+    padding-left: 4px;
+	background-color: rgba(40, 40, 40, 0.5);
+	border-radius: 15px;
+	border: 0.5px solid rgba(0, 0, 0, 0.21);
+}
+
+QComboBox QAbstractItemView {
+    width: 140px;
+	max-height: 200px;
+    background-color: rgba(65, 65, 65, 1);
+    color: #969696;
+    font-family: Montserrat;
+    font-size: 13px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: normal;
+	border-top-right-radius: 0; 
+	border-top-left-radius: 0;
+    border-bottom-right-radius: 5px; 
+	border-bottom-left-radius: 5px;
+}
+
+QComboBox::drop-down {
+    width: 15px;  
+    height: 10px;
+    subcontrol-origin: padding;
+    border: none;
+	top: 30px;  /* Відстань від верхнього краю */
+	right: 10px;
+}
+
+QComboBox::down-arrow {
+    image: url(:/icon/roll.png);
+    width: 15px;  
+    height: 10px;
+}
+
+
+QComboBox QAbstractItemView:hover {
+    color: #FFF;
+    font-family: Montserrat;
+    font-size: 13px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: normal;
+}
+
+QComboBox QAbstractScrollArea {
+    min-width: 100px;
+}
+
+QComboBox QScrollBar:vertical {
+    border: none;
+    background: #333; /* Тёмно-серый фон скроллбара */
+    width: 8px;
+    margin: 2px 2px 2px 2px;
+    border-radius: 4px;
+}
+
+QComboBox QScrollBar::handle:vertical {
+    background: #666; /* Тёмно-серый цвет ползунка */
+    min-height: 20px;
+    border-radius: 4px;
+}
+
+QComboBox QScrollBar::handle:vertical:hover {
+    background: #888; /* Светлее при наведении */
+}
+
+QComboBox QScrollBar::handle:vertical:pressed {
+    background: #aaa; /* Ещё светлее при нажатии */
+}
+
+QComboBox QScrollBar::add-line:vertical,
+QComboBox QScrollBar::sub-line:vertical {
+    border: none;
+    background: none;
+}
+</string>
+                </property>
+                <property name="sizeAdjustPolicy">
+                 <enum>QComboBox::SizeAdjustPolicy::AdjustToContents</enum>
+                </property>
+               </widget>
+              </item>
+              <item row="6" column="1">
                <widget class="QGraphicsView" name="LegendView"/>
               </item>
-              <item row="2" column="1">
+              <item row="4" column="1">
+               <widget class="QComboBox" name="geom_sub_ID">
+                <property name="styleSheet">
+                 <string notr="true">QComboBox {
+    color: #969696;
+    padding: 4px 0;
+    padding-left: 4px;
+	background-color: rgba(40, 40, 40, 0.5);
+	border-radius: 15px;
+	border: 0.5px solid rgba(0, 0, 0, 0.21);
+}
+
+QComboBox QAbstractItemView {
+    width: 140px;
+	max-height: 200px;
+    background-color: rgba(65, 65, 65, 1);
+    color: #969696;
+    font-family: Montserrat;
+    font-size: 13px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: normal;
+	border-top-right-radius: 0; 
+	border-top-left-radius: 0;
+    border-bottom-right-radius: 5px; 
+	border-bottom-left-radius: 5px;
+}
+
+QComboBox::drop-down {
+    width: 15px;  
+    height: 10px;
+    subcontrol-origin: padding;
+    border: none;
+	top: 30px;  /* Відстань від верхнього краю */
+	right: 10px;
+}
+
+QComboBox::down-arrow {
+    image: url(:/icon/roll.png);
+    width: 15px;  
+    height: 10px;
+}
+
+
+QComboBox QAbstractItemView:hover {
+    color: #FFF;
+    font-family: Montserrat;
+    font-size: 13px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: normal;
+}
+
+QComboBox QAbstractScrollArea {
+    min-width: 100px;
+}
+
+QComboBox QScrollBar:vertical {
+    border: none;
+    background: #333; /* Тёмно-серый фон скроллбара */
+    width: 8px;
+    margin: 2px 2px 2px 2px;
+    border-radius: 4px;
+}
+
+QComboBox QScrollBar::handle:vertical {
+    background: #666; /* Тёмно-серый цвет ползунка */
+    min-height: 20px;
+    border-radius: 4px;
+}
+
+QComboBox QScrollBar::handle:vertical:hover {
+    background: #888; /* Светлее при наведении */
+}
+
+QComboBox QScrollBar::handle:vertical:pressed {
+    background: #aaa; /* Ещё светлее при нажатии */
+}
+
+QComboBox QScrollBar::add-line:vertical,
+QComboBox QScrollBar::sub-line:vertical {
+    border: none;
+    background: none;
+}
+</string>
+                </property>
+                <property name="sizeAdjustPolicy">
+                 <enum>QComboBox::SizeAdjustPolicy::AdjustToContents</enum>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="QLabel" name="Exploded_view_2">
+                <property name="minimumSize">
+                 <size>
+                  <width>380</width>
+                  <height>20</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>167</width>
+                  <height>25</height>
+                 </size>
+                </property>
+                <property name="layoutDirection">
+                 <enum>Qt::LayoutDirection::LeftToRight</enum>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">font-family: 'Inter';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+padding-bottom: 0;
+color: #969696;
+border: none;
+background-color: transparent;</string>
+                </property>
+                <property name="text">
+                 <string>Legend</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignmentFlag::AlignCenter</set>
+                </property>
+                <property name="margin">
+                 <number>0</number>
+                </property>
+                <property name="buddy">
+                 <cstring>Rectangle10</cstring>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="1">
                <widget class="QComboBox" name="ComponentID">
                 <property name="styleSheet">
                  <string notr="true">QComboBox {
@@ -1804,48 +2028,6 @@ QComboBox QScrollBar::sub-line:vertical {
                 </item>
                </widget>
               </item>
-              <item row="1" column="1">
-               <widget class="QLabel" name="Exploded_view_2">
-                <property name="minimumSize">
-                 <size>
-                  <width>380</width>
-                  <height>20</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>167</width>
-                  <height>25</height>
-                 </size>
-                </property>
-                <property name="layoutDirection">
-                 <enum>Qt::LayoutDirection::LeftToRight</enum>
-                </property>
-                <property name="styleSheet">
-                 <string notr="true">font-family: 'Inter';
-font-style: normal;
-font-weight: 700;
-font-size: 16px;
-line-height: 19px;
-padding-bottom: 0;
-color: #969696;
-border: none;
-background-color: transparent;</string>
-                </property>
-                <property name="text">
-                 <string>Legend</string>
-                </property>
-                <property name="alignment">
-                 <set>Qt::AlignmentFlag::AlignCenter</set>
-                </property>
-                <property name="margin">
-                 <number>0</number>
-                </property>
-                <property name="buddy">
-                 <cstring>Rectangle10</cstring>
-                </property>
-               </widget>
-              </item>
              </layout>
             </widget>
            </widget>
@@ -2043,8 +2225,8 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>1262</width>
-            <height>222</height>
+            <width>1268</width>
+            <height>228</height>
            </rect>
           </property>
           <layout class="QGridLayout" name="gridLayout_5">

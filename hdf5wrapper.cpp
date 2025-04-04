@@ -398,6 +398,52 @@ QString HDF5Wrapper::readQString(const std::string& dataGroup, const std::string
     return QString::fromUtf8(byteArray);
 }
 
+std::vector<std::vector<std::vector<int32_t>>> HDF5Wrapper::readVoxels(const std::string& dataGroup, const std::string& dataSetName) {
+    if (file < 0) {
+        qCritical() << "HDF5 file is not opened correctly.";
+        return {};
+    }
+
+    hid_t dataset = H5Dopen(file, (dataGroup + "/" + dataSetName).c_str(), H5P_DEFAULT);
+    if (checkError(dataset, "readVoxels: Failed to open dataset")) {
+        return {};
+    }
+
+    hid_t dataspace = H5Dget_space(dataset);
+    if (checkError(dataspace, "readVoxels: Failed to get dataspace")) {
+        H5Dclose(dataset);
+        return {};
+    }
+
+    hsize_t dims[3];
+    int ndims = H5Sget_simple_extent_dims(dataspace, dims, nullptr);
+    if (ndims != 3) {
+        qCritical() << "readVoxels: Dataset is not 3D.";
+        H5Sclose(dataspace);
+        H5Dclose(dataset);
+        return {};
+    }
+
+    std::vector<int32_t> flatData(dims[0] * dims[1] * dims[2]);
+    H5Dread(dataset, H5T_STD_I32LE, H5S_ALL, H5S_ALL, H5P_DEFAULT, flatData.data());
+
+    std::vector<std::vector<std::vector<int32_t>>> voxels(dims[0],
+        std::vector<std::vector<int32_t>>(dims[1], std::vector<int32_t>(dims[2])));
+
+    for (hsize_t i = 0; i < dims[0]; ++i) {
+        for (hsize_t j = 0; j < dims[1]; ++j) {
+            for (hsize_t k = 0; k < dims[2]; ++k) {
+                voxels[i][j][k] = flatData[i * dims[1] * dims[2] + j * dims[2] + k];
+            }
+        }
+    }
+
+    H5Sclose(dataspace);
+    H5Dclose(dataset);
+
+    return voxels;
+}
+
 herr_t groupIterationCallback(hid_t loc_id, const char* name, const H5L_info_t* info, void* opdata)
 {
     Q_UNUSED(loc_id);

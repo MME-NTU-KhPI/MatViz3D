@@ -2,6 +2,7 @@
 #include "ansyswrapper.h"
 #include "hdf5wrapper.h"
 #include "parameters.h"
+#include "loadstepmanager.h"
 #include <random>
 
 void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPoints, int32_t ***voxels)
@@ -108,9 +109,11 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
     else
     {
         qDebug() << "No output file with -o option. Just loading results to memory...";
+        auto& loadStepManager = LoadStepManager::getInstance();
         for (size_t ls_num = 1; ls_num <= wr->eps_as_loading.size(); ls_num++)
         {
-            wr->load_loadstep(ls_num);
+            QString filePath = QString("ls_%1.csv").arg(ls_num);
+            loadStepManager.loadLoadStep(ls_num, filePath);
         }
         qDebug() << "Done ";
     }

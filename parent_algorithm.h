@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <functional>
 #include "parameters.h"
-
+#include "loadstepmanager.h"
 /**
  * @brief Structure containing algorithm flags.
  */
@@ -22,6 +22,7 @@ struct AlgorithmFlags {
  */
 class Parent_Algorithm
 {
+    friend class LoadStepManager;
 private:
     /**
      * @brief Creates a 3D array of size N1 x N2 x N3.
@@ -31,14 +32,14 @@ private:
      * @param N3 Size along the third dimension.
      * @return Pointer to the created 3D array.
      */
-    template <class T> T*** Create3D(int N1, int N2, int N3);
+     template <class T> static T*** Create3D(int N1, int N2, int N3);
 
     /**
      * @brief Deletes a 3D array.
      * @tparam T Type of array elements.
      * @param array Pointer to the 3D array.
      */
-    template <class T> void Delete3D(T ***array);
+    template <class T> static void Delete3D(T*** array);
 
 protected:
     AlgorithmFlags flags; ///< Algorithm flags

@@ -52,6 +52,7 @@ SOURCES += \
     dlca.cpp \
     hdf5wrapper.cpp \
     legendview.cpp \
+    loadstepmanager.cpp \
     main.cpp \
     mainwindow.cpp \
     messagehandler.cpp \
@@ -78,6 +79,7 @@ HEADERS += \
     dlca.h \
     hdf5wrapper.h \
     legendview.h \
+    loadstepmanager.h \
     mainwindow.h \
     messagehandler.h \
     moore.h \

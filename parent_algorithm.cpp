@@ -59,12 +59,15 @@ int32_t*** Parent_Algorithm::Allocate_Memory()
     return voxels;
 };
 
-template <class T> void Parent_Algorithm::Delete3D(T ***array)
+template <class T> void Parent_Algorithm::Delete3D(T*** array)
 {
     delete[] array[0][0];
     delete[] array[0];
     delete[] array;
 };
+
+// Explicit instantiation of Delete3D for int
+template void Parent_Algorithm::Delete3D<int>(int***);
 
 void Parent_Algorithm::CleanUp()
 {

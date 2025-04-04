@@ -2,6 +2,7 @@
 
 #include <QtWidgets>
 #include "myglwidget.h"
+#include "loadstepmanager.h"
 #include <cmath>
 #include <vector>
 #include <cstdlib>
@@ -481,6 +482,7 @@ std::array<GLubyte, 4> MyGLWidget::scalarToColor(float value, const std::vector<
 void MyGLWidget::setAnsysWrapper(ansysWrapper *wr)
 {
     this->wr = wr;
+    LoadStepManager::getInstance().clearData();
     this->calculateScene();
 }
 
@@ -629,7 +631,8 @@ void MyGLWidget::calculateScene()
                 v.a = color[3];
 
                 std::vector<std::array<GLubyte, 4>> node_colors(8);
-                if (wr)
+                LoadStepManager& lsm = LoadStepManager::getInstance();
+                if (lsm.isValid())
                 {
                     auto cmap = this->createColorMap(9);
                     for (int l = 0; l < 8; l++)
@@ -639,8 +642,8 @@ void MyGLWidget::calculateScene()
                         key.data[1] = node_coordinates[l][1] + i;
                         key.data[2] = node_coordinates[l][2] + j;
 
-                        float val = wr->getValByCoord(key, plotComponent);
-                        float val01 = wr->scaleValue01(val, plotComponent);
+                        float val = lsm.getValByCoord(key, plotComponent);
+                        float val01 = lsm.scaleValue01(val, plotComponent);
                         node_colors[l] = this->scalarToColor(val01, cmap);
                     }
                 }
@@ -659,7 +662,7 @@ void MyGLWidget::calculateScene()
 void MyGLWidget::setVoxels(int32_t*** voxels, short int numCubes)
 {
     this->voxels = voxels;
-    this->numCubes = numCubes;
+    this->setNumCubes(numCubes);
     calculateScene();
 }
 
@@ -667,8 +670,8 @@ void MyGLWidget::updateVoxelColor(Voxel &v1)
 {
     if (wr)
     {
-        float val = wr->getValByCoord(v1.x, v1.y, v1.z, SX);
-        float val01 = wr->scaleValue01(val, SX);
+        float val = LoadStepManager::getInstance().getValByCoord(v1.x, v1.y, v1.z, SX);
+        float val01 = LoadStepManager::getInstance().scaleValue01(val, SX);
         auto cmap = this->createColorMap(8);
         auto color = this->scalarToColor(val01, cmap);
         v1.r = color[0];

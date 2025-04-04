@@ -81,6 +81,10 @@ private slots:
 
     void on_ComponentID_currentIndexChanged(int index);
 
+    void on_geom_sub_ID_currentIndexChanged(int index);
+
+    void on_geom_ID_currentIndexChanged(int index);
+
 protected:
     void keyPressEvent(QKeyEvent *event);
 

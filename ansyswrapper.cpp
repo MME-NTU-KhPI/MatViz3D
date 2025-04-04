@@ -6,6 +6,7 @@
 #include <random>
 
 #include "ansyswrapper.h"
+#include "loadstepmanager.h"
 
 #ifndef ANSYSWRAPPER_CPP_INCLUDED
 #define ANSYSWRAPPER_CPP_INCLUDED
@@ -1013,86 +1014,8 @@ void ansysWrapper::generate_random_angles(double *angl, bool in_deg, double epsi
 
 void ansysWrapper::load_loadstep(int num)
 {
-    const int num_columns = 19; // ID;X;Y;Z;UX;UY;UZ;SX;SY;SZ;SXY;SYZ;SXZ;EpsX;EpsY;EpsZ;EpsXY;EpsYZ;EpsXZ
-    QString path_to_file = tempDir.filePath(QString("ls_")+QString::number(num)+".csv");
-    QFile file(path_to_file);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
-    {
-        qCritical() << "Can not open file to read results. Path to file: " << path_to_file;
-        return;
-    }
-    int i = 0;
-    QByteArray parts[num_columns]; // ID;X;Y;Z;UX;UY;UZ;SX;SY;SZ;SXY;SYZ;SXZ;EpsX;EpsY;EpsZ;EpsXY;EpsYZ;EpsXZ
-
-    this->loadstep_results.clear();
-
-    while (!file.atEnd()) {
-        i++;
-        QByteArray line = file.readLine();
-        if (i == 1) //skip header line
-            continue;
-
-        this->loadstep_results.push_back(std::vector<float>(num_columns));
-        for (int j = 0; j < num_columns; j++)
-        {
-            parts[j] = line.sliced(j*17, 16).trimmed();
-            this->loadstep_results[i-2][j] = parts[j].toFloat();
-        }
-    }
-    this->loadstep_results_avg.clear();
-    this->loadstep_results_avg.resize(num_columns);
-
-    this->loadstep_results_max.clear();
-    this->loadstep_results_max.resize(num_columns);
-    std::fill(this->loadstep_results_max.begin(), this->loadstep_results_max.end(), -FLT_MAX);
-
-    this->loadstep_results_min.clear();
-    this->loadstep_results_min.resize(num_columns);
-    std::fill(this->loadstep_results_min.begin(), this->loadstep_results_min.end(), FLT_MAX);
-
-    for (size_t i = 0; i < this->loadstep_results.size(); i++)
-    {
-        for (int j = 0; j < num_columns; j++)
-        {
-            this->loadstep_results_avg[j] += this->loadstep_results[i][j];
-            this->loadstep_results_min[j] = std::min(this->loadstep_results_min[j], this->loadstep_results[i][j]);
-            this->loadstep_results_max[j] = std::max(this->loadstep_results_max[j], this->loadstep_results[i][j]);
-        }
-        n3d::node3d key;
-        key.data[0] = this->loadstep_results[i][X];
-        key.data[1] = this->loadstep_results[i][Y];
-        key.data[2] = this->loadstep_results[i][Z];
-        int line_id = i;
-        this->result_nodes.insert(key, line_id);
-
-    }
-    for (int j = 0; j < num_columns; j++)
-    {
-        this->loadstep_results_avg[j] /= (float)this->loadstep_results.size();
-    }
-    // auto &avg = this->loadstep_results_avg;
-    // auto &max = this->loadstep_results_max;
-    // auto &min = this->loadstep_results_min;
-
-    // qDebug() << "AVG Stress tensor: ";
-    // qDebug() << "  "<< avg[SX]  << avg[SXY] << avg[SXZ];
-    // qDebug() << "  "<< avg[SXY] << avg[SY]  << avg[SYZ];
-    // qDebug() << "  "<< avg[SXZ] << avg[SYZ] << avg[SZ];
-
-    // qDebug() << "AVG Strain tensor: ";
-    // qDebug() << "  "<< avg[EpsX]  << avg[EpsXY] << avg[EpsXZ];
-    // qDebug() << "  "<< avg[EpsXY] << avg[EpsY]  << avg[EpsYZ];
-    // qDebug() << "  "<< avg[EpsXZ] << avg[EpsYZ] << avg[EpsZ];
-
-    // qDebug() << "MAX Stress tensor: ";
-    // qDebug() << "  "<< max[SX]  << max[SXY] << max[SXZ];
-    // qDebug() << "  "<< max[SXY] << max[SY]  << max[SYZ];
-    // qDebug() << "  "<< max[SXZ] << max[SYZ] << max[SZ];
-
-    // qDebug() << "MIN Stress tensor: ";
-    // qDebug() << "  "<< min[SX]  << min[SXY] << min[SXZ];
-    // qDebug() << "  "<< min[SXY] << min[SY]  << min[SYZ];
-    // qDebug() << "  "<< min[SXZ] << min[SYZ] << min[SZ];
+    QString pathToFile = tempDir.filePath(QString("ls_%1.csv").arg(num));
+    LoadStepManager::getInstance().loadLoadStep(num, pathToFile);
 }
 
 float ansysWrapper::scaleValue01(float val, int component)

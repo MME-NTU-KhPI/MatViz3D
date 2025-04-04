@@ -1,3 +1,4 @@
+#include "loadstepmanager.h"
 #include "parameters.h"
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
@@ -96,6 +97,9 @@ MainWindow::MainWindow(QWidget *parent)
     ui->LegendView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
     ui->LegendView->viewport()->update();
     ui->LegendView->show();
+
+    connect(ui->geom_ID, &QComboBox::currentIndexChanged, this, &MainWindow::on_geom_ID_currentIndexChanged);
+    connect(ui->geom_sub_ID, &QComboBox::currentIndexChanged, this, &MainWindow::on_geom_sub_ID_currentIndexChanged);
 }
 
 MainWindow::~MainWindow()
@@ -326,7 +330,7 @@ void MainWindow::on_statistics_clicked()
 void MainWindow::setupFileMenu() {
     QMenu *fileMenu = new QMenu(this);
 
-    QAction *openHDF = new QAction("Open h5 file" , this);
+    QAction *openHDF = new QAction("Open MV3D hdf5" , this);
     QAction *saveAsImageAction = new QAction("Save as image", this);
     QAction *exportWRLAction = new QAction("Export to wrl", this);
     QAction *exportCSVAction = new QAction("Export to csv", this);
@@ -506,7 +510,8 @@ void MainWindow::exportToCSV(){
 }
 
 StressAnalysis sa;
-void MainWindow::estimateStressWithANSYS(){
+void MainWindow::estimateStressWithANSYS()
+{
 
     if(startButtonPressed == false)
     {
@@ -519,7 +524,7 @@ void MainWindow::estimateStressWithANSYS(){
         sa.estimateStressWithANSYS(Parameters::size, Parameters::points, Parameters::voxels);
         ui->myGLWidget->setAnsysWrapper(sa.wr);
         auto cmap = ui->myGLWidget->getColorMap(9);
-        int comp = ui->ComponentID->currentIndex();
+        int comp = ui->geom_ID->currentIndex();
 
         float maxv = sa.wr->loadstep_results_max[comp];
         float minv = sa.wr->loadstep_results_min[comp];
@@ -606,12 +611,12 @@ void MainWindow::on_AboutButton_clicked()
 
 void MainWindow::on_SliderAnimationSpeed_valueChanged(int value)
 {
-    double minValueSlider = 1.0;
-    double maxValueSlider = 100.0;
-    double minValueConverted = 1.0;
-    double maxValueConverted = 0.01;
+    const double minValueSlider = 1.0;
+    const double maxValueSlider = 100.0;
+    const double minValueConverted = 1.0;
+    const double maxValueConverted = 0.01;
 
-    double delayAnimation = ((maxValueConverted - minValueConverted) * (value - minValueSlider) / (maxValueSlider - minValueSlider)) + minValueConverted;
+    const double delayAnimation = ((maxValueConverted - minValueConverted) * (value - minValueSlider) / (maxValueSlider - minValueSlider)) + minValueConverted;
 
     ui->myGLWidget->setDelayAnimation(delayAnimation*1000);
 }
@@ -695,56 +700,54 @@ void MainWindow::openHDF()
         qDebug() << "OpenHDF: no file selected";
         return;
     }
+    LoadStepManager& lsm = LoadStepManager::getInstance();
+    if (lsm.LoadFromHDF5(fileName))
+    {
+        ui->backgrAnim_2->show();
 
-    HDF5Wrapper hdf5(fileName.toStdString());
+        ui->geom_ID->blockSignals(true);
+        ui->geom_sub_ID->blockSignals(true);
 
-    // Read the last set number
-    int last_set = hdf5.readInt("/", "last_set");
-    if (last_set == -1) {
-        qCritical() << "No data found in the HDF5 file.";
-        return;
-    }
+        ui->geom_ID->clear();
+        ui->geom_ID->addItems(lsm.getGeomSetList());
 
-    qDebug() << "Last set number:" << last_set;
+        ui->geom_sub_ID->clear();
+        ui->geom_sub_ID->addItems(lsm.getGeomSetSubList());
 
-    for (int set_num = 1; set_num <= last_set; ++set_num) {
-        std::string set_prefix = "/" + std::to_string(set_num);
+        ui->geom_ID->blockSignals(false);
+        ui->geom_sub_ID->blockSignals(false);
 
-        // Read voxels
-        int cubeSize = hdf5.readInt(set_prefix, "cubeSize");
-        int numPoints = hdf5.readInt(set_prefix, "numPoints");
-        std::vector<std::vector<float>> local_cs = hdf5.readVectorVectorFloat(set_prefix, "local_cs");
+        auto cmap = ui->myGLWidget->getColorMap(9);
+        int comp = ui->geom_ID->currentIndex();
 
-        qDebug() << "Set:" << set_num;
-        qDebug() << "Cube Size:" << cubeSize;
-        qDebug() << "Num Points:" << numPoints;
-        qDebug() << "Local Coordinate System:" << local_cs.size() << "elements";
+        float maxv = lsm.getMaxVal(comp);
+        float minv = lsm.getMinVal(comp);
 
-        // Iterate through load steps
-        std::vector<std::string> loadSteps = hdf5.listDataGroups(set_prefix);
-        for (const auto& group : loadSteps)
+        if (!this->scene)
         {
-            // std::string::npos way to say nothing found
-            if (group.find("ls_") != std::string::npos) // Check if the group is a load step
-            {
-                std::string ls_prefix = set_prefix + "/" + group;
-
-                std::vector<float> results_avg = hdf5.readVectorFloat(ls_prefix, "results_avg");
-                std::vector<float> results_max = hdf5.readVectorFloat(ls_prefix, "results_max");
-                std::vector<float> results_min = hdf5.readVectorFloat(ls_prefix, "results_min");
-                std::vector<std::vector<float>> results = hdf5.readVectorVectorFloat(ls_prefix, "results");
-                std::vector<float> eps_as_loading = hdf5.readVectorFloat(ls_prefix, "eps_as_loading");
-
-                qDebug() << "Load Step:" << group.c_str();
-                qDebug() << "Results Avg:" << results_avg.size() << "elements";
-                qDebug() << "Results Max:" << results_max.size() << "elements";
-                qDebug() << "Results Min:" << results_min.size() << "elements";
-                qDebug() << "Results:" << results.size() << "rows";
-                qDebug() << "Eps as Loading:" << eps_as_loading.size() << "elements";
-            }
+            qDebug() << "LegendView is not initialized!";
+            return;
         }
-    }
 
+        qDebug() << "Min/Max values:" << minv << maxv;
+        qDebug() << "ColorMap size:" << cmap.size();
+
+        if (minv == maxv) {
+            minv -= 0.01f;
+            maxv += 0.01f;
+        }
+
+        this->scene->setMinMax(minv, maxv);
+        this->scene->setCmap(cmap);
+        this->scene->draw();
+
+        ui->LegendView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
+        ui->LegendView->viewport()->update();
+        ui->LegendView->show();
+        ui->myGLWidget->setNumColors(lsm.getNumPoints());
+        ui->myGLWidget->setVoxels(lsm.getVoxelPtr(), lsm.getCubeSize());
+        ui->myGLWidget->update();
+    }
 }
 
 void MainWindow::on_checkBoxWiregrid_stateChanged(int arg1)
@@ -756,7 +759,19 @@ void MainWindow::on_checkBoxWiregrid_stateChanged(int arg1)
 
 void MainWindow::on_ComponentID_currentIndexChanged(int index)
 {
-    if (sa.wr && sa.wr->loadstep_results_max.size() > (size_t)index)
+    LoadStepManager& lsm = LoadStepManager::getInstance();
+    float maxv = lsm.getMaxVal(index);
+    float minv = lsm.getMinVal(index);
+    if (minv == maxv)
+    {
+        minv -= 0.01f;
+        maxv += 0.01f;
+    }
+    this->scene->setMinMax(minv, maxv);
+    ui->myGLWidget->setComponent(index);
+    ui->myGLWidget->update();
+
+/*   if (sa.wr && sa.wr->loadstep_results_max.size() > (size_t)index)
     {
        float maxv = sa.wr->loadstep_results_max[index];
        float minv = sa.wr->loadstep_results_min[index];
@@ -764,7 +779,64 @@ void MainWindow::on_ComponentID_currentIndexChanged(int index)
        ui->myGLWidget->setComponent(index);
        ui->myGLWidget->update();
     }
+*/
 }
+
+
+
+void MainWindow::on_geom_ID_currentIndexChanged(int index)
+{
+    if (index < 0) return;
+
+    LoadStepManager& lsm = LoadStepManager::getInstance();
+    if (lsm.LoadGeomSet(index + 1))
+    {
+        ui->geom_sub_ID->blockSignals(true);
+        ui->geom_sub_ID->clear();
+        ui->geom_sub_ID->addItems(lsm.getGeomSetSubList());
+        ui->geom_sub_ID->blockSignals(false);
+        ui->myGLWidget->setNumColors(lsm.getNumPoints());
+        ui->myGLWidget->setVoxels(lsm.getVoxelPtr(), lsm.getCubeSize());
+        ui->myGLWidget->update();
+    }
+}
+
+void MainWindow::on_geom_sub_ID_currentIndexChanged(int index)
+{
+    if (index < 0) return;
+
+    LoadStepManager& lsm = LoadStepManager::getInstance();
+    if (lsm.LoadGeomSubStep(index + 1)) {
+        auto cmap = ui->myGLWidget->getColorMap(9);
+        int comp = ui->geom_ID->currentIndex();
+
+        float maxv = lsm.getMaxVal(comp);
+        float minv = lsm.getMinVal(comp);
+
+        if (!this->scene) {
+            qDebug() << "LegendView is not initialized!";
+            return;
+        }
+
+        if (minv == maxv) {
+            minv -= 0.01f;
+            maxv += 0.01f;
+        }
+
+        this->scene->setMinMax(minv, maxv);
+        this->scene->setCmap(cmap);
+        this->scene->draw();
+        ui->myGLWidget->setNumColors(lsm.getNumPoints());
+        ui->myGLWidget->setVoxels(lsm.getVoxelPtr(), lsm.getCubeSize());
+
+        ui->LegendView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
+        ui->LegendView->viewport()->update();
+        ui->LegendView->show();
+        ui->myGLWidget->update();
+    }
+
+}
+
 
 void MainWindow::startGifRecording()
 {

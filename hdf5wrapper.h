@@ -23,6 +23,7 @@ public:
     float readFloat(const std::string& dataGroup, const std::string& dataSetName);
     int readInt(const std::string& dataGroup, const std::string& dataSetName);
     QString readQString(const std::string& dataGroup, const std::string& dataSetName);
+    std::vector<std::vector<std::vector<int32_t>>> readVoxels(const std::string& dataGroup, const std::string& dataSetName);
 
     std::vector<std::string> listDataGroups(const std::string& path);
     std::vector<std::string> listDataGroups();
