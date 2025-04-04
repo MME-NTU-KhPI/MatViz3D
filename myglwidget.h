@@ -7,7 +7,6 @@
 #include <QtOpenGLWidgets/QOpenGLWidget>
 #include <QMatrix4x4>
 #include <QOpenGLFunctions>
-#include "ansyswrapper.h"
 
 /**
  * @class MyGLWidget
@@ -78,7 +77,7 @@ protected:
     std::vector<std::array<GLubyte, 4>> createColorMap(int numLevels);
 
     std::array<GLubyte, 4> scalarToColor(float value, const std::vector<std::array<GLubyte, 4>>& colorMap);
-    ansysWrapper *wr;
+
     int plotComponent;
 
 public slots:
@@ -101,7 +100,6 @@ public:
     void setNumColors(int numColors);
     void setDistanceFactor(int factor);
     void setDelayAnimation(int delayAnimation);
-    void setAnsysWrapper(ansysWrapper *wr);
     void DelayFrameUpdate();
     QImage grabFrame();
 signals:
@@ -136,8 +134,6 @@ protected:
 
     std::vector<std::array<GLubyte, 4>> colors;
     std::vector<float> directionFactors;
-
-    void updateVoxelColor(Voxel &v1);
 
     bool isVBOupdateRequired = false;
 

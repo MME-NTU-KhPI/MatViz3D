@@ -32,6 +32,8 @@ public:
 
     int32_t *** getVoxelPtr();
 
+    void calculateVonMisesStressAndStrain();
+
 private:
     LoadStepManager(); // Private constructor
     LoadStepManager(const LoadStepManager&) = delete; // Delete copy constructor

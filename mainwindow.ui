@@ -1600,191 +1600,6 @@ background-color: transparent;</string>
 }</string>
              </property>
              <layout class="QGridLayout" name="gridLayout_10">
-              <item row="3" column="1">
-               <widget class="QComboBox" name="geom_ID">
-                <property name="styleSheet">
-                 <string notr="true">QComboBox {
-    color: #969696;
-    padding: 4px 0;
-    padding-left: 4px;
-	background-color: rgba(40, 40, 40, 0.5);
-	border-radius: 15px;
-	border: 0.5px solid rgba(0, 0, 0, 0.21);
-}
-
-QComboBox QAbstractItemView {
-    width: 140px;
-	max-height: 200px;
-    background-color: rgba(65, 65, 65, 1);
-    color: #969696;
-    font-family: Montserrat;
-    font-size: 13px;
-    font-style: normal;
-    font-weight: 500;
-    line-height: normal;
-	border-top-right-radius: 0; 
-	border-top-left-radius: 0;
-    border-bottom-right-radius: 5px; 
-	border-bottom-left-radius: 5px;
-}
-
-QComboBox::drop-down {
-    width: 15px;  
-    height: 10px;
-    subcontrol-origin: padding;
-    border: none;
-	top: 30px;  /* Відстань від верхнього краю */
-	right: 10px;
-}
-
-QComboBox::down-arrow {
-    image: url(:/icon/roll.png);
-    width: 15px;  
-    height: 10px;
-}
-
-
-QComboBox QAbstractItemView:hover {
-    color: #FFF;
-    font-family: Montserrat;
-    font-size: 13px;
-    font-style: normal;
-    font-weight: 500;
-    line-height: normal;
-}
-
-QComboBox QAbstractScrollArea {
-    min-width: 100px;
-}
-
-QComboBox QScrollBar:vertical {
-    border: none;
-    background: #333; /* Тёмно-серый фон скроллбара */
-    width: 8px;
-    margin: 2px 2px 2px 2px;
-    border-radius: 4px;
-}
-
-QComboBox QScrollBar::handle:vertical {
-    background: #666; /* Тёмно-серый цвет ползунка */
-    min-height: 20px;
-    border-radius: 4px;
-}
-
-QComboBox QScrollBar::handle:vertical:hover {
-    background: #888; /* Светлее при наведении */
-}
-
-QComboBox QScrollBar::handle:vertical:pressed {
-    background: #aaa; /* Ещё светлее при нажатии */
-}
-
-QComboBox QScrollBar::add-line:vertical,
-QComboBox QScrollBar::sub-line:vertical {
-    border: none;
-    background: none;
-}
-</string>
-                </property>
-                <property name="sizeAdjustPolicy">
-                 <enum>QComboBox::SizeAdjustPolicy::AdjustToContents</enum>
-                </property>
-               </widget>
-              </item>
-              <item row="6" column="1">
-               <widget class="QGraphicsView" name="LegendView"/>
-              </item>
-              <item row="4" column="1">
-               <widget class="QComboBox" name="geom_sub_ID">
-                <property name="styleSheet">
-                 <string notr="true">QComboBox {
-    color: #969696;
-    padding: 4px 0;
-    padding-left: 4px;
-	background-color: rgba(40, 40, 40, 0.5);
-	border-radius: 15px;
-	border: 0.5px solid rgba(0, 0, 0, 0.21);
-}
-
-QComboBox QAbstractItemView {
-    width: 140px;
-	max-height: 200px;
-    background-color: rgba(65, 65, 65, 1);
-    color: #969696;
-    font-family: Montserrat;
-    font-size: 13px;
-    font-style: normal;
-    font-weight: 500;
-    line-height: normal;
-	border-top-right-radius: 0; 
-	border-top-left-radius: 0;
-    border-bottom-right-radius: 5px; 
-	border-bottom-left-radius: 5px;
-}
-
-QComboBox::drop-down {
-    width: 15px;  
-    height: 10px;
-    subcontrol-origin: padding;
-    border: none;
-	top: 30px;  /* Відстань від верхнього краю */
-	right: 10px;
-}
-
-QComboBox::down-arrow {
-    image: url(:/icon/roll.png);
-    width: 15px;  
-    height: 10px;
-}
-
-
-QComboBox QAbstractItemView:hover {
-    color: #FFF;
-    font-family: Montserrat;
-    font-size: 13px;
-    font-style: normal;
-    font-weight: 500;
-    line-height: normal;
-}
-
-QComboBox QAbstractScrollArea {
-    min-width: 100px;
-}
-
-QComboBox QScrollBar:vertical {
-    border: none;
-    background: #333; /* Тёмно-серый фон скроллбара */
-    width: 8px;
-    margin: 2px 2px 2px 2px;
-    border-radius: 4px;
-}
-
-QComboBox QScrollBar::handle:vertical {
-    background: #666; /* Тёмно-серый цвет ползунка */
-    min-height: 20px;
-    border-radius: 4px;
-}
-
-QComboBox QScrollBar::handle:vertical:hover {
-    background: #888; /* Светлее при наведении */
-}
-
-QComboBox QScrollBar::handle:vertical:pressed {
-    background: #aaa; /* Ещё светлее при нажатии */
-}
-
-QComboBox QScrollBar::add-line:vertical,
-QComboBox QScrollBar::sub-line:vertical {
-    border: none;
-    background: none;
-}
-</string>
-                </property>
-                <property name="sizeAdjustPolicy">
-                 <enum>QComboBox::SizeAdjustPolicy::AdjustToContents</enum>
-                </property>
-               </widget>
-              </item>
               <item row="1" column="1">
                <widget class="QLabel" name="Exploded_view_2">
                 <property name="minimumSize">
@@ -1827,10 +1642,12 @@ background-color: transparent;</string>
                 </property>
                </widget>
               </item>
-              <item row="5" column="1">
-               <widget class="QComboBox" name="ComponentID">
-                <property name="styleSheet">
-                 <string notr="true">QComboBox {
+              <item row="2" column="1">
+               <layout class="QHBoxLayout" name="horizontalLayout_6">
+                <item>
+                 <widget class="QComboBox" name="geom_ID">
+                  <property name="styleSheet">
+                   <string notr="true">QComboBox {
     color: #969696;
     padding: 4px 0;
     padding-left: 4px;
@@ -1912,121 +1729,308 @@ QComboBox QScrollBar::sub-line:vertical {
     background: none;
 }
 </string>
-                </property>
-                <property name="sizeAdjustPolicy">
-                 <enum>QComboBox::SizeAdjustPolicy::AdjustToContents</enum>
-                </property>
-                <item>
-                 <property name="text">
-                  <string>ID</string>
-                 </property>
+                  </property>
+                  <property name="sizeAdjustPolicy">
+                   <enum>QComboBox::SizeAdjustPolicy::AdjustToContents</enum>
+                  </property>
+                 </widget>
                 </item>
                 <item>
-                 <property name="text">
-                  <string>X</string>
-                 </property>
+                 <widget class="QComboBox" name="geom_sub_ID">
+                  <property name="styleSheet">
+                   <string notr="true">QComboBox {
+    color: #969696;
+    padding: 4px 0;
+    padding-left: 4px;
+	background-color: rgba(40, 40, 40, 0.5);
+	border-radius: 15px;
+	border: 0.5px solid rgba(0, 0, 0, 0.21);
+}
+
+QComboBox QAbstractItemView {
+    width: 140px;
+	max-height: 200px;
+    background-color: rgba(65, 65, 65, 1);
+    color: #969696;
+    font-family: Montserrat;
+    font-size: 13px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: normal;
+	border-top-right-radius: 0; 
+	border-top-left-radius: 0;
+    border-bottom-right-radius: 5px; 
+	border-bottom-left-radius: 5px;
+}
+
+QComboBox::drop-down {
+    width: 15px;  
+    height: 10px;
+    subcontrol-origin: padding;
+    border: none;
+	top: 30px;  /* Відстань від верхнього краю */
+	right: 10px;
+}
+
+QComboBox::down-arrow {
+    image: url(:/icon/roll.png);
+    width: 15px;  
+    height: 10px;
+}
+
+
+QComboBox QAbstractItemView:hover {
+    color: #FFF;
+    font-family: Montserrat;
+    font-size: 13px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: normal;
+}
+
+QComboBox QAbstractScrollArea {
+    min-width: 100px;
+}
+
+QComboBox QScrollBar:vertical {
+    border: none;
+    background: #333; /* Тёмно-серый фон скроллбара */
+    width: 8px;
+    margin: 2px 2px 2px 2px;
+    border-radius: 4px;
+}
+
+QComboBox QScrollBar::handle:vertical {
+    background: #666; /* Тёмно-серый цвет ползунка */
+    min-height: 20px;
+    border-radius: 4px;
+}
+
+QComboBox QScrollBar::handle:vertical:hover {
+    background: #888; /* Светлее при наведении */
+}
+
+QComboBox QScrollBar::handle:vertical:pressed {
+    background: #aaa; /* Ещё светлее при нажатии */
+}
+
+QComboBox QScrollBar::add-line:vertical,
+QComboBox QScrollBar::sub-line:vertical {
+    border: none;
+    background: none;
+}
+</string>
+                  </property>
+                  <property name="sizeAdjustPolicy">
+                   <enum>QComboBox::SizeAdjustPolicy::AdjustToContents</enum>
+                  </property>
+                 </widget>
                 </item>
                 <item>
-                 <property name="text">
-                  <string>Y</string>
-                 </property>
+                 <widget class="QComboBox" name="ComponentID">
+                  <property name="styleSheet">
+                   <string notr="true">QComboBox {
+    color: #969696;
+    padding: 4px 0;
+    padding-left: 4px;
+	background-color: rgba(40, 40, 40, 0.5);
+	border-radius: 15px;
+	border: 0.5px solid rgba(0, 0, 0, 0.21);
+}
+
+QComboBox QAbstractItemView {
+    width: 140px;
+	max-height: 200px;
+    background-color: rgba(65, 65, 65, 1);
+    color: #969696;
+    font-family: Montserrat;
+    font-size: 13px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: normal;
+	border-top-right-radius: 0; 
+	border-top-left-radius: 0;
+    border-bottom-right-radius: 5px; 
+	border-bottom-left-radius: 5px;
+}
+
+QComboBox::drop-down {
+    width: 15px;  
+    height: 10px;
+    subcontrol-origin: padding;
+    border: none;
+	top: 30px;  /* Відстань від верхнього краю */
+	right: 10px;
+}
+
+QComboBox::down-arrow {
+    image: url(:/icon/roll.png);
+    width: 15px;  
+    height: 10px;
+}
+
+
+QComboBox QAbstractItemView:hover {
+    color: #FFF;
+    font-family: Montserrat;
+    font-size: 13px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: normal;
+}
+
+QComboBox QAbstractScrollArea {
+    min-width: 100px;
+}
+
+QComboBox QScrollBar:vertical {
+    border: none;
+    background: #333; /* Тёмно-серый фон скроллбара */
+    width: 8px;
+    margin: 2px 2px 2px 2px;
+    border-radius: 4px;
+}
+
+QComboBox QScrollBar::handle:vertical {
+    background: #666; /* Тёмно-серый цвет ползунка */
+    min-height: 20px;
+    border-radius: 4px;
+}
+
+QComboBox QScrollBar::handle:vertical:hover {
+    background: #888; /* Светлее при наведении */
+}
+
+QComboBox QScrollBar::handle:vertical:pressed {
+    background: #aaa; /* Ещё светлее при нажатии */
+}
+
+QComboBox QScrollBar::add-line:vertical,
+QComboBox QScrollBar::sub-line:vertical {
+    border: none;
+    background: none;
+}
+</string>
+                  </property>
+                  <property name="sizeAdjustPolicy">
+                   <enum>QComboBox::SizeAdjustPolicy::AdjustToContents</enum>
+                  </property>
+                  <item>
+                   <property name="text">
+                    <string>Geometry</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>X</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Y</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Z</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>UX</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>UY</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>UZ</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>SX</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>SY</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>SZ</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>SXY</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>SYZ</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>SXZ</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>EpsX</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>EpsY</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>EpsZ</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>EpsXY</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>EpsYZ</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>EpsXZ</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>USUM</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>SEQV</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>EpsEQV</string>
+                   </property>
+                  </item>
+                 </widget>
                 </item>
-                <item>
-                 <property name="text">
-                  <string>Z</string>
-                 </property>
-                </item>
-                <item>
-                 <property name="text">
-                  <string>UX</string>
-                 </property>
-                </item>
-                <item>
-                 <property name="text">
-                  <string>UY</string>
-                 </property>
-                </item>
-                <item>
-                 <property name="text">
-                  <string>UZ</string>
-                 </property>
-                </item>
-                <item>
-                 <property name="text">
-                  <string>SX</string>
-                 </property>
-                </item>
-                <item>
-                 <property name="text">
-                  <string>SY</string>
-                 </property>
-                </item>
-                <item>
-                 <property name="text">
-                  <string>SZ</string>
-                 </property>
-                </item>
-                <item>
-                 <property name="text">
-                  <string>SXY</string>
-                 </property>
-                </item>
-                <item>
-                 <property name="text">
-                  <string>SYZ</string>
-                 </property>
-                </item>
-                <item>
-                 <property name="text">
-                  <string>SXZ</string>
-                 </property>
-                </item>
-                <item>
-                 <property name="text">
-                  <string>EpsX</string>
-                 </property>
-                </item>
-                <item>
-                 <property name="text">
-                  <string>EpsY</string>
-                 </property>
-                </item>
-                <item>
-                 <property name="text">
-                  <string>EpsZ</string>
-                 </property>
-                </item>
-                <item>
-                 <property name="text">
-                  <string>EpsXY</string>
-                 </property>
-                </item>
-                <item>
-                 <property name="text">
-                  <string>EpsYZ</string>
-                 </property>
-                </item>
-                <item>
-                 <property name="text">
-                  <string>EpsXZ</string>
-                 </property>
-                </item>
-                <item>
-                 <property name="text">
-                  <string>USUM</string>
-                 </property>
-                </item>
-                <item>
-                 <property name="text">
-                  <string>SEQV</string>
-                 </property>
-                </item>
-                <item>
-                 <property name="text">
-                  <string>EpsEQV</string>
-                 </property>
-                </item>
-               </widget>
+               </layout>
+              </item>
+              <item row="7" column="1" rowspan="3">
+               <widget class="QGraphicsView" name="LegendView"/>
               </item>
              </layout>
             </widget>

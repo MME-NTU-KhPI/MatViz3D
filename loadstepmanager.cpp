@@ -63,8 +63,54 @@ void LoadStepManager::loadLoadStep(int num, const QString& filePath)
     for (int j = 0; j < numColumns; j++) {
         loadstepResultsAvg[j] /= static_cast<float>(loadstepResults.size());
     }
+
+    calculateVonMisesStressAndStrain();
 }
 
+void LoadStepManager::calculateVonMisesStressAndStrain()
+{
+    const int numColumns = 19; // Original number of columns
+    const int usumIndex = numColumns; // Index for von Mises stress
+    const int stressIndex = numColumns + 1; // Index for von Mises stress
+    const int strainIndex = numColumns + 2; // Index for von Mises strain
+    const int num_new_rows = 3;
+    for (auto& row : loadstepResults) {
+        row.resize(numColumns + 3); // Add three new columns for displ sum, stress and strain
+
+        // Calculate von Mises stress
+        float sx = row[SX], sy = row[SY], sz = row[SZ];
+        float sxy = row[SXY], syz = row[SYZ], sxz = row[SXZ];
+        row[stressIndex] = std::sqrt(0.5f * ((sx - sy) * (sx - sy) + (sy - sz) * (sy - sz) + (sz - sx) * (sz - sx)) +
+                                     3.0f * (sxy * sxy + syz * syz + sxz * sxz));
+
+        // Calculate von Mises strain
+        float epsX = row[EpsX], epsY = row[EpsY], epsZ = row[EpsZ];
+        float epsXY = row[EpsXY], epsYZ = row[EpsYZ], epsXZ = row[EpsXZ];
+        row[strainIndex] = std::sqrt(0.5f * ((epsX - epsY) * (epsX - epsY) + (epsY - epsZ) * (epsY - epsZ) + (epsZ - epsX) * (epsZ - epsX)) +
+                                     3.0f * (epsXY * epsXY + epsYZ * epsYZ + epsXZ * epsXZ));
+
+        // Calculate displacement sum
+        float ux = row[UX], uy = row[UY], uz = row[UZ];
+        row[usumIndex] = std::sqrt(ux * ux + uy * uy + uz * uz);
+    }
+
+    // Update avg, max, and min arrays
+    loadstepResultsAvg.resize(numColumns + num_new_rows, 0.0f);
+    loadstepResultsMax.resize(numColumns + num_new_rows, -FLT_MAX);
+    loadstepResultsMin.resize(numColumns + num_new_rows, FLT_MAX);
+
+    for (const auto& row : loadstepResults) {
+        for (int j = 0; j < numColumns + num_new_rows; j++) {
+            loadstepResultsAvg[j] += row[j];
+            loadstepResultsMin[j] = std::min(loadstepResultsMin[j], row[j]);
+            loadstepResultsMax[j] = std::max(loadstepResultsMax[j], row[j]);
+        }
+    }
+
+    for (int j = 0; j < numColumns + num_new_rows; j++) {
+        loadstepResultsAvg[j] /= static_cast<float>(loadstepResults.size());
+    }
+}
 
 float LoadStepManager::scaleValue01(float val, int component) const
 {
@@ -227,6 +273,7 @@ bool LoadStepManager::LoadGeomSubStep(int geom_set_num, int sub_set_num, HDF5Wra
             this->createNodesHash();
 
             res =  true;
+            calculateVonMisesStressAndStrain();
         }
 
         if (group.find("ls_") != std::string::npos)
@@ -255,6 +302,7 @@ float LoadStepManager::getMaxVal(size_t comp)
     if (isValid() && comp < this->loadstepResultsMax.size())
         return loadstepResultsMax[comp];
 
+    qCritical() << "LoadStepManager::getMaxVal. Index comp is out of range. Comp = " << comp << "; size() = " << this->loadstepResultsMax.size();
     return 0;
 }
 
@@ -264,6 +312,7 @@ float LoadStepManager::getMinVal(size_t comp)
     if (isValid() && comp < this->loadstepResultsMin.size())
         return loadstepResultsMin[comp];
 
+    qCritical() << "LoadStepManager::getMinVal. Index comp is out of range. Comp = " << comp << "; size() = " << this->loadstepResultsMin.size();
     return 0;
 }
 

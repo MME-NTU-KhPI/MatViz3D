@@ -71,10 +71,23 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
         qCritical() << "Ansys run was unsuccessfull. Exiting...";
         return;
     }
+    QString filename;
     if (Parameters::filename.length())
     {
-        qDebug() << "Saving results to " << Parameters::filename;
-        HDF5Wrapper hdf5(Parameters::filename.toStdString());
+        filename = Parameters::filename;
+        qDebug() << "Saving results to " << filename;
+    }
+    else
+    {
+        filename = "current_ls.hdf5";
+        qDebug() << "No output file with -o option. Saving to " << filename;
+        if (QFile::exists(filename) && QFile::remove(filename))
+        {
+            qDebug() << "\t File exists. Removed";
+        }
+    }
+    {
+        HDF5Wrapper hdf5(filename.toStdString());
 
         int last_set = hdf5.readInt("/", "last_set");
         if (last_set == -1) // Handle missing dataset case
@@ -106,18 +119,7 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
             hdf5.write(prefix + ls_str, "eps_as_loading", wr->eps_as_loading[ls_num-1]);
         }
     }
-    else
-    {
-        qDebug() << "No output file with -o option. Just loading results to memory...";
-        auto& loadStepManager = LoadStepManager::getInstance();
-        for (size_t ls_num = 1; ls_num <= wr->eps_as_loading.size(); ls_num++)
-        {
-            QString filePath = QString("ls_%1.csv").arg(ls_num);
-            loadStepManager.loadLoadStep(ls_num, filePath);
-        }
-        qDebug() << "Done ";
-    }
-
+    LoadStepManager::getInstance().LoadFromHDF5(filename);
     wr->clear_temp_data();
-    //delete wr;
+    delete wr;
 }

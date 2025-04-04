@@ -516,41 +516,52 @@ void MainWindow::estimateStressWithANSYS()
     if(startButtonPressed == false)
     {
         QMessageBox::information(nullptr, "Warning!", "The structure was not generated.");
+        return;
     }
-    else
-    {
-        ui->backgrAnim_2->show();
+    LoadStepManager& lsm = LoadStepManager::getInstance();
+    ui->backgrAnim_2->show();
 
-        sa.estimateStressWithANSYS(Parameters::size, Parameters::points, Parameters::voxels);
-        ui->myGLWidget->setAnsysWrapper(sa.wr);
-        auto cmap = ui->myGLWidget->getColorMap(9);
-        int comp = ui->geom_ID->currentIndex();
+    sa.estimateStressWithANSYS(Parameters::size, Parameters::points, Parameters::voxels);
 
-        float maxv = sa.wr->loadstep_results_max[comp];
-        float minv = sa.wr->loadstep_results_min[comp];
+    auto cmap = ui->myGLWidget->getColorMap(9);
+    int comp = ui->geom_ID->currentIndex();
 
-        if (!this->scene) {
-            qDebug() << "LegendView is not initialized!";
-            return;
-        }
+    float maxv = sa.wr->loadstep_results_max[comp];
+    float minv = sa.wr->loadstep_results_min[comp];
 
-        qDebug() << "Min/Max values:" << minv << maxv;
-        qDebug() << "ColorMap size:" << cmap.size();
-
-        if (minv == maxv) {
-            minv -= 0.01f;
-            maxv += 0.01f;
-        }
-
-        this->scene->setMinMax(minv, maxv);
-        this->scene->setCmap(cmap);
-        this->scene->draw();
-
-        ui->LegendView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
-        ui->LegendView->viewport()->update();
-        ui->LegendView->show();
-        ui->myGLWidget->update();
+    if (!this->scene) {
+        qDebug() << "LegendView is not initialized!";
+        return;
     }
+
+    qDebug() << "Min/Max values:" << minv << maxv;
+    qDebug() << "ColorMap size:" << cmap.size();
+
+    if (minv == maxv) {
+        minv -= 0.01f;
+        maxv += 0.01f;
+    }
+
+    this->scene->setMinMax(minv, maxv);
+    this->scene->setCmap(cmap);
+    this->scene->draw();
+
+    ui->geom_ID->blockSignals(true);
+    ui->geom_sub_ID->blockSignals(true);
+
+    ui->geom_ID->clear();
+    ui->geom_ID->addItems(lsm.getGeomSetList());
+
+    ui->geom_sub_ID->clear();
+    ui->geom_sub_ID->addItems(lsm.getGeomSetSubList());
+
+    ui->geom_ID->blockSignals(false);
+    ui->geom_sub_ID->blockSignals(false);
+
+    ui->LegendView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
+    ui->LegendView->viewport()->update();
+    ui->LegendView->show();
+    ui->myGLWidget->update();
 }
 
 

@@ -24,7 +24,6 @@ MyGLWidget::MyGLWidget(QWidget *parent)
     distance = 2.0f;
     numCubes = 1;
     voxels = nullptr;
-    wr = nullptr;
     timer = new QTimer(this);
     plotComponent = 0;
     delayAnimation = 0;
@@ -156,7 +155,6 @@ void MyGLWidget::setNumCubes(int numCubes)
 {
     distance = 2 * numCubes;
     this->numCubes = numCubes;
-    this->wr = nullptr;
     update();
 }
 
@@ -171,7 +169,6 @@ void MyGLWidget::setNumColors(int numColors)
     for (int i = 0; i < numColors; i++) {
         directionFactors[i] = ((rand() % 2) == 0) ? 1.0f : -1.0f;
     }
-    this->wr = nullptr;
 }
 
 void MyGLWidget::setDelayAnimation(int delayAnimation)
@@ -479,13 +476,6 @@ std::array<GLubyte, 4> MyGLWidget::scalarToColor(float value, const std::vector<
     return colorMap[index];
 }
 
-void MyGLWidget::setAnsysWrapper(ansysWrapper *wr)
-{
-    this->wr = wr;
-    LoadStepManager::getInstance().clearData();
-    this->calculateScene();
-}
-
 void MyGLWidget::setComponent(int index)
 {
     this->plotComponent = index;
@@ -632,7 +622,7 @@ void MyGLWidget::calculateScene()
 
                 std::vector<std::array<GLubyte, 4>> node_colors(8);
                 LoadStepManager& lsm = LoadStepManager::getInstance();
-                if (lsm.isValid())
+                if (lsm.isValid() && plotComponent > 0)
                 {
                     auto cmap = this->createColorMap(9);
                     for (int l = 0; l < 8; l++)
@@ -664,20 +654,6 @@ void MyGLWidget::setVoxels(int32_t*** voxels, short int numCubes)
     this->voxels = voxels;
     this->setNumCubes(numCubes);
     calculateScene();
-}
-
-void MyGLWidget::updateVoxelColor(Voxel &v1)
-{
-    if (wr)
-    {
-        float val = LoadStepManager::getInstance().getValByCoord(v1.x, v1.y, v1.z, SX);
-        float val01 = LoadStepManager::getInstance().scaleValue01(val, SX);
-        auto cmap = this->createColorMap(8);
-        auto color = this->scalarToColor(val01, cmap);
-        v1.r = color[0];
-        v1.g = color[1];
-        v1.b = color[2];
-    }
 }
 
 void MyGLWidget::drawCube(short cubeSize, Voxel vox, bool* neighbors, std::vector<std::array<GLubyte, 4>> &node_colors)

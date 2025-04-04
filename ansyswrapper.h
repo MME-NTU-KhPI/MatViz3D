@@ -6,7 +6,7 @@
 #include <QHash>
 #include <vector>
 
-enum tensor_components{ID,X,Y,Z,UX,UY,UZ,SX,SY,SZ,SXY,SYZ,SXZ,EpsX,EpsY,EpsZ,EpsXY,EpsYZ,EpsXZ};
+enum tensor_components{ID,X,Y,Z,UX,UY,UZ,SX,SY,SZ,SXY,SYZ,SXZ,EpsX,EpsY,EpsZ,EpsXY,EpsYZ,EpsXZ, USUM, SEQV, EpsEQV};
 
 namespace n3d
 {
