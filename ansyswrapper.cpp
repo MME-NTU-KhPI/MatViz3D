@@ -6,7 +6,6 @@
 #include <random>
 
 #include "ansyswrapper.h"
-#include "loadstepmanager.h"
 
 #ifndef ANSYSWRAPPER_CPP_INCLUDED
 #define ANSYSWRAPPER_CPP_INCLUDED
@@ -87,11 +86,10 @@ bool ansysWrapper::run(QString apdl)
     {
         QString ansVersionStr;
         ansVersionStr = QString::number(m_ansVersion);
-        //fileName = m_projectPath + "/start" + ansVersionStr + ".ans";
         fileName = m_projectPath + "/start.ans";
     }
 
-    qDebug() <<"temp dir path" << m_projectPath;
+    qDebug() << "temp dir path" << m_projectPath;
     if (!tempDir.isValid())
     {
         qDebug() <<"Temp dir error: " << tempDir.errorString();
@@ -114,7 +112,29 @@ bool ansysWrapper::run(QString apdl)
     QProcess pr;
     pr.setWorkingDirectory(m_projectPath);
     pr.start(m_pathToAns, m_arg);
-    pr.waitForFinished(INT_MAX);
+
+    QString monitorFilePath = m_projectPath + "/" + m_jobName + ".mntr";
+    QFile monitorFile(monitorFilePath);
+
+    while (!pr.waitForFinished(1000)) // Check every second
+    {
+        if (monitorFile.exists() && monitorFile.open(QIODevice::ReadOnly | QIODevice::Text))
+        {
+            QTextStream in(&monitorFile);
+            QString lastLine;
+            while (!in.atEnd())
+            {
+                lastLine = in.readLine();
+            }
+            monitorFile.close();
+
+            if (!lastLine.isEmpty())
+            {
+                qDebug().noquote() << "ANSYS Progress: " << lastLine;
+            }
+        }
+    }
+
     qDebug().noquote() << "Ansys process output:\n" + pr.readAll();
     qDebug() << "Ansys process finished with code: " << pr.exitCode() << " Status: " << exitCodeToText(pr.exitCode());
 
@@ -361,6 +381,133 @@ void ansysWrapper::createFEfromArray(int32_t*** voxels, short int numCubes, int 
     apdl << "CSYS, 0"<<Qt::endl; //switch to global coord system
     QString FEM_info = "FE Model info:\n\t nodes:%1\n\t elements:%2";
     qInfo().noquote() << FEM_info.arg(nodes.size()).arg(elemets.size()/20);
+}
+
+void ansysWrapper::createFEfromArray8Node(int32_t*** voxels, short int numCubes, int numSeeds, bool is_random_orientation)
+{
+    for (int i = 0; i < numSeeds + 1; i++)
+        this->createLocalCS(is_random_orientation);
+
+    static const float node_coordinates[9][3] =
+        {
+            {-999, -999, -999},
+            {0.0, 0.0, 0.0}, // 1
+            {1.0, 0.0, 0.0}, // 2
+            {1.0, 1.0, 0.0}, // 3
+            {0.0, 1.0, 0.0}, // 4
+            {0.0, 0.0, 1.0}, // 5
+            {1.0, 0.0, 1.0}, // 6
+            {1.0, 1.0, 1.0}, // 7
+            {0.0, 1.0, 1.0}  // 8
+        };
+
+    n3d::node3d key;
+    QVector<int> elements;
+    QVector<int> tmp_elements(8);
+    int node_number = 0;
+
+    int approx_num_nodes = pow(numCubes + 1, 3); // Estimate for memory allocation
+    nodes.reserve(approx_num_nodes);
+    QHash<int, n3d::node3d> reverse_nodes;
+    reverse_nodes.reserve(approx_num_nodes);
+
+    qDebug() << "Creating nodes for 8-node elements";
+    for (int i = 0; i < numCubes; i++)
+    {
+        for (int j = 0; j < numCubes; j++)
+            for (int k = 0; k < numCubes; k++)
+            {
+                if (voxels[i][j][k] == 0) // Skip empty cells
+                    continue;
+
+                for (int l = 1; l <= 8; l++)
+                {
+                    key.data[0] = node_coordinates[l][0] + i;
+                    key.data[1] = node_coordinates[l][1] + j;
+                    key.data[2] = node_coordinates[l][2] + k;
+
+                    if (nodes.contains(key))
+                    {
+                        tmp_elements[l - 1] = nodes[key];
+                    }
+                    else
+                    {
+                        nodes.insert(key, node_number);
+                        reverse_nodes.insert(node_number, key);
+                        tmp_elements[l - 1] = node_number;
+                        node_number++;
+                    }
+                }
+                elements.append(tmp_elements);
+            }
+        if (i % 3 == 0)
+        {
+            qDebug() << "Progress: " << i * 100 / numCubes << "%";
+        }
+    }
+
+    QTextStream apdl(&m_apdl);
+
+    // Write nodes
+    apdl << "NBLOCK,3,,13" << Qt::endl;
+    apdl << "(1i9,3e20.9e3)" << Qt::endl;
+    for (auto ni = nodes.constBegin(); ni != nodes.constEnd(); ni++)
+    {
+        apdl.setFieldWidth(9);
+        apdl << ni.value() + 1;
+        apdl.setFieldWidth(20);
+        apdl << QString::number(ni.key().data[0], 'E', 9)
+             << QString::number(ni.key().data[1], 'E', 9)
+             << QString::number(ni.key().data[2], 'E', 9);
+        apdl.setFieldWidth(0);
+        apdl << Qt::endl;
+    }
+    apdl << -1 << Qt::endl;
+
+    // Write element type
+    apdl << "ET,1,185" << Qt::endl;
+
+    // Write elements
+    apdl << "EBLOCK,19,SOLID,,2" << Qt::endl;
+    apdl << "(19i9)" << Qt::endl;
+    size_t el_size = elements.size();
+
+    for (size_t ei = 0; ei < el_size; ei += 8)
+    {
+        key = reverse_nodes.value(elements[ei]);
+        int kx = (int)key[0], ky = (int)key[1], kz = (int)key[2];
+        int mat_id = 1;
+        int el_id = 1;
+        int real_const = 1;
+        int sec_id = 1;
+        int coord_sys_id = voxels[kx][ky][kz] + 11; // 11 - first ansys user-def coord sys
+        int bd_flag = 0;
+        int sld_ref = 0;
+        int el_shape = 0;
+        int el_num_nodes = 8;
+        int exclude_key = 0;
+        int el_number = ei / el_num_nodes + 1;
+
+        apdl.setFieldWidth(9);
+        apdl << mat_id << el_id << real_const << sec_id << coord_sys_id << bd_flag << sld_ref
+             << el_shape << el_num_nodes << exclude_key << el_number;
+        for (size_t j = ei; j < ei + 8; j++)
+        {
+            apdl << elements[j] + 1;
+        }
+        apdl.setFieldWidth(0);
+        apdl << Qt::endl;
+
+        if (el_size > 100 && ei % (el_size / 100) == 0)
+            qDebug() << "Progress: " << ei * 100 / el_size << "%";
+    }
+    apdl << -1 << Qt::endl;
+
+    // Switch to global coordinate system
+    apdl << "CSYS, 0" << Qt::endl;
+
+    QString FEM_info = "FE Model info:\n\t nodes:%1\n\t elements:%2";
+    qInfo().noquote() << FEM_info.arg(nodes.size()).arg(elements.size() / 8);
 }
 
 int ansysWrapper::createLocalCS(bool is_random_orientation)
@@ -1078,29 +1225,47 @@ void ansysWrapper::load_loadstep(int num)
     {
         this->loadstep_results_avg[j] /= (float)this->loadstep_results.size();
     }
-    // auto &avg = this->loadstep_results_avg;
-    // auto &max = this->loadstep_results_max;
-    // auto &min = this->loadstep_results_min;
+    auto &avg = this->loadstep_results_avg;
+    auto &max = this->loadstep_results_max;
+    auto &min = this->loadstep_results_min;
+    auto &load = this->eps_as_loading[num - 1];
+    qDebug() << QString("------ LS NUM %1------- ").arg(num);
+    qDebug() << "AVG S tensor: ";
+    qDebug() << "  "<< avg[SX]  << avg[SXY] << avg[SXZ];
+    qDebug() << "  "<< avg[SXY] << avg[SY]  << avg[SYZ];
+    qDebug() << "  "<< avg[SXZ] << avg[SYZ] << avg[SZ] << "\n";
 
-    // qDebug() << "AVG Stress tensor: ";
-    // qDebug() << "  "<< avg[SX]  << avg[SXY] << avg[SXZ];
-    // qDebug() << "  "<< avg[SXY] << avg[SY]  << avg[SYZ];
-    // qDebug() << "  "<< avg[SXZ] << avg[SYZ] << avg[SZ];
 
-    // qDebug() << "AVG Strain tensor: ";
-    // qDebug() << "  "<< avg[EpsX]  << avg[EpsXY] << avg[EpsXZ];
-    // qDebug() << "  "<< avg[EpsXY] << avg[EpsY]  << avg[EpsYZ];
-    // qDebug() << "  "<< avg[EpsXZ] << avg[EpsYZ] << avg[EpsZ];
+    qDebug() << "AVG EPS tensor: ";
+    qDebug() << "  "<< avg[EpsX]  << avg[EpsXY] << avg[EpsXZ];
+    qDebug() << "  "<< avg[EpsXY] << avg[EpsY]  << avg[EpsYZ];
+    qDebug() << "  "<< avg[EpsXZ] << avg[EpsYZ] << avg[EpsZ] << "\n";
 
-    // qDebug() << "MAX Stress tensor: ";
+
+    qDebug() << "AVG EPS Load tensor: ";
+    qDebug() << "  "<< load[0] << load[3] << load[5];
+    qDebug() << "  "<< load[3] << load[1] << load[4];
+    qDebug() << "  "<< load[5] << load[4] << load[2] << "\n";
+
+
+    auto eps_err = [](float e1, float e2) { return std::round(e2 ? (e2 - e1) / e2 * 10000 : 0) / 100; };
+    qDebug() << "AVG EPS Error tensor, %: ";
+    qDebug() << "  "<< eps_err(avg[EpsX],    load[0]) << eps_err(avg[EpsXY]/2, load[3]) << eps_err(avg[EpsXZ]/2, load[5]);
+    qDebug() << "  "<< eps_err(avg[EpsXY]/2, load[3]) << eps_err(avg[EpsY],    load[1]) << eps_err(avg[EpsYZ]/2, load[4]);
+    qDebug() << "  "<< eps_err(avg[EpsXZ]/2, load[5]) << eps_err(avg[EpsYZ]/2, load[4]) << eps_err(avg[EpsZ],    load[2]) << "\n";
+
+
+
+    // qDebug() << "MAX S tensor: ";
     // qDebug() << "  "<< max[SX]  << max[SXY] << max[SXZ];
     // qDebug() << "  "<< max[SXY] << max[SY]  << max[SYZ];
     // qDebug() << "  "<< max[SXZ] << max[SYZ] << max[SZ];
-
-    // qDebug() << "MIN Stress tensor: ";
+    // qDebug() << "\n";
+    // qDebug() << "MIN S tensor: ";
     // qDebug() << "  "<< min[SX]  << min[SXY] << min[SXZ];
     // qDebug() << "  "<< min[SXY] << min[SY]  << min[SYZ];
     // qDebug() << "  "<< min[SXZ] << min[SYZ] << min[SZ];
+    // qDebug() << "\n";
 }
 
 float ansysWrapper::scaleValue01(float val, int component)
@@ -1280,6 +1445,141 @@ set,next !read next set
 *del,nummax,nopr
 *del,numnode,nopr
 ALLS
+
+                )";
+
+    m_apdl += s;
+}
+
+void ansysWrapper::addStrainToBCMacro(double eps_xx, double eps_yy, double eps_zz,
+                                      double eps_xy, double eps_xz, double eps_yz, int CubeSize)
+{
+    this->prep7();
+    this->clearBC();
+
+    std::vector<float> eps_vec = {static_cast<float>(eps_xx),
+                                  static_cast<float>(eps_yy),
+                                  static_cast<float>(eps_zz),
+                                  static_cast<float>(eps_xy),
+                                  static_cast<float>(eps_yz),
+                                  static_cast<float>(eps_xz)};
+
+    this->eps_as_loading.push_back(eps_vec);
+
+    this->m_apdl += "!-----Apply BC for 3D case -------\n";
+
+    this->m_apdl += QString("ApplyStrainAsDisp, %1, %2, %3, %4, %5, %6, %7\n").\
+                    arg(eps_xx).arg(eps_yy).arg(eps_zz).arg(eps_xy).arg(eps_yz).arg(eps_xz).arg(CubeSize);
+
+    this->m_apdl += "!-----END Apply BC for 3D case -------\n";
+    this->m_apdl += "NSEL,S, , ,all\n";
+    this->m_apdl += "LSWRITE,\n";
+}
+
+void ansysWrapper::addStrainToBCMacroBlob()
+{
+    auto s = R"(
+
+*CREATE, ApplyStrainAsDisp, mac
+!---------------------------------------------------------------------
+! Macro: ApplyStrainAsDisp
+! Purpose: Create loading tables and apply displacements based on
+!          the given strain components and cube size.
+!
+! Input:
+!   epsxx, epsyy, epszz - Normal strain components
+!   epsxy, epsyz, epsxz - Shear strain components
+!   cubeSize          - Size of the cube along X, Y, and Z directions
+!---------------------------------------------------------------------
+
+epsxx = ARG1
+epsyy = ARG2
+epszz = ARG3
+epsxy = ARG4
+epsyz = ARG5
+epsxz = ARG6
+cubeSize = ARG7
+
+*DEL,loadtableUX
+
+loadtableUX=
+*dim,loadtableUX(1),table,2,2,2,x,y,z !-- Define loading table
+*taxis, loadtableUX(1), 1, 0, cubeSize !-- Set range [0, cubeSize] for X-axis
+*taxis, loadtableUX(1), 2, 0, cubeSize !-- Set range [0, cubeSize] for Y-axis
+*taxis, loadtableUX(1), 3, 0, cubeSize !-- Set range [0, cubeSize] for X-axis
+
+loadtableUX(1,1,1) = 0
+
+loadtableUX(2,1,1) = epsxx
+loadtableUX(2,2,1) = epsxx + epsxy
+loadtableUX(2,2,2) = epsxx + epsxy + epsxz
+
+loadtableUX(1,2,1) = epsxy
+loadtableUX(1,2,2) = epsxy + epsxz
+loadtableUX(1,1,2) = epsxz
+
+loadtableUX(2,1,2) = epsxx + epsxz
+
+
+*DEL,loadtableUY
+loadtableUY=
+*dim,loadtableUY(1),table,2,2,2,x,y,z
+*taxis, loadtableUY(1), 1, 0, cubeSize
+*taxis, loadtableUY(1), 2, 0, cubeSize
+*taxis, loadtableUY(1), 3, 0, cubeSize
+
+loadtableUY(1,1,1) = 0
+
+loadtableUY(2,1,1) = epsxy
+loadtableUY(2,2,1) = epsxy + epsyy
+loadtableUY(2,2,2) = epsxy + epsyy + epsyz
+
+loadtableUY(1,2,1) = epsyy
+loadtableUY(1,2,2) = epsyy + epsyz
+loadtableUY(1,1,2) = epsyz
+
+loadtableUY(2,1,2) = epsxy + epsyz
+
+
+*DEL,loadtableUZ
+loadtableUZ=
+*dim,loadtableUZ(1),table,2,2,2,x,y,z
+*taxis, loadtableUZ(1), 1, 0, cubeSize
+*taxis, loadtableUZ(1), 2, 0, cubeSize
+*taxis, loadtableUZ(1), 3, 0, cubeSize
+
+loadtableUZ(1,1,1) = 0
+
+loadtableUZ(2,1,1) = epsxz
+loadtableUZ(2,2,1) = epsxz + epsyz
+loadtableUZ(2,2,2) = epsxz + epsyz + epszz
+
+loadtableUZ(1,2,1) = epsyz
+loadtableUZ(1,2,2) = epsyz + epszz
+loadtableUZ(1,1,2) = epszz
+
+loadtableUZ(2,1,2) = epsxz + epszz
+
+!--- Selecing nodes on faces
+NSEL,S,LOC,X,0
+NSEL,A,LOC,X,cubeSize
+
+NSEL,A,LOC,Y,0
+NSEL,A,LOC,Y,cubeSize
+
+NSEL,A,LOC,Z,0
+NSEL,A,LOC,Z,cubeSize
+
+!- Appling displacement
+D,All,UX,%loadtableUX%
+D,All,UY,%loadtableUY%
+D,All,UZ,%loadtableUZ%
+
+Allsel,all
+
+*END
+
+
 
                 )";
 

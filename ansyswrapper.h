@@ -114,8 +114,15 @@ public:
     void setNP(int np);
 
     void createFEfromArray(int32_t*** voxels, short int numCubes,int numSeeds, bool is_random_orientation = true);
+    void createFEfromArray8Node(int32_t*** voxels, short int numCubes, int numSeeds, bool is_random_orientation=true);
+
     int createLocalCS(bool is_random_orientation = true);
     void generate_random_angles(double *angl, bool in_deg=false, double epsilon=1e-6);
+
+    void addStrainToBCMacroBlob();
+    void addStrainToBCMacro(double eps_xx, double eps_yy, double eps_zz,
+                            double eps_xy, double eps_xz, double eps_yz, int CubeSize);
+
     void applyTensBC(double x1, double y1, double z1,
                      double x2, double y2, double z2,
                      double epsx, double epsy, double epsz);

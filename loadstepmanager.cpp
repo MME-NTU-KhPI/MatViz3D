@@ -17,55 +17,13 @@ LoadStepManager::LoadStepManager()
 {
 
 }
+
+
 bool LoadStepManager::isValid()
 {
     return this->m_isValid;
 }
 
-void LoadStepManager::loadLoadStep(int num, const QString& filePath)
-{
-    const int numColumns = 19; // ID;X;Y;Z;UX;UY;UZ;SX;SY;SZ;SXY;SYZ;SXZ;EpsX;EpsY;EpsZ;EpsXY;EpsYZ;EpsXZ
-    QFile file(filePath);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        qCritical() << "Cannot open file to read results. Path to file:" << filePath;
-        return;
-    }
-
-    loadstepResults.clear();
-    QByteArray parts[numColumns];
-
-    while (!file.atEnd()) {
-        QByteArray line = file.readLine();
-        if (line.startsWith("ID")) continue; // Skip header line
-
-        loadstepResults.emplace_back(numColumns);
-        for (int j = 0; j < numColumns; j++) {
-            parts[j] = line.mid(j * 17, 16).trimmed();
-            loadstepResults.back()[j] = parts[j].toFloat();
-        }
-    }
-
-    loadstepResultsAvg.assign(numColumns, 0.0f);
-    loadstepResultsMax.assign(numColumns, -FLT_MAX);
-    loadstepResultsMin.assign(numColumns, FLT_MAX);
-
-    resultNodes.clear();
-    for (size_t i = 0; i < loadstepResults.size(); i++) {
-        for (int j = 0; j < numColumns; j++) {
-            loadstepResultsAvg[j] += loadstepResults[i][j];
-            loadstepResultsMin[j] = std::min(loadstepResultsMin[j], loadstepResults[i][j]);
-            loadstepResultsMax[j] = std::max(loadstepResultsMax[j], loadstepResults[i][j]);
-        }
-        n3d::node3d key = {loadstepResults[i][1], loadstepResults[i][2], loadstepResults[i][3]};
-        resultNodes.insert(key, i);
-    }
-
-    for (int j = 0; j < numColumns; j++) {
-        loadstepResultsAvg[j] /= static_cast<float>(loadstepResults.size());
-    }
-
-    calculateVonMisesStressAndStrain();
-}
 
 void LoadStepManager::calculateVonMisesStressAndStrain()
 {

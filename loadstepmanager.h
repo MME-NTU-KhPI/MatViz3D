@@ -12,7 +12,6 @@ class LoadStepManager {
 public:
     static LoadStepManager& getInstance(); // Singleton accessor
 
-    void loadLoadStep(int num, const QString& filePath);
     bool LoadGeomSubStep(int sub_set_num);
     bool LoadGeomSet(int geom_set_num);
     float scaleValue01(float val, int component) const;

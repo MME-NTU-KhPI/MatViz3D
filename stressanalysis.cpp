@@ -30,10 +30,11 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
             c66 = 1e9;
     wr->setAnisoMaterial(c11, c12, c13, c22, c23, c33, c44, c55, c66) ;
 */
-    wr->setElemByNum(186);
+    wr->setElemByNum(185);
 
-    wr->createFEfromArray(voxels, N, numPoints, true);
-
+    //wr->createFEfromArray(voxels, N, numPoints, false);
+    wr->createFEfromArray8Node(voxels, N, numPoints, true);
+    //wr->addStrainToBCMacroBlob();
     const float min_val = -1e-04;
     const float max_val =  1e-04;
     const int grid_steps = 2; // -1 ; 1
@@ -49,6 +50,8 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
               for (int iyz = 0; iyz < n_comp_steps; iyz++)
               {
                     auto f = [=](int i) { return min_val + i * step; };
+                   //wr->addStrainToBCMacro(f(ix), f(iy), f(iz),
+                   //                        f(ixy), f(ixz), f(iyz), numCubes);
                     wr->applyComplexLoads(0, 0, 0, N, N, N,
                                           f(ix), f(iy), f(iz),
                                           f(ixy), f(ixz), f(iyz));
@@ -61,6 +64,8 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
         wr->applyComplexLoads(0, 0, 0, N, N, N,
                               dis(gen), dis(gen), dis(gen),
                               dis(gen), dis(gen), dis(gen));
+        //wr->addStrainToBCMacro(dis(gen), dis(gen), dis(gen),
+        //                       dis(gen), dis(gen), dis(gen), numCubes);
     }
     wr->solveLS(1, n_total_steps);
     wr->saveAll();
