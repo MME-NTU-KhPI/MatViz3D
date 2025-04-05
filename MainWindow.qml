@@ -612,7 +612,7 @@ Window {
 
                             model: ListModel {
                                 id: model
-                                ListElement { text: "von Neumann" }
+                                ListElement { text: "Neumann" }
                                 ListElement { text: "Moore" }
                                 ListElement { text: "Probability Ellipse" }
                                 ListElement { text: "Probability Circle" }
@@ -760,7 +760,7 @@ Window {
 
                                             onTextChanged: {
                                                 console.log("Change: ", text);
-                                                Parameters.setSize(parseInt(text, 10));
+                                                Parameters.setSize(parseInt(text, 10))
                                             }
                                         }
                                     }
@@ -790,6 +790,12 @@ Window {
                                             text: qsTr("Size")
                                             font.pixelSize: 15
                                             font.family: montserrat.name
+
+                                            checked: true
+                                            onClicked: {
+                                                Parameters.setPointsMode("count")
+                                                Parameters.processPointInput(num_textInput.text)
+                                            }
                                         }
 
                                         RadioButton {
@@ -797,6 +803,11 @@ Window {
                                             text: qsTr("Concentration")
                                             font.pixelSize: 15
                                             font.family: montserrat.name
+
+                                            onClicked: {
+                                                Parameters.setPointsMode("density")
+                                                Parameters.processPointInput(num_textInput.text)
+                                            }
                                         }
                                     }
 
@@ -827,11 +838,10 @@ Window {
 
                                             onTextChanged: {
                                                 console.log("Change: ", text);
-                                                Parameters.setPoints(parseInt(text, 10));
+                                                Parameters.processPointInput(text);
                                             }
                                         }
                                     }
-
                                 }
                             }
 

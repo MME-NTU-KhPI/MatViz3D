@@ -5,7 +5,7 @@
 #include <cmath>
 #include <cstdint>
 #include "probability_circle.h"
-#include <myglwidget.h>
+#include "openglwidgetqml.h"
 #include "parent_algorithm.h"
 
 

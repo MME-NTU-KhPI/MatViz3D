@@ -24,6 +24,9 @@ class Parameters : public QObject
     Q_PROPERTY(float orientation_angle_b READ getOrientationAngleB WRITE setOrientationAngleB NOTIFY orientationAngleBChanged)
     Q_PROPERTY(float orientation_angle_c READ getOrientationAngleC WRITE setOrientationAngleC NOTIFY orientationAngleCChanged)
 
+    Q_PROPERTY(QString pointsMode READ getPointsMode WRITE setPointsMode NOTIFY pointsModeChanged)
+    Q_PROPERTY(bool isAnimation READ getIsAnimation() WRITE setIsAnimation() NOTIFY isAnimationChanged)
+
 public:
     explicit Parameters(QObject* parent = nullptr);
 
@@ -75,10 +78,18 @@ public:
     float getOrientationAngleC() const { return orientation_angle_c; }
     Q_INVOKABLE void setOrientationAngleC(float value);
 
+    QString getPointsMode() const { return points_mode; }
+    Q_INVOKABLE void setPointsMode(const QString& value);
+
+    bool getIsAnimation() const { return isAnimation; }
+    Q_INVOKABLE void setIsAnimation(bool value);
+
+    Q_INVOKABLE void processPointInput(const QString &text);
+
     static Parameters* m_instance;
-    // static int size;
-    // static int points;
-    static QString algorithm;
+
+    static int32_t*** voxels;
+
     static unsigned int seed;
     static QString filename;
     static int num_threads;
@@ -109,11 +120,15 @@ signals:
     void orientationAngleBChanged();
     void orientationAngleCChanged();
 
+    void pointsModeChanged();
+    void isAnimationChanged();
+    void initialConditionSelectionChanged();
+
 private:
-    // static Parameters* m_instance;
     static int size;
     static int points;
-    // static QString algorithm;
+    static QString algorithm;
+
     // static unsigned int seed;
     // static QString filename;
     // static int num_threads;
@@ -125,6 +140,9 @@ private:
     // static float orientation_angle_a;
     // static float orientation_angle_b;
     // static float orientation_angle_c;
+
+    static QString points_mode; // "count" / "density"
+    static bool isAnimation;
 };
 
 #endif // PARAMETERS_H

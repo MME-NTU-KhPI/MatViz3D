@@ -22,8 +22,6 @@ public:
 
 private:
     MainWindowAlgorithmHandler algoManager;
-
-    bool isAnimation = false;
 };
 
 #endif // MAINWINDOWWRAPPER_H

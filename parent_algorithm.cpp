@@ -1,6 +1,6 @@
 #include <ctime>
 #include <cmath>
-#include <myglwidget.h>
+#include "openglwidgetqml.h"
 #include <assert.h>
 #include <random>
 #include "parameters.h"

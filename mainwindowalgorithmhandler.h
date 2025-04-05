@@ -16,15 +16,15 @@ public:
     bool validateParameters();
     void runAlgorithm(const QString& algorithmName, bool isAnimation);
     void logExecutionTime(clock_t start_time);
+    void setAlgorithmFlags(Parent_Algorithm& algorithm);
 
 signals:
     void algorithmFinished();  // Сигнал для інформування UI
 
 private:
-    // void setAlgorithmFlags(BaseAlgorithm& algorithm);
     void startGifRecording();
     void stopGifRecording();
-    // void executeAlgorithm(BaseAlgorithm& algorithm, const QString& algorithmName);
+    void executeAlgorithm(Parent_Algorithm& algorithm, const QString& algorithmName);
 };
 
 #endif // MAINWINDOWALGORITHMHANDLER_H

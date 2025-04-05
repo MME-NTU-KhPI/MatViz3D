@@ -1,8 +1,10 @@
 #include "parameters.h"
+#include "openglwidgetqml.h"
 #include <QDir>
 
 Parameters* Parameters::m_instance = nullptr;
 
+int32_t*** Parameters::voxels;
 int Parameters::size = 1;
 int Parameters::points = 0;
 QString Parameters::algorithm = "";
@@ -20,14 +22,39 @@ float Parameters::orientation_angle_a = 0.0f;
 float Parameters::orientation_angle_b = 0.0f;
 float Parameters::orientation_angle_c = 0.0f;
 
+QString Parameters::points_mode = "count";
+bool Parameters::isAnimation = false;
+
 Parameters::Parameters(QObject* parent) : QObject(parent) {}
 
-// Parameters* Parameters::instance() {
-//     if (!m_instance) {
-//         m_instance = new Parameters();
-//     }
-//     return m_instance;
-// }
+void Parameters::processPointInput(const QString &text)
+{
+    bool ok = false;
+    OpenGLWidgetQML *ogl = OpenGLWidgetQML::getInstance();
+
+    if (getPointsMode() == "count")
+    {
+        points = text.toInt(&ok);
+        if (ok)
+        {
+            ogl->setNumColors(points);
+        }
+    }
+    else if (getPointsMode() == "density")
+    {
+        double concentration = text.toDouble(&ok);
+        if (ok)
+        {
+            int volume = std::pow(size, 3);
+            points = static_cast<int>(concentration * volume / 100.0);
+            ogl->setNumColors(points);
+        }
+        qDebug() << "Calculated Points:" << points;
+    }
+
+    emit initialConditionSelectionChanged();
+}
+
 
 void Parameters::setSize(int value) {
     if (size != value) {
@@ -126,5 +153,19 @@ void Parameters::setOrientationAngleC(float value) {
     if (orientation_angle_c != value) {
         orientation_angle_c = value;
         emit orientationAngleCChanged();
+    }
+}
+
+void Parameters::setPointsMode(const QString& value) {
+    if (points_mode != value) {
+        points_mode = value;
+        emit pointsModeChanged();
+    }
+}
+
+void Parameters::setIsAnimation(bool value) {
+    if (isAnimation != value) {
+        isAnimation = value;
+        emit isAnimationChanged();
     }
 }

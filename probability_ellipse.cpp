@@ -4,7 +4,7 @@
 #include <list>
 #include <cmath>
 #include <cstdint>
-#include <myglwidget.h>
+#include "openglwidgetqml.h"
 #include "probability_ellipse.h"
 #include "parent_algorithm.h"
 

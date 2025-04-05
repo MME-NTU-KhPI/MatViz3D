@@ -1,6 +1,9 @@
 #include "mainwindowalgorithmhandler.h"
 #include "algorithmfactory.h"
+#include "openglwidgetqml.h"
+#include "parameters.h"
 
+#include <QApplication>
 #include <QMessageBox>
 #include <QDebug>
 #include <cmath>
@@ -38,7 +41,7 @@ void MainWindowAlgorithmHandler::runAlgorithm(const QString& algorithmName, bool
 
     if (!validateParameters()) return;
 
-    // registerAlgorithms();
+    registerAlgorithms();
 
     Parameters& params = *Parameters::instance();
     auto algorithm = AlgorithmFactory::instance().createAlgorithm(algorithmName, params);
@@ -47,14 +50,14 @@ void MainWindowAlgorithmHandler::runAlgorithm(const QString& algorithmName, bool
         return;
     }
 
-    // setAlgorithmFlags(*algorithm);
+    setAlgorithmFlags(*algorithm);
 
     // if (isAnimation) startGifRecording();
-    // executeAlgorithm(*algorithm, algorithmName);
+    executeAlgorithm(*algorithm, algorithmName);
     // if (isAnimation) stopGifRecording();
 
     logExecutionTime(start_time);
-    // emit algorithmFinished();
+    emit algorithmFinished();
 }
 
 void MainWindowAlgorithmHandler::logExecutionTime(clock_t start_time)
@@ -62,6 +65,48 @@ void MainWindowAlgorithmHandler::logExecutionTime(clock_t start_time)
     clock_t end_time = clock();
     double elapsed_time = double(end_time - start_time) / CLOCKS_PER_SEC;
     qDebug() << "Total execution time: " << elapsed_time << " seconds";
+}
+
+void MainWindowAlgorithmHandler::executeAlgorithm(Parent_Algorithm& algorithm, const QString& algorithmName)
+{
+    Parameters& params = *Parameters::instance();
+    OpenGLWidgetQML *ogl = OpenGLWidgetQML::getInstance();
+    Parameters::voxels = algorithm.Allocate_Memory();
+    // algorithm.Initialization(isWaveGeneration);
+    algorithm.Initialization(false);
+    algorithm.setRemainingPoints(algorithm.getNumColors() - static_cast<int>(Parameters::wave_coefficient * algorithm.getNumColors()));
+
+    auto updateScene = [&]() {
+        ogl->setVoxels(algorithm.getVoxels(), algorithm.getNumCubes());
+        ogl->DelayFrameUpdate();
+        ogl->update();
+        QApplication::processEvents();
+    };
+
+    updateScene();
+
+    auto start = std::chrono::high_resolution_clock::now();
+
+    while (!algorithm.getDone()) {
+        algorithm.Next_Iteration(updateScene);
+    }
+
+    auto end = std::chrono::high_resolution_clock::now();
+    qDebug() << "Algorithm execution time: " << std::chrono::duration<double>(end - start).count() << " seconds";
+
+    updateScene();
+    algorithm.CleanUp();
+    qDebug() << algorithmName;
+}
+
+void MainWindowAlgorithmHandler::setAlgorithmFlags(Parent_Algorithm& algorithm)
+{
+    algorithm.setAnimation(false);
+    algorithm.setWaveGeneration(false);
+
+    // algorithm.setAnimation(isAnimation);
+    // algorithm.setWaveGeneration(isWaveGeneration);
+    algorithm.setPeriodicStructure(false);
 }
 
 // void MainWindowAlgorithmHandler::startGifRecording()
