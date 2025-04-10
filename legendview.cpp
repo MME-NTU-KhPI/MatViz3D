@@ -2,6 +2,12 @@
 #include <QPainter>
 #include <QGraphicsTextItem>
 #include <QString>
+#include <QDebug>
+#include <QGraphicsRectItem>
+#include <QGraphicsPixmapItem>
+#include <QLinearGradient>
+#include <QPixmap>
+#include <QColor>
 
 LegendView::LegendView(QObject *parent)
     : QGraphicsScene{parent}
@@ -37,20 +43,12 @@ void LegendView::setMinMax(float minv, float maxv)
     this->draw();
 }
 
-#include <QDebug>
-
-#include <QGraphicsRectItem>
-#include <QGraphicsPixmapItem>
-#include <QLinearGradient>
-#include <QPainter>
-#include <QPixmap>
-#include <QColor>
-
 void LegendView::draw()
 {
     this->clear();
 
-    const int width = 600;
+    const int fullWidth = 600;
+    const int gradientWidth = 550;
     const int height = 40;
     const int margin = 20;
 
@@ -59,41 +57,46 @@ void LegendView::draw()
         return;
     }
 
-    setSceneRect(0, 0, width + 40, height + 60);
+    setSceneRect(0, 0, fullWidth + 2 * margin, height + 80);
 
-    QPixmap pixmap(width, height);
+    QPixmap pixmap(gradientWidth, height);
     QPainter painter(&pixmap);
-    QLinearGradient gradient(0, 0, width, 0);
+    QLinearGradient gradient(0, 0, gradientWidth, 0);
 
     for (int i = 0; i < numLevels; ++i) {
         float position = float(i) / (numLevels - 1);
         gradient.setColorAt(position, colors[i]);
     }
 
-    painter.fillRect(0, 0, width, height, gradient);
+    painter.fillRect(0, 0, gradientWidth, height, gradient);
     painter.end();
 
-    QGraphicsPixmapItem *gradientItem = addPixmap(pixmap);
-    gradientItem->setPos(margin, margin + 20);
+    int gradientX = margin + (fullWidth - gradientWidth) / 2;
+    int gradientY = margin / 2;
 
-    QFont font("Inter", 12);
+    QGraphicsPixmapItem *gradientItem = addPixmap(pixmap);
+    gradientItem->setPos(gradientX, gradientY);
+
+    QFont font("Inter", 14);
     QPen textPen(Qt::gray);
 
-    for (int i = 0; i <= numLevels; ++i) {
-        float value = minValue + i * (maxValue - minValue) / numLevels;
+    const int numTicks = numLevels + 1;
+    for (int i = 0; i < numTicks; ++i) {
+        float value = minValue + i * (maxValue - minValue) / (numTicks - 1);
         QString textValue = QString::number(value, 'g', 2);
         QGraphicsTextItem *text = addText(textValue, font);
         text->setDefaultTextColor(Qt::gray);
 
-        int textX = margin + i * (width / numLevels) - text->boundingRect().width() / 2;
-        int textY = height + margin + 25;
+        int textX = gradientX + i * (gradientWidth / (numTicks - 1)) - text->boundingRect().width() * 0.6;
+        int textY = gradientY + height + 25;
 
         text->setPos(textX, textY);
+        text->setTransformOriginPoint(text->boundingRect().center());
+        text->setRotation(-45);
     }
 
     update();
 }
-
 
 
 QVector<QColor> LegendView::getCmap()
