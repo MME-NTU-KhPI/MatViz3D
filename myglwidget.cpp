@@ -218,16 +218,6 @@ QImage MyGLWidget::captureScreenshot()
 }
 
 /**
- * Capture a screenshot and copy it to the system clipboard.
- */
-void MyGLWidget::captureScreenshotToClipboard()
-{
-    QImage screenshot = captureScreenshotWithWhiteBackground();
-    QClipboard *clipboard = QGuiApplication::clipboard();
-    clipboard->setImage(screenshot);
-}
-
-/**
  * Capture a screenshot of the OpenGL widget, replace the background with white, and store it in a buffer.
  * @return A QImage containing the modified screenshot.
  */

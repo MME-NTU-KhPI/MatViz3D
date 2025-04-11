@@ -3,7 +3,7 @@
 
 #include <QOpenGLBuffer>
 #include <QOpenGLVertexArrayObject>
-
+#include "legendview.h"
 #include <QtOpenGLWidgets/QOpenGLWidget>
 #include <QMatrix4x4>
 #include <QOpenGLFunctions>
@@ -43,7 +43,6 @@ public:
 
     QImage captureScreenshot();
     QImage captureScreenshotWithWhiteBackground();
-    void captureScreenshotToClipboard();
 
 
     std::vector<std::array<GLubyte, 4>> generateDistinctColors();

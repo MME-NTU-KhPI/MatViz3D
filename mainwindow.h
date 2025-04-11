@@ -66,7 +66,7 @@ private slots:
     void captureFrame();
     void saveHDF();
     void openHDF();
-
+    void copyScreenshotToClipboard();
     void on_Start_clicked();
 
     void on_statistics_clicked();

@@ -394,7 +394,7 @@ void MainWindow::setupFileMenu() {
     connect(exportCSVAction, &QAction::triggered, this, &MainWindow::exportToCSV);
     connect(saveAsHDF , &QAction::triggered , this , &MainWindow::saveHDF);
     connect(estimateStressWithANSYS, &QAction::triggered, this, &MainWindow::estimateStressWithANSYS);
-    connect(MakeScreenshot,  &QAction::triggered, this, [=](){ui->myGLWidget->captureScreenshotToClipboard();});
+    connect(MakeScreenshot,  &QAction::triggered, this, &MainWindow::copyScreenshotToClipboard);
 
 }
 
@@ -915,4 +915,59 @@ void MainWindow::captureFrame()
     gif->addFrame(whiteFrame);
     qDebug() << "Frame added! Total frames:" << gif->frameCount();
 }
+
+/**
+ * Capture a screenshot and copy it to the system clipboard.
+ */
+void MainWindow::copyScreenshotToClipboard()
+{
+    QImage glImage = ui->myGLWidget->captureScreenshotWithWhiteBackground();
+
+    if (ui->backgrAnim_2->isVisible()) {
+        if (scene) {
+            QSize legendSize = scene->sceneRect().size().toSize();
+            QImage legendImage(legendSize, QImage::Format_RGB32);
+            legendImage.fill(Qt::white);
+
+            QList<QGraphicsTextItem*> textItems;
+            QList<QColor> originalColors;
+
+            for (QGraphicsItem* item : scene->items()) {
+                if (auto* text = qgraphicsitem_cast<QGraphicsTextItem*>(item)) {
+                    textItems.append(text);
+                    originalColors.append(text->defaultTextColor());
+                    text->setDefaultTextColor(Qt::black);
+                }
+            }
+
+            QPainter painter(&legendImage);
+            scene->render(&painter, QRectF(), scene->sceneRect());
+            painter.end();
+
+            for (int i = 0; i < textItems.size(); ++i) {
+                textItems[i]->setDefaultTextColor(originalColors[i]);
+            }
+
+            int totalWidth = std::max(glImage.width(), legendImage.width());
+            int totalHeight = glImage.height() + legendImage.height();
+
+            QImage finalImage(QSize(totalWidth, totalHeight), QImage::Format_RGB32);
+            finalImage.fill(Qt::white);
+
+            QPainter finalPainter(&finalImage);
+            int xOffset = (glImage.width() - legendImage.width()) / 2;
+            if (xOffset < 0) xOffset = 0;
+
+            finalPainter.drawImage(0, 0, glImage);
+            finalPainter.drawImage(xOffset, glImage.height(), legendImage);
+            finalPainter.end();
+
+            glImage = finalImage;
+        }
+    }
+
+    QGuiApplication::clipboard()->setImage(glImage);
+}
+
+
 
