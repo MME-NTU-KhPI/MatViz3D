@@ -454,24 +454,17 @@ void MainWindow::setupWindowMenu() {
 
     ui->WindowButton->setMenu(windowMenu);
 
-#if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
-    connect(allCheckBox, &QCheckBox::stateChanged, this, &MainWindow::onAllCheckBoxChanged);
-    connect(animationCheckBox, &QCheckBox::stateChanged, this, &MainWindow::onAnimationCheckBoxChanged);
-    connect(consoleCheckBox, &QCheckBox::stateChanged, this, &MainWindow::onConsoleCheckBoxChanged);
-    connect(dataCheckBox, &QCheckBox::stateChanged, this, &MainWindow::onDataCheckBoxChanged);
-#elif QT_VERSION >= QT_VERSION_CHECK(4, 2, 0)
-    connect(allCheckBox, SIGNAL(checkStateChanged(int)), this, SLOT(onAllCheckBoxChanged(int)));
-    connect(animationCheckBox, SIGNAL(checkStateChanged(int)), this, SLOT(onAnimationCheckBoxChanged(int)));
-    connect(consoleCheckBox, SIGNAL(checkStateChanged(int)), this, SLOT(onConsoleCheckBoxChanged(int)));
-    connect(dataCheckBox, SIGNAL(checkStateChanged(int)), this, SLOT(onDataCheckBoxChanged(int)));
+#if QT_VERSION >= QT_VERSION_CHECK(4, 2, 0)
+    connect(allCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::onAllCheckBoxChanged);
+    connect(animationCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::onAnimationCheckBoxChanged);
+    connect(consoleCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::onConsoleCheckBoxChanged);
+    connect(dataCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::onDataCheckBoxChanged);
 #else
     connect(allCheckBox, SIGNAL(stateChanged(int)), this, SLOT(onAllCheckBoxChanged(int)));
     connect(animationCheckBox, SIGNAL(stateChanged(int)), this, SLOT(onAnimationCheckBoxChanged(int)));
     connect(consoleCheckBox, SIGNAL(stateChanged(int)), this, SLOT(onConsoleCheckBoxChanged(int)));
     connect(dataCheckBox, SIGNAL(stateChanged(int)), this, SLOT(onDataCheckBoxChanged(int)));
 #endif
-
-
 
 }
 
