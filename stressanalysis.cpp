@@ -35,7 +35,7 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
     //wr->createFEfromArray(voxels, N, numPoints, false);
     wr->createFEfromArray8Node(voxels, N, numPoints, true);
     //wr->addStrainToBCMacroBlob();
-    const float min_val = -1e-04;
+    const float min_val = 0;
     const float max_val =  1e-04;
     const int grid_steps = 2; // -1 ; 1
     const int n_total_steps = Parameters::num_rnd_loads + pow(grid_steps, 6);

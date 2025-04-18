@@ -1128,43 +1128,112 @@ void ansysWrapper::setNP(int np)
     defaultArgs();
 }
 
+/**
+ * @brief Generates uniformly distributed random orientations (Euler angles).
+ *
+ * This function generates uniformly distributed random orientations in SO(3)
+ * using the method of sampling uniformly distributed quaternions. It then
+ * converts the quaternion to Bunge ZXZ Euler angles (phi1, Phi, phi2).
+ *
+ * @param angl Pointer to a double array of size 3 where the calculated
+ * Euler angles (phi1, Phi, phi2) in radians will be stored.
+ * @param in_deg If true, converts the output angles to degrees.
+ * @param epsilon Tolerance for checking singularity conditions (gimbal lock).
+ */
 void ansysWrapper::generate_random_angles(double *angl, bool in_deg, double epsilon)
 {
     if (!angl)
         return;
 
-    std::uniform_real_distribution<double> unif(-1.0, 1.0);
+    // Use the existing random engine seeded in the constructor
     static std::mt19937 re(this->seed);
+    // Use a normal distribution for generating quaternion components
+    std::normal_distribution<double> norm_dist(0.0, 1.0);
 
-    double g[3][3];
-    for (int i = 0; i < 3; i++)
-        for (int j = 0; j < 3; j++)
-            g[i][j] = unif(re);
+    // 1. Generate 4 random numbers from standard normal distribution
+    double q0 = norm_dist(re);
+    double q1 = norm_dist(re);
+    double q2 = norm_dist(re);
+    double q3 = norm_dist(re);
 
-    double n_phi = acos(g[2][2]);
-    double n_phi1, n_phi2;
+    // 2. Normalize to get a unit quaternion (w, x, y, z)
+    double norm = std::sqrt(q0*q0 + q1*q1 + q2*q2 + q3*q3);
+    // Prevent division by zero, though highly unlikely with normal distribution
+    if (norm < epsilon) {
+        // Return a default orientation (e.g., identity) in case of issue
+        angl[0] = 0.0;
+        angl[1] = 0.0;
+        angl[2] = 0.0;
+        return;
+    }
+    double w = q0 / norm;
+    double x = q1 / norm;
+    double y = q2 / norm;
+    double z = q3 / norm;
 
-    if ( (fabs(n_phi) < epsilon) ||  (fabs(n_phi - M_PI) < epsilon) )
+    // 3. Convert quaternion (w, x, y, z) to Bunge ZXZ Euler angles (phi1, Phi, phi2)
+    // Calculate necessary rotation matrix elements from quaternion
+    double R11 = 1.0 - 2.0 * (y*y + z*z); // w*w + x*x - y*y - z*z
+    double R12 = 2.0 * (x*y - w*z);
+    //double R13 = 2.0 * (x*z + w*y); // Needed for phi2
+    //double R23 = 2.0 * (y*z - w*x); // Needed for phi2
+    //double R31 = 2.0 * (x*z - w*y); // Needed for phi1
+    //double R32 = 2.0 * (y*z + w*x); // Needed for phi1
+    double R33 = 1.0 - 2.0 * (x*x + y*y); // w*w - x*x - y*y + z*z
+
+    double phi1, Phi, phi2;
+
+    // Avoid numerical issues near poles (Phi=0 or Phi=pi)
+    // Clamp R33 value to ensure it's within acos domain [-1, 1]
+    if (R33 > 1.0) R33 = 1.0;
+    if (R33 < -1.0) R33 = -1.0;
+
+    Phi = std::acos(R33); // Phi is in [0, pi]
+
+    // Check for singularity (gimbal lock)
+    // sin(Phi) is close to 0 if Phi is close to 0 or pi
+    if (std::fabs(Phi) < epsilon || std::fabs(Phi - M_PI) < epsilon)
     {
-        n_phi1 = atan2(g[0][1], g[0][0]);
-        n_phi2 = 0;
+        // At singularity, phi1 + phi2 (if Phi=0) or phi1 - phi2 (if Phi=pi) is well-defined.
+        // Conventionally set phi2 = 0 and calculate phi1.
+        // phi1 = atan2(R12, R11) works for both Phi=0 and Phi=pi cases here
+        phi1 = std::atan2(R12, R11);
+        phi2 = 0.0;
     }
     else
     {
-        n_phi1 = atan2(g[2][0],-g[2][1]);
-        n_phi2 = atan2(g[0][2], g[1][2]);
+        // Calculate elements needed for non-singular case
+        double R13 = 2.0 * (x*z + w*y);
+        double R23 = 2.0 * (y*z - w*x);
+        double R31 = 2.0 * (x*z - w*y);
+        double R32 = 2.0 * (y*z + w*x);
+
+        // General case
+        phi1 = std::atan2(R31, -R32); // atan2(R[3][1], -R[3][2])
+        phi2 = std::atan2(R13, R23);  // atan2(R[1][3], R[2][3])
     }
 
-    angl[0] = n_phi1;
-    angl[1] = n_phi;
-    angl[2] = n_phi2;
+    // Ensure angles are in the typical range [0, 2*pi) if desired, atan2 gives [-pi, pi]
+    // Bunge convention often uses [0, 2pi) for phi1, [0, pi] for Phi, [0, 2pi) for phi2
+    // The ranges from acos/atan2 are naturally: Phi in [0, pi], phi1/phi2 in [-pi, pi]
+    // If a specific range is needed (e.g. [0, 2pi)), adjust here:
+    // if (phi1 < 0) phi1 += 2.0 * M_PI;
+    // if (phi2 < 0) phi2 += 2.0 * M_PI;
+    // For now, leave them in [-pi, pi] as APDL LOCAL command handles angles correctly.
+
+    angl[0] = phi1;
+    angl[1] = Phi;
+    angl[2] = phi2;
+
+    // Convert to degrees if requested
     if (in_deg)
     {
-        angl[0] = angl[0] / M_PI * 180.0;
-        angl[1] = angl[1] / M_PI * 180.0;
-        angl[2] = angl[2] / M_PI * 180.0;
+        angl[0] *= 180.0 / M_PI;
+        angl[1] *= 180.0 / M_PI;
+        angl[2] *= 180.0 / M_PI;
     }
 }
+
 
 void ansysWrapper::load_loadstep(int num)
 {
