@@ -192,6 +192,7 @@ void MainWindow::on_Start_clicked()
     registerAlgorithms();
 
     Parameters params;
+    omp_set_num_threads(params.num_threads);
     auto algorithm = AlgorithmFactory::instance().createAlgorithm(ui->AlgorithmsBox->currentText(), params);
     if (!algorithm) {
         QMessageBox::warning(this, "Error", "Unknown algorithm selected.");
