@@ -454,7 +454,7 @@ void MainWindow::setupWindowMenu() {
 
     ui->WindowButton->setMenu(windowMenu);
 
-#if QT_VERSION > QT_VERSION_CHECK(4, 2, 0)
+#if QT_VERSION > QT_VERSION_CHECK(6, 7, 0)
     connect(allCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::onAllCheckBoxChanged);
     connect(animationCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::onAnimationCheckBoxChanged);
     connect(consoleCheckBox, &QCheckBox::checkStateChanged, this, &MainWindow::onConsoleCheckBoxChanged);
