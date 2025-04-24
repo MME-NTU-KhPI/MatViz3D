@@ -7,6 +7,7 @@ win32: LIBS += -lopengl32
 #enable openmp
 QMAKE_CXXFLAGS += -fopenmp
 LIBS += -fopenmp
+RC_FILE = app_icon.rc
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 

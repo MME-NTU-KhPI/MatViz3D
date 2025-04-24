@@ -31,6 +31,7 @@ public:
     void setConcentration(int arg);
     void setAlgorithms(QString arg);
     void setAlgorithmFlags(Parent_Algorithm& algorithm);
+    void closeProbabilityWindow();
     void callExportToCSV();
     bool isAnimation = false;
     bool isWaveGeneration = false;
@@ -60,7 +61,7 @@ private slots:
     void onAllCheckBoxChanged(int state);
     void exportToCSV();
     void onInitialConditionSelectionChanged();
-    void onProbabilityAlgorithmChanged(const QString &text);
+    void onAlgorithmChanged(const QString &text);
     void startGifRecording();
     void stopGifRecording();
     void captureFrame();

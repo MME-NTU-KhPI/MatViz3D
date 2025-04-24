@@ -26,6 +26,8 @@ public:
     static float orientation_angle_a;
     static float orientation_angle_b;
     static float orientation_angle_c;
+
+    static bool nogui;
 };
 
 #endif // PARAMETERS_H

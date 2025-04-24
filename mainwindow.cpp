@@ -38,7 +38,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(ui->numOfPointsRadioButton, &QRadioButton::clicked, this, &MainWindow::onInitialConditionSelectionChanged);
     connect(ui->concentrationRadioButton, &QRadioButton::clicked, this, &MainWindow::onInitialConditionSelectionChanged);
-    connect(ui->AlgorithmsBox, &QComboBox::currentTextChanged, this, &MainWindow::onProbabilityAlgorithmChanged);
+    connect(ui->AlgorithmsBox, &QComboBox::currentTextChanged, this, &MainWindow::onAlgorithmChanged);
 
     ui->myGLWidget->setIsometricView();
     connect(ui->Rectangle8, &QLineEdit::editingFinished, this, [=]() {
@@ -112,19 +112,34 @@ void MainWindow::onLogMessageWritten(const QString &message)
     ui->textEdit->append(message);
 }
 
-void MainWindow::onProbabilityAlgorithmChanged(const QString &text)
+void MainWindow::closeProbabilityWindow()
 {
-    if (Parameters::halfaxis_a != 0.0f && Parameters::halfaxis_b != 0.0f && Parameters::halfaxis_c != 0.0f)
+    if (probability_algorithm)
     {
-        return;
+        probability_algorithm->close();
     }
+}
 
-    if (text == "Probability Algorithm")
+void MainWindow::onAlgorithmChanged(const QString &text)
+{
+
+    if (text == "DLCA")
+    {
+        ui->checkBoxAnimation->setChecked(true);
+        ui->checkBoxAnimation->setEnabled(false);
+    }
+    else
+    {
+        ui->checkBoxAnimation->setChecked(false);
+        ui->checkBoxAnimation->setEnabled(true);
+    }
+    if (text == "Probability Algorithm" && Parameters::nogui != true)
     {
         probability_algorithm = new Probability_Algorithm();
         probability_algorithm->show();
     }
     onInitialConditionSelectionChanged();
+
 }
 
 void MainWindow::onInitialConditionSelectionChanged()
