@@ -537,6 +537,10 @@ std::vector<std::array<GLubyte, 4>> MyGLWidget::generateDistinctColors()
 
 void MyGLWidget::calculateScene()
 {
+    if (!voxels)
+    {
+        return;
+    }
 
     static const float node_coordinates[8][3] =
         {
