@@ -565,8 +565,8 @@ int ansysWrapper::createLocalCS(bool is_random_orientation, double x, double y, 
     qDebug() << "    phi2: " << eu_angles[2];
 
     apdl << "LOCAL," << cs_id << ","
-         << x << "," << y << "," << z << ","
-         << 0 << ","
+         << 0 << "," << x << "," << y << ","
+         << z << ","
          << eu_angles[0] << "," << eu_angles[1] << "," << eu_angles[2]
          << "," << 1 << "," << 1 << ",\n";
 
