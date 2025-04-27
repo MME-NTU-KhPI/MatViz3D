@@ -116,7 +116,7 @@ public:
     void createFEfromArray(int32_t*** voxels, short int numCubes,int numSeeds, bool is_random_orientation = true);
     void createFEfromArray8Node(int32_t*** voxels, short int numCubes, int numSeeds, bool is_random_orientation=true);
 
-    int createLocalCS(bool is_random_orientation = true);
+    int createLocalCS(bool is_random_orientation = true, double x = 0.0, double y = 0.0, double z = 0.0);
     void generate_random_angles(double *angl, bool in_deg=false, double epsilon=1e-6);
 
     void addStrainToBCMacroBlob();

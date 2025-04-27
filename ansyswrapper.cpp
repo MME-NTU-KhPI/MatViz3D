@@ -385,8 +385,46 @@ void ansysWrapper::createFEfromArray(int32_t*** voxels, short int numCubes, int 
 
 void ansysWrapper::createFEfromArray8Node(int32_t*** voxels, short int numCubes, int numSeeds, bool is_random_orientation)
 {
-    for (int i = 0; i < numSeeds + 1; i++)
-        this->createLocalCS(is_random_orientation);
+    QVector<QVector<int>> seedsData;
+    QFile file("crystallization_seeds.csv");
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text))
+    {
+        QTextStream in(&file);
+        QString header = in.readLine();
+
+        while (!in.atEnd())
+        {
+            QString line = in.readLine();
+            QStringList parts = line.split(',');
+
+            if (parts.size() >= 3)
+            {
+                QVector<int> seed;
+                for (int i = 0; i < 3; ++i)
+                    seed.push_back(parts[i].toInt());
+                seedsData.push_back(seed);
+            }
+        }
+        file.close();
+    }
+    else
+    {
+        qWarning() << "Failed to open crystallization_seeds.csv";
+    }
+    for (int i = 0; i < numSeeds + 1; ++i)
+    {
+        double x = 0, y = 0, z = 0;
+
+        if (i != 0)
+        {
+            x = seedsData[i - 1][0];
+            y = seedsData[i - 1][1];
+            z = seedsData[i - 1][2];
+        }
+
+        qDebug() << x << y << z;
+        this->createLocalCS(is_random_orientation, x, y, z);
+    }
 
     static const float node_coordinates[9][3] =
         {
@@ -510,23 +548,28 @@ void ansysWrapper::createFEfromArray8Node(int32_t*** voxels, short int numCubes,
     qInfo().noquote() << FEM_info.arg(nodes.size()).arg(elements.size() / 8);
 }
 
-int ansysWrapper::createLocalCS(bool is_random_orientation)
+int ansysWrapper::createLocalCS(bool is_random_orientation, double x, double y, double z)
 {
     QTextStream apdl(&m_apdl);
     int cs_id = this->m_lcs;
     double eu_angles[3] = {0};
-    if (is_random_orientation) // otherwise 0 as angle
+    if (is_random_orientation)
         this->generate_random_angles(eu_angles, true);
 
     this->local_cs.push_back(std::vector<float>(eu_angles, eu_angles + 3));
-    qDebug() << "Creating local CS #" << cs_id;
-    qDebug() << "    phi1 " << eu_angles[0];
-    qDebug() << "    phi "  << eu_angles[1];
-    qDebug() << "    phi2 " << eu_angles[2];
 
-    apdl << "LOCAL,"<< this->m_lcs << ", 0, 0, 0, 0,"
+    qDebug() << "Creating local CS #" << cs_id;
+    qDebug() << "    Position: (" << x << "," << y << "," << z << ")";
+    qDebug() << "    phi1: " << eu_angles[0];
+    qDebug() << "    phi: "  << eu_angles[1];
+    qDebug() << "    phi2: " << eu_angles[2];
+
+    apdl << "LOCAL," << cs_id << ","
+         << x << "," << y << "," << z << ","
+         << 0 << ","
          << eu_angles[0] << "," << eu_angles[1] << "," << eu_angles[2]
-         << "," << 1 << "," << 1 <<",\n";
+         << "," << 1 << "," << 1 << ",\n";
+
     this->m_lcs++;
     return cs_id;
 }

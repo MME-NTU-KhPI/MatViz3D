@@ -3,6 +3,7 @@
 #include <myglwidget.h>
 #include <assert.h>
 #include <random>
+#include <fstream>
 #include "parameters.h"
 #include "parent_algorithm.h"
 #include <cstdint>
@@ -91,6 +92,13 @@ void Parent_Algorithm::Initialization(bool isWaveGeneration)
     {
         currentPoints = numColors;
     }
+    std::ofstream file("crystallization_seeds.csv");
+    if (!file.is_open())
+    {
+        qCritical() << "Unable to open file: crystallization_seeds.csv";
+    }
+
+    file << "x,y,z,color\n";
     Coordinate a;
     for(int i = 0; i < currentPoints; i++)
     {
@@ -100,7 +108,9 @@ void Parent_Algorithm::Initialization(bool isWaveGeneration)
         voxels[a.x][a.y][a.z] = ++color;
         grains.push_back(a);
         filled_voxels++;
+        file << a.x << "," << a.y << "," << a.z << "," << voxels[a.x][a.y][a.z] << "\n";
     }
+
 }
 
 std::vector<Parent_Algorithm::Coordinate> Parent_Algorithm::Add_New_Points(std::vector<Coordinate> grains, int numPoints)
@@ -118,6 +128,7 @@ std::vector<Parent_Algorithm::Coordinate> Parent_Algorithm::Add_New_Points(std::
         grains.push_back(a);
         filled_voxels++;
     }
+
     return grains;
 }
 
