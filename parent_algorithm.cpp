@@ -84,7 +84,7 @@ void Parent_Algorithm::Initialization(bool isWaveGeneration)
     std::mt19937 generator(Parameters::seed);
     std::uniform_int_distribution<int> distribution(0, numCubes - 1);
     int currentPoints;
-    if(isWaveGeneration)
+    if (isWaveGeneration)
     {
         currentPoints = static_cast<int>(0.1 * numColors);
     }
@@ -118,12 +118,15 @@ std::vector<Parent_Algorithm::Coordinate> Parent_Algorithm::Add_New_Points(std::
     std::mt19937 generator(Parameters::seed);
     std::uniform_int_distribution<int> distribution(0, numCubes - 1);
 
-    Coordinate a;
-    for(int i = 0; i < numPoints; i++)
+    for (int i = 0; i < numPoints; ++i)
     {
-        a.x = distribution(generator);
-        a.y = distribution(generator);
-        a.z = distribution(generator);
+        Coordinate a;
+        do {
+            a.x = distribution(generator);
+            a.y = distribution(generator);
+            a.z = distribution(generator);
+        } while (voxels[a.x][a.y][a.z] != 0);
+
         voxels[a.x][a.y][a.z] = ++color;
         grains.push_back(a);
         filled_voxels++;
