@@ -89,16 +89,18 @@ void Moore::Next_Iteration(std::function<void()> callback)
         double o = static_cast<double>(filled_voxels) / counter_max;
         qDebug().nospace() << o << "\t" << IterationNumber << "\t" << grains.size();
 
+        if (flags.isWaveGeneration && remainingPoints > 0)
+        {
+            pointsForThisStep = std::max(1, static_cast<int>(Parameters::wave_coefficient * remainingPoints));
+            newGrains = Add_New_Points(newGrains, pointsForThisStep);
+            grains.insert(grains.end(), newGrains.begin(), newGrains.end());
+            remainingPoints -= pointsForThisStep;
+        }
+
         if (flags.isAnimation)
         {
-            if (flags.isWaveGeneration && remainingPoints > 0)
-            {
-                pointsForThisStep = std::max(1, static_cast<int>(Parameters::wave_coefficient * remainingPoints));
-                newGrains = Add_New_Points(newGrains, pointsForThisStep);
-                grains.insert(grains.end(), newGrains.begin(), newGrains.end());
-                remainingPoints -= pointsForThisStep;
-            }
             callback();
         }
+
     }
 }
