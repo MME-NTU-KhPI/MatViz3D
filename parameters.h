@@ -28,6 +28,7 @@ public:
     static float orientation_angle_c;
 
     static bool nogui;
+    static bool hasProbParameters;
 };
 
 #endif // PARAMETERS_H
