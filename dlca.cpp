@@ -82,6 +82,36 @@ bool DLCA_Aggregate::is_can_move_aggregate(int dx, int dy, int dz)
     return true;
 }
 
+void DLCA_Aggregate::shift_to_cube_center(int cubeSize)
+{
+    DLCA::Coordinate cm = calculate_center_of_mass();
+    int dx = (cubeSize / 2 - cm.x + cubeSize) % cubeSize;
+    int dy = (cubeSize / 2 - cm.y + cubeSize) % cubeSize;
+    int dz = (cubeSize / 2 - cm.z + cubeSize) % cubeSize;
+    DLCA::Coordinate cm_before = calculate_center_of_mass();
+    qDebug() << "Center of mass BEFORE shift:" << cm_before.x << cm_before.y << cm_before.z;
+    move_aggregate(dx, dy, dz);
+    DLCA::Coordinate cm_after = calculate_center_of_mass();
+    qDebug() << "Center of mass AFTER shift:" << cm_after.x << cm_after.y << cm_after.z;
+}
+
+Parent_Algorithm::Coordinate DLCA_Aggregate::calculate_center_of_mass() const
+{
+    int64_t sum_x = 0, sum_y = 0, sum_z = 0;
+    size_t N = aggr.size();
+    for (const auto &c : aggr) {
+        sum_x += c.x;
+        sum_y += c.y;
+        sum_z += c.z;
+    }
+    DLCA::Coordinate cm;
+    cm.x = static_cast<int32_t>(sum_x / N);
+    cm.y = static_cast<int32_t>(sum_y / N);
+    cm.z = static_cast<int32_t>(sum_z / N);
+    return cm;
+}
+
+
 void DLCA_Aggregate::map_to_voxels()
 {
     for (size_t i = 0; i < aggr.size(); i++)
@@ -90,7 +120,6 @@ void DLCA_Aggregate::map_to_voxels()
         voxels[c.x][c.y][c.z] = this->id;
     }
 }
-
 
 void DLCA::random_walk()
 {
@@ -257,6 +286,10 @@ void DLCA::Next_Iteration(std::function<void()> callback)
     for (size_t i = 0; i < this->aggregates.size(); i++)
     {
         this->aggregates[i].map_to_voxels();
+    }
+
+    if (aggregates.size() == 1) {
+        aggregates[0].shift_to_cube_center(cubeSize);
     }
 
     if (flags.isAnimation)

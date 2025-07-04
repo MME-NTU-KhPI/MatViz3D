@@ -14,6 +14,8 @@ public:
     std::vector <Parent_Algorithm::Coordinate> aggr;
     void move_aggregate(int dx, int dy, int dz);
     void map_to_voxels();
+    Parent_Algorithm::Coordinate calculate_center_of_mass() const;
+    void shift_to_cube_center(int cubeSize);
     bool is_can_move_aggregate(int dx, int dy, int dz);
     DLCA_Aggregate(int32_t*** voxels, int cubeSize);
 };
