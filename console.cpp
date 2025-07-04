@@ -104,6 +104,7 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
         Parameters::orientation_angle_c = str.toFloat();
         qInfo() << "orientation_angle_c:" << Parameters::orientation_angle_c;
     }
+
     Parameters::hasProbParameters = parser.isSet("halfaxis_a") || parser.isSet("halfaxis_b") || parser.isSet("halfaxis_c") ||
                                     parser.isSet("orientation_angle_a") || parser.isSet("orientation_angle_b") || parser.isSet("orientation_angle_c");
 

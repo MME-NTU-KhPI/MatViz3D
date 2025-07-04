@@ -133,10 +133,10 @@ void MainWindow::onAlgorithmChanged(const QString &text)
         ui->checkBoxAnimation->setChecked(false);
         ui->checkBoxAnimation->setEnabled(true);
     }
-    if (text == "Probability Algorithm" && !Parameters::hasProbParameters)
+    if (text == "Probability Algorithm")
     {
         probability_algorithm = new Probability_Algorithm();
-        probability_algorithm->show();
+        if (!Parameters::hasProbParameters) probability_algorithm->show();
     }
     onInitialConditionSelectionChanged();
 
