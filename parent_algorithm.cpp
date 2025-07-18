@@ -86,7 +86,8 @@ void Parent_Algorithm::Initialization(bool isWaveGeneration)
     int currentPoints;
     if (isWaveGeneration)
     {
-        currentPoints = static_cast<int>(0.1 * numColors);
+        currentPoints = static_cast<int>(std::round(Parameters::wave_coefficient * numColors));
+
     }
     else
     {
@@ -116,17 +117,31 @@ void Parent_Algorithm::Initialization(bool isWaveGeneration)
 std::vector<Parent_Algorithm::Coordinate> Parent_Algorithm::Add_New_Points(std::vector<Coordinate> grains, int numPoints)
 {
     std::mt19937 generator(Parameters::seed);
-    std::uniform_int_distribution<int> distribution(0, numCubes - 1);
+    std::vector<Coordinate> emptyCoords;
 
-    for (int i = 0; i < numPoints; ++i)
-    {
-        Coordinate a;
-        do {
-            a.x = distribution(generator);
-            a.y = distribution(generator);
-            a.z = distribution(generator);
-        } while (voxels[a.x][a.y][a.z] != 0);
+    // 1. Побудова списку всіх порожніх координат
+    for (int x = 0; x < numCubes; ++x) {
+        for (int y = 0; y < numCubes; ++y) {
+            for (int z = 0; z < numCubes; ++z) {
+                if (voxels[x][y][z] == 0) {
+                    emptyCoords.push_back({x, y, z});
+                }
+            }
+        }
+    }
 
+    // 2. Перевірка
+    if (numPoints > emptyCoords.size()) {
+        qCritical() << "Недостатньо вільних вокселів для розміщення нових точок.";
+        return grains; // або abort(), або false
+    }
+
+    // 3. Перемішування
+    std::shuffle(emptyCoords.begin(), emptyCoords.end(), generator);
+
+    // 4. Додавання точок
+    for (int i = 0; i < numPoints; ++i) {
+        Coordinate a = emptyCoords[i];
         voxels[a.x][a.y][a.z] = ++color;
         grains.push_back(a);
         filled_voxels++;

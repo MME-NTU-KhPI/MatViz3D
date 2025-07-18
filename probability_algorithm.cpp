@@ -317,7 +317,7 @@ void Probability_Algorithm::Next_Iteration(std::function<void()> callback)
 
         if (flags.isWaveGeneration && remainingPoints > 0)
         {
-            pointsForThisStep = std::max(1, static_cast<int>(Parameters::wave_coefficient * remainingPoints));
+            pointsForThisStep = std::max(1, static_cast<int>(std::round(Parameters::wave_coefficient * remainingPoints)));
             newGrains = Add_New_Points(newGrains, pointsForThisStep);
             grains.insert(grains.end(), newGrains.begin(), newGrains.end());
             remainingPoints -= pointsForThisStep;
