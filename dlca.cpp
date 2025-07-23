@@ -283,13 +283,13 @@ void DLCA::Next_Iteration(std::function<void()> callback)
             for (int k = 0; k < cubeSize; ++k)
                 voxels[i][j][k] = 0;
 
+    if (aggregates.size() == 1) {
+        aggregates[0].shift_to_cube_center(cubeSize);
+    }
+
     for (size_t i = 0; i < this->aggregates.size(); i++)
     {
         this->aggregates[i].map_to_voxels();
-    }
-
-    if (aggregates.size() == 1) {
-        aggregates[0].shift_to_cube_center(cubeSize);
     }
 
     if (flags.isAnimation)
