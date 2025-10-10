@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdint>
 #include <functional>
+#include <random>
 #include "parameters.h"
 #include "loadstepmanager.h"
 /**
@@ -23,6 +24,7 @@ struct AlgorithmFlags {
 class Parent_Algorithm
 {
     friend class LoadStepManager;
+    public: struct Coordinate;
 private:
     /**
      * @brief Creates a 3D array of size N1 x N2 x N3.
@@ -40,6 +42,8 @@ private:
      * @param array Pointer to the 3D array.
      */
     template <class T> static void Delete3D(T*** array);
+    void Random_Generate_Points(int currentPoints, std::ofstream& file);
+    void Grid_Generate_Points(int currentPoints, std::ofstream& file);
 
 protected:
     AlgorithmFlags flags; ///< Algorithm flags

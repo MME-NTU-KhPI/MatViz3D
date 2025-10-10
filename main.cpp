@@ -1,11 +1,12 @@
 #include "mainwindow.h"
 #include "console.h"
+#include <iostream>
 #include <QCommandLineParser>
 #include <QApplication>
 #include <QProcessEnvironment>
 #include <QCoreApplication>
 #include <QDir>
-
+#include <windows.h>
 #include <iostream>
 
 QString logo_full_qstr = R"(
@@ -80,6 +81,19 @@ int main(int argc, char *argv[])
     QApplication::setApplicationName("MatViz3D");
     QApplication::setApplicationVersion("2.01");
     QCommandLineParser parser;
+
+#ifdef _WIN32
+    HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (h != INVALID_HANDLE_VALUE)
+    {
+        DWORD mode = 0;
+        if (GetConsoleMode(h, &mode))
+        {
+            mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+            SetConsoleMode(h, mode);
+        }
+    }
+#endif
 
     std::cout << logo_full_qstr.toLatin1().constData() << std::endl;
     std::cout.flush();

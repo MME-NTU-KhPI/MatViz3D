@@ -688,7 +688,7 @@ void MainWindow::setAlgorithmFlags(Parent_Algorithm& algorithm)
 {
     algorithm.setAnimation(isAnimation);
     algorithm.setWaveGeneration(isWaveGeneration);
-    algorithm.setPeriodicStructure(false);
+    algorithm.setPeriodicStructure(isPeriodicStructure);
 }
 
 void MainWindow::onStartClicked()
