@@ -156,3 +156,33 @@ Q_INVOKABLE void DBManager::updateMaterial(int row, int column, const QVariant &
         model->select();  // Оновлюємо модель
     }
 }
+
+QVariantList DBManager::executeSelectQuery(const QString& queryString)
+{
+    QVariantList resultList;
+    QSqlQuery query(db);
+
+    if (!query.exec(queryString))
+    {
+        qCritical() << "Error executing select query:" << query.lastError().text();
+        return resultList; // Повертаємо порожній список
+    }
+
+    // Отримуємо імена колонок
+    QSqlRecord record = query.record();
+
+    // Проходимо по кожному рядку результату
+    while (query.next())
+    {
+        QVariantMap rowMap;
+        // Проходимо по кожній колонці в рядку
+        for (int i = 0; i < record.count(); ++i)
+        {
+            QString columnName = record.fieldName(i);
+            rowMap[columnName] = query.value(i);
+        }
+        resultList.append(rowMap);
+    }
+
+    return resultList;
+}
