@@ -23,4 +23,9 @@ MainWindow {
         id: materialDatabaseView
         visible: false
     }
+
+    TensorVisualization {
+        id: tensorVisualizationView
+        visible: false
+    }
 }

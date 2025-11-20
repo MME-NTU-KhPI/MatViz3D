@@ -51,6 +51,12 @@ Window {
         active: false
     }
 
+    Loader {
+        id: tensorVisualizationLoader
+        source: "TensorVisualization.qml"
+        active: false
+    }
+
     Grid {
         id: grid
         anchors.fill: parent
@@ -155,6 +161,13 @@ Window {
                                 onTriggered: {
                                     materialdataLoader.active = true;
                                     materialdataLoader.item.visible = true;
+                                }
+                            }
+                            Action {
+                                text: qsTr("Tensor")
+                                onTriggered: {
+                                    tensorVisualizationLoader.active = true;
+                                    tensorVisualizationLoader.item.visible = true;
                                 }
                             }
                         }
