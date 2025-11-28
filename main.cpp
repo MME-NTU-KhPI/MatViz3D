@@ -6,7 +6,9 @@
 #include <QProcessEnvironment>
 #include <QCoreApplication>
 #include <QDir>
-#include <windows.h>
+#ifdef _WIN32
+    #include <windows.h>
+#endif
 #include <iostream>
 
 QString logo_full_qstr = R"(
