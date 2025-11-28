@@ -1,6 +1,12 @@
 #include "parameters.h"
 #include "openglwidgetqml.h"
+#include "dbmanager.h"
+#include "tensorcontroller.h"
+
 #include <QDir>
+#include <QVariantList>
+#include <QVariantMap>
+#include <QDebug>
 
 Parameters* Parameters::m_instance = nullptr;
 
@@ -26,6 +32,76 @@ QString Parameters::points_mode = "count";
 bool Parameters::isAnimation = false;
 
 Parameters::Parameters(QObject* parent) : QObject(parent) {}
+// -------------------------------
+void Parameters::loadMaterialListFromDatabase()
+{
+    if (!db) {
+        qWarning() << "DBManager not set in Parameters!";
+        return;
+    }
+
+    materialList.clear();
+
+    QString sql = "SELECT Material FROM material_properties";
+    QVariantList rows = db->executeSelectQuery(sql);
+
+    for (const QVariant& v : rows) {
+        QVariantMap row = v.toMap();
+        materialList.append(row["Material"].toString());
+    }
+
+    emit materialListChanged();
+    qDebug() << "Material list loaded:" << materialList;
+}
+
+// -------------------------------
+// 2) Встановлення матеріалу і зчитування констант
+// -------------------------------
+void Parameters::setSelectedMaterial(const QString& name)
+{
+    if (!db) {
+        qWarning() << "DBManager not set in Parameters!";
+        return;
+    }
+
+    selectedMaterial = name;
+    emit selectedMaterialChanged();
+
+    QString sql = QString("SELECT c11, c12, c44 FROM material_properties WHERE Material='%1'")
+                      .arg(name);
+
+    QVariantList rows = db->executeSelectQuery(sql);
+
+    if (rows.isEmpty()) {
+        qWarning() << "Material not found in DB:" << name;
+        return;
+    }
+
+    QVariantMap row = rows.first().toMap();
+
+    double C11 = row["c11"].toDouble();
+    double C12 = row["c12"].toDouble();
+    double C44 = row["c44"].toDouble();
+
+    TensorController::instance()->setC11(C11);
+    TensorController::instance()->setC12(C12);
+    TensorController::instance()->setC44(C44);
+
+    // Можеш зберігати їх глобально, якщо треба
+    qDebug() << "Selected material:" << name
+             << "C11=" << C11 << "C12=" << C12 << "C44=" << C44;
+}
+
+void Parameters::setDependence(const QString &dep)
+{
+    if (m_dependence == dep)
+        return;
+
+    m_dependence = dep;
+    emit dependenceChanged();
+    qDebug() << "[Parameters] dependence set to:" << dep;
+}
+
 
 void Parameters::processPointInput(const QString &text)
 {

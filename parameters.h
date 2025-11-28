@@ -4,6 +4,8 @@
 #include <QObject>
 #include <QString>
 
+class DBManager;
+
 class Parameters : public QObject
 {
     Q_OBJECT
@@ -26,6 +28,10 @@ class Parameters : public QObject
 
     Q_PROPERTY(QString pointsMode READ getPointsMode WRITE setPointsMode NOTIFY pointsModeChanged)
     Q_PROPERTY(bool isAnimation READ getIsAnimation() WRITE setIsAnimation() NOTIFY isAnimationChanged)
+
+    Q_PROPERTY(QStringList materialList READ getMaterialList NOTIFY materialListChanged)
+    Q_PROPERTY(QString selectedMaterial READ getSelectedMaterial WRITE setSelectedMaterial NOTIFY selectedMaterialChanged)
+    Q_PROPERTY(QString dependence READ dependence WRITE setDependence NOTIFY dependenceChanged)
 
 public:
     explicit Parameters(QObject* parent = nullptr);
@@ -86,6 +92,17 @@ public:
 
     Q_INVOKABLE void processPointInput(const QString &text);
 
+    Q_INVOKABLE void loadMaterialListFromDatabase();
+    Q_INVOKABLE void setSelectedMaterial(const QString& name);
+
+    QStringList getMaterialList() const { return materialList; }
+    QString getSelectedMaterial() const { return selectedMaterial; }
+
+    void setDbManager(DBManager* ptr) { db = ptr; }
+
+    QString dependence() const { return m_dependence; }
+    Q_INVOKABLE void setDependence(const QString &d);
+
     static Parameters* m_instance;
 
     static int32_t*** voxels;
@@ -124,6 +141,11 @@ signals:
     void isAnimationChanged();
     void initialConditionSelectionChanged();
 
+    void materialListChanged();
+    void selectedMaterialChanged();
+
+    void dependenceChanged();
+
 private:
     static int size;
     static int points;
@@ -143,6 +165,11 @@ private:
 
     static QString points_mode; // "count" / "density"
     static bool isAnimation;
+
+    DBManager* db = nullptr;
+    QStringList materialList;
+    QString selectedMaterial;
+    QString m_dependence;
 };
 
 #endif // PARAMETERS_H

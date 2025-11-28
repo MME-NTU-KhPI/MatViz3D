@@ -19,6 +19,7 @@ QML_IMPORT_MAJOR_VERSION = 1
 SOURCES += \
         dbmanager.cpp \
         algorithmfactory.cpp \
+        AnisotropicCalculator.cpp \
         ansyswrapper.cpp \
         composite.cpp \
         dlca.cpp \
@@ -37,6 +38,7 @@ SOURCES += \
         probability_ellipse.cpp \
         probabilityalgorithmviewwrapper.cpp \
         radial.cpp \
+        tensorcontroller.cpp\
         renderopengl.cpp
 
 RESOURCES += qml.qrc
@@ -55,6 +57,7 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 HEADERS += \
     dbmanager.h \
     algorithmfactory.h \
+    AnisotropicCalculator.h \
     ansyswrapper.h \
     composite.h \
     dlca.h \
@@ -72,4 +75,5 @@ HEADERS += \
     probability_ellipse.h \
     probabilityalgorithmviewwrapper.h \
     radial.h \
+    tensorcontroller.h\
     renderopengl.h

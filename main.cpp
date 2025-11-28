@@ -1,14 +1,17 @@
+#include <QCoreApplication>
+#include "tensorcontroller.h"
+
 #include <QGuiApplication>
 #include <QApplication>
 #include <QQmlApplicationEngine>
 #include <QtQuickControls2>
 #include <QIcon>
+
 #include "dbmanager.h"
 #include "parameters.h"
 #include "mainwindowwrapper.h"
 #include "materialdatabaseviewwrapper.h"
 #include "probabilityalgorithmviewwrapper.h"
-
 
 int main(int argc, char *argv[])
 {
@@ -32,6 +35,10 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("dbManager", &dbManager);
     engine.rootContext()->setContextProperty("materialModel", dbManager.getModel());
 
+    Parameters::instance()->setDbManager(&dbManager);
+    TensorController* tensorCtrl = TensorController::instance();
+    engine.rootContext()->setContextProperty("TensorController", tensorCtrl);
+
     // //SQL-запит для отримання данних.
     // QString sql = "SELECT Material, c11, c44 FROM material_properties WHERE Type = 'bcc'";
     // //Отримаемо вектор-список результатів
@@ -49,6 +56,7 @@ int main(int argc, char *argv[])
     MainWindowWrapper mainWindowWrapper;
     MaterialDatabaseViewWrapper materialDatabaseViewWrapper;
     ProbabilityAlgorithmViewWrapper probabilityAlgorithmViewWrapper;
+
 
     engine.rootContext()->setContextProperty("mainWindowWrapper", &mainWindowWrapper);
     engine.rootContext()->setContextProperty("materialDatabaseViewWrapper", &materialDatabaseViewWrapper);

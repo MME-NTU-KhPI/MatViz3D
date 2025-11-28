@@ -1,10 +1,12 @@
 import QtQuick 2.15
+import parameters 1.0
 import QtQuick.Controls 2.15
 import QtQuick.Controls.Material 2.15
 import OpenGLUnderQML 1.0
 
 Window {
     id: tensorVisualizationView
+    objectName: "tensorVisualizationView"
     width: 800
     height: 768
     color: "#363636"
@@ -14,6 +16,14 @@ Window {
 
     Material.theme: Material.Dark
     Material.accent: Material.Teal
+
+    Component.onCompleted: {
+            Parameters.loadMaterialListFromDatabase()
+        }
+
+    function appendToConsole(text) {
+        consoleOutput.text += "\n" + text;
+    }
 
     FontLoader {
         id: inter
@@ -207,7 +217,7 @@ Window {
                                     width: 280
                                     height: 32
                                     leftPadding: 15
-                                    displayText: "---"
+                                    displayText: qsTr("Choose example matrix")
                                     font.pointSize: 10
                                     font.family: montserrat.name
                                     editable: true
@@ -218,27 +228,18 @@ Window {
                                         border.color: "#969696"
                                     }
 
-                                    model: ListModel {
-                                        id: model1
-                                        ListElement { text: "Choose example matrix" }
-                                        ListElement { text: "3D - FAU zeolite, pure silica [cubic]" }
-                                        ListElement { text: "3D - a-quartz [trigonal]" }
-                                        ListElement { text: "3D - Metal-organic framework MIL-53(Al) [orthorhombic]" }
-                                        ListElement { text: "3D - ZnO [hexagonal]" }
-                                        ListElement { text: "3D - TiO₂ rutile [tetragonal]" }
-                                        ListElement { text: "3D - NSI zeolite, pure silica [monoclinic]" }
-                                        ListElement { text: "2D - δ-phosphorene [rectangular]" }
-                                        ListElement { text: "2D - Pd₂O₆Se₂ monolayer [oblique]" }
-                                    }
+                                    //  Модель із C++ Parameters
+                                    model: Parameters.materialList
 
-                                    onAccepted: {
-                                        if (find(editText) === -1)
-                                            model1.append({text: editText})
+                                    //  Коли користувач вибрав матеріал
+                                    onCurrentTextChanged: {
+                                        Qt.callLater(() => {
+                                            Parameters.setSelectedMaterial(currentText)
+                                        })
                                     }
                                 }
                             }
                         }
-
                         // Другий комбобокс
                         Item {
                             id: _item_combo2
@@ -286,9 +287,9 @@ Window {
                                         ListElement { text: "Poisson's ratio" }
                                     }
 
-                                    onAccepted: {
-                                        if (find(editText) === -1)
-                                            model2.append({text: editText})
+                                    onActivated: (index) => {
+                                        const selectedText = model.get(comboBox2.currentIndex).text;
+                                        Parameters.setDependence(selectedText);
                                     }
                                 }
                             }
@@ -355,9 +356,11 @@ Window {
                         }
 
                         onClicked: {
-                            consoleOutput.text += "\n> Starting tensor visualization...";
-                            consoleOutput.text += "\n> Material: " + comboBox1.currentText;
-                            consoleOutput.text += "\n> Dependence: " + comboBox2.currentText;
+                            appendToConsole("> Starting tensor visualization...");
+                            appendToConsole("> Material: " + comboBox1.currentText);
+                            appendToConsole("> Dependence: " + comboBox2.currentText);
+
+                            TensorController.run();
                         }
                     }
                 }
