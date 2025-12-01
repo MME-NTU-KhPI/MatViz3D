@@ -31,6 +31,9 @@ public:
     const std::vector<double>& getE() const { return E_arr; }
     const std::vector<double>& getG() const { return G_arr; }
     const std::vector<double>& getNu() const { return nu_arr; }
+    const std::vector<double>& getThetas() const { return thetas; }
+    const std::vector<double>& getPhis() const { return phis; }
+    int getGridSize() const { return N; }
 
 
 private:

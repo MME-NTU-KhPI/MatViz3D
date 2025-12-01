@@ -12,6 +12,8 @@
 #include "mainwindowwrapper.h"
 #include "materialdatabaseviewwrapper.h"
 #include "probabilityalgorithmviewwrapper.h"
+#include "openglwidgetqml.h"
+#include "tensorwidgetqml.h"
 
 int main(int argc, char *argv[])
 {
@@ -38,6 +40,8 @@ int main(int argc, char *argv[])
     Parameters::instance()->setDbManager(&dbManager);
     TensorController* tensorCtrl = TensorController::instance();
     engine.rootContext()->setContextProperty("TensorController", tensorCtrl);
+    qmlRegisterType<OpenGLWidgetQML>("OpenGLUnderQML", 1, 0, "OpenGLWidgetQML");
+    qmlRegisterType<TensorWidgetQML>("OpenGLUnderQML", 1, 0, "TensorWidgetQML");
 
     // //SQL-запит для отримання данних.
     // QString sql = "SELECT Material, c11, c44 FROM material_properties WHERE Type = 'bcc'";

@@ -36,14 +36,59 @@ Window {
     }
 
     Item {
-        id: _item_GLWidget
+        id: visualizationContainer
         width: parent.width
         height: parent.height - (_itemConsole.visible ? _itemConsole.height : 0)
         anchors.top: parent.top
 
-        OpenGLWidgetQML {
-            width: _item_GLWidget.width
-            height: _item_GLWidget.height
+        TensorWidgetQML {
+            id: tensorVisualization
+            anchors.fill: parent
+        }
+    }
+    function updateTensorVisualization() {
+        appendToConsole("Attempting visualization update...");
+        var dep = Parameters.dependence // Young's Modulus E, Shear Modulus G, Poisson's ratio nu
+        var values = []
+
+        // Вибираємо правильний масив даних на основі обраної залежності
+        if (dep.includes("Young")) {
+            values = TensorController.EData
+        } else if (dep.includes("Shear")) {
+            values = TensorController.GData
+        } else if (dep.includes("Poisson")) {
+            values = TensorController.NuData
+        } else {
+            return
+        }
+
+        // Передаємо дані у C++ віджет
+        if (values.length > 0 && TensorController.GridSize > 0) {
+            tensorVisualization.setVisualizationData(
+                values,
+                TensorController.Thetas,
+                TensorController.Phis,
+                TensorController.GridSize
+            )
+            appendToConsole("Data successfully passed to TensorWidgetQML.");
+        } else {
+            appendToConsole("Error: Data array is empty or GridSize is 0.");
+        }
+    }
+
+    // --- ЗВ'ЯЗОК: Оновлення при зміні залежності у ComboBox ---
+    Connections {
+        target: Parameters
+        onDependenceChanged: {
+            updateTensorVisualization()
+        }
+    }
+
+    // --- ЗВ'ЯЗОК: Оновлення після розрахунку START ---
+    Connections {
+        target: TensorController
+        onDataUpdated: {
+            updateTensorVisualization()
         }
     }
 
@@ -290,6 +335,8 @@ Window {
                                     onActivated: (index) => {
                                         const selectedText = model.get(comboBox2.currentIndex).text;
                                         Parameters.setDependence(selectedText);
+
+                                        updateTensorVisualization();
                                     }
                                 }
                             }

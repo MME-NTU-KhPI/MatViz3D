@@ -39,7 +39,9 @@ SOURCES += \
         probabilityalgorithmviewwrapper.cpp \
         radial.cpp \
         tensorcontroller.cpp\
-        renderopengl.cpp
+        renderopengl.cpp \
+        tensorrenderopengl.cpp \
+        tensorwidgetqml.cpp
 
 RESOURCES += qml.qrc
 
@@ -76,4 +78,6 @@ HEADERS += \
     probabilityalgorithmviewwrapper.h \
     radial.h \
     tensorcontroller.h\
-    renderopengl.h
+    renderopengl.h \
+    tensorrenderopengl.h \
+    tensorwidgetqml.h

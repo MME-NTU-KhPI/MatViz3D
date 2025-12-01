@@ -1,5 +1,17 @@
 #include "tensorcontroller.h"
 #include <QDebug>
+#include <QString>
+#include <QVariantList>
+#include <QVariant>
+
+QVariantList vectorToVariantList(const std::vector<double>& vec) {
+    QVariantList list;
+    list.reserve(vec.size());
+    for (double val : vec) {
+        list.append(QVariant(val));
+    }
+    return list;
+}
 
 void TensorController::run()
 {
@@ -15,6 +27,14 @@ void TensorController::run()
         AnisotropicCalculator calc(m_C11, m_C12, m_C44, 200);
         calc.run();
 
+        m_EData = vectorToVariantList(calc.getE());
+        m_GData = vectorToVariantList(calc.getG());
+        m_NuData = vectorToVariantList(calc.getNu());
+        m_Thetas = vectorToVariantList(calc.getThetas());
+        m_Phis = vectorToVariantList(calc.getPhis());
+        m_N = calc.getGridSize();
+
+        emit dataUpdated();
         // читаємо обрану залежність
 
         qDebug() << "[TensorController] Dependence selected:" << dep;
