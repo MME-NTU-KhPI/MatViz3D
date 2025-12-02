@@ -363,18 +363,19 @@ Window {
                     height: 70
 
                     Button {
-                        id: start_button
-                        width: 105
-                        height: 50
-                        text: qsTr("START")
-                        font.pixelSize: 20
-                        font.family: inter.name
-                        font.bold: true
-                        anchors.centerIn: parent
+                            id: start_button
+                            width: 160
+                            height: 50
+                            text: qsTr("Visualization")
 
-                        background: Rectangle {
+                            font.pixelSize: 20
+                            font.family: inter.name
+                            font.bold: true
+                            anchors.centerIn: parent
+
+                            background: Rectangle {
                             id: buttonBackground2
-                            width: 105
+                            width: 160
                             height: 50
                             radius: 12
                             color: "#282828"
@@ -382,16 +383,16 @@ Window {
                             border.width: 1
 
                             MouseArea {
-                                id: hoverArea2
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onEntered: buttonBackground2.color = "#3a3a3a"
-                                onExited: buttonBackground2.color = "#282828"
-                            }
+                            id: hoverArea2
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onEntered: buttonBackground2.color = "#3a3a3a"
+                            onExited: buttonBackground2.color = "#282828"
                         }
+                    }
 
-                        contentItem: Text {
+                            contentItem: Text {
                             text: start_button.text
                             font.pixelSize: 20
                             font.family: inter.name
@@ -402,7 +403,7 @@ Window {
                             anchors.centerIn: parent
                         }
 
-                        onClicked: {
+                            onClicked: {
                             appendToConsole("> Starting tensor visualization...");
                             appendToConsole("> Material: " + comboBox1.currentText);
                             appendToConsole("> Dependence: " + comboBox2.currentText);
