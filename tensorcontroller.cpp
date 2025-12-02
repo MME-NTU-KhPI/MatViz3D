@@ -45,33 +45,33 @@ void TensorController::run()
             auto ex = calc.getExtrema(calc.getE());
             qDebug() << "\n--- Young's modulus E(n) ---\n";
             qDebug() << " Max =" << ex.maxValue
-                     << " at θ=" << ex.thetaMax
-                     << " φ="  << ex.phiMax;
+                     << " at theta=" << ex.thetaMax
+                     << " phi="  << ex.phiMax;
             qDebug() << " Min =" << ex.minValue
-                     << " at θ=" << ex.thetaMin
-                     << " φ="  << ex.phiMin;
+                     << " at theta=" << ex.thetaMin
+                     << " phi="  << ex.phiMin;
         }
         else if (dep.contains("Shear", Qt::CaseInsensitive)) {
 
             auto ex = calc.getExtrema(calc.getG());
             qDebug() << "\n--- Shear modulus G(n,m) ---\n";
             qDebug() << " Max =" << ex.maxValue
-                     << " at θ=" << ex.thetaMax
-                     << " φ="  << ex.phiMax;
+                     << " at theta=" << ex.thetaMax
+                     << " phi="  << ex.phiMax;
             qDebug() << " Min =" << ex.minValue
-                     << " at θ=" << ex.thetaMin
-                     << " φ="  << ex.phiMin;
+                     << " at theta=" << ex.thetaMin
+                     << " phi="  << ex.phiMin;
         }
         else if (dep.contains("Poisson", Qt::CaseInsensitive)) {
 
             auto ex = calc.getExtrema(calc.getNu());
             qDebug() << "\n--- Poisson's ratio ν(n,m) ---\n";
             qDebug() << " Max =" << ex.maxValue
-                     << " at θ=" << ex.thetaMax
-                     << " φ="  << ex.phiMax;
+                     << " at theta=" << ex.thetaMax
+                     << " phi="  << ex.phiMax;
             qDebug() << " Min =" << ex.minValue
-                     << " at θ=" << ex.thetaMin
-                     << " φ="  << ex.phiMin;
+                     << " at theta=" << ex.thetaMin
+                     << " phi="  << ex.phiMin;
         }
         else {
             qDebug() << "[TensorController] Unknown dependence. Nothing to output.";
