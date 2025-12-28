@@ -743,6 +743,7 @@ void ansysWrapper::applyComplexLoads(double x1, double y1, double z1,
     this->eps_as_loading.push_back(eps_vec);
 
     apdl << "!-----Apply BC for 3D case -------" << Qt::endl;
+    apdl <<"/NOPR" << Qt::endl;
     for (auto ni = nodes.begin(); ni!=nodes.end(); ni++)
     {
         bool is_on_face = ansysWrapper::IsFaceNode(ni.key(), x1, y1, z1, x2, y2, z2);
@@ -757,6 +758,7 @@ void ansysWrapper::applyComplexLoads(double x1, double y1, double z1,
         }
 
     }
+    apdl <<"/GOPR" << Qt::endl;
     apdl << "!-----END Apply BC for 3D case -------" << Qt::endl;
     apdl << "NSEL,S, , ,all" << Qt::endl;
     apdl << "LSWRITE," << Qt::endl;
