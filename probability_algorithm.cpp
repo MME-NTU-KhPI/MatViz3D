@@ -171,15 +171,28 @@ void Probability_Algorithm::processValues()
 
 void Probability_Algorithm::processValuesGrid()
 {
-    const uint64_t N = 1000000;
-    uint64_t n = std::round(std::cbrt(N));
+    const uint64_t N = pow(102, 3); // 102 ^ 3
+    const uint64_t n = std::round(std::cbrt(N));
 
-    double step = 3.0 / (n - 1);
+    const double step = 3.0 / n;
 
-    uint64_t fileld_in[3][3][3] = {{{0}}};
-    uint64_t fileld_total[3][3][3] = {{{0}}};
+    const double num_points_per_voxel = pow(1.0 / step, 3);
+
+    qDebug() << "Runing probabilty estimation on grid algorithm";
+    qDebug() << "  Total points N = " << N << Qt::endl
+             << "  Points on endge n = " << n << Qt::endl
+             << "  Step = " << step << Qt::endl
+             << "  Number of points per one voxel = " << num_points_per_voxel << Qt::endl
+             << "  h_a = " << Parameters::halfaxis_a << Qt::endl
+             << "  h_b = " << Parameters::halfaxis_b << Qt::endl
+             << "  h_c = " << Parameters::halfaxis_c << Qt::endl
+             << "  angle_a = " << Parameters::orientation_angle_a << Qt::endl
+             << "  angle_b = " << Parameters::orientation_angle_b << Qt::endl
+             << "  angle_c = " << Parameters::orientation_angle_c << Qt::endl
+        ;
+
     uint64_t fileld_in_local[3][3][3] = {{{0}}};
-    uint64_t fileld_total_local[3][3][3] = {{{0}}};
+
 
     for (uint64_t i = 0; i < n; ++i)
     {
@@ -187,24 +200,14 @@ void Probability_Algorithm::processValuesGrid()
         {
             for (uint64_t k = 0; k < n; ++k)
             {
-                double x = i * step;
-                double y = j * step;
-                double z = k * step;
+                double x = (i + 0.5) * step;
+                double y = (j + 0.5) * step;
+                double z = (k + 0.5) * step;
 
                 int k_voxel = (int)floor(x);
                 int l_voxel = (int)floor(y);
                 int m_voxel = (int)floor(z);
 
-                if( k_voxel >= 0 && k_voxel <= 2)
-                {
-                    if( l_voxel >= 0 && l_voxel <= 2)
-                    {
-                        if( m_voxel >= 0 && m_voxel <= 2)
-                        {
-                            fileld_total_local[k_voxel][l_voxel][m_voxel]++;
-                        }
-                    }
-                }
                 if (isPointIn(x, y, z))
                 {
                     fileld_in_local[k_voxel][l_voxel][m_voxel]++;
@@ -212,36 +215,35 @@ void Probability_Algorithm::processValuesGrid()
             }
         }
     }
+
+
     for (int i = 0; i < 3; i++)
         for (int j = 0; j < 3; j++)
             for (int k = 0; k < 3; k++)
-            {
-                fileld_in[i][j][k] += fileld_in_local[i][j][k];
-                fileld_total[i][j][k] += fileld_total_local[i][j][k];
-            }
+                this->probability[i][j][k] = (double)fileld_in_local[i][j][k] / num_points_per_voxel;
 
-    for (int i = 0; i < 3; i++)
-    {
-        for (int j = 0; j < 3; j++)
-        {
-            for (int k = 0; k < 3; k++)
-            {
-                if (fileld_total[i][j][k] > 0)
-                {
-                    probability[i][j][k] = (double)fileld_in[i][j][k] / fileld_total[i][j][k];
-                }
-                else
-                {
-                    probability[i][j][k] = 0.0;
-                }
-
-                qDebug() << i << "\t" << j << "\t" << k << "\t"
-                         << fileld_in[i][j][k] << "\t" << fileld_total[i][j][k] << "\t"
-                         << probability[i][j][k] << "\n";
-            }
-        }
-    }
+    prettyPrint3DArray(this->probability);
     writeProbabilitiesToCSV(QCoreApplication::applicationDirPath(), N);
+}
+
+void Probability_Algorithm::prettyPrint3DArray(double arr[3][3][3])
+{
+    qDebug() << "Probability Array [3][3][3]:";
+    qDebug() << "==================";
+
+    for (int i = 0; i < 3; i++) {
+        qDebug() << QString("Layer %1:").arg(i);
+        for (int j = 0; j < 3; j++) {
+            QString row = "  [";
+            for (int k = 0; k < 3; k++) {
+                row += QString("%1").arg(arr[i][j][k], 5, 'f', 3);
+                if (k < 2) row += ", ";
+            }
+            row += "]";
+            qDebug().noquote() << row;
+        }
+        if (i < 2) qDebug() << "";
+    }
 }
 
 void Probability_Algorithm::Next_Iteration(std::function<void()> callback)
@@ -289,7 +291,7 @@ void Probability_Algorithm::Next_Iteration(std::function<void()> callback)
                         newZ >= 0 && newZ < numCubes)
                     {
                         if (voxels[newX][newY][newZ] == 0 &&
-                            local_dis(local_gen) >= probability[1 + offset[0]][1 + offset[1]][1 + offset[2]])
+                            local_dis(local_gen) < probability[1 + offset[0]][1 + offset[1]][1 + offset[2]])
                         {
                             if (__sync_bool_compare_and_swap(&voxels[newX][newY][newZ], 0, current_value))
                             {
