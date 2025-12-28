@@ -171,15 +171,15 @@ void Probability_Algorithm::processValues()
 
 void Probability_Algorithm::processValuesGrid()
 {
-    const uint64_t N = pow(102, 3); // 102 ^ 3
+    const uint64_t N = pow(102, 3);
     const uint64_t n = std::round(std::cbrt(N));
 
     const double step = 3.0 / n;
 
     const double num_points_per_voxel = pow(1.0 / step, 3);
 
-    qDebug() << "Runing probabilty estimation on grid algorithm";
-    qDebug() << "  Total points N = " << N << Qt::endl
+    qDebug() << "Runing probabilty estimation on grid algorithm" << Qt::endl
+             << "  Total points N = " << N << Qt::endl
              << "  Points on endge n = " << n << Qt::endl
              << "  Step = " << step << Qt::endl
              << "  Number of points per one voxel = " << num_points_per_voxel << Qt::endl
@@ -228,22 +228,40 @@ void Probability_Algorithm::processValuesGrid()
 
 void Probability_Algorithm::prettyPrint3DArray(double arr[3][3][3])
 {
-    qDebug() << "Probability Array [3][3][3]:";
-    qDebug() << "==================";
+    QString output;
 
+    // Header
+    output += "Probability Array [3][3][3]:\n";
+    output += "==================\n";
+
+    // Print the 3D array
     for (int i = 0; i < 3; i++) {
-        qDebug() << QString("Layer %1:").arg(i);
+        output += QString("Layer %1:\n").arg(i);
         for (int j = 0; j < 3; j++) {
-            QString row = "  [";
+            output += "  [";
             for (int k = 0; k < 3; k++) {
-                row += QString("%1").arg(arr[i][j][k], 5, 'f', 3);
-                if (k < 2) row += ", ";
+                output += QString("%1").arg(arr[i][j][k], 5, 'f', 3);
+                if (k < 2) output += ", ";
             }
-            row += "]";
-            qDebug().noquote() << row;
+            output += "]\n";
         }
-        if (i < 2) qDebug() << "";
+        if (i < 2) output += "\n";
     }
+
+    // Calculate directional probabilities
+    output += "\n==================\n";
+    output += "Directional Probabilities:\n";
+    output += "==================\n";
+
+    output += QString("+X direction: %1\n").arg(arr[2][1][1], 6, 'f', 3);
+    output += QString("-X direction: %1\n").arg(arr[0][1][1], 6, 'f', 3);
+    output += QString("+Y direction: %1\n").arg(arr[1][2][1], 6, 'f', 3);
+    output += QString("-Y direction: %1\n").arg(arr[1][0][1], 6, 'f', 3);
+    output += QString("+Z direction: %1\n").arg(arr[1][1][2], 6, 'f', 3);
+    output += QString("-Z direction: %1\n").arg(arr[1][1][0], 6, 'f', 3);
+
+    // Single qDebug call at the end
+    qDebug().noquote() << output;
 }
 
 void Probability_Algorithm::Next_Iteration(std::function<void()> callback)
@@ -254,15 +272,15 @@ void Probability_Algorithm::Next_Iteration(std::function<void()> callback)
     {
         const size_t current_size = grains.size();
         std::vector<Coordinate> newGrains;
-        newGrains.reserve(current_size * 26);
+        newGrains.reserve(current_size * 27);
         unsigned int local_counter = 0;
-
+        //omp_set_num_threads(1);
         #pragma omp parallel reduction(+:local_counter)
         {
             std::vector<Coordinate> privateGrains;
             privateGrains.reserve(current_size * 26 / omp_get_max_threads());
 
-            std::mt19937 local_gen(Parameters::seed);
+            std::mt19937 local_gen(Parameters::seed + omp_get_thread_num());
             std::uniform_real_distribution<> local_dis(0.0, 1.0);
 
             #pragma omp for schedule(guided) nowait
@@ -272,7 +290,7 @@ void Probability_Algorithm::Next_Iteration(std::function<void()> callback)
                 const int32_t x = temp.x, y = temp.y, z = temp.z;
                 const int32_t current_value = voxels[x][y][z];
 
-                #pragma omp simd
+
                 for (const auto& offset : PROBABILITY_OFFSETS)
                 {
                     int32_t newX = x + offset[0];
@@ -286,19 +304,37 @@ void Probability_Algorithm::Next_Iteration(std::function<void()> callback)
                         newZ = (newZ + numCubes) % numCubes;
                     }
 
-                    if (newX >= 0 && newX < numCubes &&
-                        newY >= 0 && newY < numCubes &&
-                        newZ >= 0 && newZ < numCubes)
+                    bool out_of_box_cond = newX < 0 || newY < 0 || newZ < 0 ||
+                                           newX >= numCubes || newY >= numCubes || newZ >= numCubes;
+
+                    if (out_of_box_cond || voxels[newX][newY][newZ] != 0)
+                        continue; // no way to grow in this direction. Skip it
+
+                    double prob = probability
+                        [1 + offset[0]]
+                        [1 + offset[1]]
+                        [1 + offset[2]];
+
+                    if (local_dis(local_gen) < prob)
                     {
-                        if (voxels[newX][newY][newZ] == 0 &&
-                            local_dis(local_gen) < probability[1 + offset[0]][1 + offset[1]][1 + offset[2]])
+                        int num_tryies = 5;
+                        while (__sync_bool_compare_and_swap(&voxels[newX][newY][newZ], 0, current_value) == false && num_tryies)
                         {
-                            if (__sync_bool_compare_and_swap(&voxels[newX][newY][newZ], 0, current_value))
-                            {
-                                privateGrains.push_back({newX, newY, newZ});
-                                local_counter++;
-                            }
+                            num_tryies--;
                         }
+                        if (num_tryies)
+                        {
+                            privateGrains.push_back({newX, newY, newZ});
+                            local_counter++;
+                        }
+                        else
+                        {
+                            //qInfo() << "Error with voxel array sync";
+                        }
+                    }
+                    else
+                    {
+                        privateGrains.push_back({x, y, z}); // add old grain, it may growth next time
                     }
                 }
             }
@@ -315,7 +351,10 @@ void Probability_Algorithm::Next_Iteration(std::function<void()> callback)
         IterationNumber++;
 
         double progress = static_cast<double>(filled_voxels) / counter_max;
-        qDebug().nospace() << progress << "\t" << IterationNumber << "\t" << grains.size();
+        //qDebug().nospace() << progress << "\t" << IterationNumber << "\t" << grains.size();
+        qDebug().noquote() << " Iteration number:" << IterationNumber
+                           << " Progress:" << QString("%1").arg(progress * 100, 5, 'f', 2)
+                           << " Size of Grain vector:" << grains.size();
 
         if (flags.isWaveGeneration && remainingPoints > 0)
         {
