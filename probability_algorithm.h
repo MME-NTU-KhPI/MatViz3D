@@ -32,6 +32,7 @@ private:
     double toRadians(double degress);
     int pointsinvoxel;
     double probability[3][3][3];
+    void prettyPrint3DArray(double arr[3][3][3]);
 };
 
 #endif // PROBABILITY_ALGORITHM_H
