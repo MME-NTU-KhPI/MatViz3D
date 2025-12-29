@@ -4,7 +4,6 @@
 #include <QProcess>
 #include <cfloat>
 #include <random>
-
 #include "ansyswrapper.h"
 
 #ifndef ANSYSWRAPPER_CPP_INCLUDED
@@ -387,6 +386,7 @@ void ansysWrapper::createFEfromArray8Node(int32_t*** voxels, short int numCubes,
 {
     QVector<QVector<int>> seedsData;
     QFile file("crystallization_seeds.csv");
+
     if (file.open(QIODevice::ReadOnly | QIODevice::Text))
     {
         QTextStream in(&file);
@@ -410,13 +410,24 @@ void ansysWrapper::createFEfromArray8Node(int32_t*** voxels, short int numCubes,
     else
     {
         qWarning() << "Failed to open crystallization_seeds.csv";
+        return; // ВАЖНО: Прерываем выполнение, если нет файла, чтобы избежать краша далее
     }
-    for (int i = 0; i < numSeeds + 1; ++i)
+
+    // --- НАЧАЛО ИСПРАВЛЕНИЯ ---
+    // Определяем реальное количество семян, которое есть в файле
+    int actualSeedsCount = seedsData.size();
+
+    // Используем actualSeedsCount вместо numSeeds
+    // Цикл идет до +1, так как i=0 - это глобальная система (или пустая итерация), а данные берутся с i=1
+    for (int i = 0; i < actualSeedsCount + 1; ++i)
     {
         double x = 0, y = 0, z = 0;
 
         if (i != 0)
         {
+            // Обращаемся к i-1. Так как цикл ограничен actualSeedsCount + 1,
+            // максимальный индекс будет (actualSeedsCount + 1 - 1) - 1 = actualSeedsCount - 1.
+            // Это безопасно для seedsData.
             x = seedsData[i - 1][0];
             y = seedsData[i - 1][1];
             z = seedsData[i - 1][2];
@@ -1185,28 +1196,19 @@ void ansysWrapper::setNP(int np)
  */
 void ansysWrapper::generate_random_angles(double *angl, bool in_deg, double epsilon)
 {
-    if (!angl)
-        return;
+    if (!angl) return;
 
-    // Use the existing random engine seeded in the constructor
     static std::mt19937 re(this->seed);
-    // Use a normal distribution for generating quaternion components
     std::normal_distribution<double> norm_dist(0.0, 1.0);
 
-    // 1. Generate 4 random numbers from standard normal distribution
-    double q0 = norm_dist(re);
-    double q1 = norm_dist(re);
-    double q2 = norm_dist(re);
-    double q3 = norm_dist(re);
+    double q0 = norm_dist(re); // w
+    double q1 = norm_dist(re); // x
+    double q2 = norm_dist(re); // y
+    double q3 = norm_dist(re); // z
 
-    // 2. Normalize to get a unit quaternion (w, x, y, z)
     double norm = std::sqrt(q0*q0 + q1*q1 + q2*q2 + q3*q3);
-    // Prevent division by zero, though highly unlikely with normal distribution
     if (norm < epsilon) {
-        // Return a default orientation (e.g., identity) in case of issue
-        angl[0] = 0.0;
-        angl[1] = 0.0;
-        angl[2] = 0.0;
+        angl[0] = 0.0; angl[1] = 0.0; angl[2] = 0.0;
         return;
     }
     double w = q0 / norm;
@@ -1214,69 +1216,69 @@ void ansysWrapper::generate_random_angles(double *angl, bool in_deg, double epsi
     double y = q2 / norm;
     double z = q3 / norm;
 
-    // 3. Convert quaternion (w, x, y, z) to Bunge ZXZ Euler angles (phi1, Phi, phi2)
-    // Calculate necessary rotation matrix elements from quaternion
-    double R11 = 1.0 - 2.0 * (y*y + z*z); // w*w + x*x - y*y - z*z
-    double R12 = 2.0 * (x*y - w*z);
-    //double R13 = 2.0 * (x*z + w*y); // Needed for phi2
-    //double R23 = 2.0 * (y*z - w*x); // Needed for phi2
-    //double R31 = 2.0 * (x*z - w*y); // Needed for phi1
-    //double R32 = 2.0 * (y*z + w*x); // Needed for phi1
-    double R33 = 1.0 - 2.0 * (x*x + y*y); // w*w - x*x - y*y + z*z
+    //2(xy - wz)
+    double m12 = 2.0 * (x * y - w * z);
 
-    double phi1, Phi, phi2;
+    // 1 - 2(x^2 + z^2)
+    double m22 = 1.0 - 2.0 * (x * x + z * z);
 
-    // Avoid numerical issues near poles (Phi=0 or Phi=pi)
-    // Clamp R33 value to ensure it's within acos domain [-1, 1]
-    if (R33 > 1.0) R33 = 1.0;
-    if (R33 < -1.0) R33 = -1.0;
+    // 2(yz + wx)
+    double m32 = 2.0 * (y * z + w * x);
 
-    Phi = std::acos(R33); // Phi is in [0, pi]
+    // 2(xz - wy)
+    double m31 = 2.0 * (x * z - w * y);
 
-    // Check for singularity (gimbal lock)
-    // sin(Phi) is close to 0 if Phi is close to 0 or pi
-    if (std::fabs(Phi) < epsilon || std::fabs(Phi - M_PI) < epsilon)
+    // 1 - 2(x^2 + y^2)
+    double m33 = 1.0 - 2.0 * (x * x + y * y);
+
+    //(Sequence 3,1,2 = ZXY)
+    double theta1, theta2, theta3;
+
+    if (m32 > 1.0) m32 = 1.0;
+    if (m32 < -1.0) m32 = -1.0;
+
+    // tan^-1( -m12 / m22 )
+    // atan2(Y, X) = tan^-1(Y/X)
+    theta1 = std::atan2(-m12, m22);
+
+    // Картинка: tan^-1( m32 / sqrt(1 - m32^2) )
+    double cos_theta2 = std::sqrt(1.0 - m32 * m32);
+
+    if (cos_theta2 < epsilon)
     {
-        // At singularity, phi1 + phi2 (if Phi=0) or phi1 - phi2 (if Phi=pi) is well-defined.
-        // Conventionally set phi2 = 0 and calculate phi1.
-        // phi1 = atan2(R12, R11) works for both Phi=0 and Phi=pi cases here
-        phi1 = std::atan2(R12, R11);
-        phi2 = 0.0;
+        // Gimbal Lock: ось X повернута на 90 градусів.
+        theta2 = (m32 > 0) ? (M_PI / 2.0) : (-M_PI / 2.0);
+
+        theta1 = 0.0;
+
+        // Альтернативна формула для Y в замочку:
+        // m31 = sin(th2)*sin(th3) -> +/- sin(th3)
+        // m33 = 0
+        // Надійніше через кватерніон: Y = 2 * atan2(x, w) * sign
+        double sign = (m32 > 0) ? 1.0 : -1.0;
+        theta3 = sign * 2.0 * std::atan2(x, w);
     }
     else
     {
-        // Calculate elements needed for non-singular case
-        double R13 = 2.0 * (x*z + w*y);
-        double R23 = 2.0 * (y*z - w*x);
-        double R31 = 2.0 * (x*z - w*y);
-        double R32 = 2.0 * (y*z + w*x);
+        theta2 = std::atan2(m32, cos_theta2);
 
-        // General case
-        phi1 = std::atan2(R31, -R32); // atan2(R[3][1], -R[3][2])
-        phi2 = std::atan2(R13, R23);  // atan2(R[1][3], R[2][3])
+        //tan^-1( -m31 / m33 )
+        theta3 = std::atan2(-m31, m33);
     }
 
-    // Ensure angles are in the typical range [0, 2*pi) if desired, atan2 gives [-pi, pi]
-    // Bunge convention often uses [0, 2pi) for phi1, [0, pi] for Phi, [0, 2pi) for phi2
-    // The ranges from acos/atan2 are naturally: Phi in [0, pi], phi1/phi2 in [-pi, pi]
-    // If a specific range is needed (e.g. [0, 2pi)), adjust here:
-    // if (phi1 < 0) phi1 += 2.0 * M_PI;
-    // if (phi2 < 0) phi2 += 2.0 * M_PI;
-    // For now, leave them in [-pi, pi] as APDL LOCAL command handles angles correctly.
+    //THXY (Z), THYZ (X), THZX (Y)
+    angl[0] = theta1; // Z
+    angl[1] = theta2; // X
+    angl[2] = theta3; // Y
 
-    angl[0] = phi1;
-    angl[1] = Phi;
-    angl[2] = phi2;
-
-    // Convert to degrees if requested
     if (in_deg)
     {
-        angl[0] *= 180.0 / M_PI;
-        angl[1] *= 180.0 / M_PI;
-        angl[2] *= 180.0 / M_PI;
+        double rad_to_deg = 180.0 / M_PI;
+        angl[0] *= rad_to_deg;
+        angl[1] *= rad_to_deg;
+        angl[2] *= rad_to_deg;
     }
 }
-
 
 void ansysWrapper::load_loadstep(int num)
 {

@@ -6,7 +6,6 @@
 #include "parent_algorithm.h"
 
 
-
 class Moore : public Parent_Algorithm {
 
 public:
