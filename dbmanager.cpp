@@ -8,7 +8,10 @@ DBManager::DBManager(QObject *parent)
     db.setDatabaseName(dbPath);
 
     if (!db.open())
-        qCritical() << "Error: Unable to connect to database";
+    {
+        qCritical() << "Error: Unable to connect to database" << db.lastError().text();
+        return;
+    }
     else
     {
         qDebug() << "Database connected successfully";

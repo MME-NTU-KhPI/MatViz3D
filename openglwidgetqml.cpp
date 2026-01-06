@@ -28,7 +28,16 @@ OpenGLWidgetQML::OpenGLWidgetQML(QQuickItem *parent) : QQuickFramebufferObject(p
     bgColor.setRgbF(0.21f, 0.21f, 0.21f);
     connect(this, &QQuickItem::widthChanged, this, &OpenGLWidgetQML::handleResize, Qt::QueuedConnection);
     connect(this, &QQuickItem::heightChanged, this, &OpenGLWidgetQML::handleResize, Qt::QueuedConnection);
-    this->instance = this;
+
+    // Only set instance if null (or warn if multiple instances)
+    if (instance == nullptr)
+    {
+        instance = this;
+    }
+    else
+    {
+        qWarning() << "Multiple OpenGLWidgetQML instances detected";
+    }
 }
 
 OpenGLWidgetQML* OpenGLWidgetQML::getInstance()
@@ -36,7 +45,12 @@ OpenGLWidgetQML* OpenGLWidgetQML::getInstance()
     return instance;
 }
 
-QQuickFramebufferObject::Renderer *OpenGLWidgetQML::createRenderer() const {
+QQuickFramebufferObject::Renderer *OpenGLWidgetQML::createRenderer() const
+{
+    if (m_render)
+    {
+        delete m_render;
+    }
     m_render = new RenderOpenGL();
     m_render->resizeGL(this->width(), this->height());
     return m_render;
@@ -44,7 +58,15 @@ QQuickFramebufferObject::Renderer *OpenGLWidgetQML::createRenderer() const {
 
 OpenGLWidgetQML::~OpenGLWidgetQML()
 {
-    delete timer;
+    if (timer)
+    {
+        delete timer;
+    }
+    if (m_render)
+    {
+        delete m_render;
+    }
+    instance = nullptr;
 }
 
 
@@ -213,6 +235,11 @@ void OpenGLWidgetQML::setDelayAnimation(int delayAnimation)
 
 void OpenGLWidgetQML::setDistanceFactor(int factor)
 {
+    if (numCubes <= 0)
+    {
+        return;
+    }
+    factor = qMax(1, factor);
     distanceFactor = log(factor/10.0 + 1) * numCubes; // 5.0 - is a sensetivity factor. log - inroduce soft sizing
     calculateScene();
     update();
@@ -500,12 +527,12 @@ void OpenGLWidgetQML::calculateScene()
                         continue;
                 }
 
-                int index = voxels[k][i][j] - 1;
+                size_t index = voxels[k][i][j] - 1;
 
-                if (colors.size() == 0)
+                if (index >= colors.size() || colors.size() == 0)
                 {
-                    qCritical() << "Num colors size == 0. Can not render scene";
-                    return;
+                    qCritical() << "Invalid voxel color index:" << index << "size:" << colors.size();
+                    continue;
                 }
                 auto color = colors[index].data();
 
@@ -565,6 +592,7 @@ void OpenGLWidgetQML::setVoxels(int32_t*** voxels, short int numCubes)
 {
     this->voxels = voxels;
     this->numCubes = numCubes;
+    voxelScene.clear();
     calculateScene();
     if (m_render)
     {
@@ -573,7 +601,6 @@ void OpenGLWidgetQML::setVoxels(int32_t*** voxels, short int numCubes)
         m_render->setNumCubes(numCubes);
         m_render->updateVoxelData(voxelScene);
         m_render->resizeGL(this->width(), this->height());
-        voxelScene.clear();
     }
 }
 
