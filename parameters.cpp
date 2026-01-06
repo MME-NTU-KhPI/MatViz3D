@@ -17,6 +17,7 @@ float Parameters::wave_coefficient;
 float Parameters::halfaxis_a = 0.0f;
 float Parameters::halfaxis_b = 0.0f;
 float Parameters::halfaxis_c = 0.0f;
+double Parameters::ellipse_order = 2.0f;
 
 float Parameters::orientation_angle_a = 0.0f;
 float Parameters::orientation_angle_b = 0.0f;

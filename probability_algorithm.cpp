@@ -50,7 +50,9 @@ void Probability_Algorithm::setHalfAxis()
 bool Probability_Algorithm::isPointIn(double x, double y, double z)
 {
     rotatePoint(x,y,z);
-    return (pow((x - 1.5) / Parameters::halfaxis_a, 2) + pow((y-1.5)  / Parameters::halfaxis_b, 2) + pow((z-1.5) / Parameters::halfaxis_c, 2)) <= 1.0;
+    return (pow((x - 1.5) / Parameters::halfaxis_a, Parameters::ellipse_order)
+            + pow((y-1.5)  / Parameters::halfaxis_b, Parameters::ellipse_order)
+            + pow((z-1.5) / Parameters::halfaxis_c, Parameters::ellipse_order)) <= 1.0;
 }
 
 void Probability_Algorithm::setNumCubes(short int size)
@@ -272,13 +274,14 @@ void Probability_Algorithm::Next_Iteration(std::function<void()> callback)
     {
         const size_t current_size = grains.size();
         std::vector<Coordinate> newGrains;
-        newGrains.reserve(current_size * 27);
+        newGrains.reserve(current_size * 2);
+
         unsigned int local_counter = 0;
-        //omp_set_num_threads(1);
+
         #pragma omp parallel reduction(+:local_counter)
         {
             std::vector<Coordinate> privateGrains;
-            privateGrains.reserve(current_size * 26 / omp_get_max_threads());
+            privateGrains.reserve(current_size * 2 / omp_get_max_threads());
 
             std::mt19937 local_gen(Parameters::seed + omp_get_thread_num());
             std::uniform_real_distribution<> local_dis(0.0, 1.0);
@@ -290,6 +293,7 @@ void Probability_Algorithm::Next_Iteration(std::function<void()> callback)
                 const int32_t x = temp.x, y = temp.y, z = temp.z;
                 const int32_t current_value = voxels[x][y][z];
 
+                bool keep_this_grain_active = false;
 
                 for (const auto& offset : PROBABILITY_OFFSETS)
                 {
@@ -307,35 +311,39 @@ void Probability_Algorithm::Next_Iteration(std::function<void()> callback)
                     bool out_of_box_cond = newX < 0 || newY < 0 || newZ < 0 ||
                                            newX >= numCubes || newY >= numCubes || newZ >= numCubes;
 
-                    if (out_of_box_cond || voxels[newX][newY][newZ] != 0)
-                        continue; // no way to grow in this direction. Skip it
+                    if (out_of_box_cond) continue;
 
-                    double prob = probability
-                        [1 + offset[0]]
-                        [1 + offset[1]]
-                        [1 + offset[2]];
+                    if (voxels[newX][newY][newZ] != 0) continue;
+
+                    double prob = probability[1 + offset[0]][1 + offset[1]][1 + offset[2]];
 
                     if (local_dis(local_gen) < prob)
                     {
                         int num_tryies = 5;
-                        while (__sync_bool_compare_and_swap(&voxels[newX][newY][newZ], 0, current_value) == false && num_tryies)
-                        {
-                            num_tryies--;
+                        bool captured = false;
+                        while(num_tryies--) {
+                            if (__sync_bool_compare_and_swap(&voxels[newX][newY][newZ], 0, current_value)) {
+                                captured = true;
+                                break;
+                            }
+                            if (voxels[newX][newY][newZ] != 0) break;
                         }
-                        if (num_tryies)
+
+                        if (captured)
                         {
                             privateGrains.push_back({newX, newY, newZ});
                             local_counter++;
                         }
-                        else
-                        {
-                            //qInfo() << "Error with voxel array sync";
-                        }
                     }
                     else
                     {
-                        privateGrains.push_back({x, y, z}); // add old grain, it may growth next time
+                        keep_this_grain_active = true;
                     }
+                }
+
+                if (keep_this_grain_active)
+                {
+                    privateGrains.push_back({x, y, z});
                 }
             }
 
