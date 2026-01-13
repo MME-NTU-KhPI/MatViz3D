@@ -45,7 +45,8 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
     }
 
     for (int i = 0; i < 6; ++i) {
-        for (int j = i + 1; j < 6; ++j) {
+        for (int j = i + 1; j < 6; ++j)
+        {
             std::vector<double> load(6, 0.0);
             load[i] = strain_val;
             load[j] = strain_val;

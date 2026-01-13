@@ -50,9 +50,9 @@ void Probability_Algorithm::setHalfAxis()
 bool Probability_Algorithm::isPointIn(double x, double y, double z)
 {
     rotatePoint(x,y,z);
-    return (pow((x - 1.5) / Parameters::halfaxis_a, Parameters::ellipse_order)
-            + pow((y-1.5)  / Parameters::halfaxis_b, Parameters::ellipse_order)
-            + pow((z-1.5) / Parameters::halfaxis_c, Parameters::ellipse_order)) <= 1.0;
+    return (pow(std::abs(x - 1.5) / Parameters::halfaxis_a, Parameters::ellipse_order)
+            + pow(std::abs(y-1.5)  / Parameters::halfaxis_b, Parameters::ellipse_order)
+            + pow(std::abs(z-1.5) / Parameters::halfaxis_c, Parameters::ellipse_order)) <= 1.0;
 }
 
 void Probability_Algorithm::setNumCubes(short int size)

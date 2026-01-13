@@ -3,9 +3,9 @@
 REM Set parameters here
 
 set N_RUN=100
-set SIZES_LIST=15
+set SIZES_LIST=50
 set POINTS=8
-set CONCENTRATION=5
+set CONCENTRATION=15
 set NUM_PROC=4
 set ALGORITHM=Moore
 set OUTPUT_DIR=D:\Project\ansys_results\regular3\
