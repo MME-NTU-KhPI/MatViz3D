@@ -21,6 +21,7 @@ public:
     Q_INVOKABLE void removeMaterial(int row);
     Q_INVOKABLE void updateMaterial(int row, int column, const QVariant &value);
     Q_INVOKABLE QSqlTableModel* getModel() { return model; };
+    Q_INVOKABLE QVariantList executeSelectQuery(const QString& queryString);
 };
 
 #endif // DBMANAGER_H

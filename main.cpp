@@ -32,6 +32,20 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("dbManager", &dbManager);
     engine.rootContext()->setContextProperty("materialModel", dbManager.getModel());
 
+    // //SQL-запит для отримання данних.
+    // QString sql = "SELECT Material, c11, c44 FROM material_properties WHERE Type = 'bcc'";
+    // //Отримаемо вектор-список результатів
+    // QVariantList results = dbManager.executeSelectQuery(sql);
+
+    // // Тепер ви можете обробити результати. Приклад.
+    // for (const QVariant& item : results)
+    // {
+    //     QVariantMap row = item.toMap();
+    //     qDebug() << "Матеріал:" << row["Material"].toString()
+    //              << ", C11:" << row["c11"].toDouble()
+    //              << ", C44:" << row["c44"].toDouble();
+    // }
+
     MainWindowWrapper mainWindowWrapper;
     MaterialDatabaseViewWrapper materialDatabaseViewWrapper;
     ProbabilityAlgorithmViewWrapper probabilityAlgorithmViewWrapper;

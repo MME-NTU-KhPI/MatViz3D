@@ -45,8 +45,11 @@ void RenderOpenGL::updateVoxelData(std::vector<Voxel>& voxelScene)
 
 RenderOpenGL::~RenderOpenGL()
 {
-    QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
-    f->glDeleteBuffers(1, vboIds);
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    if (context && context->isValid()) {
+        QOpenGLFunctions *f = context->functions();
+        f->glDeleteBuffers(1, vboIds);  // Or appropriate count
+    }
 }
 
 QSize RenderOpenGL::minimumSizeHint() const
@@ -137,13 +140,13 @@ void RenderOpenGL::debugCallback(GLenum source, GLenum type, GLuint id, GLenum s
     }
 
     // Log the debug message using QDebug
-    // qDebug().noquote()
-    //     << "OpenGL Debug Message:"
-    //     << "\n    Source: " << sourceStr
-    //     << "\n    Type: " << typeStr
-    //     << "\n    ID: " << id
-    //     << "\n    Severity: " << severityStr
-    //     << "\n    Message: " << message;
+    qDebug().noquote()
+         << "OpenGL Debug Message:"
+        << "\n    Source: " << sourceStr
+        << "\n    Type: " << typeStr
+        << "\n    ID: " << id
+        << "\n    Severity: " << severityStr
+        << "\n    Message: " << message;
 }
 
 void RenderOpenGL::initializeGL()
@@ -243,7 +246,7 @@ void RenderOpenGL::initializeVBO()
     // Bind the vertex buffer
     f->glBindBuffer(GL_ARRAY_BUFFER, vboIds[0]);
     // upload buffer to GPU
-    f->glBufferData(GL_ARRAY_BUFFER, voxelScene.size() * sizeof(Voxel), voxelScene.data() + offsetof(Voxel, x), GL_STATIC_DRAW);
+    f->glBufferData(GL_ARRAY_BUFFER, voxelScene.size() * sizeof(Voxel), voxelScene.data(), GL_STATIC_DRAW);
 }
 
 void RenderOpenGL::updateVBO()
@@ -251,7 +254,7 @@ void RenderOpenGL::updateVBO()
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
 
     f->glBindBuffer(GL_ARRAY_BUFFER, vboIds[0]);
-    f->glBufferData(GL_ARRAY_BUFFER, voxelScene.size() * sizeof(Voxel), voxelScene.data() + offsetof(Voxel, x), GL_STATIC_DRAW);
+    f->glBufferData(GL_ARRAY_BUFFER, voxelScene.size() * sizeof(Voxel), voxelScene.data(), GL_STATIC_DRAW);
 }
 
 void RenderOpenGL::paintGL()
@@ -262,17 +265,32 @@ void RenderOpenGL::paintGL()
         isVBOupdateRequired = false;
     }
 
-    // clear buffer
+    // Clear buffers
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-    // save the initial ModelView matrix before modifying ModelView matrix
-    glPushMatrix();
+    // Set up projection matrix
+    glMatrixMode(GL_PROJECTION);
+    glLoadMatrixf(m_projection.constData());
 
+    // Set up modelview matrix
+    glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    glTranslatef(0.0, 0.0, -distance);
-    glRotatef(xRot / 16.0, 1.0, 0.0, 0.0);
-    glRotatef(yRot / 16.0, 0.0, 1.0, 0.0);
-    glRotatef(zRot / 16.0, 0.0, 0.0, 1.0);
+
+    // Apply camera transformation
+    glTranslatef(0.0f, 0.0f, -distance);
+
+    // Apply rotations
+    glRotatef(xRot / 16.0f, 1.0f, 0.0f, 0.0f);
+    glRotatef(yRot / 16.0f, 0.0f, 1.0f, 0.0f);
+    glRotatef(zRot / 16.0f, 0.0f, 0.0f, 1.0f);
+
+    // Enable necessary features
+    glEnable(GL_NORMALIZE);
+    glEnable(GL_DEPTH_TEST);
+
+    // Draw coordinate axes
+    this->drawAxis();
+
     //qDebug() << "paintGL rotations angles:" << xRot / 16.0 << yRot / 16.0 << zRot / 16.0;
 
     //glEnable(GL_BLEND);
@@ -282,7 +300,6 @@ void RenderOpenGL::paintGL()
     //glFrontFace(GL_CW);
     //glCullFace(GL_BACK);
 
-    glEnable(GL_NORMALIZE);
 
     // Draw X-Y-Z axis in Red for X, Green for Y, Blue for Z
     this->drawAxis();
@@ -328,15 +345,80 @@ void RenderOpenGL::paintGL()
 
     f->glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-    glPopMatrix();
+   // glPopMatrix();
 }
 
 
 void RenderOpenGL::resizeGL(int width, int height)
 {
-    //   int side = qMin(width, height);
     this->width = width;
     this->height = height;
+
+    if (height <= 0 || width <= 0) {
+        return;
+    }
+
+    // Set viewport
+    glViewport(0, 0, width, height);
+
+    // Calculate aspect ratio
+    float aspect = static_cast<float>(width) / static_cast<float>(height);
+
+    // Calculate scene bounds
+    // Scene extends from -numCubes/2 to +numCubes/2 in each dimension
+    float sceneRadius = numCubes * 0.866f;  // sqrt(3)/2 * numCubes (half diagonal)
+
+    // Field of view - adjust for large scenes
+    float fov = 45.0f;
+    if (numCubes > 30) {
+        fov = 50.0f;  // Wider view for very large scenes
+    }
+
+    // Calculate optimal near/far planes
+    // Camera position: z = -distance (looking toward +z)
+    // Scene center: (0, 0, 0)
+
+    float distanceToSceneCenter = distance;
+    float nearVal = std::max(0.1f, distanceToSceneCenter - sceneRadius - 1.0f);
+    float farVal = distanceToSceneCenter + sceneRadius + 1.0f;
+
+    // Ensure minimum separation for depth buffer precision
+    if (nearVal < 0.1f) nearVal = 0.1f;
+    if (farVal < nearVal + 1.0f) farVal = nearVal + 1.0f;
+
+    // Maintain depth buffer precision (avoid ratio > 1000:1)
+    float depthRatio = farVal / nearVal;
+    if (depthRatio > 1000.0f) {
+        nearVal = farVal / 1000.0f;
+    }
+
+    // Build perspective projection matrix using QMatrix4x4
+    m_projection.setToIdentity();
+    m_projection.perspective(fov, aspect, nearVal, farVal);
+
+    // Alternative: If you want to match the old glFrustum exactly:
+    // float fovRadians = fov * 3.14159265f / 180.0f;
+    // float top = nearVal * std::tan(fovRadians * 0.5f);
+    // float bottom = -top;
+    // float left = bottom * aspect;
+    // float right = top * aspect;
+    // m_projection.frustum(left, right, bottom, top, nearVal, farVal);
+
+    qDebug() << "ResizeGL: width=" << width << "height=" << height
+             << "near=" << nearVal << "far=" << farVal
+             << "distance=" << distance << "numCubes=" << numCubes
+             << "fov=" << fov;
+
+
+/*    //   int side = qMin(width, height);
+    this->width = width;
+    this->height = height;
+
+    if (height <= 0 || width <= 0)
+    {
+        return;  // Skip resize if invalid dimensions
+    }
+
     glViewport(0, 0, width, height);
 
     glMatrixMode(GL_PROJECTION);
@@ -362,6 +444,7 @@ void RenderOpenGL::resizeGL(int width, int height)
     glFrustum(left, right, bottom, top, nearVal, farVal);
 #endif
     glMatrixMode(GL_MODELVIEW);
+*/
 }
 
 
