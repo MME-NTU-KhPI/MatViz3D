@@ -746,21 +746,37 @@ Window {
                                             anchors.fill: parent
                                             anchors.margins: 5
                                             color: "#969696"
-                                            text: qsTr("0")
+
+                                            text: Parameters.size !== undefined ? Parameters.size : "1"
+
                                             font.pixelSize: 12
                                             font.family: montserrat.name
-                                            verticalAlignment: Text.AlignTop
+                                            verticalAlignment: Text.AlignVCenter
                                             font.bold: true
-                                            bottomPadding: 1
-                                            topPadding: 1
-                                            rightPadding: 10
-                                            leftPadding: 10
-                                            horizontalAlignment: Text.AlignLeft
                                             padding: 3.5
+                                            leftPadding: 10
+                                            rightPadding: 10
+
+                                            selectByMouse: true
+
+                                            MouseArea {
+                                                anchors.fill: parent
+                                                acceptedButtons: Qt.LeftButton
+
+                                                onDoubleClicked: {
+                                                    size_textInput.forceActiveFocus()
+                                                    size_textInput.selectAll()
+                                                }
+
+                                                onPressed: (mouse) => mouse.accepted = false
+                                            }
 
                                             onTextChanged: {
                                                 console.log("Change: ", text);
-                                                Parameters.setSize(parseInt(text, 10))
+                                                // Додаємо перевірку, щоб не відправляти пустий рядок
+                                                if (text !== "") {
+                                                    Parameters.setSize(parseInt(text, 10))
+                                                }
                                             }
                                         }
                                     }
