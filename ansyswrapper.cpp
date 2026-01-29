@@ -195,7 +195,7 @@ void ansysWrapper::defaultArgs()
             QString("-j") << m_jobName <<
             QString("-i") << INPUTFILE  <<
             QString("-o") << OUTPUTFILE  <<
-            QString("-d") << "win32";
+            QString("-d") << "win32"; // "winx64"
     }
     else
     {
@@ -209,7 +209,7 @@ void ansysWrapper::defaultArgs()
             QString("-dir") << m_projectPath <<
             QString("-j") << m_jobName <<
             QString("-s") << "read" <<
-            QString("-d") << "win32";
+            QString("-d") << "win32"; // "winx64"
     }
 }
 
@@ -337,8 +337,9 @@ void ansysWrapper::createFEfromArray(int32_t*** voxels, short int numCubes, int 
     apdl << "EBLOCK,19,SOLID" << Qt::endl;
     apdl << "(19i10)" << Qt::endl;
     size_t el_size = elemets.size();
+    int max_created_cs_id = m_lcs - 1;
 
-    for (size_t ei = 0; ei < el_size; ei+=20)
+    for (size_t ei = 0; ei < el_size; ei += 8)
     {
         key = reverse_nodes.value(elemets[ei]);
         int kx = (int)key[0], ky = (int)key[1], kz = (int)key[2];
@@ -346,15 +347,25 @@ void ansysWrapper::createFEfromArray(int32_t*** voxels, short int numCubes, int 
         int el_id = 1;
         int real_const = 1;
         int sec_id = 1;
-        int coord_sys_id = voxels[kx][ky][kz] + 11; // 11 - first ansys user-def coord sys
+
+        int calculated_cs_id = voxels[kx][ky][kz] + 11;
+        int coord_sys_id;
+
+        if (calculated_cs_id > max_created_cs_id)
+        {
+            coord_sys_id = 0;
+        } else {
+            coord_sys_id = calculated_cs_id;
+        }
+
         int bd_flag = 0;
         int sld_ref = 0;
         int el_shape = 0;
-        int el_num_nodes = 20;
+        int el_num_nodes = 8;
         int exclude_key = 0;
         int el_number = ei / el_num_nodes + 1;
 
-        apdl.setFieldWidth(10);
+        apdl.setFieldWidth(9);
         apdl << mat_id << el_id << real_const << sec_id << coord_sys_id << bd_flag << sld_ref
              << el_shape << el_num_nodes << exclude_key << el_number;
         for (size_t j = ei; j < ei+20; j++)

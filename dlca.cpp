@@ -1,4 +1,5 @@
 #include "dlca.h"
+#include <fstream>
 #include <random>
 #include <QDebug>
 
@@ -168,6 +169,16 @@ void DLCA::Initialization(bool isWaveGeneration)
     std::mt19937 generator(rd());
     std::uniform_int_distribution<int> distribution(0, numCubes - 1);
 
+    std::ofstream file("crystallization_seeds.csv");
+    if (!file.is_open())
+    {
+        qCritical() << "Unable to open file: crystallization_seeds.csv";
+    }
+    else
+    {
+        file << "x,y,z,color\n";
+    }
+
     Coordinate a;
 
     for (int i = 0; i < numColors; i++)
@@ -182,14 +193,21 @@ void DLCA::Initialization(bool isWaveGeneration)
         }
         while (voxels[a.x][a.y][a.z] != 0 && num_tries > 0);
 
-        voxels[a.x][a.y][a.z] = i + 1; // add new cell to voxel array
-
-        if (num_tries == 0) //possible no free space, skip iteration
+        if (num_tries == 0)
         {
             qDebug() << "Error: cannot find free cell to add new one";
             qDebug() << a.x << a.y << a.z << i;
             continue;
         }
+
+        voxels[a.x][a.y][a.z] = i + 1;
+
+        if (file.is_open())
+        {
+            // Format: x,y,z,id (where id = i + 1)
+            file << a.x << "," << a.y << "," << a.z << "," << (i + 1) << "\n";
+        }
+
         DLCA_Aggregate aggr(voxels, numCubes);
         aggr.id = i + 1;
         aggr.aggr.push_back(a);

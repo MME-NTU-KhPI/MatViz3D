@@ -62,3 +62,6 @@ build/
 
 # csv
 crystallization_seeds.csv
+
+# gif
+*.gif

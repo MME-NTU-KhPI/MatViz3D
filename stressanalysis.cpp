@@ -17,7 +17,19 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
     //wr->setMaterial(2.1e10, 0.3, 0);
 
     double c11 = 168.40e9, c12=121.40e9, c44=75.40e9; // copper bcc single crystal  https://solidmechanics.org/Text/Chapter3_2/Chapter3_2.php#Sect3_2_17
-    wr->setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44) ;
+    // wr->setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44) ;
+
+    // double E  = 2.1e7; // Young's Modulus (EX)      //
+    // double nu = 0.3;   // Poisson's Ratio (PRXY)    // steel or cast iron
+
+    // double G = E / (2.0 * (1.0 + nu));                      // Shear Modulus (C44)
+    // double lambda = (E * nu) / ((1.0 + nu) * (1.0 - 2.0 * nu)); // Lame's first parameter
+
+    // double c11 = lambda + 2.0 * G;
+    // double c12 = lambda;
+    // double c44 = G;
+
+    wr->setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44);
 /*
     double  c11 = 9e9, // test material
             c12 = 2e9,
