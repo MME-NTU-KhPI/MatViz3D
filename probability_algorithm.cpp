@@ -188,6 +188,7 @@ void Probability_Algorithm::processValuesGrid()
              << "  h_a = " << Parameters::halfaxis_a << Qt::endl
              << "  h_b = " << Parameters::halfaxis_b << Qt::endl
              << "  h_c = " << Parameters::halfaxis_c << Qt::endl
+             << "  ellipse_order = " << Parameters::ellipse_order << Qt::endl
              << "  angle_a = " << Parameters::orientation_angle_a << Qt::endl
              << "  angle_b = " << Parameters::orientation_angle_b << Qt::endl
              << "  angle_c = " << Parameters::orientation_angle_c << Qt::endl

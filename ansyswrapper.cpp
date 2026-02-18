@@ -18,6 +18,15 @@
 #define INPUTFILE "input.dat"
 #define OUTPUTFILE "output.dat"
 
+static const int S_MAP[6][6] = {
+    {0,  1,  2,  3,  4,  5},
+    {1,  6,  7,  8,  9,  10},
+    {2,  7,  11, 12, 13, 14},
+    {3,  8,  12, 15, 16, 17},
+    {4,  9,  13, 16, 18, 19},
+    {5,  10, 14, 17, 19, 20}
+};
+
 ansysWrapper::ansysWrapper(bool isBatch)
 {
     m_kpid = 1;
@@ -421,24 +430,17 @@ void ansysWrapper::createFEfromArray8Node(int32_t*** voxels, short int numCubes,
     else
     {
         qWarning() << "Failed to open crystallization_seeds.csv";
-        return; // ВАЖНО: Прерываем выполнение, если нет файла, чтобы избежать краша далее
+        return;
     }
 
-    // --- НАЧАЛО ИСПРАВЛЕНИЯ ---
-    // Определяем реальное количество семян, которое есть в файле
     int actualSeedsCount = seedsData.size();
 
-    // Используем actualSeedsCount вместо numSeeds
-    // Цикл идет до +1, так как i=0 - это глобальная система (или пустая итерация), а данные берутся с i=1
     for (int i = 0; i < actualSeedsCount + 1; ++i)
     {
         double x = 0, y = 0, z = 0;
 
         if (i != 0)
         {
-            // Обращаемся к i-1. Так как цикл ограничен actualSeedsCount + 1,
-            // максимальный индекс будет (actualSeedsCount + 1 - 1) - 1 = actualSeedsCount - 1.
-            // Это безопасно для seedsData.
             x = seedsData[i - 1][0];
             y = seedsData[i - 1][1];
             z = seedsData[i - 1][2];
@@ -1429,6 +1431,151 @@ float ansysWrapper::getValByCoord(n3d::node3d &key, int component)
     }
     qDebug() << "Coord not found : "<< key[0] << key[1] << key[2];
     return 0;
+}
+
+ansysWrapper::ElasticProperties ansysWrapper::calculateElasticProperties()
+{
+    ElasticProperties res = {0};
+    res.isValid = false;
+
+    int numSteps = this->eps_as_loading.size();
+    if (numSteps < 1) return res;
+
+    // Formation of a system of normal equations (A^T * A * x = A^T * b)
+    // We are looking for 21 components of the S matrix.
+    // Equation: Eps = S * Sigma
+    double ATA[21][21] = {0};
+    double ATb[21] = {0};
+
+    for (int k = 0; k < numSteps; ++k) {
+        // Let's make sure that the data is loaded for the step k+1
+        this->load_loadstep(k + 1);
+        auto& avg = this->loadstep_results_avg;     // Stresses (Sigma) - these are our ‘coefficients’
+        auto& load = this->eps_as_loading[k];       // Deformations (Eps) - these are our ‘values’
+
+        double sigma[6] = { avg[SX], avg[SY], avg[SZ], avg[SXY], avg[SYZ], avg[SXZ] };
+        double eps[6]   = { (double)load[0], (double)load[1], (double)load[2],
+                         (double)load[3], (double)load[4], (double)load[5] };
+
+        // We construct a row of the design matrix for each of the 6 tensor equations.
+        for (int row = 0; row < 6; ++row) {
+            // In this line, non-zero elements are located where the indices correspond to S_MAP[row][col]
+            double A_row[21] = {0};
+            for (int col = 0; col < 6; ++col) {
+                int param_idx = S_MAP[row][col];
+                A_row[param_idx] = sigma[col];
+            }
+
+            // We are accumulating funds for the MNC
+            for (int i = 0; i < 21; ++i) {
+                for (int j = 0; j < 21; ++j) {
+                    ATA[i][j] += A_row[i] * A_row[j];
+                }
+                ATb[i] += A_row[i] * eps[row];
+            }
+        }
+    }
+
+    // System solution
+    double x[21] = {0};
+    if (!solveSystem21x21(ATA, ATb, x)) {
+        qCritical() << "Matrix calculation failed: Singular matrix in Least Squares.";
+        return res;
+    }
+
+    // Filling in the S matrix
+    for (int i = 0; i < 6; ++i) {
+        for (int j = 0; j < 6; ++j) {
+            res.S[i][j] = x[S_MAP[i][j]];
+        }
+    }
+
+    // Inversion S -> C
+    if (!invert6x6(res.S, res.C)) {
+        qCritical() << "Matrix calculation failed: Cannot invert S matrix.";
+        return res;
+    }
+
+    // Calculation of P (Poisson's ratios)
+    // P_matrix[i, :] *= -modulus (where modulus = 1/S_diag)
+    for (int i = 0; i < 6; ++i) {
+        double diag = res.S[i][i];
+        double modulus_inv = (std::abs(diag) > 1e-20) ? (1.0 / diag) : 0.0;
+        for (int j = 0; j < 6; ++j) {
+            res.P[i][j] = -res.S[i][j] * modulus_inv;
+        }
+    }
+
+    res.isValid = true;
+    return res;
+}
+
+// Solving a system of linear equations using Gauss's method with selection of the principal element
+bool ansysWrapper::solveSystem21x21(double A[21][21], double b[21], double x[21]) {
+    const int N = 21;
+    double M[N][N + 1];
+
+    // Copy to the extended matrix
+    for (int i = 0; i < N; ++i) {
+        for (int j = 0; j < N; ++j) M[i][j] = A[i][j];
+        M[i][N] = b[i];
+    }
+
+    // Straight run
+    for (int i = 0; i < N; ++i) {
+        int pivot = i;
+        for (int j = i + 1; j < N; ++j) {
+            if (std::abs(M[j][i]) > std::abs(M[pivot][i])) pivot = j;
+        }
+        // Swap rows
+        for (int k = 0; k <= N; ++k) std::swap(M[i][k], M[pivot][k]);
+
+        if (std::abs(M[i][i]) < 1e-18) return false; // Singular matrix
+
+        for (int j = i + 1; j < N; ++j) {
+            double factor = M[j][i] / M[i][i];
+            for (int k = i; k <= N; ++k) M[j][k] -= factor * M[i][k];
+        }
+    }
+
+    // Reverse gear
+    for (int i = N - 1; i >= 0; --i) {
+        double sum = 0;
+        for (int j = i + 1; j < N; ++j) sum += M[i][j] * x[j];
+        x[i] = (M[i][N] - sum) / M[i][i];
+    }
+    return true;
+}
+
+// Inversion of a 6x6 matrix using the Gauss-Jordan method
+bool ansysWrapper::invert6x6(const double A[6][6], double inv[6][6]) {
+    double temp[6][12];
+
+    for (int i = 0; i < 6; ++i) {
+        for (int j = 0; j < 6; ++j) {
+            temp[i][j] = A[i][j];
+            temp[i][j + 6] = (i == j) ? 1.0 : 0.0;
+        }
+    }
+
+    for (int i = 0; i < 6; ++i) {
+        double pivot = temp[i][i];
+        if (std::abs(pivot) < 1e-18) return false;
+
+        for (int j = 0; j < 12; ++j) temp[i][j] /= pivot;
+
+        for (int k = 0; k < 6; ++k) {
+            if (k != i) {
+                double factor = temp[k][i];
+                for (int j = 0; j < 12; ++j) temp[k][j] -= factor * temp[i][j];
+            }
+        }
+    }
+
+    for (int i = 0; i < 6; ++i) {
+        for (int j = 0; j < 6; ++j) inv[i][j] = temp[i][j + 6];
+    }
+    return true;
 }
 
 

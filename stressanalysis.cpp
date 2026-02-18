@@ -188,6 +188,44 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
             hdf5.write(prefix + ls_str, "results", wr->loadstep_results);
             hdf5.write(prefix + ls_str, "eps_as_loading", wr->eps_as_loading[ls_num-1]);
         }
+        qDebug() << "Calculating effective elastic properties...";
+        auto props = wr->calculateElasticProperties();
+
+        if (props.isValid) {
+            std::vector<std::vector<float>> mat_S(6, std::vector<float>(6));
+            std::vector<std::vector<float>> mat_C(6, std::vector<float>(6));
+            std::vector<std::vector<float>> mat_P(6, std::vector<float>(6));
+
+            for(int r=0; r<6; ++r) {
+                for(int c=0; c<6; ++c) {
+                    mat_S[r][c] = static_cast<float>(props.S[r][c]);
+                    mat_C[r][c] = static_cast<float>(props.C[r][c]);
+                    mat_P[r][c] = static_cast<float>(props.P[r][c]);
+                }
+            }
+
+            hdf5.write(prefix, "S_matrix", mat_S);
+            hdf5.write(prefix, "C_matrix", mat_C);
+            hdf5.write(prefix, "P_matrix", mat_P);
+
+            std::vector<float> moduli;
+            auto safe_inv = [](double val) {
+                return (std::abs(val) > 1e-20) ? static_cast<float>(1.0 / val) : 0.0f;
+            };
+
+            moduli.push_back(safe_inv(props.S[0][0])); // Ex
+            moduli.push_back(safe_inv(props.S[1][1])); // Ey
+            moduli.push_back(safe_inv(props.S[2][2])); // Ez
+            moduli.push_back(safe_inv(props.S[3][3])); // Gxy
+            moduli.push_back(safe_inv(props.S[4][4])); // Gyz
+            moduli.push_back(safe_inv(props.S[5][5])); // Gxz
+
+            hdf5.write(prefix, "Effective_Moduli", moduli);
+
+            qDebug() << "Elastic matrices saved as 6x6 float arrays.";
+        } else {
+            qWarning() << "Failed to calculate elastic matrices.";
+        }
     }
     LoadStepManager::getInstance().LoadFromHDF5(filename);
     wr->clear_temp_data();

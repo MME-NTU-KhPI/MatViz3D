@@ -58,6 +58,9 @@ protected:
 
     QString mergeVector(QString prefix, std::vector<double> vec);
 
+    static bool solveSystem21x21(double A[21][21], double b[21], double x[21]);
+    static bool invert6x6(const double A[6][6], double inv[6][6]);
+
     QTemporaryDir tempDir;
     QString exitCodeToText(int retcode);
     float calc_avg(QVector<float> &x);
@@ -150,6 +153,15 @@ public:
     float scaleValue01(float val, int component);
     float getValByCoord(float x, float y, float z, int component);
     float getValByCoord(n3d::node3d &key, int component);
+
+    struct ElasticProperties {
+        double S[6][6]; // Матрица податливости (Compliance)
+        double C[6][6]; // Матрица жесткости (Stiffness)
+        double P[6][6]; // Матрица коэффициентов Пуассона
+        bool isValid;   // Флаг успешности расчета
+    };
+
+    ElasticProperties calculateElasticProperties();
 
     std::vector<std::vector<float>> loadstep_results;
 
