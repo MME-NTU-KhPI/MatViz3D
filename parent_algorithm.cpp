@@ -178,13 +178,16 @@ void Parent_Algorithm::Initialization(bool isWaveGeneration)
     int currentPoints;
     if (isWaveGeneration)
     {
-        currentPoints = static_cast<int>(std::round(Parameters::wave_coefficient * numColors));
+        currentPoints = 1;
     }
     else
     {
         currentPoints = numColors;
     }
+
+    remainingPoints = numColors - currentPoints;
     std::ofstream file("crystallization_seeds.csv");
+
     if (!file.is_open())
     {
         qCritical() << "Unable to open file: crystallization_seeds.csv";
@@ -212,7 +215,7 @@ std::vector<Parent_Algorithm::Coordinate> Parent_Algorithm::Add_New_Points(std::
 
     // 2. Перевірка
     if (numPoints > emptyCoords.size()) {
-        qCritical() << "Недостатньо вільних вокселів для розміщення нових точок.";
+        qCritical() << "Not enough free voxels to place new points.";
         return grains; // або abort(), або false
     }
 
