@@ -59,3 +59,6 @@ build/
 
 # _qmlcache.qrc
 *_qmlcache.qrc
+
+# csv
+crystallization_seeds.csv

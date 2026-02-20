@@ -35,38 +35,91 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
     //wr->createFEfromArray(voxels, N, numPoints, false);
     wr->createFEfromArray8Node(voxels, N, numPoints, true);
     //wr->addStrainToBCMacroBlob();
-    const float min_val = 0;
-    const float max_val =  1e-04;
-    const int grid_steps = 2; // -1 ; 1
-    const int n_total_steps = Parameters::num_rnd_loads + pow(grid_steps, 6);
-    const int n_comp_steps = grid_steps; // six components of tensor
-    const float step = (max_val - min_val) / (n_comp_steps - 1);
+    const double strain_val = 1e-04;
+    std::vector<std::vector<double>> load_cases;
 
-    for (int ix = 0; ix < n_comp_steps; ix++)
-      for (int iy = 0; iy < n_comp_steps; iy++)
-        for (int iz = 0; iz < n_comp_steps; iz++)
-          for (int ixy = 0; ixy < n_comp_steps; ixy++)
-            for (int ixz = 0; ixz < n_comp_steps; ixz++)
-              for (int iyz = 0; iyz < n_comp_steps; iyz++)
-              {
-                    auto f = [=](int i) { return min_val + i * step; };
-                   //wr->addStrainToBCMacro(f(ix), f(iy), f(iz),
-                   //                        f(ixy), f(ixz), f(iyz), numCubes);
-                    wr->applyComplexLoads(0, 0, 0, N, N, N,
-                                          f(ix), f(iy), f(iz),
-                                          f(ixy), f(ixz), f(iyz));
-              }
-
-    std::mt19937 gen(Parameters::seed); // use global seed
-    std::uniform_real_distribution<double> dis(min_val, max_val);
-    for (int rnd_step = wr->eps_as_loading.size(); rnd_step < n_total_steps; rnd_step++)
-    {
-        wr->applyComplexLoads(0, 0, 0, N, N, N,
-                              dis(gen), dis(gen), dis(gen),
-                              dis(gen), dis(gen), dis(gen));
-        //wr->addStrainToBCMacro(dis(gen), dis(gen), dis(gen),
-        //                       dis(gen), dis(gen), dis(gen), numCubes);
+    for (int i = 0; i < 6; ++i) {
+        std::vector<double> load(6, 0.0);
+        load[i] = strain_val;
+        load_cases.push_back(load);
     }
+
+    for (int i = 0; i < 6; ++i) {
+        for (int j = i + 1; j < 6; ++j)
+        {
+            std::vector<double> load(6, 0.0);
+            load[i] = strain_val;
+            load[j] = strain_val;
+            load_cases.push_back(load);
+        }
+    }
+
+    /*const double strain_eq = 1e-04;
+    const int N_theta = 40;
+    const int N_hydro = 10;
+    const double hydro_min = -1e-04;
+    const double hydro_max =  1e-04;
+
+    std::vector<double> theta_list;
+    for (int i = 0; i < N_theta; ++i)
+        theta_list.push_back(i * 2.0 * M_PI / N_theta);
+
+    std::vector<double> hydro_list;
+    if (N_hydro > 1) {
+        for (int i = 0; i < N_hydro; ++i)
+            hydro_list.push_back(hydro_min + i * (hydro_max - hydro_min) / (N_hydro - 1));
+    } else {
+        hydro_list.push_back(0.0);
+    }
+
+    for (double e_hydro : hydro_list)
+    {
+        for (double theta : theta_list)
+        {
+            double e_dev1 = strain_eq * std::cos(theta);
+            double e_dev2 = strain_eq * std::cos(theta - 2.0 * M_PI / 3.0);
+            double e_dev3 = strain_eq * std::cos(theta + 2.0 * M_PI / 3.0);
+
+            std::vector<double> load = {
+                e_dev1 + e_hydro, // exx
+                e_dev2 + e_hydro, // eyy
+                e_dev3 + e_hydro, // ezz
+                0.0,              // exy
+                0.0,              // exz
+                0.0               // eyz
+            };
+            load_cases.push_back(load);
+        }
+    }*/
+
+    if (Parameters::num_rnd_loads > 0)
+    {
+        std::mt19937 gen(Parameters::seed);
+        std::uniform_real_distribution<double> dis(0.0, strain_val);
+
+        for (int i = 0; i < Parameters::num_rnd_loads; ++i)
+        {
+            std::vector<double> load(6);
+            for (int k = 0; k < 6; ++k) load[k] = dis(gen);
+            load_cases.push_back(load);
+        }
+    }
+
+    for (const auto& load : load_cases)
+    {
+        double ex  = load[0];
+        double ey  = load[1];
+        double ez  = load[2];
+        double exy = load[3];
+        double exz = load[4];
+        double eyz = load[5];
+
+        wr->applyComplexLoads(0, 0, 0, N, N, N,
+                              ex, ey, ez,
+                              exy, exz, eyz);
+    }
+    const int n_total_steps = load_cases.size();
+
     wr->solveLS(1, n_total_steps);
     wr->saveAll();
     bool success = wr->run();

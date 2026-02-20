@@ -25,6 +25,7 @@ void Console::setupParser(QCommandLineParser &parser)
     parser.addOption(QCommandLineOption("orientation_angle_a", "Rotation angle of the x-axis for the Probability algorithm", "value"));
     parser.addOption(QCommandLineOption("orientation_angle_b", "Rotation angle of the y-axis for the Probability algorithm", "value"));
     parser.addOption(QCommandLineOption("orientation_angle_c", "Rotation angle of the z-axis for the Probability algorithm", "value"));
+    parser.addOption(QCommandLineOption("ellipse_order", "The degree of the superellipse equation", "value"));
     parser.addOption(QCommandLineOption("autostart","Running a program with auto-generation of a cube"));
     parser.addOption(QCommandLineOption("nogui","Running a program with no GUI"));
     parser.addOption(QCommandLineOption("output", "Specify output file for generated cube", "directory"));
@@ -108,6 +109,12 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
     Parameters::hasProbParameters = parser.isSet("halfaxis_a") || parser.isSet("halfaxis_b") || parser.isSet("halfaxis_c") ||
                                     parser.isSet("orientation_angle_a") || parser.isSet("orientation_angle_b") || parser.isSet("orientation_angle_c");
 
+    if (parser.isSet("ellipse_order"))
+    {
+        QString str = parser.value("ellipse_order");
+        Parameters::ellipse_order = str.toDouble();
+        qInfo() << "ellipse_order: " << Parameters::ellipse_order;
+    }
     if (parser.isSet("wave_coefficient"))
     {
         QString str = parser.value("wave_coefficient");

@@ -22,6 +22,7 @@ public:
     static float halfaxis_a;
     static float halfaxis_b;
     static float halfaxis_c;
+    static double ellipse_order;
 
     static float orientation_angle_a;
     static float orientation_angle_b;
