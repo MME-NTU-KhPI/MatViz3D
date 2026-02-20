@@ -32,6 +32,9 @@ void Moore::Next_Iteration(std::function<void()> callback)
 {
     const unsigned int counter_max = pow(numCubes, 3);
 
+    const int N_gr = numColors;
+    int total_nucleated_so_far = 1;
+
     while (!grains.empty())
     {
         const size_t current_size = grains.size();
@@ -86,21 +89,72 @@ void Moore::Next_Iteration(std::function<void()> callback)
         filled_voxels += local_counter;
         grains = std::move(newGrains);
         IterationNumber++;
-        double o = static_cast<double>(filled_voxels) / counter_max;
-        qDebug().nospace() << o << "\t" << IterationNumber << "\t" << grains.size();
 
-        if (flags.isWaveGeneration && remainingPoints > 0)
+        QString nuclLogInfo = "";
+
+        if (flags.isWaveGeneration && total_nucleated_so_far < N_gr && filled_voxels < counter_max)
         {
-            pointsForThisStep = std::max(1, static_cast<int>(Parameters::wave_coefficient * remainingPoints));
-            newGrains = Add_New_Points(newGrains, pointsForThisStep);
-            grains.insert(grains.end(), newGrains.begin(), newGrains.end());
-            remainingPoints -= pointsForThisStep;
+            double arg = (IterationNumber - (Parameters::wave_coefficient / 2.0)) / std::sqrt(static_cast<double>(N_gr));
+            double cumulative_fraction = 0.5 * (1.0 + std::erf(arg));
+
+            int total_should_be_now = static_cast<int>(cumulative_fraction * N_gr);
+            if (total_should_be_now < 1) total_should_be_now = 1;
+
+            int pointsToCreate = total_should_be_now - total_nucleated_so_far;
+
+            if (pointsToCreate > 0)
+            {
+                int placedRandomly = 0;
+
+                for (int p = 0; p < pointsToCreate; ++p) {
+                    bool success = false;
+                    for (int retry = 0; retry < 10; ++retry) {
+                        int rx = std::rand() % numCubes;
+                        int ry = std::rand() % numCubes;
+                        int rz = std::rand() % numCubes;
+
+                        if (voxels[rx][ry][rz] == 0) {
+                            voxels[rx][ry][rz] = ++color;
+                            grains.push_back({rx, ry, rz});
+                            filled_voxels++;
+                            success = true;
+                            placedRandomly++;
+                            break;
+                        }
+                    }
+                    if (!success) break;
+                }
+
+                int leftToPlace = pointsToCreate - placedRandomly;
+
+                if (leftToPlace > 0) {
+                    grains = Add_New_Points(grains, leftToPlace);
+                }
+
+                total_nucleated_so_far += pointsToCreate;
+
+                nuclLogInfo = QString(" | [Nucl] N(n): %1 | Added: %2 | Tot: %3")
+                                  .arg(cumulative_fraction, -8, 'f', 4)
+                                  .arg(pointsToCreate, -6)
+                                  .arg(total_nucleated_so_far, -6);
+            }
         }
+
+        double o = static_cast<double>(filled_voxels) / counter_max;
+        QString logLine = QString("%1 %2 %3")
+                              .arg(o, -12, 'g', 6)
+                              .arg(IterationNumber, -6)
+                              .arg((int)grains.size(), -10);
+
+        if (!nuclLogInfo.isEmpty()) {
+            logLine += nuclLogInfo;
+        }
+
+        qDebug().noquote() << logLine;
 
         if (flags.isAnimation)
         {
             callback();
         }
-
     }
 }
