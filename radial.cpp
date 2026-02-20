@@ -91,20 +91,45 @@ void Radial::Next_Iteration(std::function<void()> callback)
 
         QString nuclLogInfo = "";
 
-        if (flags.isWaveGeneration && total_nucleated_so_far < N_gr)
+        if (flags.isWaveGeneration && total_nucleated_so_far < N_gr && filled_voxels < counter_max)
         {
             double arg = (IterationNumber - (Parameters::wave_coefficient / 2.0)) / std::sqrt(static_cast<double>(N_gr));
             double cumulative_fraction = 0.5 * (1.0 + std::erf(arg));
 
             int total_should_be_now = static_cast<int>(cumulative_fraction * N_gr);
-
             if (total_should_be_now < 1) total_should_be_now = 1;
 
             int pointsToCreate = total_should_be_now - total_nucleated_so_far;
 
             if (pointsToCreate > 0)
             {
-                grains = Add_New_Points(grains, pointsToCreate);
+                int placedRandomly = 0;
+
+                for (int p = 0; p < pointsToCreate; ++p) {
+                    bool success = false;
+                    for (int retry = 0; retry < 10; ++retry) {
+                        int rx = std::rand() % numCubes;
+                        int ry = std::rand() % numCubes;
+                        int rz = std::rand() % numCubes;
+
+                        if (voxels[rx][ry][rz] == 0) {
+                            voxels[rx][ry][rz] = ++color;
+                            grains.push_back({rx, ry, rz});
+                            filled_voxels++;
+                            success = true;
+                            placedRandomly++;
+                            break;
+                        }
+                    }
+                    if (!success) break;
+                }
+
+                int leftToPlace = pointsToCreate - placedRandomly;
+
+                if (leftToPlace > 0) {
+                    grains = Add_New_Points(grains, leftToPlace);
+                }
+
                 total_nucleated_so_far += pointsToCreate;
 
                 nuclLogInfo = QString(" | [Nucl] N(n): %1 | Added: %2 | Tot: %3")
