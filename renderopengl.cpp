@@ -1,4 +1,5 @@
 #include "renderopengl.h"
+#include "qopenglframebufferobject.h"
 
 #include <QDebug>
 #include <QTimer>
@@ -10,31 +11,62 @@
 
 RenderOpenGL::RenderOpenGL()
 {
-
+    qDebug() << "RenderOpenGL::RenderOpenGL() - START";
     xRot = 0;
     yRot = 0;
     zRot = 0;
     distance = 2.0f;
     numCubes = 1;
+    width = 300;
+    height = 300;
     bgColor.setRgbF(0.21f, 0.21f, 0.21f);
+    shaderProgram = nullptr;
+    axisShaderProgram = nullptr;
+    vaoId = 0;
 
+
+
+
+    m_projection.setToIdentity();
+    m_projection.perspective(45.0f, 1.0f, 0.1f, 100.0f);
+
+    qDebug() << "RenderOpenGL::RenderOpenGL() - calling initializeOpenGLFunctions()";
     initializeOpenGLFunctions();
 
+    qDebug() << "RenderOpenGL::RenderOpenGL() - getting current context";
     QOpenGLContext *glContext = QOpenGLContext::currentContext();
     if (!glContext) {
         qDebug() << "RenderOpenGL: OpenGL context is NULL!";
     } else {
         qDebug() << "RenderOpenGL: OpenGL initialized. Context valid:" << glContext->isValid();
     }
+    qDebug() << "RenderOpenGL::RenderOpenGL() - calling initializeGL()";
     this->initializeGL();
 
-}
+    this->createTestScene();
 
+    qDebug() << "RenderOpenGL::RenderOpenGL() - END";
+}
 
 void RenderOpenGL::render()
 {
+    QOpenGLContext *ctx = QOpenGLContext::currentContext();
+    if (!ctx) {
+        qDebug() << "RenderOpenGL::render() - No current context!";
+        return;
+    }
     this->paintGL();
     update();
+}
+
+
+QOpenGLFramebufferObject* RenderOpenGL::createFramebufferObject(const QSize &size)
+{
+    QOpenGLFramebufferObjectFormat format;
+    format.setAttachment(QOpenGLFramebufferObject::Depth);
+    //format.setAttachment(QOpenGLFramebufferObject::CombinedDepthStencil);
+//    format.setSamples(4); // Optional: Enable MSAA for better quality
+    return new QOpenGLFramebufferObject(size, format);
 }
 
 void RenderOpenGL::updateVoxelData(std::vector<Voxel>& voxelScene)
@@ -45,11 +77,33 @@ void RenderOpenGL::updateVoxelData(std::vector<Voxel>& voxelScene)
 
 RenderOpenGL::~RenderOpenGL()
 {
+    qDebug() << "RenderOpenGL::~RenderOpenGL() - START";
     QOpenGLContext *context = QOpenGLContext::currentContext();
     if (context && context->isValid()) {
-        QOpenGLFunctions *f = context->functions();
-        f->glDeleteBuffers(1, vboIds);  // Or appropriate count
+        qDebug() << "RenderOpenGL::~RenderOpenGL() - context is valid";
+        QOpenGLExtraFunctions *ef = context->extraFunctions();
+        if (shaderProgram) {
+            qDebug() << "RenderOpenGL::~RenderOpenGL() - deleting shaderProgram";
+            shaderProgram->release();
+            delete shaderProgram;
+        }
+        if (axisShaderProgram) {
+            qDebug() << "RenderOpenGL::~RenderOpenGL() - deleting axisShaderProgram";
+            axisShaderProgram->release();
+            delete axisShaderProgram;
+        }
+        if (ef && vaoId) {
+            qDebug() << "RenderOpenGL::~RenderOpenGL() - deleting VAO:" << vaoId;
+            ef->glDeleteVertexArrays(1, &vaoId);
+        }
+        if (ef) {
+            qDebug() << "RenderOpenGL::~RenderOpenGL() - deleting VBOs";
+            ef->glDeleteBuffers(3, vboIds);
+        }
+    } else {
+        qDebug() << "RenderOpenGL::~RenderOpenGL() - context is not valid";
     }
+    qDebug() << "RenderOpenGL::~RenderOpenGL() - END";
 }
 
 QSize RenderOpenGL::minimumSizeHint() const
@@ -64,39 +118,6 @@ QSize RenderOpenGL::sizeHint() const
 
 void inline RenderOpenGL::initLights()
 {
-    QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
-    f->glClearColor(bgColor.redF(), bgColor.greenF(), bgColor.blueF(), bgColor.alphaF());
-
-    // set up light colors (ambient, diffuse, specular)
-    GLfloat lightKa[] = {.2f, .2f, .2f, 1.0f};  // ambient light
-    GLfloat lightKd[] = {.7f, .7f, .7f, 1.0f};  // diffuse light
-    GLfloat lightKs[] = {.75f, .75f, .75f, 1.0f};  // specular light
-    glLightfv(GL_LIGHT0, GL_AMBIENT, lightKa);
-    glLightfv(GL_LIGHT0, GL_DIFFUSE, lightKd);
-    glLightfv(GL_LIGHT0, GL_SPECULAR, lightKs);
-
-    glLightfv(GL_LIGHT1, GL_AMBIENT, lightKa);
-    glLightfv(GL_LIGHT1, GL_DIFFUSE, lightKd);
-    glLightfv(GL_LIGHT1, GL_SPECULAR, lightKs);
-
-    glLightfv(GL_LIGHT2, GL_AMBIENT, lightKa);
-    glLightfv(GL_LIGHT2, GL_DIFFUSE, lightKd);
-    glLightfv(GL_LIGHT2, GL_SPECULAR, lightKs);
-
-
-    // position the light
-    float lightPosZ[4] = {1, 0, 1, 0}; // directional light
-    float lightPosX[4] = {1, 1, 0, 0}; // directional light
-    float lightPosY[4] = {1, 1, 0, 0}; // directional light
-
-    glLightfv(GL_LIGHT0, GL_POSITION, lightPosZ);
-    glLightfv(GL_LIGHT1, GL_POSITION, lightPosX);
-    glLightfv(GL_LIGHT2, GL_POSITION, lightPosY);
-
-    glEnable(GL_LIGHT0);                        // MUST enable each light source after configuration
-    glEnable(GL_LIGHT1);                        // MUST enable each light source after configuration
-    glEnable(GL_LIGHT2);                        // MUST enable each light source after configuration
-
 }
 
 void RenderOpenGL::debugCallback(GLenum source, GLenum type, GLuint id, GLenum severity,
@@ -104,7 +125,6 @@ void RenderOpenGL::debugCallback(GLenum source, GLenum type, GLuint id, GLenum s
     Q_UNUSED(length);
     Q_UNUSED(userParam);
 
-    // Map enums to human-readable strings
     QString sourceStr;
     switch (source) {
     case GL_DEBUG_SOURCE_API:             sourceStr = "API"; break;
@@ -139,7 +159,6 @@ void RenderOpenGL::debugCallback(GLenum source, GLenum type, GLuint id, GLenum s
     default:                             severityStr = "Unknown"; break;
     }
 
-    // Log the debug message using QDebug
     qDebug().noquote()
          << "OpenGL Debug Message:"
         << "\n    Source: " << sourceStr
@@ -151,302 +170,547 @@ void RenderOpenGL::debugCallback(GLenum source, GLenum type, GLuint id, GLenum s
 
 void RenderOpenGL::initializeGL()
 {
+    qDebug() << "RenderOpenGL::initializeGL() - START";
 
+    qDebug() << "RenderOpenGL::initializeGL() - getting functions";
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
-
-    // Enable OpenGL debug output
-    f->glEnable(GL_DEBUG_OUTPUT);
-    f->glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-
     QOpenGLExtraFunctions* ef = QOpenGLContext::currentContext()->extraFunctions();
 
-    // Register the debug message callback
+    if (!f || !ef) {
+        qDebug() << "RenderOpenGL::initializeGL() - OpenGL functions not available";
+        return;
+    }
+    qDebug() << "RenderOpenGL::initializeGL() - functions available, setting up GL state";
+
+    f->glEnable(GL_DEBUG_OUTPUT);
+    f->glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
     ef->glDebugMessageCallback(debugCallback, this);
 
+    f->glClearColor(bgColor.redF(), bgColor.greenF(), bgColor.blueF(), bgColor.alphaF());
+    ef->glClearDepthf(1.0f);
+    f->glDepthFunc(GL_LEQUAL);
+    f->glEnable(GL_DEPTH_TEST);
 
-    glShadeModel(GL_SMOOTH);
-    f->glEnable(GL_COLOR_MATERIAL);
-    f->glEnable(GL_LIGHTING);
-    f->glEnable(GL_LIGHT0);
+    //f->glEnable(GL_POLYGON_OFFSET_FILL);
+    //f->glPolygonOffset(1.0f, 1.0f); // push filled polygons back slightly
 
-    // enable /disable features
-    glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
-    glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
-    //glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_LIGHTING);
-    glEnable(GL_TEXTURE_2D);
-    //glEnable(GL_CULL_FACE);
+    qDebug() << "RenderOpenGL::initializeGL() - creating main shader program";
 
-    glEnable(GL_NORMALIZE); // normalize normals length to 1
+    const char* vertexShaderSource = R"(
+        #version 130
+        attribute vec3 aPosition;
+        attribute vec4 aColor;
+        attribute vec3 aNormal;
 
-    // track material ambient and diffuse from surface color, call it before glEnable(GL_COLOR_MATERIAL)
-    glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
-    glEnable(GL_COLOR_MATERIAL);
+        uniform mat4 uMVP;
+        uniform mat4 uModel;
+        uniform mat4 uView;
+        uniform mat4 uProjection;
 
-    glClearColor(bgColor.redF(), bgColor.greenF(), bgColor.blueF(), bgColor.alphaF());     // background color
-    glClearStencil(0);                          // clear stencil buffer
-    glClearDepth(2*numCubes);                     // 0 is near, 1 is far
-    glDepthFunc(GL_LEQUAL);
+        varying vec3 FragPos;
+        varying vec3 Normal;
+        varying vec4 Color;
 
-    glEnable(GL_LINE_SMOOTH); //smooth line drawing
+        void main()
+        {
+            FragPos = vec3(uModel * vec4(aPosition, 1.0));
+            Normal = normalize(mat3(uModel) * aNormal);
+            Color = aColor;
+            gl_Position = uMVP * vec4(aPosition, 1.0);
+        }
+    )";
 
-    // TODO: fix transperancy
-    //glEnable(GL_ALPHA_TEST);
-    //glEnable(GL_BLEND); // enbale blending
-    //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    const char* fragmentShaderSource = R"(
+        #version 130
+        varying vec3 FragPos;
+        varying vec3 Normal;
+        varying vec4 Color;
 
-    initLights(); // introduce light sources
+        uniform vec3 uLightPositions[3];
+        uniform vec3 uViewPos;
+        uniform int uDebugMode;
 
-    // set the material properties
-    GLfloat matAmb[] = { 1.0f, 1.0f, 1.0f, 1.0f };
-    GLfloat matDif[] = { 0.6f, 0.6f, 0.6f, 1.0f };
-    GLfloat matSpc[] = { 1.0f, 1.0f, 1.0f, 1.0f };
-    GLfloat matShn[] = { 50.0f };
+        void main()
+        {
+            vec3 norm = normalize(Normal);
+            vec3 viewDir = normalize(uViewPos - FragPos);
 
-    glMaterialfv(GL_FRONT, GL_AMBIENT, matAmb);
-    glMaterialfv(GL_FRONT, GL_DIFFUSE, matDif);
-    glMaterialfv(GL_FRONT, GL_SPECULAR, matSpc);
-    glMaterialfv(GL_FRONT, GL_SHININESS, matShn);
+            vec3 result = vec3(0.4);
 
-    this->initializeVBO();
+            if (uDebugMode == 3) {
+                gl_FragColor = vec4(1.0, 1.0, 1.0, Color.a);
+                return;
+            }
 
+            for (int i = 0; i < 3; i++) {
+                vec3 lightDir = normalize(uLightPositions[i] - FragPos);
+                vec3 halfDir = normalize(lightDir + viewDir);
+                float diff = max(dot(norm, lightDir), 0.0);
+                float spec = pow(max(dot(norm, halfDir), 0.0), 32.0);
+                vec3 diffuse = diff * vec3(0.8, 0.8, 0.8) * Color.rgb;
+                vec3 specular = spec * vec3(0.3, 0.3, 0.3);
+                
+                result += diffuse + specular;
+            }
+
+            if (uDebugMode == 1) {
+                // Color mode: show face colors directly
+                gl_FragColor = Color;
+            } else if (uDebugMode == 2) {
+                // Normal mode: RGB based on normal direction
+                gl_FragColor = vec4(abs(norm.x), abs(norm.y), abs(norm.z), Color.a);
+            } else {
+                // Normal lighting mode
+                gl_FragColor = vec4(result, Color.a);
+            }
+        }
+    )";
+/*
+    const char* fragmentShaderSource = R"(
+        #version 130
+        varying vec3 FragPos;
+        varying vec3 Normal;
+        varying vec4 Color;
+
+        uniform vec3 uLightPositions[3];
+        uniform vec3 uViewPos;
+        uniform int uDebugMode;
+
+        void main()
+        {
+            vec3 norm = normalize(Normal);
+
+            vec3 result = vec3(0.4);
+
+            for (int i = 0; i < 3; i++) {
+                vec3 lightDir = normalize(uLightPositions[i] - FragPos);
+                float diff = max(dot(norm, lightDir), 0.0);
+                vec3 diffuse = diff * vec3(0.8, 0.8, 0.8);
+                result += diffuse;
+            }
+
+            if (uDebugMode == 1) {
+                // Color mode: visual face normals with RGB colors
+                gl_FragColor = Color;
+            } else if (uDebugMode == 2) {
+                // Normal mode: show normals as RGB
+                gl_FragColor = vec4((norm + 1.0) * 0.5, Color.a);
+            } else if (uDebugMode == 3) {
+                // Test cube: make it white
+                gl_FragColor = vec4(1.0, 1.0, 1.0, Color.a);
+            } else {
+                // Normal mode 0: two-sided lighting
+                vec3 viewDir = normalize(uViewPos - FragPos);
+                float NdotV = abs(dot(norm, viewDir));
+                vec3 resultLit = vec3(0.4) * Color.rgb;
+
+                for (int i = 0; i < 3; i++) {
+                    vec3 lightDir = normalize(uLightPositions[i] - FragPos);
+                    vec3 halfDir = normalize(lightDir + viewDir);
+                    float diff = max(dot(norm, lightDir), 0.0);
+                    float spec = pow(max(dot(norm, halfDir), 0.0), 32.0);
+                    vec3 diffuse = diff * vec3(0.8, 0.8, 0.8) * Color.rgb;
+                    vec3 specular = spec * vec3(0.3, 0.3, 0.3);
+                    resultLit += diffuse + specular;
+                }
+
+                result = resultLit;
+            }
+
+            gl_FragColor = vec4(result, Color.a);
+        }
+    )";
+*/
+    const char* axisVertexShaderSource = R"(
+        #version 130
+        attribute vec3 aPosition;
+        attribute vec3 aColor;
+
+        uniform mat4 uMVP;
+
+        varying vec3 Color;
+
+        void main()
+        {
+            Color = aColor;
+            gl_Position = uMVP * vec4(aPosition, 1.0);
+        }
+    )";
+
+    const char* axisFragmentShaderSource = R"(
+        #version 130
+        varying vec3 Color;
+        void main()
+        {
+            gl_FragColor = vec4(Color, 1.0);
+        }
+    )";
+
+    qDebug() << "RenderOpenGL::initializeGL() - creating shader program object";
+    shaderProgram = new QOpenGLShaderProgram();
+    qDebug() << "RenderOpenGL::initializeGL() - adding vertex shader";
+    if (!shaderProgram->addShaderFromSourceCode(QOpenGLShader::Vertex, vertexShaderSource)) {
+        qDebug() << "Vertex shader compilation failed:" << shaderProgram->log();
+        delete shaderProgram;
+        shaderProgram = nullptr;
+        return;
+    }
+    qDebug() << "RenderOpenGL::initializeGL() - adding fragment shader";
+    if (!shaderProgram->addShaderFromSourceCode(QOpenGLShader::Fragment, fragmentShaderSource)) {
+        qDebug() << "Fragment shader compilation failed:" << shaderProgram->log();
+        delete shaderProgram;
+        shaderProgram = nullptr;
+        return;
+    }
+    qDebug() << "RenderOpenGL::initializeGL() - linking shader program";
+    shaderProgram->bindAttributeLocation("aPosition", 0);
+    shaderProgram->bindAttributeLocation("aColor", 1);
+    shaderProgram->bindAttributeLocation("aNormal", 2);
+    if (!shaderProgram->link()) {
+        qDebug() << "Shader program linking failed:" << shaderProgram->log();
+        delete shaderProgram;
+        shaderProgram = nullptr;
+        return;
+    }
+    qDebug() << "RenderOpenGL::initializeGL() - shader program created successfully";
+
+    qDebug() << "RenderOpenGL::initializeGL() - creating axis shader program";
+    axisShaderProgram = new QOpenGLShaderProgram();
+    if (!axisShaderProgram->addShaderFromSourceCode(QOpenGLShader::Vertex, axisVertexShaderSource)) {
+        qDebug() << "Axis vertex shader compilation failed:" << axisShaderProgram->log();
+        delete axisShaderProgram;
+        axisShaderProgram = nullptr;
+    } else if (!axisShaderProgram->addShaderFromSourceCode(QOpenGLShader::Fragment, axisFragmentShaderSource)) {
+        qDebug() << "Axis fragment shader compilation failed:" << axisShaderProgram->log();
+        delete axisShaderProgram;
+        axisShaderProgram = nullptr;
+    } else {
+        axisShaderProgram->bindAttributeLocation("aPosition", 0);
+        axisShaderProgram->bindAttributeLocation("aColor", 1);
+        if (!axisShaderProgram->link()) {
+            qDebug() << "Axis shader program linking failed:" << axisShaderProgram->log();
+            delete axisShaderProgram;
+            axisShaderProgram = nullptr;
+        }
+    }
+    qDebug() << "RenderOpenGL::initializeGL() - axis shader program created";
+
+    qDebug() << "RenderOpenGL::initializeGL() - generating VAO and VBOs";
+    ef->glGenVertexArrays(1, &vaoId);
+    ef->glGenBuffers(3, vboIds);
+    qDebug() << "RenderOpenGL::initializeGL() - VAO ID:" << vaoId;
+
+    qDebug() << "RenderOpenGL::initializeGL() - calling initializeVBO()";
+    initializeVBO();
+    qDebug() << "RenderOpenGL::initializeGL() - END";
 }
-
 
 void RenderOpenGL::drawAxis()
 {
-    // Draw X-axis (Red)
-    glColor3f(1.0, 0.0, 0.0);
+    qDebug() << "RenderOpenGL::drawAxis() - START (immediate mode test)";
+    float halfNum = static_cast<float>(numCubes) / 2.0f;
+    float multNum = 1.15f * static_cast<float>(numCubes);
+
+    QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
+    if (!f) {
+        qDebug() << "RenderOpenGL::drawAxis() - No GL functions";
+        return;
+    }
+
+    qDebug() << "RenderOpenGL::drawAxis() - disabling shader and depth test temporarily";
+    if (axisShaderProgram) {
+        axisShaderProgram->release();
+    }
+
+    f->glDisable(GL_DEPTH_TEST);
+
+    qDebug() << "RenderOpenGL::drawAxis() - drawing X axis (red)";
+    glColor3f(1.0f, 0.0f, 0.0f);
     glBegin(GL_LINES);
-    glVertex3f(-numCubes/2, -numCubes/2, -numCubes/2);
-    glVertex3f(1.15*numCubes, -numCubes/2, -numCubes/2);
+    glVertex3f(-halfNum, -halfNum, -halfNum);
+    glVertex3f(multNum, -halfNum, -halfNum);
     glEnd();
 
-    // Draw Y-axis (Green)
-    glColor3f(0.0, 1.0, 0.0);
+    qDebug() << "RenderOpenGL::drawAxis() - drawing Y axis (green)";
+    glColor3f(0.0f, 1.0f, 0.0f);
     glBegin(GL_LINES);
-    glVertex3f(-numCubes/2, -numCubes/2, -numCubes/2);
-    glVertex3f(-numCubes/2, 1.15*numCubes, -numCubes/2);
+    glVertex3f(-halfNum, -halfNum, -halfNum);
+    glVertex3f(-halfNum, multNum, -halfNum);
     glEnd();
 
-    // Draw Z-axis (Blue)
-    glColor3f(0.0, 0.0, 1.0);
+    qDebug() << "RenderOpenGL::drawAxis() - drawing Z axis (blue)";
+    glColor3f(0.0f, 0.0f, 1.0f);
     glBegin(GL_LINES);
-    glVertex3f(-numCubes/2, -numCubes/2, -numCubes/2);
-    glVertex3f(-numCubes/2, -numCubes/2, 1.15*numCubes);
+    glVertex3f(-halfNum, -halfNum, -halfNum);
+    glVertex3f(-halfNum, -halfNum, multNum);
     glEnd();
+
+    f->glEnable(GL_DEPTH_TEST);
+    qDebug() << "RenderOpenGL::drawAxis() - END (immediate mode test)";
+}
+
+void RenderOpenGL::drawAxisWithMVP(const QMatrix4x4& mvp)
+{
+    if (!axisShaderProgram) {
+        return;
+    }
+
+    float halfNum = static_cast<float>(numCubes) / 2.0f;
+    float multNum = 1.15f * static_cast<float>(numCubes);
+
+    std::vector<float> axisVertices = {
+        -halfNum, -halfNum, -halfNum,
+        multNum, -halfNum, -halfNum,
+        -halfNum, -halfNum, -halfNum,
+        -halfNum, multNum, -halfNum,
+        -halfNum, -halfNum, -halfNum,
+        -halfNum, -halfNum, multNum
+    };
+
+    std::vector<float> axisColors = {
+        1.0f, 0.0f, 0.0f,
+        1.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 0.0f,
+        0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 1.0f,
+        0.0f, 0.0f, 1.0f
+    };
+
+    QOpenGLExtraFunctions *ef = QOpenGLContext::currentContext()->extraFunctions();
+    if (!ef) {
+        return;
+    }
+
+    axisShaderProgram->bind();
+    axisShaderProgram->setUniformValue("uMVP", mvp);
+
+    GLuint axisVAO;
+    ef->glGenVertexArrays(1, &axisVAO);
+    ef->glBindVertexArray(axisVAO);
+
+    GLuint axisVBO[2];
+    ef->glGenBuffers(2, axisVBO);
+
+    ef->glBindBuffer(GL_ARRAY_BUFFER, axisVBO[0]);
+    ef->glBufferData(GL_ARRAY_BUFFER, axisVertices.size() * sizeof(float), axisVertices.data(), GL_STATIC_DRAW);
+    ef->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+    ef->glEnableVertexAttribArray(0);
+
+    ef->glBindBuffer(GL_ARRAY_BUFFER, axisVBO[1]);
+    ef->glBufferData(GL_ARRAY_BUFFER, axisColors.size() * sizeof(float), axisColors.data(), GL_STATIC_DRAW);
+    ef->glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+    ef->glEnableVertexAttribArray(1);
+
+    ef->glDrawArrays(GL_LINES, 0, 6);
+
+    ef->glBindBuffer(GL_ARRAY_BUFFER, 0);
+    ef->glBindVertexArray(0);
+    ef->glDeleteVertexArrays(1, &axisVAO);
+    ef->glDeleteBuffers(2, axisVBO);
+
+    axisShaderProgram->release();
 }
 
 void RenderOpenGL::initializeVBO()
 {
-    QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
-    // Create buffers for vertex, color, and normal data
-    f->glGenBuffers(1, vboIds);
-    // Bind the vertex buffer
-    f->glBindBuffer(GL_ARRAY_BUFFER, vboIds[0]);
-    // upload buffer to GPU
-    f->glBufferData(GL_ARRAY_BUFFER, voxelScene.size() * sizeof(Voxel), voxelScene.data(), GL_STATIC_DRAW);
+    QOpenGLExtraFunctions *ef = QOpenGLContext::currentContext()->extraFunctions();
+
+    if (!ef || vaoId == 0) {
+        return;
+    }
+
+    ef->glBindVertexArray(vaoId);
+
+    if (voxelScene.empty()) {
+        ef->glBindBuffer(GL_ARRAY_BUFFER, vboIds[0]);
+        ef->glBufferData(GL_ARRAY_BUFFER, sizeof(Voxel), nullptr, GL_STATIC_DRAW);
+    } else {
+        ef->glBindBuffer(GL_ARRAY_BUFFER, vboIds[0]);
+        ef->glBufferData(GL_ARRAY_BUFFER, voxelScene.size() * sizeof(Voxel), voxelScene.data(), GL_STATIC_DRAW);
+    }
+
+    ef->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Voxel), (void*)offsetof(Voxel, x));
+    ef->glEnableVertexAttribArray(0);
+
+    ef->glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Voxel), (void*)offsetof(Voxel, r));
+    ef->glEnableVertexAttribArray(1);
+
+    ef->glVertexAttribPointer(2, 3, GL_BYTE, GL_TRUE, sizeof(Voxel), (void*)offsetof(Voxel, nx));
+    ef->glEnableVertexAttribArray(2);
+
+    ef->glBindBuffer(GL_ARRAY_BUFFER, 0);
+    ef->glBindVertexArray(0);
 }
 
 void RenderOpenGL::updateVBO()
 {
-    QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
+    QOpenGLExtraFunctions *ef = QOpenGLContext::currentContext()->extraFunctions();
+    if (!ef || vaoId == 0) {
+        qDebug() << "updateVBO() - failed: ef=" << (ef != nullptr) << " vaoId=" << vaoId;
+        return;
+    }
 
-    f->glBindBuffer(GL_ARRAY_BUFFER, vboIds[0]);
-    f->glBufferData(GL_ARRAY_BUFFER, voxelScene.size() * sizeof(Voxel), voxelScene.data(), GL_STATIC_DRAW);
+    qDebug() << "updateVBO() - updating" << voxelScene.size() << "vertices, VAO:" << vaoId;
+    ef->glBindVertexArray(vaoId);
+    ef->glBindBuffer(GL_ARRAY_BUFFER, vboIds[0]);
+    ef->glBufferData(GL_ARRAY_BUFFER, voxelScene.size() * sizeof(Voxel), voxelScene.data(), GL_STATIC_DRAW);
+    ef->glBindBuffer(GL_ARRAY_BUFFER, 0);
+    ef->glBindVertexArray(0);
+    qDebug() << "updateVBO() - completed";
 }
 
 void RenderOpenGL::paintGL()
 {
-    if (isVBOupdateRequired)
-    {
+    if (isVBOupdateRequired && vaoId != 0) {
         this->updateVBO();
         isVBOupdateRequired = false;
     }
 
-    // Clear buffers
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-
-    // Set up projection matrix
-    glMatrixMode(GL_PROJECTION);
-    glLoadMatrixf(m_projection.constData());
-
-    // Set up modelview matrix
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-
-    // Apply camera transformation
-    glTranslatef(0.0f, 0.0f, -distance);
-
-    // Apply rotations
-    glRotatef(xRot / 16.0f, 1.0f, 0.0f, 0.0f);
-    glRotatef(yRot / 16.0f, 0.0f, 1.0f, 0.0f);
-    glRotatef(zRot / 16.0f, 0.0f, 0.0f, 1.0f);
-
-    // Enable necessary features
-    glEnable(GL_NORMALIZE);
-    glEnable(GL_DEPTH_TEST);
-
-    // Draw coordinate axes
-    this->drawAxis();
-
-    //qDebug() << "paintGL rotations angles:" << xRot / 16.0 << yRot / 16.0 << zRot / 16.0;
-
-    //glEnable(GL_BLEND);
-    //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    //glEnable(GL_CULL_FACE);
-    //glFrontFace(GL_CW);
-    //glCullFace(GL_BACK);
-
-
-    // Draw X-Y-Z axis in Red for X, Green for Y, Blue for Z
-    this->drawAxis();
-
-
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
-    // Bind VBO
-    f->glBindBuffer(GL_ARRAY_BUFFER, vboIds[0]);
-    glEnableClientState(GL_VERTEX_ARRAY);
-    glEnableClientState(GL_COLOR_ARRAY);
-    glEnableClientState(GL_NORMAL_ARRAY);
+    QOpenGLExtraFunctions *ef = QOpenGLContext::currentContext()->extraFunctions();
+    if (!f || !ef) {
+        return;
+    }
 
-    // Load vertix array
-    glVertexPointer(3, GL_FLOAT, sizeof(Voxel), (void*)offsetof(Voxel, x));
+    f->glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    f->glDepthMask(GL_TRUE);
+    f->glEnable(GL_NORMALIZE);
 
-    if (plotWireFrame == true)
-    {
-        glEnable(GL_POLYGON_OFFSET_LINE); // Enable polygon offset for lines
-        glPolygonOffset(-1.0f, -1.0f); // Set the polygon offset factor and units
+    QMatrix4x4 view;
+    view.setToIdentity();
+    view.translate(0.0f, 0.0f, -distance);
+    view.rotate(xRot / 16.0f, 1.0f, 0.0f, 0.0f);
+    view.rotate(yRot / 16.0f, 0.0f, 1.0f, 0.0f);
+    view.rotate(zRot / 16.0f, 0.0f, 0.0f, 1.0f);
+
+    QMatrix4x4 model;
+    model.setToIdentity();
+
+    QMatrix4x4 mvp = m_projection * view * model;
+
+    drawAxisWithMVP(mvp);
+
+    if (!shaderProgram || vaoId == 0) {
+        return;
+    }
+
+    shaderProgram->bind();
+
+    shaderProgram->setUniformValue("uMVP", mvp);
+    shaderProgram->setUniformValue("uModel", model);
+    shaderProgram->setUniformValue("uView", view);
+    shaderProgram->setUniformValue("uProjection", m_projection);
+
+    QVector3D lightPositions[3] = {
+        QVector3D(100.0f, 0.0f, 100.0f),
+        QVector3D(100.0f, 100.0f, 0.0f),
+        QVector3D(0.0f, 100.0f, 100.0f)
+    };
+
+    for (int i = 0; i < 3; i++) {
+        shaderProgram->setUniformValueArray(QString("uLightPositions[%1]").arg(i).toUtf8().constData(), &lightPositions[i], 1);
+    }
+
+    QVector3D viewPos(0.0f, 0.0f, -distance);
+    shaderProgram->setUniformValue("uViewPos", viewPos);
+    shaderProgram->setUniformValue("uDebugMode", debugMode);
+
+    ef->glBindVertexArray(vaoId);
+
+    f->glEnable(GL_BLEND);
+    f->glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    if (enableFaceCulling) {
+        f->glEnable(GL_CULL_FACE);
+        glFrontFace(GL_CCW);
+        glCullFace(GL_BACK);
+    } else {
+        f->glDisable(GL_CULL_FACE);
+    }
+
+    if (enableDepthTest) {
+        f->glEnable(GL_DEPTH_TEST);
+    } else {
+        f->glDisable(GL_DEPTH_TEST);
+    }
+
+    if (plotWireFrame) {
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-        glLineWidth(0.1);
+        f->glLineWidth(0.5f);
 
-        for (size_t i = 0; i < voxelScene.size() ; i += 4)
-        {
-            glColor4f(0.5f, 0.5f, 0.5f, 0.5f);
-            glDrawArrays(GL_POLYGON, i, 4); // plot 4 lines for each face
+        for (size_t i = 0; i < voxelScene.size(); i += 4) {
+            ef->glDrawArrays(GL_POLYGON, i, 4);
         }
+
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     }
 
-    //load color array
-    glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(Voxel), (void*)offsetof(Voxel, r));
-    //load normal array
-    glNormalPointer(GL_BYTE, sizeof(Voxel), (void*)offsetof(Voxel, nx));
+    //qDebug() << "Drawing voxels - count:" << voxelScene.size();
+    if (!voxelScene.empty()) {
+        for (size_t i = 0; i < voxelScene.size(); i += 4) {
+            // Draw quad as triangle fan (v0, v1, v2, v3)
+            ef->glDrawArrays(GL_TRIANGLE_FAN, i, 4);
+        }
+    //    qDebug() << "Voxel drawing completed";
+    } else {
+    //    qDebug() << "No voxels to draw!";
+    }
 
-    //Draw all quads by vertixes
-    glDrawArrays(GL_QUADS, 0, voxelScene.size()); // 24 vertices per voxel (6 faces * 4 vertices)
+    f->glDisable(GL_BLEND);
 
-    // Unbind the buffers and disable client-side capabilities
-    glDisableClientState(GL_VERTEX_ARRAY);
-    glDisableClientState(GL_COLOR_ARRAY);
-    glDisableClientState(GL_NORMAL_ARRAY);
-
-    f->glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-   // glPopMatrix();
+    ef->glBindVertexArray(0);
+    shaderProgram->release();
 }
-
 
 void RenderOpenGL::resizeGL(int width, int height)
 {
+    qDebug() << "RenderOpenGL::resizeGL() - START - width:" << width << "height:" << height;
     this->width = width;
     this->height = height;
 
     if (height <= 0 || width <= 0) {
+        qDebug() << "RenderOpenGL::resizeGL() - invalid dimensions, returning";
         return;
     }
 
-    // Set viewport
-    glViewport(0, 0, width, height);
-
-    // Calculate aspect ratio
-    float aspect = static_cast<float>(width) / static_cast<float>(height);
-
-    // Calculate scene bounds
-    // Scene extends from -numCubes/2 to +numCubes/2 in each dimension
-    float sceneRadius = numCubes * 0.866f;  // sqrt(3)/2 * numCubes (half diagonal)
-
-    // Field of view - adjust for large scenes
-    float fov = 45.0f;
-    if (numCubes > 30) {
-        fov = 50.0f;  // Wider view for very large scenes
+    QOpenGLContext *ctx = QOpenGLContext::currentContext();
+    if (!ctx) {
+        qDebug() << "RenderOpenGL::resizeGL() - No OpenGL context, skipping viewport setting";
+    } else {
+        QOpenGLFunctions *f = ctx->functions();
+        f->glViewport(0, 0, width, height);
+        qDebug() << "RenderOpenGL::resizeGL() - viewport set";
     }
 
-    // Calculate optimal near/far planes
-    // Camera position: z = -distance (looking toward +z)
-    // Scene center: (0, 0, 0)
+    float aspect = static_cast<float>(width) / static_cast<float>(height);
+    float sceneRadius = numCubes * 0.866f;
+
+    float fov = 45.0f;
+    if (numCubes > 30) {
+        fov = 50.0f;
+    }
 
     float distanceToSceneCenter = distance;
     float nearVal = std::max(0.1f, distanceToSceneCenter - sceneRadius - 1.0f);
     float farVal = distanceToSceneCenter + sceneRadius + 1.0f;
 
-    // Ensure minimum separation for depth buffer precision
     if (nearVal < 0.1f) nearVal = 0.1f;
     if (farVal < nearVal + 1.0f) farVal = nearVal + 1.0f;
 
-    // Maintain depth buffer precision (avoid ratio > 1000:1)
     float depthRatio = farVal / nearVal;
     if (depthRatio > 1000.0f) {
         nearVal = farVal / 1000.0f;
     }
 
-    // Build perspective projection matrix using QMatrix4x4
     m_projection.setToIdentity();
     m_projection.perspective(fov, aspect, nearVal, farVal);
-
-    // Alternative: If you want to match the old glFrustum exactly:
-    // float fovRadians = fov * 3.14159265f / 180.0f;
-    // float top = nearVal * std::tan(fovRadians * 0.5f);
-    // float bottom = -top;
-    // float left = bottom * aspect;
-    // float right = top * aspect;
-    // m_projection.frustum(left, right, bottom, top, nearVal, farVal);
 
     qDebug() << "ResizeGL: width=" << width << "height=" << height
              << "near=" << nearVal << "far=" << farVal
              << "distance=" << distance << "numCubes=" << numCubes
              << "fov=" << fov;
-
-
-/*    //   int side = qMin(width, height);
-    this->width = width;
-    this->height = height;
-
-    if (height <= 0 || width <= 0)
-    {
-        return;  // Skip resize if invalid dimensions
-    }
-
-    glViewport(0, 0, width, height);
-
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glScalef(1.0f, -1.0f, 1.0f);
-    // Set up perspective projection using glFrustum
-    GLfloat aspect = (GLfloat)width / (GLfloat)height;
-    GLfloat fov = 45.0f;
-    GLfloat baseNear = 1.0f;     // Базовое значение ближней границы
-    GLfloat baseFar = 15 * numCubes;   // Базовое значение дальней границы
-    GLfloat minNear = 0.1f;      // Минимальное значение ближней границы
-    GLfloat maxFar = 30 * numCubes;    // Максимальное значение дальней границы
-    GLfloat nearVal = std::max(baseNear / zoomFactor, minNear);
-    GLfloat farVal = std::min(baseFar * zoomFactor, maxFar);
-    GLfloat top = nearVal * std::tan(fov * 0.5f * 3.14159f / 180.0f);
-    GLfloat bottom = -top;
-    GLfloat left = bottom * aspect;
-    GLfloat right = top * aspect;
-
-#ifdef QT_OPENGL_ES
-    glFrustum(left, right, bottom, top, nearVal, farVal);
-#else
-    glFrustum(left, right, bottom, top, nearVal, farVal);
-#endif
-    glMatrixMode(GL_MODELVIEW);
-*/
+    qDebug() << "RenderOpenGL::resizeGL() - END";
 }
-
 
 void RenderOpenGL::setRotations(int xRot, int yRot, int zRot)
 {
@@ -455,7 +719,6 @@ void RenderOpenGL::setRotations(int xRot, int yRot, int zRot)
     this->zRot = zRot;
     update();
 }
-
 
 void RenderOpenGL::setNumCubes(int numCubes)
 {
@@ -471,35 +734,109 @@ void RenderOpenGL::setDistZoomFactor(float distance, float zoomFactor)
     update();
 }
 
-
 void RenderOpenGL::setPlotWireFrame(bool status)
 {
     plotWireFrame = status;
 }
 
+void RenderOpenGL::toggleDebugMode()
+{
+    debugMode = (debugMode + 1) % 4;
+    qDebug() << "RenderOpenGL::toggleDebugMode() - New debug mode:" << debugMode << "(0=lighting, 1=colors, 2=normals, 3=testcube)";
+    update();
+}
 
+void RenderOpenGL::toggleFaceCulling()
+{
+    enableFaceCulling = !enableFaceCulling;
+    qDebug() << "RenderOpenGL::toggleFaceCulling() - Face culling:" << (enableFaceCulling ? "enabled" : "disabled");
+    update();
+}
 
-/**
- * Capture a screenshot of the OpenGL widget and store it in a buffer.
- * @return A QImage containing the screenshot.
- */
+void RenderOpenGL::toggleDepthTest()
+{
+    enableDepthTest = !enableDepthTest;
+    qDebug() << "RenderOpenGL::toggleDepthTest() - Depth test:" << (enableDepthTest ? "enabled" : "disabled");
+    update();
+}
+
 QImage RenderOpenGL::captureScreenshot()
 {
-    QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
+    QOpenGLContext *ctx = QOpenGLContext::currentContext();
+    if (!ctx) {
+        return QImage();
+    }
 
-    // Get the dimensions of the widget
+    QOpenGLFunctions *f = ctx->functions();
+
     int width = this->width;
     int height = this->height;
 
-    // Create a buffer to store pixel data
     QImage screenshot(width, height, QImage::Format_RGBA8888);
 
-    // Read pixels from OpenGL framebuffer
     f->glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, screenshot.bits());
 
-    // Convert the image from bottom-left origin to top-left origin
     screenshot = screenshot.mirrored();
 
-
     return screenshot;
+}
+
+void RenderOpenGL::createTestScene()
+{
+    voxelScene.clear();
+
+    float offset = 0.5f;
+
+    for (int x = 0; x < 1; x++) {
+        for (int y = 0; y < 1; y++) {
+            for (int z = 0; z < 1; z++) {
+                float px = x + offset - 1;
+                float py = y + offset - 1;
+                float pz = z + offset - 1;
+
+                float size = 0.5f;
+
+                // Front face (+Z) - Red color
+                voxelScene.push_back({px, py, pz + size, 255, 0, 0, 255, 0, 0, 127});
+                voxelScene.push_back({px + size, py, pz + size, 255, 0, 0, 255, 0, 0, 127});
+                voxelScene.push_back({px + size, py + size, pz + size, 255, 0, 0, 255, 0, 0, 127});
+                voxelScene.push_back({px, py + size, pz + size, 255, 0, 0, 255, 0, 0, 127});
+
+                // Back face (-Z) - Green color
+                voxelScene.push_back({px, py, pz, 0, 255, 0, 255, 0, 0, -128});
+                voxelScene.push_back({px + size, py, pz, 0, 255, 0, 255, 0, 0, -128});
+                voxelScene.push_back({px + size, py + size, pz, 0, 255, 0, 255, 0, 0, -128});
+                voxelScene.push_back({px, py + size, pz, 0, 255, 0, 255, 0, 0, -128});
+
+                // Right face (+X) - Blue color
+                voxelScene.push_back({px + size, py, pz, 0, 0, 255, 255, 127, 0, 0});
+                voxelScene.push_back({px + size, py, pz + size, 0, 0, 255, 255, 127, 0, 0});
+                voxelScene.push_back({px + size, py + size, pz + size, 0, 0, 255, 255, 127, 0, 0});
+                voxelScene.push_back({px + size, py + size, pz, 0, 0, 255, 255, 127, 0, 0});
+
+                // Left face (-X) - Yellow color
+                voxelScene.push_back({px, py, pz, 255, 255, 0, 255, -128, 0, 0});
+                voxelScene.push_back({px, py + size, pz, 255, 255, 0, 255, -128, 0, 0});
+                voxelScene.push_back({px, py + size, pz + size, 255, 255, 0, 255, -128, 0, 0});
+                voxelScene.push_back({px, py, pz + size, 255, 255, 0, 255, -128, 0, 0});
+
+                // Top face (+Y) - Magenta color
+                voxelScene.push_back({px, py + size, pz, 255, 0, 255, 255, 0, 127, 0});
+                voxelScene.push_back({px + size, py + size, pz, 255, 0, 255, 255, 0, 127, 0});
+                voxelScene.push_back({px + size, py + size, pz + size, 255, 0, 255, 255, 0, 127, 0});
+                voxelScene.push_back({px, py + size, pz + size, 255, 0, 255, 255, 0, 127, 0});
+
+                // Bottom face (-Y) - Cyan color
+                voxelScene.push_back({px, py, pz, 0, 255, 255, 255, 0, -128, 0});
+                voxelScene.push_back({px, py, pz + size, 0, 255, 255, 255, 0, -128, 0});
+                voxelScene.push_back({px + size, py, pz + size, 0, 255, 255, 255, 0, -128, 0});
+                voxelScene.push_back({px + size, py, pz, 0, 255, 255, 255, 0, -128, 0});
+            }
+        }
+    }
+
+    qDebug() << "createTestScene() - created" << voxelScene.size() << "vertices (" 
+             << (voxelScene.size() / 4) << " quads)";
+    isVBOupdateRequired = true;
+    update();
 }

@@ -64,7 +64,7 @@ OpenGLWidgetQML::~OpenGLWidgetQML()
     }
     if (m_render)
     {
-        delete m_render;
+        //delete m_render;
     }
     instance = nullptr;
 }
@@ -507,7 +507,46 @@ void OpenGLWidgetQML::calculateScene()
                     continue;
                 }
 
-                bool neighbors[6] = {false};  // check for the same type voxels
+                const bool isExploded = (distanceFactor > 0.0f);
+
+                bool neighbors[6] = {false, false, false, false, false, false};
+
+                neighbors[0] = (k > 0)            && (voxels[k-1][i][j] != 0);  // -x
+                neighbors[2] = (k < numCubes - 1) && (voxels[k+1][i][j] != 0);  // +x
+                neighbors[1] = (i < numCubes - 1) && (voxels[k][i+1][j] != 0);  // +y
+                neighbors[3] = (i > 0)            && (voxels[k][i-1][j] != 0);  // -y
+                neighbors[4] = (j < numCubes - 1) && (voxels[k][i][j+1] != 0);  // +z
+                neighbors[5] = (j > 0)            && (voxels[k][i][j-1] != 0);  // -z
+
+                // Skip fully enclosed voxels in both modes
+                if (neighbors[0] && neighbors[1] && neighbors[2] &&
+                    neighbors[3] && neighbors[4] && neighbors[5])
+                    continue;
+
+                // In exploded view, emit all non-enclosed faces
+                if (isExploded)
+                    memset(neighbors, 0, sizeof(neighbors));
+
+
+ /*               bool neighbors[6] = {false, false, false, false, false, false};
+
+
+                auto vx = distanceFactor > 0 ? voxels[k][i][j] : 0; // if exploded view enabled draw all faces, otherwise => outer faces
+                // Cull shared faces between same-type voxels only
+                neighbors[0] = (k > 0)            && (voxels[k-1][i][j] == vx);
+                neighbors[2] = (k < numCubes - 1) && (voxels[k+1][i][j] == vx);
+                neighbors[1] = (i < numCubes - 1) && (voxels[k][i+1][j] == vx);
+                neighbors[3] = (i > 0)            && (voxels[k][i-1][j] == vx);
+                neighbors[4] = (j < numCubes - 1) && (voxels[k][i][j+1] == vx);
+                neighbors[5] = (j > 0)            && (voxels[k][i][j-1] == vx);
+
+                // Skip fully enclosed voxels entirely
+                if (neighbors[0] && neighbors[1] && neighbors[2] &&
+                    neighbors[3] && neighbors[4] && neighbors[5])
+                    continue;
+*/
+
+ /*               bool neighbors[6] = {false};  // check for the same type voxels
                 {
                     auto vx = voxels[k][i][j];
                     neighbors[0] = (k > 0) ? (voxels[k - 1][i][j] == vx) : false; // -x
@@ -526,7 +565,7 @@ void OpenGLWidgetQML::calculateScene()
                     if (c1 && c2 && c3)
                         continue;
                 }
-
+*/
                 size_t index = voxels[k][i][j] - 1;
 
                 if (index >= colors.size() || colors.size() == 0)
@@ -621,7 +660,7 @@ void OpenGLWidgetQML::updateVoxelColor(RenderOpenGL::Voxel &v1)
 void OpenGLWidgetQML::drawCube(short cubeSize, RenderOpenGL::Voxel vox, bool* neighbors, std::vector<std::array<GLubyte, 4>> &node_colors)
 {
 
-    static const GLfloat n[6][3] =
+/*    static const GLfloat n[6][3] =
         {
             {-1.0, 0.0, 0.0}, // -x
             {0.0, 1.0, 0.0},  // y
@@ -630,6 +669,15 @@ void OpenGLWidgetQML::drawCube(short cubeSize, RenderOpenGL::Voxel vox, bool* ne
             {0.0, 0.0, 1.0},  // z
             {0.0, 0.0, -1.0}  // -z
         };
+  */
+    static const GLbyte n[6][3] = {
+        {-127,    0,    0},  // -X
+        {   0,  127,    0},  // +Y
+        { 127,    0,    0},  // +X
+        {   0, -127,    0},  // -Y
+        {   0,    0,  127},  // +Z
+        {   0,    0, -127}   // -Z
+    };
 
     static const GLint faces[6][4] =
         {
@@ -642,7 +690,7 @@ void OpenGLWidgetQML::drawCube(short cubeSize, RenderOpenGL::Voxel vox, bool* ne
         };
     float v[8][3];
 
-    float offset = 1e-6f; // offset to help z-buffer distinc same quads
+    float offset = 0.0; // offset to help z-buffer distinc same quads
 
     v[0][0] = v[1][0] = v[2][0] = v[3][0] = vox.x + offset;
     v[4][0] = v[5][0] = v[6][0] = v[7][0] = vox.x + cubeSize - offset;
@@ -654,7 +702,7 @@ void OpenGLWidgetQML::drawCube(short cubeSize, RenderOpenGL::Voxel vox, bool* ne
     RenderOpenGL::Voxel v1;
     for (int i = 0; i < 6; i++) // for each of 6 face of cube
     {
-        if (neighbors[i] )
+        if (neighbors[i])
             continue;
 
         v1.nx = n[i][0];
@@ -698,4 +746,38 @@ void OpenGLWidgetQML::DelayFrameUpdate()
 int32_t*** OpenGLWidgetQML::getVoxels()
 {
     return voxels;
+}
+
+void OpenGLWidgetQML::toggleDebugMode()
+{
+    qDebug() << "OpenGLWidgetQML::toggleDebugMode() - Called from QML";
+    if (m_render) {
+        qDebug() << "OpenGLWidgetQML::toggleDebugMode() - Calling renderer method";
+        m_render->toggleDebugMode();
+        update();
+    } else {
+        qWarning() << "OpenGLWidgetQML::toggleDebugMode() - ERROR: m_render is null!";
+    }
+}
+
+void OpenGLWidgetQML::toggleFaceCulling()
+{
+    qDebug() << "OpenGLWidgetQML::toggleFaceCulling() - Called from QML";
+    if (m_render) {
+        m_render->toggleFaceCulling();
+        update();
+    } else {
+        qWarning() << "OpenGLWidgetQML::toggleFaceCulling() - ERROR: m_render is null!";
+    }
+}
+
+void OpenGLWidgetQML::toggleDepthTest()
+{
+    qDebug() << "OpenGLWidgetQML::toggleDepthTest() - Called from QML";
+    if (m_render) {
+        m_render->toggleDepthTest();
+        update();
+    } else {
+        qWarning() << "OpenGLWidgetQML::toggleDepthTest() - ERROR: m_render is null!";
+    }
 }

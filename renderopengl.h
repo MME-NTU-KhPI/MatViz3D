@@ -2,19 +2,25 @@
 
 #include <QQuickFramebufferObject>
 #include <QOpenGLFunctions>
+#include <QOpenGLExtraFunctions>
 #include <QOpenGLShaderProgram>
-
-/**
- * @class RenderOpenGL
- * A custom OpenGL widget for rendering 3D voxel scenes with interaction capabilities.
- */
+#include <QMatrix4x4>
+#include <QVector3D>
+#include <QColor>
+#include <QImage>
+#include <QSize>
+#include <vector>
+#include <QOpenGLContext>
 
 class RenderOpenGL : public QQuickFramebufferObject::Renderer, protected QOpenGLFunctions, public QObject
 {
 public:
-    struct Voxel;
-
-public:
+    struct Voxel
+    {
+        GLfloat x, y, z;
+        GLubyte r, g, b, a;
+        GLbyte nx, ny, nz;
+    };
 
     RenderOpenGL();
     virtual ~RenderOpenGL();
@@ -23,28 +29,31 @@ public:
 
 
 private:
-    /**
-     * OpenGL debug callback for logging messages.
-     */
     static void debugCallback(GLenum source, GLenum type, GLuint id, GLenum severity,
-                              GLsizei length, const GLchar* message, const void* userParam);
+                               GLsizei length, const GLchar* message, const void* userParam);
 
 public:
-
     void setPlotWireFrame(bool status);
     void setRotations(int xRot, int yRot, int zRot);
     void setNumCubes(int numCubes);
     void setDistZoomFactor(float distance, float zoomFactor);
     void resizeGL(int width, int height);
+    void toggleDebugMode();
+    void toggleFaceCulling();
+    void toggleDepthTest();
+    void createTestScene();
 
     void updateVoxelData(std::vector<Voxel>& voxelScene);
     QImage captureScreenshot();
+
+    QOpenGLFramebufferObject* createFramebufferObject(const QSize &size) override;
 
 protected:
 
     void initializeGL();
     void paintGL();
     void drawAxis();
+    void drawAxisWithMVP(const QMatrix4x4& mvp);
     void initLights();
 
 
@@ -57,6 +66,9 @@ protected:
 protected:
 
     GLuint vboIds[3];
+    GLuint vaoId = 0;
+    QOpenGLShaderProgram* shaderProgram = nullptr;
+    QOpenGLShaderProgram* axisShaderProgram = nullptr;
 
     int xRot;
     int yRot;
@@ -81,13 +93,8 @@ protected:
     std::vector<Voxel> voxelScene;
 
     bool plotWireFrame = false;
-
-public:
-    struct Voxel
-    {
-        GLfloat x, y, z; // Coordinates
-        GLubyte r, g, b, a; // Color attributes
-        GLbyte nx, ny, nz; // Normal attributes
-    };
-
+    bool showNormals = false;
+    bool enableFaceCulling = false;
+    bool enableDepthTest = true;
+    int debugMode = 0;
 };

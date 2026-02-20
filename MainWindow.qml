@@ -412,7 +412,7 @@ Window {
                         id: _text_menuBar
                         color: "#00897b"
                         textFormat: Text.RichText
-                        text: qsTr("Material<span style='color: #00564D;'>Viz</span>")
+                        text: qsTr("MatViz<span style='color: #00564D;'>3D</span>")
                         anchors.fill: parent
                         font.pixelSize: 36
                         horizontalAlignment: Text.AlignRight
@@ -428,14 +428,36 @@ Window {
             id: _item_GLWidget
             width: mainWindow.width
             height: mainWindow.height - menuBar_rec.height - (_itemConsole.visible ? _itemConsole.height : 0)
-
-            // width: 300
-            // height: 300
+            focus: true
 
             OpenGLWidgetQML {
+                id: glWidget
                 width: _item_GLWidget.width
                 height: _item_GLWidget.height
             }
+
+            MouseArea
+            {
+                preventStealing: false
+                propagateComposedEvents: true
+                anchors.fill: parent
+                enabled: true
+                hoverEnabled: true
+                onPressed: (mouse)=> {
+                    glWidget.forceActiveFocus()
+                    console.log("Force Active focus")
+                    mouse.accepted = false
+                }
+            }
+
+            Keys.onPressed: (event) => {
+                console.log("Key pressed:", event.key, "Text:", event.text)
+                if (event.key === Qt.Key_D && (event.modifiers & Qt.AltModifier)) {
+                    console.log("Alt + D key detected, calling toggleDebugMode")
+                    glWidget.toggleDebugMode();
+                }
+            }
+
         }
 
         Item {

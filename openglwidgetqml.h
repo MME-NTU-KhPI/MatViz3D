@@ -48,7 +48,7 @@ public:
     void setComponent(int index);
 
     int cubeSize = 1;
-signals:
+
 protected:
     //struct RenderOpenGL::Voxel;
     void initializeGL();
@@ -97,6 +97,10 @@ public:
 
     void setSceneParent(QQuickItem *parentItem);
     void setParentWidget(QWidget *parent);
+
+    Q_INVOKABLE void toggleDebugMode();
+    Q_INVOKABLE void toggleFaceCulling();
+    Q_INVOKABLE void toggleDepthTest();
 signals:
     // signaling rotation from mouse movement
     void xRotationChanged(int angle);
