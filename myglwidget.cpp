@@ -567,9 +567,42 @@ void MyGLWidget::calculateScene()
                     continue;
                 }
 
-                bool neighbors[6] = {false};  // check for the same type voxels
+                const bool isExploded = (distanceFactor > 0.0f);
+
+                bool neighbors[6] = {false, false, false, false, false, false};
+                auto vx = voxels[k][i][j];
+                // In exploded view, emit all non-enclosed faces
+                if (isExploded)
                 {
-                    auto vx = voxels[k][i][j];
+                    // Exploded view: cull face if neighbor is same color (==vx)
+                    neighbors[0] = (k > 0)            && (voxels[k-1][i][j] == vx);  // -x
+                    neighbors[2] = (k < numCubes - 1) && (voxels[k+1][i][j] == vx);  // +x
+                    neighbors[1] = (i < numCubes - 1) && (voxels[k][i+1][j] == vx);  // +y
+                    neighbors[3] = (i > 0)            && (voxels[k][i-1][j] == vx);  // -y
+                    neighbors[4] = (j < numCubes - 1) && (voxels[k][i][j+1] == vx);  // +z
+                    neighbors[5] = (j > 0)            && (voxels[k][i][j-1] == vx);  // -z
+                }
+                else
+                {
+                    // Solid view: cull face if neighbor is any occupied voxel (!=0)
+                    neighbors[0] = (k > 0)            && (voxels[k-1][i][j] != 0);  // -x
+                    neighbors[2] = (k < numCubes - 1) && (voxels[k+1][i][j] != 0);  // +x
+                    neighbors[1] = (i < numCubes - 1) && (voxels[k][i+1][j] != 0);  // +y
+                    neighbors[3] = (i > 0)            && (voxels[k][i-1][j] != 0);  // -y
+                    neighbors[4] = (j < numCubes - 1) && (voxels[k][i][j+1] != 0);  // +z
+                    neighbors[5] = (j > 0)            && (voxels[k][i][j-1] != 0);  // -z
+
+                }
+                // Skip fully enclosed voxels in both modes
+                if (neighbors[0] && neighbors[1] && neighbors[2] &&
+                    neighbors[3] && neighbors[4] && neighbors[5])
+                    continue;
+
+
+
+                /*bool neighbors[6] = {false};  // check for the same type voxels
+                {
+
                     neighbors[0] = (k > 0) ? (voxels[k - 1][i][j] == vx) : false; // -x
                     neighbors[2] = (k < numCubes - 1) ? (voxels[k + 1][i][j] == vx) : false; // +x
 
@@ -586,7 +619,7 @@ void MyGLWidget::calculateScene()
                     if (c1 && c2 && c3)
                         continue;
                 }
-
+*/
                 int index = voxels[k][i][j] - 1;
                 auto color = colors[index].data();
 
@@ -653,15 +686,14 @@ void MyGLWidget::setVoxels(int32_t*** voxels, short int numCubes)
 void MyGLWidget::drawCube(short cubeSize, Voxel vox, bool* neighbors, std::vector<std::array<GLubyte, 4>> &node_colors)
 {
 
-    static const GLfloat n[6][3] =
-        {
-            {-1.0, 0.0, 0.0}, // -x
-            {0.0, 1.0, 0.0},  // y
-            {1.0, 0.0, 0.0},  // x
-            {0.0, -1.0, 0.0}, // -y
-            {0.0, 0.0, 1.0},  // z
-            {0.0, 0.0, -1.0}  // -z
-        };
+    static const GLbyte n[6][3] = {
+        {-127,    0,    0},  // -X (face 0)
+        {   0,  127,    0},  // +Y (face 1)
+        { 127,    0,    0},  // +X (face 2)
+        {   0, -127,    0},  // -Y (face 3)
+        {   0,    0,  127},  // +Z (face 4)
+        {   0,    0, -127}   // -Z (face 5)
+    };
 
     static const GLint faces[6][4] =
         {
@@ -674,7 +706,7 @@ void MyGLWidget::drawCube(short cubeSize, Voxel vox, bool* neighbors, std::vecto
         };
     float v[8][3];
 
-    float offset = 1e-6f; // offset to help z-buffer distinc same quads
+    float offset = 0; // offset to help z-buffer distinc same quads
 
     v[0][0] = v[1][0] = v[2][0] = v[3][0] = vox.x + offset;
     v[4][0] = v[5][0] = v[6][0] = v[7][0] = vox.x + cubeSize - offset;
