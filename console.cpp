@@ -19,6 +19,7 @@ void Console::setupParser(QCommandLineParser &parser)
     parser.addOption(QCommandLineOption("seed","Set the seed of generation","seed"));
     parser.addOption(QCommandLineOption("np", "Set the number of processors for single or multi-threaded execution of algorithms.", "num_threads"));
     parser.addOption(QCommandLineOption("wave_coefficient", "Coefficient for wave generation", "value"));
+    parser.addOption(QCommandLineOption("wave_spread", "Standard deviation (sigma) for wave nucleation (controls the duration of the process)", "value"));
     parser.addOption(QCommandLineOption("halfaxis_a", "The length of the semi-axis A for the Probability algorithm", "value"));
     parser.addOption(QCommandLineOption("halfaxis_b", "The length of the semi-axis B for the Probability algorithm", "value"));
     parser.addOption(QCommandLineOption("halfaxis_c", "The length of the semi-axis C for the Probability algorithm", "value"));
@@ -124,6 +125,17 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
     else
     {
         Parameters::wave_coefficient = 0.1;
+    }
+    if (parser.isSet("wave_spread"))
+    {
+        QString str = parser.value("wave_spread");
+        Parameters::wave_spread = str.toFloat();
+        qInfo() << "wave_spread:" << Parameters::wave_spread;
+    }
+    else
+    {
+        Parameters::wave_spread = 1.0;
+        qInfo() << "wave_spread (default):" << Parameters::wave_spread;
     }
     if (parser.isSet("algorithm"))
     {

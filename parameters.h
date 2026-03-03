@@ -18,6 +18,7 @@ public:
     static QString working_directory; // save working directory
 
     static float wave_coefficient;
+    static float wave_spread;
 
     static float halfaxis_a;
     static float halfaxis_b;

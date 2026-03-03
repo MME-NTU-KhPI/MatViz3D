@@ -89,7 +89,7 @@ void Neumann::Next_Iteration(std::function<void()> callback)
 
         if (flags.isWaveGeneration && total_nucleated_so_far < N_gr && filled_voxels < counter_max)
         {
-            double arg = (IterationNumber - (Parameters::wave_coefficient / 2.0)) / std::sqrt(static_cast<double>(N_gr));
+            double arg = (IterationNumber - (Parameters::wave_coefficient / 2.0)) / (Parameters::wave_spread * std::sqrt(2.0));
             double cumulative_fraction = 0.5 * (1.0 + std::erf(arg));
 
             int total_should_be_now = static_cast<int>(cumulative_fraction * N_gr);

@@ -13,6 +13,7 @@ int Parameters::num_rnd_loads; // number of loading poinst in stressanalis.cpp
 QString Parameters::working_directory;
 
 float Parameters::wave_coefficient;
+float Parameters::wave_spread;
 
 float Parameters::halfaxis_a = 0.0f;
 float Parameters::halfaxis_b = 0.0f;
