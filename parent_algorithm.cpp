@@ -178,7 +178,7 @@ void Parent_Algorithm::Initialization(bool isWaveGeneration)
     int currentPoints;
     if (isWaveGeneration)
     {
-        currentPoints = 1;
+        currentPoints = Parameters::initial_nuclei_count;
     }
     else
     {

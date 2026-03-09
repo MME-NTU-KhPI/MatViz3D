@@ -19,6 +19,7 @@ public:
 
     static float wave_coefficient;
     static float wave_spread;
+    static int initial_nuclei_count;
 
     static float halfaxis_a;
     static float halfaxis_b;

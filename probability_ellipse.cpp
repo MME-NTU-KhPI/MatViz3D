@@ -29,7 +29,7 @@ void Probability_Ellipse::Next_Iteration(std::function<void()> callback)
     std::vector<Coordinate> newGrains;
 
     const int N_gr = numColors;
-    int total_nucleated_so_far = 1;
+    int total_nucleated_so_far = grains.size();
 
     for(size_t i = 0; i < grains.size(); i++)
     {
@@ -110,8 +110,9 @@ void Probability_Ellipse::Next_Iteration(std::function<void()> callback)
         double cumulative_fraction = 0.5 * (1.0 + std::erf(arg));
 
         int total_should_be_now = static_cast<int>(cumulative_fraction * N_gr);
-        if (total_should_be_now < 1) total_should_be_now = 1;
 
+        if (total_should_be_now < Parameters::initial_nuclei_count)
+            total_should_be_now = Parameters::initial_nuclei_count;
         int pointsToCreate = total_should_be_now - total_nucleated_so_far;
 
         if (pointsToCreate > 0)
