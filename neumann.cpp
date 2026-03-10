@@ -24,7 +24,7 @@ void Neumann::Next_Iteration(std::function<void()> callback)
     unsigned int counter_max = pow(numCubes, 3);
 
     const int N_gr = numColors;
-    int total_nucleated_so_far = grains.size();
+    int total_nucleated_so_far = static_cast<int>(grains.size());
 
     while (!grains.empty())
     {
@@ -89,13 +89,21 @@ void Neumann::Next_Iteration(std::function<void()> callback)
 
         if (flags.isWaveGeneration && total_nucleated_so_far < N_gr && filled_voxels < counter_max)
         {
-            double arg = (IterationNumber - (Parameters::wave_coefficient / 2.0)) / (Parameters::wave_spread * std::sqrt(2.0));
-            double cumulative_fraction = 0.5 * (1.0 + std::erf(arg));
+            double cumulative_fraction = 0.0;
+            int wave_contribution = 0;
 
-            int total_should_be_now = static_cast<int>(cumulative_fraction * N_gr);
+            if (IterationNumber > 1)
+            {
+                double arg = (IterationNumber - (Parameters::wave_coefficient / 2.0)) / (Parameters::wave_spread * std::sqrt(2.0));
+                cumulative_fraction = 0.5 * (1.0 + std::erf(arg));
 
-            if (total_should_be_now < Parameters::initial_nuclei_count)
-                total_should_be_now = Parameters::initial_nuclei_count;
+                int remaining_to_nucleate = N_gr - Parameters::initial_nuclei_count;
+
+                wave_contribution = static_cast<int>(std::floor(cumulative_fraction * remaining_to_nucleate));
+            }
+
+            int total_should_be_now = Parameters::initial_nuclei_count + wave_contribution;
+
             int pointsToCreate = total_should_be_now - total_nucleated_so_far;
 
             if (pointsToCreate > 0)
@@ -128,12 +136,11 @@ void Neumann::Next_Iteration(std::function<void()> callback)
                 }
 
                 total_nucleated_so_far += pointsToCreate;
-
-                nuclLogInfo = QString(" | [Nucl] N(n): %1 | Added: %2 | Tot: %3")
-                                  .arg(cumulative_fraction, -8, 'f', 4)
-                                  .arg(pointsToCreate, -6)
-                                  .arg(total_nucleated_so_far, -6);
             }
+            nuclLogInfo = QString(" | [Nucl] N(n): %1 | Added: %2 | Tot: %3")
+                              .arg(cumulative_fraction, -8, 'f', 4)
+                              .arg(pointsToCreate, -6)
+                              .arg(total_nucleated_so_far, -6);
         }
 
         double o = static_cast<double>(filled_voxels) / counter_max;
