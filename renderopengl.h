@@ -47,7 +47,7 @@ public:
     QImage captureScreenshot();
 
     QOpenGLFramebufferObject* createFramebufferObject(const QSize &size) override;
-
+    void updateVBO();
 protected:
 
     void initializeGL();
@@ -61,7 +61,7 @@ protected:
     QSize sizeHint() const;
 
     void initializeVBO();
-    void updateVBO();
+
 
 protected:
 
@@ -94,7 +94,7 @@ protected:
 
     bool plotWireFrame = false;
     bool showNormals = false;
-    bool enableFaceCulling = false;
+    bool enableFaceCulling = true;
     bool enableDepthTest = true;
     int debugMode = 0;
 };

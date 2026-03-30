@@ -456,6 +456,12 @@ Window {
                     console.log("Alt + D key detected, calling toggleDebugMode")
                     glWidget.toggleDebugMode();
                 }
+                if (event.key === Qt.Key_D && (event.modifiers & Qt.ControlModifier)) {
+                    console.log("Ctrl + D key detected, calling toggleDebugMode")
+                    glWidget.toggleFaceCulling();
+                }
+
+
             }
 
         }
@@ -1489,6 +1495,13 @@ Window {
                             value: 0
                             width: 228
                             height: 18
+                            from: 0
+                            to: 20
+                            onValueChanged:
+                            {
+                                console.log("Exploded value = ", value)
+                                glWidget.explodedValueChanged(value)
+                            }
                         }
                     }
                 }

@@ -239,8 +239,9 @@ void OpenGLWidgetQML::setDistanceFactor(int factor)
     {
         return;
     }
-    factor = qMax(1, factor);
+    factor = qMax(0, factor);
     distanceFactor = log(factor/10.0 + 1) * numCubes; // 5.0 - is a sensetivity factor. log - inroduce soft sizing
+    qDebug() << "distanceFactor = " << distanceFactor;
     calculateScene();
     update();
 }
@@ -511,21 +512,33 @@ void OpenGLWidgetQML::calculateScene()
 
                 bool neighbors[6] = {false, false, false, false, false, false};
 
-                neighbors[0] = (k > 0)            && (voxels[k-1][i][j] != 0);  // -x
-                neighbors[2] = (k < numCubes - 1) && (voxels[k+1][i][j] != 0);  // +x
-                neighbors[1] = (i < numCubes - 1) && (voxels[k][i+1][j] != 0);  // +y
-                neighbors[3] = (i > 0)            && (voxels[k][i-1][j] != 0);  // -y
-                neighbors[4] = (j < numCubes - 1) && (voxels[k][i][j+1] != 0);  // +z
-                neighbors[5] = (j > 0)            && (voxels[k][i][j-1] != 0);  // -z
+                auto vx = voxels[k][i][j];
+                // In exploded view, emit all non-enclosed faces
+                if (isExploded)
+                {
+                    // Exploded view: cull face if neighbor is same color (==vx)
+                    neighbors[0] = (k > 0)            && (voxels[k-1][i][j] == vx);  // -x
+                    neighbors[2] = (k < numCubes - 1) && (voxels[k+1][i][j] == vx);  // +x
+                    neighbors[1] = (i < numCubes - 1) && (voxels[k][i+1][j] == vx);  // +y
+                    neighbors[3] = (i > 0)            && (voxels[k][i-1][j] == vx);  // -y
+                    neighbors[4] = (j < numCubes - 1) && (voxels[k][i][j+1] == vx);  // +z
+                    neighbors[5] = (j > 0)            && (voxels[k][i][j-1] == vx);  // -z
+                }
+                else
+                {
+                    // Solid view: cull face if neighbor is any occupied voxel (!=0)
+                    neighbors[0] = (k > 0)            && (voxels[k-1][i][j] != 0);  // -x
+                    neighbors[2] = (k < numCubes - 1) && (voxels[k+1][i][j] != 0);  // +x
+                    neighbors[1] = (i < numCubes - 1) && (voxels[k][i+1][j] != 0);  // +y
+                    neighbors[3] = (i > 0)            && (voxels[k][i-1][j] != 0);  // -y
+                    neighbors[4] = (j < numCubes - 1) && (voxels[k][i][j+1] != 0);  // +z
+                    neighbors[5] = (j > 0)            && (voxels[k][i][j-1] != 0);  // -z
 
+                }
                 // Skip fully enclosed voxels in both modes
                 if (neighbors[0] && neighbors[1] && neighbors[2] &&
                     neighbors[3] && neighbors[4] && neighbors[5])
                     continue;
-
-                // In exploded view, emit all non-enclosed faces
-                if (isExploded)
-                    memset(neighbors, 0, sizeof(neighbors));
 
 
  /*               bool neighbors[6] = {false, false, false, false, false, false};
@@ -780,4 +793,24 @@ void OpenGLWidgetQML::toggleDepthTest()
     } else {
         qWarning() << "OpenGLWidgetQML::toggleDepthTest() - ERROR: m_render is null!";
     }
+}
+
+
+void OpenGLWidgetQML::explodedValueChanged(double value)
+{
+    if (qFuzzyCompare(distanceFactor, (float)value))
+        return;
+    value = value < 1 ? 0: value;
+
+    setDistanceFactor(value);
+
+    if (m_render) {
+        m_render->updateVoxelData(voxelScene);
+       // m_render->updateVBO();
+        qDebug() << "Exploede View Value Changed";
+
+    } else {
+        qWarning() << "OpenGLWidgetQML::explodedValueChanged() - ERROR: m_render is null!";
+    }
+
 }

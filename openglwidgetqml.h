@@ -101,11 +101,13 @@ public:
     Q_INVOKABLE void toggleDebugMode();
     Q_INVOKABLE void toggleFaceCulling();
     Q_INVOKABLE void toggleDepthTest();
+    Q_INVOKABLE void explodedValueChanged(double value);
 signals:
     // signaling rotation from mouse movement
     void xRotationChanged(int angle);
     void yRotationChanged(int angle);
     void zRotationChanged(int angle);
+
 private:
     QTimer* timer;
 

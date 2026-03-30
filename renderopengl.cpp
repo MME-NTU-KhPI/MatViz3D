@@ -43,7 +43,8 @@ RenderOpenGL::RenderOpenGL()
     qDebug() << "RenderOpenGL::RenderOpenGL() - calling initializeGL()";
     this->initializeGL();
 
-    this->createTestScene();
+    if (debugMode)
+        this->createTestScene();
 
     qDebug() << "RenderOpenGL::RenderOpenGL() - END";
 }
@@ -220,107 +221,84 @@ void RenderOpenGL::initializeGL()
         }
     )";
 
+
     const char* fragmentShaderSource = R"(
         #version 130
         varying vec3 FragPos;
         varying vec3 Normal;
         varying vec4 Color;
 
-        uniform vec3 uLightPositions[3];
+        uniform vec3 uLightDirections[6];
+        uniform float uLightWeights[6];
         uniform vec3 uViewPos;
         uniform int uDebugMode;
 
         void main()
         {
-            vec3 norm = normalize(Normal);
+            // --- Geometry ---
+            vec3 norm    = normalize(Normal);
+            // if (!gl_FrontFacing) norm = -norm;
             vec3 viewDir = normalize(uViewPos - FragPos);
 
-            vec3 result = vec3(0.4);
+            // --- Ambient ---
+            // Tinted by face color so shadowed faces still show their hue,
+            // not a flat gray. Low enough to not wash out diffuse.
+            vec3 ambient = 0.50 * Color.rgb;
+            vec3 result  = ambient;
 
-            if (uDebugMode == 3) {
-                gl_FragColor = vec4(1.0, 1.0, 1.0, Color.a);
-                return;
-            }
+            // --- Lights ---
 
-            for (int i = 0; i < 3; i++) {
-                vec3 lightDir = normalize(uLightPositions[i] - FragPos);
-                vec3 halfDir = normalize(lightDir + viewDir);
+            for (int i = 0; i < 6; i++)
+            {
+                vec3 lightDir = uLightDirections[i];
+                vec3 halfDir  = normalize(lightDir + viewDir);
+
+                // max(dot, 0) not abs() — abs() creates dark bands at 90deg
+                // because it mirrors the lighting response, causing entire
+                // layers of faces to go dark simultaneously at certain angles.
                 float diff = max(dot(norm, lightDir), 0.0);
-                float spec = pow(max(dot(norm, halfDir), 0.0), 32.0);
-                vec3 diffuse = diff * vec3(0.8, 0.8, 0.8) * Color.rgb;
-                vec3 specular = spec * vec3(0.3, 0.3, 0.3);
-                
-                result += diffuse + specular;
+
+                // Specular: reduced exponent (16 vs 32) for wider softer highlight,
+                // reduced intensity (0.15) so 3 lights don't blow out bright faces.
+                float spec = pow(max(dot(norm, halfDir), 0.0), 16.0);
+
+                vec3 diffuse  = diff * uLightWeights[i] * Color.rgb;
+                vec3 specular = spec * uLightWeights[i] * 0.15 * vec3(1.0);
+                result += (diffuse + specular);
             }
 
+            // --- Clamp ---
+            // Prevents overbright faces making adjacent dark faces look
+            // even darker by contrast. Hard requirement when accumulating
+            // multiple lights without HDR tonemapping.
+            result = clamp(result, 0.0, 1.0);
+
+            // --- Debug modes ---
             if (uDebugMode == 1) {
-                // Color mode: show face colors directly
+                // Raw vertex color — confirms color data is reaching shader correctly.
+                // If all faces same color here, node_colors assignment is broken.
                 gl_FragColor = Color;
+
             } else if (uDebugMode == 2) {
-                // Normal mode: RGB based on normal direction
-                gl_FragColor = vec4(abs(norm.x), abs(norm.y), abs(norm.z), Color.a);
+                // Absolute normal as RGB. Each axis pair shows as one color:
+                //   X faces = red, Y faces = green, Z faces = blue.
+                // If any face shows wrong color, normal encoding or winding is wrong.
+                // If all faces show same dark color, GLbyte normals are near zero —
+                // check that n[] array uses +-127 not +-1.
+                gl_FragColor = vec4(abs(norm.x), abs(norm.y), abs(norm.z), 1.0);
+
+            } else if (uDebugMode == 3) {
+                // Flat white — confirms geometry is being drawn and depth test works.
+                // If scene disappears here, the issue is in geometry not lighting.
+                gl_FragColor = vec4(1.0, 1.0, 1.0, Color.a);
+
             } else {
-                // Normal lighting mode
+                // Normal lighting mode (uDebugMode == 0)
                 gl_FragColor = vec4(result, Color.a);
             }
         }
-    )";
-/*
-    const char* fragmentShaderSource = R"(
-        #version 130
-        varying vec3 FragPos;
-        varying vec3 Normal;
-        varying vec4 Color;
+ )";
 
-        uniform vec3 uLightPositions[3];
-        uniform vec3 uViewPos;
-        uniform int uDebugMode;
-
-        void main()
-        {
-            vec3 norm = normalize(Normal);
-
-            vec3 result = vec3(0.4);
-
-            for (int i = 0; i < 3; i++) {
-                vec3 lightDir = normalize(uLightPositions[i] - FragPos);
-                float diff = max(dot(norm, lightDir), 0.0);
-                vec3 diffuse = diff * vec3(0.8, 0.8, 0.8);
-                result += diffuse;
-            }
-
-            if (uDebugMode == 1) {
-                // Color mode: visual face normals with RGB colors
-                gl_FragColor = Color;
-            } else if (uDebugMode == 2) {
-                // Normal mode: show normals as RGB
-                gl_FragColor = vec4((norm + 1.0) * 0.5, Color.a);
-            } else if (uDebugMode == 3) {
-                // Test cube: make it white
-                gl_FragColor = vec4(1.0, 1.0, 1.0, Color.a);
-            } else {
-                // Normal mode 0: two-sided lighting
-                vec3 viewDir = normalize(uViewPos - FragPos);
-                float NdotV = abs(dot(norm, viewDir));
-                vec3 resultLit = vec3(0.4) * Color.rgb;
-
-                for (int i = 0; i < 3; i++) {
-                    vec3 lightDir = normalize(uLightPositions[i] - FragPos);
-                    vec3 halfDir = normalize(lightDir + viewDir);
-                    float diff = max(dot(norm, lightDir), 0.0);
-                    float spec = pow(max(dot(norm, halfDir), 0.0), 32.0);
-                    vec3 diffuse = diff * vec3(0.8, 0.8, 0.8) * Color.rgb;
-                    vec3 specular = spec * vec3(0.3, 0.3, 0.3);
-                    resultLit += diffuse + specular;
-                }
-
-                result = resultLit;
-            }
-
-            gl_FragColor = vec4(result, Color.a);
-        }
-    )";
-*/
     const char* axisVertexShaderSource = R"(
         #version 130
         attribute vec3 aPosition;
@@ -601,18 +579,41 @@ void RenderOpenGL::paintGL()
     shaderProgram->setUniformValue("uView", view);
     shaderProgram->setUniformValue("uProjection", m_projection);
 
-    QVector3D lightPositions[3] = {
-        QVector3D(100.0f, 0.0f, 100.0f),
-        QVector3D(100.0f, 100.0f, 0.0f),
-        QVector3D(0.0f, 100.0f, 100.0f)
+    // Key light — upper front-right (strongest)
+    // Fill lights — cover all dark sides with decreasing intensity
+    QVector3D lightDirs[6] = {
+        QVector3D( 1.0f,  1.0f,  1.0f).normalized(),  // front-right-top  (key)
+        QVector3D(-1.0f,  1.0f,  0.5f).normalized(),  // front-left-top   (key fill)
+        QVector3D( 0.0f,  1.0f, -1.0f).normalized(),  // back-top          (back fill)
+        QVector3D( 0.0f, -1.0f,  0.5f).normalized(),  // bottom-front      (bounce)
+        QVector3D(-1.0f, -0.5f, -1.0f).normalized(),  // bottom-back-left  (deep fill)
+        QVector3D( 1.0f, -0.5f, -1.0f).normalized(),  // bottom-back-right (deep fill)
     };
 
-    for (int i = 0; i < 3; i++) {
-        shaderProgram->setUniformValueArray(QString("uLightPositions[%1]").arg(i).toUtf8().constData(), &lightPositions[i], 1);
-    }
+    // Weights sum to ~1.0 so accumulated light stays in [0,1] range
+    // before clamping. Key lights are stronger, deep fills are subtle.
+    const GLfloat lightWeights[6] = {
+        0.40f,  // key
+        0.25f,  // key fill
+        0.15f,  // back fill
+        0.10f,  // bounce
+        0.05f,  // deep fill
+        0.05f,  // deep fill
+    };
 
-    QVector3D viewPos(0.0f, 0.0f, -distance);
+    for (int i = 0; i < 6; i++) {
+        shaderProgram->setUniformValueArray(
+            QString("uLightDirections[%1]").arg(i).toUtf8().constData(),
+            &lightDirs[i], 1);
+    }
+    shaderProgram->setUniformValueArray("uLightWeights", lightWeights, 6, 1);
+
+    // CORRECT — extract actual camera world position from view matrix:
+    QMatrix4x4 viewInv = view.inverted();
+    QVector3D viewPos = viewInv.column(3).toVector3D();
     shaderProgram->setUniformValue("uViewPos", viewPos);
+
+   // QVector3D viewPos(0.0f, 0.0f, -distance);
     shaderProgram->setUniformValue("uDebugMode", debugMode);
 
     ef->glBindVertexArray(vaoId);
@@ -743,6 +744,10 @@ void RenderOpenGL::toggleDebugMode()
 {
     debugMode = (debugMode + 1) % 4;
     qDebug() << "RenderOpenGL::toggleDebugMode() - New debug mode:" << debugMode << "(0=lighting, 1=colors, 2=normals, 3=testcube)";
+    if (debugMode)
+        this->createTestScene();
+    else
+        voxelScene.clear();
     update();
 }
 
@@ -796,41 +801,41 @@ void RenderOpenGL::createTestScene()
 
                 float size = 0.5f;
 
-                // Front face (+Z) - Red color
-                voxelScene.push_back({px, py, pz + size, 255, 0, 0, 255, 0, 0, 127});
-                voxelScene.push_back({px + size, py, pz + size, 255, 0, 0, 255, 0, 0, 127});
-                voxelScene.push_back({px + size, py + size, pz + size, 255, 0, 0, 255, 0, 0, 127});
-                voxelScene.push_back({px, py + size, pz + size, 255, 0, 0, 255, 0, 0, 127});
+                // Front face (+Z) — already correct, no change needed
+                voxelScene.push_back({px,        py,        pz+size, 255,0,0,255, 0,0,127});
+                voxelScene.push_back({px+size,   py,        pz+size, 255,0,0,255, 0,0,127});
+                voxelScene.push_back({px+size,   py+size,   pz+size, 255,0,0,255, 0,0,127});
+                voxelScene.push_back({px,        py+size,   pz+size, 255,0,0,255, 0,0,127});
 
-                // Back face (-Z) - Green color
-                voxelScene.push_back({px, py, pz, 0, 255, 0, 255, 0, 0, -128});
-                voxelScene.push_back({px + size, py, pz, 0, 255, 0, 255, 0, 0, -128});
-                voxelScene.push_back({px + size, py + size, pz, 0, 255, 0, 255, 0, 0, -128});
-                voxelScene.push_back({px, py + size, pz, 0, 255, 0, 255, 0, 0, -128});
+                // Back face (-Z) — FIXED: reverse X order to flip winding to CCW from -Z
+                voxelScene.push_back({px+size,   py,        pz,      0,255,0,255, 0,0,-128});
+                voxelScene.push_back({px,        py,        pz,      0,255,0,255, 0,0,-128});
+                voxelScene.push_back({px,        py+size,   pz,      0,255,0,255, 0,0,-128});
+                voxelScene.push_back({px+size,   py+size,   pz,      0,255,0,255, 0,0,-128});
 
-                // Right face (+X) - Blue color
-                voxelScene.push_back({px + size, py, pz, 0, 0, 255, 255, 127, 0, 0});
-                voxelScene.push_back({px + size, py, pz + size, 0, 0, 255, 255, 127, 0, 0});
-                voxelScene.push_back({px + size, py + size, pz + size, 0, 0, 255, 255, 127, 0, 0});
-                voxelScene.push_back({px + size, py + size, pz, 0, 0, 255, 255, 127, 0, 0});
+                // Right face (+X) — FIXED: start at top-back corner, go CCW from +X
+                voxelScene.push_back({px+size,   py+size,   pz,      0,0,255,255, 127,0,0});
+                voxelScene.push_back({px+size,   py+size,   pz+size, 0,0,255,255, 127,0,0});
+                voxelScene.push_back({px+size,   py,        pz+size, 0,0,255,255, 127,0,0});
+                voxelScene.push_back({px+size,   py,        pz,      0,0,255,255, 127,0,0});
 
-                // Left face (-X) - Yellow color
-                voxelScene.push_back({px, py, pz, 255, 255, 0, 255, -128, 0, 0});
-                voxelScene.push_back({px, py + size, pz, 255, 255, 0, 255, -128, 0, 0});
-                voxelScene.push_back({px, py + size, pz + size, 255, 255, 0, 255, -128, 0, 0});
-                voxelScene.push_back({px, py, pz + size, 255, 255, 0, 255, -128, 0, 0});
+                // Left face (-X) — FIXED: reverse from current order
+                voxelScene.push_back({px,        py,        pz+size, 255,255,0,255, -128,0,0});
+                voxelScene.push_back({px,        py+size,   pz+size, 255,255,0,255, -128,0,0});
+                voxelScene.push_back({px,        py+size,   pz,      255,255,0,255, -128,0,0});
+                voxelScene.push_back({px,        py,        pz,      255,255,0,255, -128,0,0});
 
-                // Top face (+Y) - Magenta color
-                voxelScene.push_back({px, py + size, pz, 255, 0, 255, 255, 0, 127, 0});
-                voxelScene.push_back({px + size, py + size, pz, 255, 0, 255, 255, 0, 127, 0});
-                voxelScene.push_back({px + size, py + size, pz + size, 255, 0, 255, 255, 0, 127, 0});
-                voxelScene.push_back({px, py + size, pz + size, 255, 0, 255, 255, 0, 127, 0});
+                // Top face (+Y) — FIXED: swap Z order to flip winding to CCW from +Y
+                voxelScene.push_back({px,        py+size,   pz+size, 255,0,255,255, 0,127,0});
+                voxelScene.push_back({px+size,   py+size,   pz+size, 255,0,255,255, 0,127,0});
+                voxelScene.push_back({px+size,   py+size,   pz,      255,0,255,255, 0,127,0});
+                voxelScene.push_back({px,        py+size,   pz,      255,0,255,255, 0,127,0});
 
-                // Bottom face (-Y) - Cyan color
-                voxelScene.push_back({px, py, pz, 0, 255, 255, 255, 0, -128, 0});
-                voxelScene.push_back({px, py, pz + size, 0, 255, 255, 255, 0, -128, 0});
-                voxelScene.push_back({px + size, py, pz + size, 0, 255, 255, 255, 0, -128, 0});
-                voxelScene.push_back({px + size, py, pz, 0, 255, 255, 255, 0, -128, 0});
+                // Bottom face (-Y) — FIXED: reverse Z order to flip winding to CCW from -Y
+                voxelScene.push_back({px+size,   py,        pz,      0,255,255,255, 0,-128,0});
+                voxelScene.push_back({px+size,   py,        pz+size, 0,255,255,255, 0,-128,0});
+                voxelScene.push_back({px,        py,        pz+size, 0,255,255,255, 0,-128,0});
+                voxelScene.push_back({px,        py,        pz,      0,255,255,255, 0,-128,0});
             }
         }
     }
