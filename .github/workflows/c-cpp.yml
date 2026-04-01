@@ -1,0 +1,41 @@
+name: MatViz3D C++ Build
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build:
+    name: Build on Ubuntu
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v4
+      with:
+        version: '6.9.0'
+        host: 'linux'
+        target: 'desktop'
+        arch: 'gcc_64'
+        # Ensures QML, OpenGL, and 3D visualization components are available in the runner
+        modules: 'qtdeclarative qt3d' 
+        
+    - name: Install OpenGL Dependencies
+      # Graphical Qt applications in headless CI environments often require these core GL libraries
+      run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libxkbcommon-x11-0
+
+    - name: Create Build Directory
+      run: mkdir build
+
+    - name: Run qmake
+      working-directory: ./build
+      run: qmake ../MatViz3D.pro
+
+    - name: Compile
+      working-directory: ./build
+      run: make -j$(nproc)
