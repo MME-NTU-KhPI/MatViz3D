@@ -50,7 +50,7 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
     const double strain_val = 1e-04;
     std::vector<std::vector<double>> load_cases;
 
-    // 1. Ініціалізація матриці C (мідь BCC) — наближення P для першого запуску
+    // 1. Ініціалізація матриці C (мідь BCC) — базова жорсткість
     double C[6][6] = {0};
     for(int i=0; i<3; ++i) {
         C[i][i] = c11;
@@ -58,9 +58,8 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
         C[i+3][i+3] = c44;
     }
 
-    // 2. Спроба завантажити P_matrix з попереднього запуску
-    // Якщо файл існує та містить P — використовуємо її, інакше повертаємося до C
-    double P_for_chol[6][6] = {0};
+    // 2. Спроба завантажити матрицю Хілла (P_matrix) з попереднього запуску
+    double P_file[6][6] = {0};
     bool use_P_from_file = false;
 
     QString hdf5_filename_prev = Parameters::filename.length() ? Parameters::filename : "current_ls.hdf5";
@@ -77,9 +76,10 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
                 {
                     for (int i = 0; i < 6; ++i)
                         for (int j = 0; j < 6; ++j)
-                            P_for_chol[i][j] = static_cast<double>(P_prev[i][j]);
+                            P_file[i][j] = static_cast<double>(P_prev[i][j]);
+
                     use_P_from_file = true;
-                    qDebug() << "Using P_matrix from previous run (set" << prev_last_set << ") for load generation.";
+                    qDebug() << "Using P_matrix (Hill) from previous run (set" << prev_last_set << ").";
                 }
             }
         } catch (...) {
@@ -87,26 +87,62 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
         }
     }
 
-    if (!use_P_from_file)
-    {
-        for (int i = 0; i < 6; ++i)
-            for (int j = 0; j < 6; ++j)
-                P_for_chol[i][j] = C[i][j];
-        qDebug() << "No previous P_matrix found. Using material C as approximation for first run.";
+    // 3. ПЕРЕХІД У ПРОСТІР ДЕФОРМАЦІЙ: P_strain = C^T * P_file * C
+    double P_strain[6][6] = {0};
+
+    if (use_P_from_file) {
+        double temp[6][6] = {0};
+
+        // temp = P_file * C
+        for(int i=0; i<6; ++i) {
+            for(int j=0; j<6; ++j) {
+                for(int k=0; k<6; ++k) {
+                    temp[i][j] += P_file[i][k] * C[k][j];
+                }
+            }
+        }
+
+        // P_strain = C^T * temp (оскільки C симетрична, C^T = C)
+        for(int i=0; i<6; ++i) {
+            for(int j=0; j<6; ++j) {
+                for(int k=0; k<6; ++k) {
+                    P_strain[i][j] += C[i][k] * temp[k][j];
+                }
+            }
+        }
+
+        // Примусова симетризація P_strain для стабільності Холеського
+        for(int i=0; i<6; ++i) {
+            for(int j=i+1; j<6; ++j) {
+                double avg = (P_strain[i][j] + P_strain[j][i]) / 2.0;
+                P_strain[i][j] = avg;
+                P_strain[j][i] = avg;
+            }
+        }
+    } else {
+        // Якщо файлу немає, зондуємо ізотропно (або по формі жорсткості C)
+        for(int i=0; i<6; ++i)
+            for(int j=0; j<6; ++j)
+                P_strain[i][j] = C[i][j];
     }
 
-    // 3. Розклад Холецького P = L * L^T
+    // 4. Розклад Холецького: P_strain = L * L^T
     double L[6][6] = {0};
     for (int i = 0; i < 6; i++) {
         for (int j = 0; j <= i; j++) {
             double sum = 0;
             for (int k = 0; k < j; k++) sum += L[i][k] * L[j][k];
-            if (i == j) L[i][j] = std::sqrt(P_for_chol[i][i] - sum);
-            else L[i][j] = (1.0 / L[j][j] * (P_for_chol[i][j] - sum));
+            if (i == j) {
+                // Захист від від'ємних значень під коренем через числовий шум
+                double val = P_strain[i][i] - sum;
+                L[i][j] = (val > 1e-12) ? std::sqrt(val) : 1e-6;
+            } else {
+                L[i][j] = (1.0 / L[j][j] * (P_strain[i][j] - sum));
+            }
         }
     }
 
-    // 4. Інверсія L -> Linv (трансформатор: сфера -> еліпсоїд P)
+    // 5. Інверсія L -> Linv (трансформатор: сфера -> еліпсоїд)
     double Linv[6][6] = {0};
     for (int i = 0; i < 6; ++i) {
         Linv[i][i] = 1.0 / L[i][i];
@@ -117,12 +153,15 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
         }
     }
 
-    // 5. Генерація 300 навантажень — рівномірно по поверхні еліпсоїда P
+    // 6. Генерація 300 навантажень — рівномірно на одиничній сфері [cite: 39] та масштабування
     std::mt19937 gen(Parameters::seed);
-    std::normal_distribution<double> dist(0.0, 1.0);
+    std::normal_distribution<double> dist(0.0, 1.0); // Перетворення Box-Muller [cite: 5, 59]
+
+    std::vector<std::vector<double>> raw_eps(300, std::vector<double>(6, 0.0));
+    double max_norm = 0.0;
 
     for (int n = 0; n < 300; ++n) {
-        // Випадковий напрямок на одиничній сфері в R^6
+        // Випадковий напрямок на одиничній сфері S^5 [cite: 10, 63]
         double d[6], norm = 0;
         for (int i = 0; i < 6; ++i) {
             d[i] = dist(gen);
@@ -130,26 +169,34 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
         }
         norm = std::sqrt(norm);
 
-        // Фіксована амплітуда
-        const double r = strain_val;
-
-        // Вектор на сфері радіуса r
-        double x[6];
-        for (int i = 0; i < 6; ++i) {
-            x[i] = (d[i] / norm) * r;
-        }
-
-        // eps = Linv^T * x — правильний перехід зі сфери в еліпсоїд P
-        // Оскільки Linv - нижньотрикутна, Linv^T - верхньотрикутна.
-        // Тому множення eps_i = sum_{j=i}^{5} Linv_{ji} * x_j
-        std::vector<double> eps(6, 0.0);
+        // Трансформація в еліпсоїд деформацій: eps_raw = Linv^T * (d/norm)
+        double current_norm = 0.0;
         for (int i = 0; i < 6; ++i) {
             for (int j = i; j < 6; ++j) {
-                eps[i] += Linv[j][i] * x[j];
+                raw_eps[n][i] += Linv[j][i] * (d[j] / norm);
             }
+            current_norm += raw_eps[n][i] * raw_eps[n][i];
         }
+        current_norm = std::sqrt(current_norm);
 
-        load_cases.push_back(eps);
+        // Відстежуємо найдовший вектор для безпечного масштабування
+        if (current_norm > max_norm) {
+            max_norm = current_norm;
+        }
+    }
+
+    // 7. Нормалізація всієї хмари під strain_val
+    if (max_norm > 1e-12) {
+        for (int n = 0; n < 300; ++n) {
+            std::vector<double> eps(6, 0.0);
+            for (int i = 0; i < 6; ++i) {
+                // Зберігаємо форму еліпсоїда, але фіксуємо максимальну амплітуду деформації
+                eps[i] = raw_eps[n][i] * (strain_val / max_norm);
+            }
+            load_cases.push_back(eps);
+        }
+    } else {
+        qWarning() << "Critical error: max_norm is too small, generation failed!";
     }
 
     for (const auto& load : load_cases)
