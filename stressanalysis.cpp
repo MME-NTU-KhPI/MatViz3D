@@ -124,23 +124,31 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
     for (int n = 0; n < 300; ++n) {
         // Випадковий напрямок на одиничній сфері в R^6
         double d[6], norm = 0;
-        for (int i = 0; i < 6; ++i) { d[i] = dist(gen); norm += d[i]*d[i]; }
+        for (int i = 0; i < 6; ++i) {
+            d[i] = dist(gen);
+            norm += d[i]*d[i];
+        }
         norm = std::sqrt(norm);
 
-        // Фіксована амплітуда — зондуємо напрямки по поверхні еліпсоїда
+        // Фіксована амплітуда
         const double r = strain_val;
 
-        // eps = Linv^T * (d/norm) * r  — перехід зі сфери в еліпсоїд P
-        double tmp[6] = {0};
-        for (int i = 0; i < 6; ++i)
-            for (int j = 0; j <= i; ++j)
-                tmp[i] += Linv[i][j] * (d[j] / norm) * r;
+        // Вектор на сфері радіуса r
+        double x[6];
+        for (int i = 0; i < 6; ++i) {
+            x[i] = (d[i] / norm) * r;
+        }
 
-        // Шаг 2: eps = Linv^T * tmp
+        // eps = Linv^T * x — правильний перехід зі сфери в еліпсоїд P
+        // Оскільки Linv - нижньотрикутна, Linv^T - верхньотрикутна.
+        // Тому множення eps_i = sum_{j=i}^{5} Linv_{ji} * x_j
         std::vector<double> eps(6, 0.0);
-        for (int i = 0; i < 6; ++i)
-            for (int j = i; j < 6; ++j)
-                eps[i] += Linv[j][i] * tmp[j];
+        for (int i = 0; i < 6; ++i) {
+            for (int j = i; j < 6; ++j) {
+                eps[i] += Linv[j][i] * x[j];
+            }
+        }
+
         load_cases.push_back(eps);
     }
 
