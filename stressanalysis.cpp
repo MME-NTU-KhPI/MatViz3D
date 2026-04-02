@@ -50,71 +50,90 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
     const double strain_val = 1e-04;
     std::vector<std::vector<double>> load_cases;
 
-    for (int i = 0; i < 6; ++i) {
-        std::vector<double> load(6, 0.0);
-        load[i] = strain_val;
-        load_cases.push_back(load);
+    // 1. Ініціалізація матриці C (мідь BCC) — наближення P для першого запуску
+    double C[6][6] = {0};
+    for(int i=0; i<3; ++i) {
+        C[i][i] = c11;
+        for(int j=0; j<3; ++j) if(i != j) C[i][j] = c12;
+        C[i+3][i+3] = c44;
     }
 
-    for (int i = 0; i < 6; ++i) {
-        for (int j = i + 1; j < 6; ++j)
-        {
-            std::vector<double> load(6, 0.0);
-            load[i] = strain_val;
-            load[j] = strain_val;
-            load_cases.push_back(load);
-        }
-    }
+    // 2. Спроба завантажити P_matrix з попереднього запуску
+    // Якщо файл існує та містить P — використовуємо її, інакше повертаємося до C
+    double P_for_chol[6][6] = {0};
+    bool use_P_from_file = false;
 
-    /*const double strain_eq = 1e-04;
-    const int N_theta = 40;
-    const int N_hydro = 10;
-    const double hydro_min = -1e-04;
-    const double hydro_max =  1e-04;
-
-    std::vector<double> theta_list;
-    for (int i = 0; i < N_theta; ++i)
-        theta_list.push_back(i * 2.0 * M_PI / N_theta);
-
-    std::vector<double> hydro_list;
-    if (N_hydro > 1) {
-        for (int i = 0; i < N_hydro; ++i)
-            hydro_list.push_back(hydro_min + i * (hydro_max - hydro_min) / (N_hydro - 1));
-    } else {
-        hydro_list.push_back(0.0);
-    }
-
-    for (double e_hydro : hydro_list)
+    QString hdf5_filename_prev = Parameters::filename.length() ? Parameters::filename : "current_ls.hdf5";
+    if (QFile::exists(hdf5_filename_prev))
     {
-        for (double theta : theta_list)
+        HDF5Wrapper hdf5_prev(hdf5_filename_prev.toStdString());
+        int prev_last_set = hdf5_prev.readInt("/", "last_set");
+        if (prev_last_set > 0)
         {
-            double e_dev1 = strain_eq * std::cos(theta);
-            double e_dev2 = strain_eq * std::cos(theta - 2.0 * M_PI / 3.0);
-            double e_dev3 = strain_eq * std::cos(theta + 2.0 * M_PI / 3.0);
-
-            std::vector<double> load = {
-                e_dev1 + e_hydro, // exx
-                e_dev2 + e_hydro, // eyy
-                e_dev3 + e_hydro, // ezz
-                0.0,              // exy
-                0.0,              // exz
-                0.0               // eyz
-            };
-            load_cases.push_back(load);
+            std::string prev_prefix = ("/" + QString::number(prev_last_set)).toStdString();
+            auto P_prev = hdf5_prev.readVectorVectorFloat(prev_prefix, "P_matrix");
+            if (!P_prev.empty() && P_prev.size() == 6 && P_prev[0].size() == 6)
+            {
+                for (int i = 0; i < 6; ++i)
+                    for (int j = 0; j < 6; ++j)
+                        P_for_chol[i][j] = static_cast<double>(P_prev[i][j]);
+                use_P_from_file = true;
+                qDebug() << "Using P_matrix from previous run (set" << prev_last_set << ") for load generation.";
+            }
         }
-    }*/
+    }
 
-    if (Parameters::num_rnd_loads > 0)
+    if (!use_P_from_file)
     {
-        std::mt19937 gen(Parameters::seed);
-        std::uniform_real_distribution<double> dis(0.0, strain_val);
+        for (int i = 0; i < 6; ++i)
+            for (int j = 0; j < 6; ++j)
+                P_for_chol[i][j] = C[i][j];
+        qDebug() << "No previous P_matrix found. Using material C as approximation for first run.";
+    }
 
-        for (int i = 0; i < Parameters::num_rnd_loads; ++i)
-        {
-            std::vector<double> load(6);
-            for (int k = 0; k < 6; ++k) load[k] = dis(gen);
-            load_cases.push_back(load);
+    // 3. Розклад Холецького P = L * L^T
+    double L[6][6] = {0};
+    for (int i = 0; i < 6; i++) {
+        for (int j = 0; j <= i; j++) {
+            double sum = 0;
+            for (int k = 0; k < j; k++) sum += L[i][k] * L[j][k];
+            if (i == j) L[i][j] = std::sqrt(P_for_chol[i][i] - sum);
+            else L[i][j] = (1.0 / L[j][j] * (P_for_chol[i][j] - sum));
         }
+    }
+
+    // 4. Інверсія L -> Linv (трансформатор: сфера -> еліпсоїд P)
+    double Linv[6][6] = {0};
+    for (int i = 0; i < 6; ++i) {
+        Linv[i][i] = 1.0 / L[i][i];
+        for (int j = 0; j < i; ++j) {
+            double sum = 0;
+            for (int k = j; k < i; ++k) sum += L[i][k] * Linv[k][j];
+            Linv[i][j] = -sum / L[i][i];
+        }
+    }
+
+    // 5. Генерація 300 навантажень — рівномірно по поверхні еліпсоїда P
+    std::mt19937 gen(Parameters::seed);
+    std::normal_distribution<double> dist(0.0, 1.0);
+
+    for (int n = 0; n < 300; ++n) {
+        // Випадковий напрямок на одиничній сфері в R^6
+        double d[6], norm = 0;
+        for (int i = 0; i < 6; ++i) { d[i] = dist(gen); norm += d[i]*d[i]; }
+        norm = std::sqrt(norm);
+
+        // Фіксована амплітуда — зондуємо напрямки по поверхні еліпсоїда
+        const double r = strain_val;
+
+        // eps = Linv^T * (d/norm) * r  — перехід зі сфери в еліпсоїд P
+        std::vector<double> eps(6, 0.0);
+        for (int i = 0; i < 6; ++i) {
+            for (int j = i; j < 6; ++j) {
+                eps[i] += Linv[j][i] * (d[j] / norm) * r;
+            }
+        }
+        load_cases.push_back(eps);
     }
 
     for (const auto& load : load_cases)

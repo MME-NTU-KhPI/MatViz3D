@@ -3,15 +3,15 @@
 REM Set parameters here
 
 set N_RUN=100
-set SIZES_LIST=50
+set SIZES_LIST=20
 set POINTS=8
 set CONCENTRATION=15
 set NUM_PROC=4
 set ALGORITHM=Moore
-set OUTPUT_DIR=D:\Project\ansys_results\regular3\
+set OUTPUT_DIR=D:\ansys_results\
 set NUM_RND_LOADS=0
-set WORKING_DIRECTORY=D:\Project\ansys_results\regular3\
-set PATH_TO_MATVIZ3D=D:\Project\MatViz3D\build\Desktop_Qt_6_9_2_MinGW_64_bit-Debug\debug\MatViz3d.exe
+set WORKING_DIRECTORY=D:\Project\ansys_results\working_dir\
+set PATH_TO_MATVIZ3D=D:\Projects\MatViz3D\build\Desktop_Qt_6_10_2_MinGW_64_bit-Debug\debug\MatViz3d.exe
 
 FOR /F "tokens=*" %%g IN ('cd') do (SET my_pwd=%%g)
 
