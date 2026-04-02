@@ -66,20 +66,24 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
     QString hdf5_filename_prev = Parameters::filename.length() ? Parameters::filename : "current_ls.hdf5";
     if (QFile::exists(hdf5_filename_prev))
     {
-        HDF5Wrapper hdf5_prev(hdf5_filename_prev.toStdString());
-        int prev_last_set = hdf5_prev.readInt("/", "last_set");
-        if (prev_last_set > 0)
-        {
-            std::string prev_prefix = ("/" + QString::number(prev_last_set)).toStdString();
-            auto P_prev = hdf5_prev.readVectorVectorFloat(prev_prefix, "P_matrix");
-            if (!P_prev.empty() && P_prev.size() == 6 && P_prev[0].size() == 6)
+        try {
+            HDF5Wrapper hdf5_prev(hdf5_filename_prev.toStdString());
+            int prev_last_set = hdf5_prev.readInt("/", "last_set");
+            if (prev_last_set > 0)
             {
-                for (int i = 0; i < 6; ++i)
-                    for (int j = 0; j < 6; ++j)
-                        P_for_chol[i][j] = static_cast<double>(P_prev[i][j]);
-                use_P_from_file = true;
-                qDebug() << "Using P_matrix from previous run (set" << prev_last_set << ") for load generation.";
+                std::string prev_prefix = ("/" + QString::number(prev_last_set)).toStdString();
+                auto P_prev = hdf5_prev.readVectorVectorFloat(prev_prefix, "P_matrix");
+                if (!P_prev.empty() && (int)P_prev.size() == 6 && (int)P_prev[0].size() == 6)
+                {
+                    for (int i = 0; i < 6; ++i)
+                        for (int j = 0; j < 6; ++j)
+                            P_for_chol[i][j] = static_cast<double>(P_prev[i][j]);
+                    use_P_from_file = true;
+                    qDebug() << "Using P_matrix from previous run (set" << prev_last_set << ") for load generation.";
+                }
             }
+        } catch (...) {
+            qWarning() << "Failed to read P_matrix, using material C as approximation.";
         }
     }
 
@@ -127,12 +131,16 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
         const double r = strain_val;
 
         // eps = Linv^T * (d/norm) * r  — перехід зі сфери в еліпсоїд P
+        double tmp[6] = {0};
+        for (int i = 0; i < 6; ++i)
+            for (int j = 0; j <= i; ++j)
+                tmp[i] += Linv[i][j] * (d[j] / norm) * r;
+
+        // Шаг 2: eps = Linv^T * tmp
         std::vector<double> eps(6, 0.0);
-        for (int i = 0; i < 6; ++i) {
-            for (int j = i; j < 6; ++j) {
-                eps[i] += Linv[j][i] * (d[j] / norm) * r;
-            }
-        }
+        for (int i = 0; i < 6; ++i)
+            for (int j = i; j < 6; ++j)
+                eps[i] += Linv[j][i] * tmp[j];
         load_cases.push_back(eps);
     }
 
