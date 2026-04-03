@@ -22,8 +22,8 @@ jobs:
         host: 'linux'
         target: 'desktop'
         arch: 'gcc_64'
-        # Ensures QML, OpenGL, and 3D visualization components are available in the runner
-        modules: 'qtdeclarative qt3d' 
+        modules: 'qt3d'
+        aqtversion: 'latest'
         
     - name: Install OpenGL Dependencies
       # Graphical Qt applications in headless CI environments often require these core GL libraries
