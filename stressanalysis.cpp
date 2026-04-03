@@ -47,20 +47,16 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
     //wr->createFEfromArray(voxels, N, numPoints, false);
     wr->createFEfromArray8Node(voxels, N, numPoints, true);
     //wr->addStrainToBCMacroBlob();
-    // ... (ініціалізація wr, матеріалів, вокселів залишається як було) ...
 
     const double strain_val = 1e-04;
     int num_samples = 300;
 
-    // ====================================================================
-    // ВИБІР СТРАТЕГІЇ ГЕНЕРАЦІЇ НАВАНТАЖЕНЬ (Закоментуйте непотрібне)
-    // ====================================================================
     std::vector<std::vector<double>> load_cases;
 
-    // ВАРИАНТ А: Прямая генерация деформаций
+    // OPTION A: Direct generation of deformations
     // load_cases = generateDirectStrainLoads(num_samples, strain_val);
 
-    // ВАРИАНТ Б: Умная генерация через матрицу S (переход в напряжения)
+    // OPTION B: Smart generation via the S-matrix (voltage transformation)
     load_cases = generateSmartStressLoads(num_samples, strain_val, numCubes, numPoints, voxels);
 
     if (load_cases.empty()) {
@@ -70,7 +66,7 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
 
     qDebug() << "Running Phase 2: Simulating" << load_cases.size() << "transformed load states...";
 
-    // Застосовуємо нові навантаження для Фази 2
+    // Implementing new workloads for Phase 2
     for (const auto& load : load_cases) {
         wr->applyComplexLoads(0, 0, 0, N, N, N, load[0], load[1], load[2], load[3], load[4], load[5]);
     }
@@ -175,9 +171,6 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
     delete wr;
 }
 
-// ====================================================================
-// ГЕНЕРАТОР 1: Прямая генерация (Стратегия А)
-// ====================================================================
 std::vector<std::vector<double>> StressAnalysis::generateDirectStrainLoads(int num_samples, double strain_val) {
     std::vector<std::vector<double>> load_cases;
     std::mt19937 gen(Parameters::seed);
@@ -201,9 +194,6 @@ std::vector<std::vector<double>> StressAnalysis::generateDirectStrainLoads(int n
     return load_cases;
 }
 
-// ====================================================================
-// ГЕНЕРАТОР 2: Умная генерация через матрицу S (Стратегия Б)
-// ====================================================================
 std::vector<std::vector<double>> StressAnalysis::generateSmartStressLoads(int num_samples, double strain_val, short int numCubes, short int numPoints, int32_t ***voxels) {
     ansysWrapper temp_wr(true);
     QString base_dir = Parameters::working_directory.isEmpty() ? QDir::currentPath() : Parameters::working_directory;
