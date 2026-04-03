@@ -30,7 +30,7 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
     // double c44 = G;
 
     wr->setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44);
-/*
+    /*
     double  c11 = 9e9, // test material
             c12 = 2e9,
             c13 = 3e9,
@@ -47,68 +47,35 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
     //wr->createFEfromArray(voxels, N, numPoints, false);
     wr->createFEfromArray8Node(voxels, N, numPoints, true);
     //wr->addStrainToBCMacroBlob();
+    // ... (ініціалізація wr, матеріалів, вокселів залишається як було) ...
+
     const double strain_val = 1e-04;
-    std::vector<std::vector<double>> load_cases;
-
-    // Очищаємо попередні навантаження
-    load_cases.clear();
-
-    // Кількість точок для ймовірнісного покриття (Рівень 2)
-    // 300 - хороший компроміс між щільністю покриття та часом симуляції
     int num_samples = 300;
 
-    // Ініціалізація стандартного генератора
-    std::mt19937 gen(Parameters::seed);
+    // ====================================================================
+    // ВИБІР СТРАТЕГІЇ ГЕНЕРАЦІЇ НАВАНТАЖЕНЬ (Закоментуйте непотрібне)
+    // ====================================================================
+    std::vector<std::vector<double>> load_cases;
 
-    // ВАЖЛИВО: Використовуємо саме нормальний розподіл, а не рівномірний (uniform).
-    // Тільки нормальний розподіл N(0, 1) після нормалізації дає рівномірне покриття сфери.
-    std::normal_distribution<double> dist(0.0, 1.0);
+    // ВАРИАНТ А: Прямая генерация деформаций
+    // load_cases = generateDirectStrainLoads(num_samples, strain_val);
 
-    for (int n = 0; n < num_samples; ++n) {
-        std::vector<double> eps(6, 0.0);
-        double norm_sq = 0.0;
+    // ВАРИАНТ Б: Умная генерация через матрицу S (переход в напряжения)
+    load_cases = generateSmartStressLoads(num_samples, strain_val, numCubes, numPoints, voxels);
 
-        // 1. Генеруємо 6 незалежних нормально розподілених координат
-        for (int i = 0; i < 6; ++i) {
-            eps[i] = dist(gen);
-            norm_sq += eps[i] * eps[i];
-        }
-
-        // Обчислюємо довжину (норму) отриманого вектора
-        double norm = std::sqrt(norm_sq);
-
-        // Захист від ділення на нуль (вкрай рідкісний випадок, але потрібен для стабільності)
-        if (norm < 1e-12) {
-            --n; // Відкидаємо цю точку і генеруємо наново
-            continue;
-        }
-
-        // 2. Проектуємо на одиничну сферу і масштабуємо до strain_val
-        for (int i = 0; i < 6; ++i) {
-            eps[i] = (eps[i] / norm) * strain_val;
-        }
-
-        load_cases.push_back(eps);
+    if (load_cases.empty()) {
+        qCritical() << "Load cases generation failed. Exiting...";
+        return;
     }
 
-    qDebug() << "Згенеровано" << load_cases.size() << "випадкових навантажень на сфері S^5.";
+    qDebug() << "Running Phase 2: Simulating" << load_cases.size() << "transformed load states...";
 
-    for (const auto& load : load_cases)
-    {
-        double ex  = load[0];
-        double ey  = load[1];
-        double ez  = load[2];
-        double exy = load[3];
-        double exz = load[4];
-        double eyz = load[5];
-
-        wr->applyComplexLoads(0, 0, 0, N, N, N,
-                              ex, ey, ez,
-                              exy, exz, eyz);
+    // Застосовуємо нові навантаження для Фази 2
+    for (const auto& load : load_cases) {
+        wr->applyComplexLoads(0, 0, 0, N, N, N, load[0], load[1], load[2], load[3], load[4], load[5]);
     }
-    const int n_total_steps = load_cases.size();
 
-    wr->solveLS(1, n_total_steps);
+    wr->solveLS(1, load_cases.size());
     wr->saveAll();
     bool success = wr->run();
 
@@ -206,4 +173,111 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
     LoadStepManager::getInstance().LoadFromHDF5(filename);
     wr->clear_temp_data();
     delete wr;
+}
+
+// ====================================================================
+// ГЕНЕРАТОР 1: Прямая генерация (Стратегия А)
+// ====================================================================
+std::vector<std::vector<double>> StressAnalysis::generateDirectStrainLoads(int num_samples, double strain_val) {
+    std::vector<std::vector<double>> load_cases;
+    std::mt19937 gen(Parameters::seed);
+    std::normal_distribution<double> dist(0.0, 1.0);
+
+    for (int n = 0; n < num_samples; ++n) {
+        std::vector<double> d_eps(6, 0.0);
+        double norm_sq = 0.0;
+        for (int i = 0; i < 6; ++i) {
+            d_eps[i] = dist(gen);
+            norm_sq += d_eps[i] * d_eps[i];
+        }
+        double norm = std::sqrt(norm_sq);
+        if (norm < 1e-12) { --n; continue; }
+
+        for (int i = 0; i < 6; ++i) {
+            d_eps[i] = (d_eps[i] / norm) * strain_val;
+        }
+        load_cases.push_back(d_eps);
+    }
+    return load_cases;
+}
+
+// ====================================================================
+// ГЕНЕРАТОР 2: Умная генерация через матрицу S (Стратегия Б)
+// ====================================================================
+std::vector<std::vector<double>> StressAnalysis::generateSmartStressLoads(int num_samples, double strain_val, short int numCubes, short int numPoints, int32_t ***voxels) {
+    ansysWrapper temp_wr(true);
+    QString base_dir = Parameters::working_directory.isEmpty() ? QDir::currentPath() : Parameters::working_directory;
+    QString phase1_dir = base_dir + "/phase1_calibration";
+    QDir().mkpath(phase1_dir);
+    temp_wr.setWorkingDirectory(phase1_dir);
+
+    temp_wr.setSeed(Parameters::seed);
+    temp_wr.setNP(Parameters::num_threads);
+    double c11 = 168.40e9, c12=121.40e9, c44=75.40e9;
+    temp_wr.setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44);
+    temp_wr.setElemByNum(185);
+    temp_wr.createFEfromArray8Node(voxels, numCubes, numPoints, true);
+
+    std::vector<std::vector<double>> canonical_cases = {
+        {strain_val, 0, 0, 0, 0, 0}, {0, strain_val, 0, 0, 0, 0},
+        {0, 0, strain_val, 0, 0, 0}, {0, 0, 0, strain_val, 0, 0},
+        {0, 0, 0, 0, strain_val, 0}, {0, 0, 0, 0, 0, strain_val}
+    };
+
+    for (const auto& load : canonical_cases) {
+        temp_wr.applyComplexLoads(0, 0, 0, numCubes, numCubes, numCubes, load[0], load[1], load[2], load[3], load[4], load[5]);
+    }
+
+    temp_wr.solveLS(1, canonical_cases.size());
+    temp_wr.saveAll();
+
+    qDebug() << "Running Calibration (Phase 1) for Smart Stress Strategy...";
+    if (!temp_wr.run()) {
+        qCritical() << "Calibration Ansys run failed. Returning empty loads.";
+        return {};
+    }
+
+    auto props = temp_wr.calculateElasticProperties();
+    if (!props.isValid) {
+        qCritical() << "Failed to calculate S matrix. Returning empty loads.";
+        return {};
+    }
+
+    double S_matrix[6][6];
+    for(int i=0; i<6; ++i)
+        for(int j=0; j<6; ++j)
+            S_matrix[i][j] = props.S[i][j];
+
+    temp_wr.clear_temp_data();
+
+    std::vector<std::vector<double>> load_cases;
+    std::mt19937 gen(Parameters::seed);
+    std::normal_distribution<double> dist(0.0, 1.0);
+
+    for (int n = 0; n < num_samples; ++n) {
+        double d_sigma[6], norm_sq = 0.0;
+        for (int i = 0; i < 6; ++i) {
+            d_sigma[i] = dist(gen);
+            norm_sq += d_sigma[i] * d_sigma[i];
+        }
+        double norm = std::sqrt(norm_sq);
+        if (norm < 1e-12) { --n; continue; }
+        for (int i = 0; i < 6; ++i) d_sigma[i] /= norm;
+
+        std::vector<double> d_eps(6, 0.0);
+        double eps_norm_sq = 0.0;
+        for (int i = 0; i < 6; ++i) {
+            for (int j = 0; j < 6; ++j) {
+                d_eps[i] += S_matrix[i][j] * d_sigma[j];
+            }
+            eps_norm_sq += d_eps[i] * d_eps[i];
+        }
+        double eps_norm = std::sqrt(eps_norm_sq);
+
+        for (int i = 0; i < 6; ++i) {
+            d_eps[i] = (d_eps[i] / eps_norm) * strain_val;
+        }
+        load_cases.push_back(d_eps);
+    }
+    return load_cases;
 }
