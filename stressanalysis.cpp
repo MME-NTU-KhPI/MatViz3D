@@ -8,135 +8,97 @@
 void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPoints, int32_t ***voxels)
 {
     const auto N = numCubes;
-    wr = new ansysWrapper(true);
-    if (! Parameters::working_directory.isEmpty())
-        wr->setWorkingDirectory(Parameters::working_directory);
-
-    wr->setSeed(Parameters::seed);
-    wr->setNP(Parameters::num_threads);
-    //wr->setMaterial(2.1e10, 0.3, 0);
-
-    double c11 = 168.40e9, c12=121.40e9, c44=75.40e9; // copper bcc single crystal  https://solidmechanics.org/Text/Chapter3_2/Chapter3_2.php#Sect3_2_17
-    // wr->setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44) ;
-
-    // double E  = 2.1e7; // Young's Modulus (EX)      //
-    // double nu = 0.3;   // Poisson's Ratio (PRXY)    // steel or cast iron
-
-    // double G = E / (2.0 * (1.0 + nu));                      // Shear Modulus (C44)
-    // double lambda = (E * nu) / ((1.0 + nu) * (1.0 - 2.0 * nu)); // Lame's first parameter
-
-    // double c11 = lambda + 2.0 * G;
-    // double c12 = lambda;
-    // double c44 = G;
-
-    wr->setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44);
-    /*
-    double  c11 = 9e9, // test material
-            c12 = 2e9,
-            c13 = 3e9,
-            c22 = 8e9,
-            c23 = 5e9,
-            c33 = 7e9,
-            c44 = 6e9,
-            c55 = 4e9,
-            c66 = 1e9;
-    wr->setAnisoMaterial(c11, c12, c13, c22, c23, c33, c44, c55, c66) ;
-*/
-    wr->setElemByNum(185);
-
-    //wr->createFEfromArray(voxels, N, numPoints, false);
-    wr->createFEfromArray8Node(voxels, N, numPoints, true);
-    //wr->addStrainToBCMacroBlob();
-
     const double strain_val = 1e-04;
-    int num_samples = 300;
+    const int    num_samples = 300;
 
-    std::vector<std::vector<double>> load_cases;
-
-    // OPTION A: Direct generation of deformations
-    // load_cases = generateDirectStrainLoads(num_samples, strain_val);
-
-    // OPTION B: Smart generation via the S-matrix (voltage transformation)
-    load_cases = generateSmartStressLoads(num_samples, strain_val, numCubes, numPoints, voxels);
-
-    if (load_cases.empty()) {
-        qCritical() << "Load cases generation failed. Exiting...";
+    double S_matrix[6][6] = {0};
+    qDebug() << "\n[PHASE 1.0] Running 6 canonical loads to find S matrix...";
+    if (!computeSMatrix(numCubes, numPoints, voxels, strain_val, S_matrix)) {
+        qCritical() << "Failed to compute S matrix. Exiting...";
         return;
     }
 
-    qDebug() << "Running Phase 2: Simulating" << load_cases.size() << "transformed load states...";
+    qDebug() << "\n[PHASE 1.5] Running 50 smart loads to fit Hill ellipsoid...";
+    if (!calibrateHillMatrix(numCubes, numPoints, voxels, strain_val, S_matrix)) {
+        qCritical() << "Failed to calibrate Hill ellipsoid. Exiting...";
+        return;
+    }
 
-    // Implementing new workloads for Phase 2
+    qDebug() << "\n[PHASE 2.0] Generating 300 final loads via Hill Matrix...";
+    std::vector<std::vector<double>> load_cases = m_hill.generateLoads(num_samples, strain_val, S_matrix);
+
+    if (load_cases.empty()) {
+        qCritical() << "Final load cases generation failed. Exiting...";
+        return;
+    }
+
+    wr = new ansysWrapper(true);
+    if (!Parameters::working_directory.isEmpty())
+        wr->setWorkingDirectory(Parameters::working_directory);
+    wr->setSeed(Parameters::seed);
+    wr->setNP(Parameters::num_threads);
+
+    double c11 = 168.40e9, c12 = 121.40e9, c44 = 75.40e9;
+    wr->setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44);
+    wr->setElemByNum(185);
+    wr->createFEfromArray8Node(voxels, N, numPoints, true);
+
     for (const auto& load : load_cases) {
         wr->applyComplexLoads(0, 0, 0, N, N, N, load[0], load[1], load[2], load[3], load[4], load[5]);
     }
 
-    wr->solveLS(1, load_cases.size());
+    wr->solveLS(1, (int)load_cases.size());
     wr->saveAll();
-    bool success = wr->run();
 
-    if (!success)
-    {
-        qCritical() << "Ansys run was unsuccessfull. Exiting...";
+    qDebug() << "Running Main Simulation (300 cases)...";
+    if (!wr->run()) {
+        qCritical() << "Ansys run was unsuccessful. Exiting...";
+        delete wr;
         return;
     }
-    QString filename;
-    if (Parameters::filename.length())
-    {
-        filename = Parameters::filename;
-        qDebug() << "Saving results to " << filename;
-    }
-    else
-    {
-        filename = "current_ls.hdf5";
+
+    QString filename = Parameters::filename.length() ? Parameters::filename : "current_ls.hdf5";
+    if (!Parameters::filename.length()) {
         qDebug() << "No output file with -o option. Saving to " << filename;
         if (QFile::exists(filename) && QFile::remove(filename))
-        {
-            qDebug() << "\t File exists. Removed";
-        }
+            qDebug() << "\tFile exists. Removed.";
     }
+
     {
         HDF5Wrapper hdf5(filename.toStdString());
-
         int last_set = hdf5.readInt("/", "last_set");
-        if (last_set == -1) // Handle missing dataset case
-        {
+        if (last_set == -1) {
             last_set = 1;
             hdf5.write("/", "last_set", last_set);
-        }
-        else
-        {
+        } else {
             last_set += 1;
             hdf5.update("/", "last_set", last_set);
         }
 
         std::string prefix = ("/" + QString::number(last_set)).toStdString();
-
-        hdf5.write(prefix, "voxels", Parameters::voxels, Parameters::size);
-        hdf5.write(prefix, "cubeSize", Parameters::size);
+        hdf5.write(prefix, "voxels",    Parameters::voxels, Parameters::size);
+        hdf5.write(prefix, "cubeSize",  Parameters::size);
         hdf5.write(prefix, "numPoints", Parameters::points);
-        hdf5.write(prefix, "local_cs", wr->local_cs);
-        for (size_t ls_num = 1; ls_num <= wr->eps_as_loading.size(); ls_num++)
-        {
+        hdf5.write(prefix, "local_cs",  wr->local_cs);
+
+        for (size_t ls_num = 1; ls_num <= wr->eps_as_loading.size(); ls_num++) {
             std::string ls_str = "/ls_" + std::to_string(ls_num);
             wr->load_loadstep(ls_num);
-
-            hdf5.write(prefix + ls_str, "results_avg", wr->loadstep_results_avg);
-            hdf5.write(prefix + ls_str, "results_max", wr->loadstep_results_max);
-            hdf5.write(prefix + ls_str, "results_min", wr->loadstep_results_min);
-            hdf5.write(prefix + ls_str, "results", wr->loadstep_results);
-            hdf5.write(prefix + ls_str, "eps_as_loading", wr->eps_as_loading[ls_num-1]);
+            hdf5.write(prefix + ls_str, "results_avg",    wr->loadstep_results_avg);
+            hdf5.write(prefix + ls_str, "results_max",    wr->loadstep_results_max);
+            hdf5.write(prefix + ls_str, "results_min",    wr->loadstep_results_min);
+            hdf5.write(prefix + ls_str, "results",        wr->loadstep_results);
+            hdf5.write(prefix + ls_str, "eps_as_loading", wr->eps_as_loading[ls_num - 1]);
         }
-        qDebug() << "Calculating effective elastic properties...";
-        auto props = wr->calculateElasticProperties();
 
+        auto props = wr->calculateElasticProperties();
         if (props.isValid) {
             std::vector<std::vector<float>> mat_S(6, std::vector<float>(6));
             std::vector<std::vector<float>> mat_C(6, std::vector<float>(6));
             std::vector<std::vector<float>> mat_P(6, std::vector<float>(6));
 
-            for(int r=0; r<6; ++r) {
-                for(int c=0; c<6; ++c) {
+            for (int r = 0; r < 6; ++r) {
+                for (int c = 0; c < 6; ++c) {
                     mat_S[r][c] = static_cast<float>(props.S[r][c]);
                     mat_C[r][c] = static_cast<float>(props.C[r][c]);
                     mat_P[r][c] = static_cast<float>(props.P[r][c]);
@@ -147,104 +109,83 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
             hdf5.write(prefix, "C_matrix", mat_C);
             hdf5.write(prefix, "P_matrix", mat_P);
 
-            std::vector<float> moduli;
-            auto safe_inv = [](double val) {
-                return (std::abs(val) > 1e-20) ? static_cast<float>(1.0 / val) : 0.0f;
+            auto safe_inv = [](double val) { return (std::abs(val) > 1e-20) ? static_cast<float>(1.0 / val) : 0.0f; };
+            std::vector<float> moduli = {
+                safe_inv(props.S[0][0]), safe_inv(props.S[1][1]), safe_inv(props.S[2][2]),
+                safe_inv(props.S[3][3]), safe_inv(props.S[4][4]), safe_inv(props.S[5][5])
             };
-
-            moduli.push_back(safe_inv(props.S[0][0])); // Ex
-            moduli.push_back(safe_inv(props.S[1][1])); // Ey
-            moduli.push_back(safe_inv(props.S[2][2])); // Ez
-            moduli.push_back(safe_inv(props.S[3][3])); // Gxy
-            moduli.push_back(safe_inv(props.S[4][4])); // Gyz
-            moduli.push_back(safe_inv(props.S[5][5])); // Gxz
-
             hdf5.write(prefix, "Effective_Moduli", moduli);
 
-            qDebug() << "Elastic matrices saved as 6x6 float arrays.";
-        } else {
-            qWarning() << "Failed to calculate elastic matrices.";
+            auto yield_points = m_hill.computeYieldPoints(wr, wr->local_cs);
+            if (!yield_points.empty() && m_hill.fit(yield_points)) {
+                m_hill.saveToHDF5(hdf5, prefix);
+                qDebug() << "P_Hill successfully updated and saved to HDF5.";
+            }
         }
     }
+
     LoadStepManager::getInstance().LoadFromHDF5(filename);
     wr->clear_temp_data();
     delete wr;
 }
 
-std::vector<std::vector<double>> StressAnalysis::generateDirectStrainLoads(int num_samples, double strain_val) {
-    std::vector<std::vector<double>> load_cases;
-    std::mt19937 gen(Parameters::seed);
-    std::normal_distribution<double> dist(0.0, 1.0);
-
-    for (int n = 0; n < num_samples; ++n) {
-        std::vector<double> d_eps(6, 0.0);
-        double norm_sq = 0.0;
-        for (int i = 0; i < 6; ++i) {
-            d_eps[i] = dist(gen);
-            norm_sq += d_eps[i] * d_eps[i];
-        }
-        double norm = std::sqrt(norm_sq);
-        if (norm < 1e-12) { --n; continue; }
-
-        for (int i = 0; i < 6; ++i) {
-            d_eps[i] = (d_eps[i] / norm) * strain_val;
-        }
-        load_cases.push_back(d_eps);
-    }
-    return load_cases;
-}
-
-std::vector<std::vector<double>> StressAnalysis::generateSmartStressLoads(int num_samples, double strain_val, short int numCubes, short int numPoints, int32_t ***voxels) {
+bool StressAnalysis::computeSMatrix(short int numCubes, short int numPoints, int32_t ***voxels, double strain_val, double S_out[6][6])
+{
     ansysWrapper temp_wr(true);
     QString base_dir = Parameters::working_directory.isEmpty() ? QDir::currentPath() : Parameters::working_directory;
-    QString phase1_dir = base_dir + "/phase1_calibration";
-    QDir().mkpath(phase1_dir);
-    temp_wr.setWorkingDirectory(phase1_dir);
+    temp_wr.setWorkingDirectory(base_dir + "/phase1_s_matrix");
+    QDir().mkpath(base_dir + "/phase1_s_matrix");
 
     temp_wr.setSeed(Parameters::seed);
     temp_wr.setNP(Parameters::num_threads);
-    double c11 = 168.40e9, c12=121.40e9, c44=75.40e9;
+    double c11 = 168.40e9, c12 = 121.40e9, c44 = 75.40e9;
     temp_wr.setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44);
     temp_wr.setElemByNum(185);
     temp_wr.createFEfromArray8Node(voxels, numCubes, numPoints, true);
 
-    std::vector<std::vector<double>> canonical_cases = {
-        {strain_val, 0, 0, 0, 0, 0}, {0, strain_val, 0, 0, 0, 0},
-        {0, 0, strain_val, 0, 0, 0}, {0, 0, 0, strain_val, 0, 0},
-        {0, 0, 0, 0, strain_val, 0}, {0, 0, 0, 0, 0, strain_val}
+    std::vector<std::vector<double>> canonical = {
+        {strain_val,0,0,0,0,0}, {0,strain_val,0,0,0,0}, {0,0,strain_val,0,0,0},
+        {0,0,0,strain_val,0,0}, {0,0,0,0,strain_val,0}, {0,0,0,0,0,strain_val}
     };
 
-    for (const auto& load : canonical_cases) {
-        temp_wr.applyComplexLoads(0, 0, 0, numCubes, numCubes, numCubes, load[0], load[1], load[2], load[3], load[4], load[5]);
-    }
+    for (const auto& load : canonical)
+        temp_wr.applyComplexLoads(0,0,0, numCubes,numCubes,numCubes, load[0],load[1],load[2],load[3],load[4],load[5]);
 
-    temp_wr.solveLS(1, canonical_cases.size());
+    temp_wr.solveLS(1, (int)canonical.size());
     temp_wr.saveAll();
-
-    qDebug() << "Running Calibration (Phase 1) for Smart Stress Strategy...";
-    if (!temp_wr.run()) {
-        qCritical() << "Calibration Ansys run failed. Returning empty loads.";
-        return {};
-    }
+    if (!temp_wr.run()) return false;
 
     auto props = temp_wr.calculateElasticProperties();
-    if (!props.isValid) {
-        qCritical() << "Failed to calculate S matrix. Returning empty loads.";
-        return {};
-    }
+    if (!props.isValid) return false;
 
-    double S_matrix[6][6];
-    for(int i=0; i<6; ++i)
-        for(int j=0; j<6; ++j)
-            S_matrix[i][j] = props.S[i][j];
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 6; ++j)
+            S_out[i][j] = props.S[i][j];
 
     temp_wr.clear_temp_data();
+    return true;
+}
 
+bool StressAnalysis::calibrateHillMatrix(short int numCubes, short int numPoints, int32_t ***voxels, double strain_val, const double S_matrix[6][6])
+{
+    ansysWrapper temp_wr(true);
+    QString base_dir = Parameters::working_directory.isEmpty() ? QDir::currentPath() : Parameters::working_directory;
+    temp_wr.setWorkingDirectory(base_dir + "/phase1_hill_calibration");
+    QDir().mkpath(base_dir + "/phase1_hill_calibration");
+
+    temp_wr.setSeed(Parameters::seed);
+    temp_wr.setNP(Parameters::num_threads);
+    double c11 = 168.40e9, c12 = 121.40e9, c44 = 75.40e9;
+    temp_wr.setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44);
+    temp_wr.setElemByNum(185);
+    temp_wr.createFEfromArray8Node(voxels, numCubes, numPoints, true);
+
+    int num_calib = 50;
     std::vector<std::vector<double>> load_cases;
-    std::mt19937 gen(Parameters::seed);
+    std::mt19937 gen(Parameters::seed + 1);
     std::normal_distribution<double> dist(0.0, 1.0);
 
-    for (int n = 0; n < num_samples; ++n) {
+    for (int n = 0; n < num_calib; ++n) {
         double d_sigma[6], norm_sq = 0.0;
         for (int i = 0; i < 6; ++i) {
             d_sigma[i] = dist(gen);
@@ -254,8 +195,7 @@ std::vector<std::vector<double>> StressAnalysis::generateSmartStressLoads(int nu
         if (norm < 1e-12) { --n; continue; }
         for (int i = 0; i < 6; ++i) d_sigma[i] /= norm;
 
-        std::vector<double> d_eps(6, 0.0);
-        double eps_norm_sq = 0.0;
+        double d_eps[6] = {0}, eps_norm_sq = 0.0;
         for (int i = 0; i < 6; ++i) {
             for (int j = 0; j < 6; ++j) {
                 d_eps[i] += S_matrix[i][j] * d_sigma[j];
@@ -264,10 +204,28 @@ std::vector<std::vector<double>> StressAnalysis::generateSmartStressLoads(int nu
         }
         double eps_norm = std::sqrt(eps_norm_sq);
 
+        std::vector<double> eps(6);
         for (int i = 0; i < 6; ++i) {
-            d_eps[i] = (d_eps[i] / eps_norm) * strain_val;
+            eps[i] = (d_eps[i] / eps_norm) * strain_val;
         }
-        load_cases.push_back(d_eps);
+        load_cases.push_back(eps);
     }
-    return load_cases;
+
+    for (const auto& load : load_cases) {
+        temp_wr.applyComplexLoads(0, 0, 0, numCubes, numCubes, numCubes, load[0], load[1], load[2], load[3], load[4], load[5]);
+    }
+
+    temp_wr.solveLS(1, (int)load_cases.size());
+    temp_wr.saveAll();
+    if (!temp_wr.run()) return false;
+
+    auto yield_points = m_hill.computeYieldPoints(&temp_wr, temp_wr.local_cs);
+    temp_wr.clear_temp_data();
+
+    if (yield_points.size() < 21) {
+        qWarning() << "Not enough yield points for Hill fit.";
+        return false;
+    }
+
+    return m_hill.fit(yield_points);
 }

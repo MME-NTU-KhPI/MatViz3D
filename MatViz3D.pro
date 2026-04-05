@@ -53,6 +53,7 @@ SOURCES += \
     export.cpp \
     dlca.cpp \
     hdf5wrapper.cpp \
+    hillcriterion.cpp \
     legendview.cpp \
     loadstepmanager.cpp \
     main.cpp \
@@ -80,6 +81,7 @@ HEADERS += \
     export.h \
     dlca.h \
     hdf5wrapper.h \
+    hillcriterion.h \
     legendview.h \
     loadstepmanager.h \
     mainwindow.h \
