@@ -97,7 +97,7 @@ std::vector<std::array<double,6>> HillCriterion::computeYieldPoints(
             int grain_id = (int)results[e][ID];
             int array_idx = grain_id;
 
-            // array_idx = grain_id - 1;
+            array_idx = grain_id - 1;
 
             if (array_idx < 0 || array_idx >= (int)local_cs.size()) {
                 qWarning() << "Grain ID out of bounds:" << array_idx;
