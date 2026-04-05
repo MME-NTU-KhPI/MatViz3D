@@ -116,7 +116,7 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
             };
             hdf5.write(prefix, "Effective_Moduli", moduli);
 
-            auto yield_points = m_hill.computeYieldPoints(&temp_wr, temp_wr.local_cs, numCubes, voxels);
+            auto yield_points = m_hill.computeYieldPoints(wr, wr->local_cs, N, voxels);
             if (!yield_points.empty() && m_hill.fit(yield_points)) {
                 m_hill.saveToHDF5(hdf5, prefix);
                 qDebug() << "P_Hill successfully updated and saved to HDF5.";
@@ -219,7 +219,7 @@ bool StressAnalysis::calibrateHillMatrix(short int numCubes, short int numPoints
     temp_wr.saveAll();
     if (!temp_wr.run()) return false;
 
-    auto yield_points = m_hill.computeYieldPoints(&temp_wr, temp_wr.local_cs);
+    auto yield_points = m_hill.computeYieldPoints(&temp_wr, temp_wr.local_cs, numCubes, voxels);
     temp_wr.clear_temp_data();
 
     if (yield_points.size() < 21) {
