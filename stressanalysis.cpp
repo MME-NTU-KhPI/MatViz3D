@@ -180,7 +180,7 @@ bool StressAnalysis::calibrateHillMatrix(short int numCubes, short int numPoints
     temp_wr.setElemByNum(185);
     temp_wr.createFEfromArray8Node(voxels, numCubes, numPoints, true);
 
-    int num_calib = 50;
+    int num_calib = 150;
     std::vector<std::vector<double>> load_cases;
     std::mt19937 gen(Parameters::seed + 1);
     std::normal_distribution<double> dist(0.0, 1.0);

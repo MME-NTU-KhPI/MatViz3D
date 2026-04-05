@@ -203,6 +203,11 @@ bool HillCriterion::fit(const std::vector<std::array<double,6>>& yield_points)
         }
     }
 
+    double lambda = 1e-4; // Regularization coefficient
+    for (int i = 0; i < 21; ++i) {
+        ATA[i][i] += lambda * ATA[i][i]; // penalize non-physical distortions
+    }
+
     double x[21] = {0};
     if (!solveSystem21x21(ATA, ATb, x)) {
         qWarning() << "HillCriterion::fit: singular matrix in least squares.";
