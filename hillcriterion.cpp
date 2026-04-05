@@ -72,7 +72,9 @@ double HillCriterion::resolvedShearStress(const double stress[3][3],
 
 std::vector<std::array<double,6>> HillCriterion::computeYieldPoints(
     ansysWrapper* wr,
-    const std::vector<std::vector<float>>& local_cs)
+    const std::vector<std::vector<float>>& local_cs,
+    short int N,
+    int32_t ***voxels)
 {
     std::vector<std::array<double,6>> yield_points;
 
@@ -89,18 +91,22 @@ std::vector<std::array<double,6>> HillCriterion::computeYieldPoints(
 
         if (results.empty()) continue;
 
-        double max_tau     = 0.0;
-        int    max_elem_idx = 0;
+        double max_tau = 0.0;
+        int max_elem_idx = 0;
 
         for (int e = 0; e < (int)results.size(); ++e)
         {
-            int grain_id = (int)results[e][ID];
-            int array_idx = grain_id;
+            int elem_id = (int)results[e][ID];
+            int idx = elem_id - 1;
 
-            array_idx = grain_id - 1;
+            int iz = idx / (N * N);
+            int iy = (idx / N) % N;
+            int ix = idx % N;
+
+            int grain_id = voxels[ix][iy][iz];
+            int array_idx = grain_id - 1;
 
             if (array_idx < 0 || array_idx >= (int)local_cs.size()) {
-                qWarning() << "Grain ID out of bounds:" << array_idx;
                 continue;
             }
 

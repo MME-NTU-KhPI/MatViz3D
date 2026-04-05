@@ -13,7 +13,9 @@ public:
 
     std::vector<std::array<double,6>> computeYieldPoints(
         ansysWrapper* wr,
-        const std::vector<std::vector<float>>& local_cs
+        const std::vector<std::vector<float>>& local_cs,
+        short int N,            // ДОБАВЛЕНО
+        int32_t ***voxels       // ДОБАВЛЕНО
         );
 
     bool fit(const std::vector<std::array<double,6>>& yield_points);

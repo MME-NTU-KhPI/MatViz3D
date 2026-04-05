@@ -116,7 +116,7 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
             };
             hdf5.write(prefix, "Effective_Moduli", moduli);
 
-            auto yield_points = m_hill.computeYieldPoints(wr, wr->local_cs);
+            auto yield_points = m_hill.computeYieldPoints(&temp_wr, temp_wr.local_cs, numCubes, voxels);
             if (!yield_points.empty() && m_hill.fit(yield_points)) {
                 m_hill.saveToHDF5(hdf5, prefix);
                 qDebug() << "P_Hill successfully updated and saved to HDF5.";
