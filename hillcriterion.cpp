@@ -234,15 +234,19 @@ bool HillCriterion::fit(const std::vector<std::array<double,6>>& yield_points) {
 
     double x[15] = {0};
 
-    // Регуляризация — защита от вырождения
     for (int i = 0; i < 15; ++i)
-        ATA[i][i] += 1e-8 * ATA[i][i];
+        ATA[i][i] += 1e-3 * ATA[i][i];
 
     if (!solveSystem15x15(ATA, ATb, x)) return false;
 
     for (int i = 0; i < 5; ++i)
         for (int j = 0; j < 5; ++j)
             m_P_Hill_5D[i][j] = x[param_idx(i,j)] / (scale * scale);
+
+    double shift = 1e-6 / (scale * scale);
+    for (int i = 0; i < 5; ++i) {
+        m_P_Hill_5D[i][i] += shift;
+    }
 
     if (!computeCholesky5D()) {
         qWarning() << "HillCriterion::fit: P_Hill_5D is not positive definite.";
