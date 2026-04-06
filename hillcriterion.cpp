@@ -288,7 +288,7 @@ bool HillCriterion::computeCholesky5D() {
             if (i == j) {
                 double val = m_P_Hill_5D[i][i] - sum;
 
-                if (val <= 1e-15) {
+                if (val <= 1e-30) {
                     qWarning() << "\n[Debug] === CHOLESKY FAILED ===";
                     qWarning() << "[Debug] Failed at row/col:" << i;
                     qWarning() << "[Debug] val (must be > 0)  =" << val;
