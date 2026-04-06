@@ -280,6 +280,13 @@ bool HillCriterion::computeCholesky5D() {
     memset(m_L_5D,    0, sizeof(m_L_5D));
     memset(m_Linv_5D, 0, sizeof(m_Linv_5D));
 
+    // Dynamic Relative Tolerance
+    double max_diag = 0.0;
+    for (int i = 0; i < 5; ++i) {
+        max_diag = std::max(max_diag, m_P_Hill_5D[i][i]);
+    }
+    double tol = max_diag * 1e-12;
+
     for (int i = 0; i < 5; ++i) {
         for (int j = 0; j <= i; ++j) {
             double sum = 0;
@@ -288,13 +295,11 @@ bool HillCriterion::computeCholesky5D() {
             if (i == j) {
                 double val = m_P_Hill_5D[i][i] - sum;
 
-                if (val <= 1e-30) {
+                if (val <= tol) {
                     qWarning() << "\n[Debug] === CHOLESKY FAILED ===";
                     qWarning() << "[Debug] Failed at row/col:" << i;
-                    qWarning() << "[Debug] val (must be > 0)  =" << val;
-                    qWarning() << "[Debug] P_Hill_5D["<<i<<"]["<<i<<"] =" << m_P_Hill_5D[i][i];
-                    qWarning() << "[Debug] Subtracted sum     =" << sum;
-                    qWarning() << "[Debug] =======================\n";
+                    qWarning() << "[Debug] val (must be > tol) =" << val;
+                    qWarning() << "[Debug] dynamic tol         =" << tol;
                     return false;
                 }
                 m_L_5D[i][j] = std::sqrt(val);
