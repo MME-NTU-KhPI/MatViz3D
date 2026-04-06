@@ -234,10 +234,14 @@ bool HillCriterion::fit(const std::vector<std::array<double,6>>& yield_points) {
 
     double x[15] = {0};
 
+    // Регуляризация — защита от вырождения
     for (int i = 0; i < 15; ++i)
         ATA[i][i] += 1e-3 * ATA[i][i];
 
-    if (!solveSystem15x15(ATA, ATb, x)) return false;
+    if (!solveSystem15x15(ATA, ATb, x)) {
+        qWarning() << "[Debug] solveSystem15x15 failed internally!";
+        return false;
+    }
 
     for (int i = 0; i < 5; ++i)
         for (int j = 0; j < 5; ++j)
@@ -247,6 +251,19 @@ bool HillCriterion::fit(const std::vector<std::array<double,6>>& yield_points) {
     for (int i = 0; i < 5; ++i) {
         m_P_Hill_5D[i][i] += shift;
     }
+
+    qDebug() << "\n[Debug] === MATRIX FIT DEBUG ===";
+    qDebug() << "[Debug] Scale factor:" << scale;
+    qDebug() << "[Debug] P_Hill_5D Matrix before Cholesky:";
+    for (int i = 0; i < 5; ++i) {
+        QString row = "";
+        for (int j = 0; j < 5; ++j) {
+            row += QString::number(m_P_Hill_5D[i][j], 'e', 4) + "  ";
+        }
+        qDebug().noquote() << "[Debug]" << row;
+    }
+    qDebug() << "[Debug] ==========================\n";
+    // =========================================================
 
     if (!computeCholesky5D()) {
         qWarning() << "HillCriterion::fit: P_Hill_5D is not positive definite.";
@@ -267,9 +284,19 @@ bool HillCriterion::computeCholesky5D() {
         for (int j = 0; j <= i; ++j) {
             double sum = 0;
             for (int k = 0; k < j; ++k) sum += m_L_5D[i][k] * m_L_5D[j][k];
+
             if (i == j) {
                 double val = m_P_Hill_5D[i][i] - sum;
-                if (val <= 1e-15) return false;
+
+                if (val <= 1e-15) {
+                    qWarning() << "\n[Debug] === CHOLESKY FAILED ===";
+                    qWarning() << "[Debug] Failed at row/col:" << i;
+                    qWarning() << "[Debug] val (must be > 0)  =" << val;
+                    qWarning() << "[Debug] P_Hill_5D["<<i<<"]["<<i<<"] =" << m_P_Hill_5D[i][i];
+                    qWarning() << "[Debug] Subtracted sum     =" << sum;
+                    qWarning() << "[Debug] =======================\n";
+                    return false;
+                }
                 m_L_5D[i][j] = std::sqrt(val);
             } else {
                 m_L_5D[i][j] = (m_P_Hill_5D[i][j] - sum) / m_L_5D[j][j];
