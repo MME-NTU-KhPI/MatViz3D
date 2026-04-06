@@ -292,6 +292,11 @@ std::vector<std::vector<double>> HillCriterion::generateLoads(
             for (int j = i; j < 6; ++j)   // Linv^T[i][j] = Linv[j][i]
                 d_sigma[i] += m_Linv[j][i] * d[j];
 
+        double hydro = (d_sigma[0] + d_sigma[1] + d_sigma[2]) / 3.0;
+        d_sigma[0] -= hydro;
+        d_sigma[1] -= hydro;
+        d_sigma[2] -= hydro;
+
         double d_eps[6] = {0};
         double eps_norm_sq = 0.0;
         for (int i = 0; i < 6; ++i) {
