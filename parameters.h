@@ -32,6 +32,7 @@ public:
 
     static bool nogui;
     static bool hasProbParameters;
+    static float stefan_number;
 };
 
 #endif // PARAMETERS_H

@@ -27,3 +27,5 @@ float Parameters::orientation_angle_c = 0.0f;
 
 bool Parameters::nogui = false;
 bool Parameters::hasProbParameters = false; // check for Probability parameters
+
+float Parameters::stefan_number = 100.0f;
