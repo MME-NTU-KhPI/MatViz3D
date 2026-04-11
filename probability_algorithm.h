@@ -35,8 +35,16 @@ public:
 
     void setHalfAxis();
     void Next_Iteration(std::function<void()> callback) override;
-    void processValues();
-    void processValuesGrid();
+
+    enum class ProbabilityMode {
+        VolumeSampling,
+        SurfaceFlux
+    };
+
+    void processProbabilities(ProbabilityMode mode);
+    void calculateVolumeProbabilities();
+    void calculateSurfaceFluxProbabilities();
+
     void writeProbabilitiesToCSV(const QString& filePath, uint64_t N);
     void setNumCubes(short int numCubes);
     void setNumColors(int numColors);

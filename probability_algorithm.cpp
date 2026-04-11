@@ -30,7 +30,7 @@ Probability_Algorithm::Probability_Algorithm(short int numCubes, int numColors, 
 
     setNumCubes(numCubes);
     setNumColors(numColors);
-    processValuesGrid();
+    processProbabilities(ProbabilityMode::VolumeSampling);
 }
 
 Probability_Algorithm::~Probability_Algorithm()
@@ -50,10 +50,15 @@ void Probability_Algorithm::setHalfAxis()
 
 bool Probability_Algorithm::isPointIn(double x, double y, double z)
 {
-    rotatePoint(x,y,z);
-    return (pow(std::abs(x - 1.5) / Parameters::halfaxis_a, Parameters::ellipse_order)
-            + pow(std::abs(y-1.5)  / Parameters::halfaxis_b, Parameters::ellipse_order)
-            + pow(std::abs(z-1.5) / Parameters::halfaxis_c, Parameters::ellipse_order)) <= 1.0;
+    // Translate to origin first
+    double cx = x - 1.5;
+    double cy = y - 1.5;
+    double cz = z - 1.5;
+    // Rotate the centered offset, not the raw point
+    rotatePoint(cx, cy, cz);
+    return (pow(std::abs(cx) / Parameters::halfaxis_a, Parameters::ellipse_order)
+            + pow(std::abs(cy) / Parameters::halfaxis_b, Parameters::ellipse_order)
+            + pow(std::abs(cz) / Parameters::halfaxis_c, Parameters::ellipse_order)) <= 1.0;
 }
 
 void Probability_Algorithm::setNumCubes(short int size)
@@ -119,120 +124,126 @@ void Probability_Algorithm::rotatePoint(double& x, double& y, double& z)
     z = z3;
 }
 
-void Probability_Algorithm::processValues()
+// Unified entry point to switch between algorithms
+void Probability_Algorithm::processProbabilities(ProbabilityMode mode)
 {
-    const uint64_t N = 1000000;
-    std::mt19937 gen(Parameters::seed);
-    std::uniform_real_distribution<double> dis(0, 3);
-
-    uint64_t fileld_in[3][3][3] = {{{0}}};
-    uint64_t fileld_total[3][3][3] = {{{0}}};
-
-    #pragma omp parallel
-    {
-        const int nthreads = omp_get_num_threads();
-        uint64_t fileld_in_local[3][3][3] = {{{0}}};
-        uint64_t fileld_total_local[3][3][3] = {{{0}}};
-        std::mt19937 local_gen(Parameters::seed + omp_get_thread_num());
-        std::uniform_real_distribution<double> local_dis(0.0, 3.0);
-
-        for (uint64_t i = 0; i < N / nthreads; i++)
-        {
-            double x = local_dis(local_gen);
-            double y = local_dis(local_gen);
-            double z = local_dis(local_gen);
-            int k = std::min(std::max((int)floor(x), 0), 2);
-            int l = std::min(std::max((int)floor(y), 0), 2);
-            int m = std::min(std::max((int)floor(z), 0), 2);
-
-            fileld_total_local[k][l][m]++;
-
-            if (isPointIn(x, y, z))
-            {
-                fileld_in_local[k][l][m]++;
-            }
-        }
-
-        #pragma omp critical
-        {
-            for (int i = 0; i < 3; i++)
-                for (int j = 0; j < 3; j++)
-                    for (int k = 0; k < 3; k++)
-                    {
-                        fileld_in[i][j][k] += fileld_in_local[i][j][k];
-                        fileld_total[i][j][k] += fileld_total_local[i][j][k];
-                    }
-        }
+    if (mode == ProbabilityMode::VolumeSampling) {
+        qDebug() << "Calculating probabilities proportional to VOLUME...";
+        calculateVolumeProbabilities();
+    } else {
+        qDebug() << "Calculating probabilities proportional to SURFACE AREA (Lambertian)...";
+        calculateSurfaceFluxProbabilities();
     }
-    for (int i = 0; i < 3; i++)
-        for (int j = 0; j < 3; j++)
-            for (int k = 0; k < 3; k++)
-            {
-                probability[i][j][k] = (double)fileld_in[i][j][k] / fileld_total[i][j][k];
-                qDebug() << i << "\t" << j << "\t" << k << "\t"
-                         << fileld_in[i][j][k] << "\t" << fileld_total[i][j][k] << "\t"
-                         << (double)fileld_in[i][j][k] / fileld_total[i][j][k] << "\n";
-            }
-    writeProbabilitiesToCSV(QCoreApplication::applicationDirPath(), N);
 }
 
-void Probability_Algorithm::processValuesGrid()
+// --- ALGORITHM A: VOLUMETRIC SAMPLING (Your original logic) ---
+void Probability_Algorithm::calculateVolumeProbabilities()
 {
     const uint64_t N = pow(102, 3);
     const uint64_t n = std::round(std::cbrt(N));
-
     const double step = 3.0 / n;
-
     const double num_points_per_voxel = pow(1.0 / step, 3);
-
-    qDebug() << "Runing probabilty estimation on grid algorithm" << Qt::endl
-             << "  Total points N = " << N << Qt::endl
-             << "  Points on endge n = " << n << Qt::endl
-             << "  Step = " << step << Qt::endl
-             << "  Number of points per one voxel = " << num_points_per_voxel << Qt::endl
-             << "  h_a = " << Parameters::halfaxis_a << Qt::endl
-             << "  h_b = " << Parameters::halfaxis_b << Qt::endl
-             << "  h_c = " << Parameters::halfaxis_c << Qt::endl
-             << "  ellipse_order = " << Parameters::ellipse_order << Qt::endl
-             << "  angle_a = " << Parameters::orientation_angle_a << Qt::endl
-             << "  angle_b = " << Parameters::orientation_angle_b << Qt::endl
-             << "  angle_c = " << Parameters::orientation_angle_c << Qt::endl
-        ;
 
     uint64_t fileld_in_local[3][3][3] = {{{0}}};
 
-
-    for (uint64_t i = 0; i < n; ++i)
-    {
-        for (uint64_t j = 0; j < n; ++j)
-        {
-            for (uint64_t k = 0; k < n; ++k)
-            {
+    for (uint64_t i = 0; i < n; ++i) {
+        for (uint64_t j = 0; j < n; ++j) {
+            for (uint64_t k = 0; k < n; ++k) {
                 double x = (i + 0.5) * step;
                 double y = (j + 0.5) * step;
                 double z = (k + 0.5) * step;
 
-                int k_voxel = (int)floor(x);
-                int l_voxel = (int)floor(y);
-                int m_voxel = (int)floor(z);
-
-                if (isPointIn(x, y, z))
-                {
+                if (isPointIn(x, y, z)) {
+                    int k_voxel = std::min(std::max((int)floor(x), 0), 2);
+                    int l_voxel = std::min(std::max((int)floor(y), 0), 2);
+                    int m_voxel = std::min(std::max((int)floor(z), 0), 2);
                     fileld_in_local[k_voxel][l_voxel][m_voxel]++;
                 }
             }
         }
     }
 
-
     for (int i = 0; i < 3; i++)
         for (int j = 0; j < 3; j++)
             for (int k = 0; k < 3; k++)
                 this->probability[i][j][k] = (double)fileld_in_local[i][j][k] / num_points_per_voxel;
 
+    this->probability[1][1][1] = 0.0; // Ensure center is 0
     prettyPrint3DArray(this->probability);
     writeProbabilitiesToCSV(QCoreApplication::applicationDirPath(), N);
 }
+
+// --- ALGORITHM B: SURFACE FLUX SAMPLING (Pasted logic) ---
+void Probability_Algorithm::calculateSurfaceFluxProbabilities()
+{
+    const uint64_t N_surface = 500000;
+    const double a = Parameters::halfaxis_a;
+    const double b = Parameters::halfaxis_b;
+    const double c = Parameters::halfaxis_c;
+    const double p = Parameters::ellipse_order;
+
+    double flux[3][3][3] = {{{0.0}}};
+    std::mt19937_64 rng(Parameters::seed);
+    std::uniform_real_distribution<double> uni(-1.0, 1.0);
+
+    for (uint64_t s = 0; s < N_surface; ++s) {
+        double ux, uy, uz, len2;
+        do {
+            ux = uni(rng); uy = uni(rng); uz = uni(rng);
+            len2 = ux*ux + uy*uy + uz*uz;
+        } while (len2 < 1e-12 || len2 > 1.0);
+
+        double inv_len = 1.0 / std::sqrt(len2);
+        ux *= inv_len; uy *= inv_len; uz *= inv_len;
+
+        double sum_p = pow(std::abs(ux / a), p) + pow(std::abs(uy / b), p) + pow(std::abs(uz / c), p);
+        if (sum_p < 1e-30) continue;
+
+        double t = pow(sum_p, -1.0 / p);
+        double sx = t * ux;
+        double sy = t * uy;
+        double sz = t * uz;
+
+        double nx = (p / a) * pow(std::abs(sx / a), p - 1.0) * (sx >= 0 ? 1.0 : -1.0);
+        double ny = (p / b) * pow(std::abs(sy / b), p - 1.0) * (sy >= 0 ? 1.0 : -1.0);
+        double nz = (p / c) * pow(std::abs(sz / c), p - 1.0) * (sz >= 0 ? 1.0 : -1.0);
+
+        double nlen = std::sqrt(nx*nx + ny*ny + nz*nz);
+        if (nlen < 1e-30) continue;
+        nx /= nlen; ny /= nlen; nz /= nlen;
+
+        rotatePoint(nx, ny, nz);
+
+        for (const auto& offset : PROBABILITY_OFFSETS) {
+            double dx = offset[0], dy = offset[1], dz = offset[2];
+            double dlen = std::sqrt(dx*dx + dy*dy + dz*dz);
+            double dot = (nx*dx + ny*dy + nz*dz) / dlen;
+            if (dot > 0.0) {
+                flux[1 + offset[0]][1 + offset[1]][1 + offset[2]] += dot;
+            }
+        }
+    }
+
+    double maxFlux = 0.0;
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 3; j++)
+            for (int k = 0; k < 3; k++)
+                maxFlux = std::max(maxFlux, flux[i][j][k]);
+
+    if (maxFlux < 1e-30) maxFlux = 1.0;
+
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 3; j++)
+            for (int k = 0; k < 3; k++)
+                this->probability[i][j][k] = flux[i][j][k] / maxFlux;
+
+    this->probability[1][1][1] = 0.0;
+    prettyPrint3DArray(this->probability);
+    writeProbabilitiesToCSV(QCoreApplication::applicationDirPath(), N_surface);
+}
+
+
+
 
 void Probability_Algorithm::prettyPrint3DArray(double arr[3][3][3])
 {
@@ -536,7 +547,6 @@ void Probability_Algorithm::Next_Iteration(std::function<void()> callback)
     const unsigned int counter_max =
         static_cast<unsigned int>(std::pow(numCubes, 3));
     int total_nucleated = static_cast<int>(grains.size());
-    this->IterationNumber = 0;
 
     // Timing state for rate / ETA computation
     using Clock = std::chrono::steady_clock;
@@ -609,6 +619,7 @@ void Probability_Algorithm::Next_Iteration(std::function<void()> callback)
 void Probability_Algorithm::CleanUp()
 {
     writeHistoryToCSV("./");
+    Parent_Algorithm::CleanUp();  // resets filled_voxels, isDone
 }
 
 
@@ -862,7 +873,7 @@ void Probability_Algorithm::recordIteration(unsigned int counter_max,
 // Crystallisation history — CSV export
 // ---------------------------------------------------------------------------
 
-void Probability_Algorithm::writeHistoryToCSV(const QString& dirPath="") const
+void Probability_Algorithm::writeHistoryToCSV(const QString& dirPath) const
 {
 
     if (m_history.empty())
