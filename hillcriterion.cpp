@@ -192,8 +192,8 @@ std::vector<std::array<double,6>> HillCriterion::computeYieldPoints(
 
         qDebug() << QString("[HillCriterion::computeYieldPoints]   Yield point #%1 [sx=%2  sy=%3  sz=%4  txy=%5  tyz=%6  txz=%7] (Pa)")
                         .arg(yield_points.size()+1)
-                        .arg(sigma_yield[0],'e',3).arg(sigma_yield[1],'e',3).arg(sigma_yield[2],'e',3)
-                        .arg(sigma_yield[3],'e',3).arg(sigma_yield[4],'e',3).arg(sigma_yield[5],'e',3);
+                        .arg(sigma_yield[0],0,'e',3).arg(sigma_yield[1],0,'e',3).arg(sigma_yield[2],0,'e',3)
+                        .arg(sigma_yield[3],0,'e',3).arg(sigma_yield[4],0,'e',3).arg(sigma_yield[5],0,'e',3);
 
         yield_points.push_back(sigma_yield);
     }
@@ -499,111 +499,69 @@ std::vector<std::vector<double>> HillCriterion::generateLoads(
     int num_samples, double strain_val, const double S[6][6])
 {
     qDebug() << "\n[HillCriterion::generateLoads] ─────────────────────────────────";
-    qDebug() << "[HillCriterion::generateLoads] Generating HYBRID loads on the Hill ellipsoid";
+    qDebug() << "[HillCriterion::generateLoads] Generating random loads on the Hill ellipsoid";
     qDebug() << "[HillCriterion::generateLoads]   Requested samples :" << num_samples;
+    qDebug() << "[HillCriterion::generateLoads]   Target strain     :" << strain_val;
+    qDebug() << "[HillCriterion::generateLoads]   RNG seed          :" << Parameters::seed;
+    qDebug() << "[HillCriterion::generateLoads]   m_isValid         :" << m_isValid;
 
     std::vector<std::vector<double>> load_cases;
-    if (!m_isValid) return load_cases;
+    if (!m_isValid) {
+        qWarning() << "[HillCriterion::generateLoads] SKIP: Hill criterion not fitted (m_isValid=false)";
+        return load_cases;
+    }
 
-    // =========================================================================
-    // PART 1: DETERMINISTIC DIRECTIONS (Filling the "holes" on the yield surface facets)
-    // =========================================================================
+    std::mt19937 gen(Parameters::seed);
+    std::normal_distribution<double> dist(0.0, 1.0);
 
-    // Define canonical stress states {sx, sy, sz, txy, tyz, txz}
-    std::vector<std::array<double, 6>> canonical_dirs = {
-        // Uniaxial tension/compression (Targeting the centers of the flat facets)
-        { 1, 0, 0, 0, 0, 0}, {-1, 0, 0, 0, 0, 0},
-        { 0, 1, 0, 0, 0, 0}, { 0,-1, 0, 0, 0, 0},
-        { 0, 0, 1, 0, 0, 0}, { 0, 0,-1, 0, 0, 0},
+    int retries = 0;
+    for (int n = 0; n < num_samples; ++n) {
+        // Step 1: random unit vector on 5D sphere
+        double d[5], norm_sq = 0.0;
+        for (int i = 0; i < 5; ++i) { d[i] = dist(gen); norm_sq += d[i]*d[i]; }
+        double norm = std::sqrt(norm_sq);
+        if (norm < 1e-12) { --n; ++retries; continue; }
+        for (int i = 0; i < 5; ++i) d[i] /= norm;
 
-        // Biaxial normal loading (Targeting the edges of the facets)
-        { 1, 1, 0, 0, 0, 0}, {-1,-1, 0, 0, 0, 0}, { 1,-1, 0, 0, 0, 0}, {-1, 1, 0, 0, 0, 0},
-        { 1, 0, 1, 0, 0, 0}, {-1, 0,-1, 0, 0, 0}, { 1, 0,-1, 0, 0, 0}, {-1, 0, 1, 0, 0, 0},
-        { 0, 1, 1, 0, 0, 0}, { 0,-1,-1, 0, 0, 0}, { 0, 1,-1, 0, 0, 0}, { 0,-1, 1, 0, 0, 0},
-
-        // Triaxial normal loading (Deviatoric components only)
-        { 1, 1,-0.5, 0,0,0}, {-1,-1, 0.5, 0,0,0},
-
-        // Pure shear states (To firmly anchor the corners/vertices of the yield surface)
-        { 0, 0, 0, 1, 0, 0}, { 0, 0, 0,-1, 0, 0},
-        { 0, 0, 0, 0, 1, 0}, { 0, 0, 0, 0,-1, 0},
-        { 0, 0, 0, 0, 0, 1}, { 0, 0, 0, 0, 0,-1}
-    };
-
-    qDebug() << "[HillCriterion::generateLoads]   Injecting" << canonical_dirs.size() << "canonical directions.";
-
-    // Lambda function to process any given 5D unit vector
-    auto process_direction = [&](double d[5]) {
-        // Project onto 5D ellipsoid surface via L^{-T}
+        // Step 2: project onto 5D ellipsoid surface via L^{-T}
+        // d_v = L^{-T} * d  (transpose via swapped indices)
         double d_v[5] = {0};
         for (int i = 0; i < 5; ++i)
             for (int j = i; j < 5; ++j)
                 d_v[i] += m_Linv_5D[j][i] * d[j];
 
-        // Convert 5D back to 6D deviatoric stress
+        // Step 3: 5D -> 6D deviatoric stress
         double d_sigma[6] = {0};
         v5D_to_sigma6D(d_v, d_sigma);
 
-        // Convert stress to strain via elastic compliance tensor S
+        // Step 4: strain via S: eps = S * sigma
         double d_eps[6] = {0}, eps_norm_sq = 0.0;
         for (int i = 0; i < 6; ++i) {
             for (int j = 0; j < 6; ++j) d_eps[i] += S[i][j] * d_sigma[j];
             eps_norm_sq += d_eps[i] * d_eps[i];
         }
-
         double eps_norm = std::sqrt(eps_norm_sq);
-        if (eps_norm < 1e-30) return false;
+        if (eps_norm < 1e-30) {
+            qWarning() << QString("[HillCriterion::generateLoads]   Sample #%1: ||eps||~0, skipping").arg(n);
+            --n; ++retries; continue;
+        }
 
-        // Normalise to target strain_val
+        // Step 5: normalise to strain_val
         std::vector<double> eps(6);
         for (int i = 0; i < 6; ++i) eps[i] = (d_eps[i] / eps_norm) * strain_val;
-
         load_cases.push_back(eps);
-        return true;
-    };
-
-    // Process all deterministic canonical directions
-    for (const auto& s_dir : canonical_dirs) {
-        double v[5], norm_sq = 0.0;
-        sigma6D_to_v5D(s_dir.data(), v); // Map 6D Voigt stress to 5D Lequeu vector
-
-        for (int i = 0; i < 5; ++i) norm_sq += v[i]*v[i];
-        double norm = std::sqrt(norm_sq);
-
-        if (norm > 1e-12) {
-            for (int i = 0; i < 5; ++i) v[i] /= norm; // Normalise to unit vector 'd'
-            process_direction(v);
-        }
     }
 
-    // =========================================================================
-    // PART 2: RANDOM DIRECTIONS (Uniformly populating the remaining space)
-    // =========================================================================
-    std::mt19937 gen(Parameters::seed);
-    std::normal_distribution<double> dist(0.0, 1.0);
-    int remaining_samples = num_samples - load_cases.size();
-
-    qDebug() << "[HillCriterion::generateLoads]   Generating" << remaining_samples << "random directions.";
-
-    int retries = 0;
-    for (int n = 0; n < remaining_samples; ++n) {
-        double d[5], norm_sq = 0.0;
-
-        // Generate random unit vector on a 5D sphere
-        for (int i = 0; i < 5; ++i) { d[i] = dist(gen); norm_sq += d[i]*d[i]; }
-
-        double norm = std::sqrt(norm_sq);
-        if (norm < 1e-12) { --n; ++retries; continue; }
-
-        for (int i = 0; i < 5; ++i) d[i] /= norm;
-
-        // Attempt to process the random direction
-        if (!process_direction(d)) {
-            --n; ++retries;
-        }
+    qDebug() << "[HillCriterion::generateLoads] ─────────────────────────────────";
+    qDebug() << "[HillCriterion::generateLoads]   Loads generated :" << (int)load_cases.size();
+    qDebug() << "[HillCriterion::generateLoads]   Retries         :" << retries;
+    qDebug() << "[HillCriterion::generateLoads]   First 3 loads (eps):";
+    for (int i = 0; i < std::min(3, (int)load_cases.size()); ++i) {
+        const auto& e = load_cases[i];
+        qDebug() << QString("    [%1] ex=%2 ey=%3 ez=%4 gxy=%5 gyz=%6 gxz=%7")
+                        .arg(i).arg(e[0],0,'e',3).arg(e[1],0,'e',3).arg(e[2],0,'e',3)
+                        .arg(e[3],0,'e',3).arg(e[4],0,'e',3).arg(e[5],0,'e',3);
     }
-
-    qDebug() << "[HillCriterion::generateLoads]   Total loads generated :" << load_cases.size();
     qDebug() << "[HillCriterion::generateLoads] ─────────────────────────────────\n";
 
     return load_cases;

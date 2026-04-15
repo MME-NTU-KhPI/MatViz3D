@@ -194,8 +194,8 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
 
             qDebug() << "[StressAnalysis] Effective moduli (1/Sii) [Pa]:";
             qDebug() << QString("  Ex=%1  Ey=%2  Ez=%3  Gxy=%4  Gyz=%5  Gxz=%6")
-                            .arg(moduli[0],'e',4).arg(moduli[1],'e',4).arg(moduli[2],'e',4)
-                            .arg(moduli[3],'e',4).arg(moduli[4],'e',4).arg(moduli[5],'e',4);
+                            .arg(moduli[0],0,'e',4).arg(moduli[1],0,'e',4).arg(moduli[2],0,'e',4)
+                            .arg(moduli[3],0,'e',4).arg(moduli[4],0,'e',4).arg(moduli[5],0,'e',4);
 
             // Final fit of P_Hill from the main simulation results
             qDebug() << "[StressAnalysis] Computing final yield points and fitting P_Hill...";
@@ -361,8 +361,8 @@ bool StressAnalysis::calibrateHillMatrix(short int numCubes, short int numPoints
     for (int i = 0; i < std::min(3, (int)load_cases.size()); ++i) {
         const auto& e = load_cases[i];
         qDebug() << QString("    [%1] ex=%2 ey=%3 ez=%4 gxy=%5 gyz=%6 gxz=%7")
-                        .arg(i).arg(e[0],'e',3).arg(e[1],'e',3).arg(e[2],'e',3)
-                        .arg(e[3],'e',3).arg(e[4],'e',3).arg(e[5],'e',3);
+                        .arg(i).arg(e[0],0,'e',3).arg(e[1],0,'e',3).arg(e[2],0,'e',3)
+                        .arg(e[3],0,'e',3).arg(e[4],0,'e',3).arg(e[5],0,'e',3);
     }
 
     qDebug() << "[StressAnalysis::calibrateHillMatrix]   Applying load cases to model...";
