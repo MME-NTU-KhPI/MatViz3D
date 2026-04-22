@@ -498,71 +498,121 @@ bool HillCriterion::computeCholesky5D() {
 std::vector<std::vector<double>> HillCriterion::generateLoads(
     int num_samples, double strain_val, const double S[6][6])
 {
-    qDebug() << "\n[HillCriterion::generateLoads] ─────────────────────────────────";
-    qDebug() << "[HillCriterion::generateLoads] Generating random loads on the Hill ellipsoid";
-    qDebug() << "[HillCriterion::generateLoads]   Requested samples :" << num_samples;
-    qDebug() << "[HillCriterion::generateLoads]   Target strain     :" << strain_val;
-    qDebug() << "[HillCriterion::generateLoads]   RNG seed          :" << Parameters::seed;
-    qDebug() << "[HillCriterion::generateLoads]   m_isValid         :" << m_isValid;
-
     std::vector<std::vector<double>> load_cases;
-    if (!m_isValid) {
-        qWarning() << "[HillCriterion::generateLoads] SKIP: Hill criterion not fitted (m_isValid=false)";
-        return load_cases;
-    }
+    if (!m_isValid) return load_cases;
 
     std::mt19937 gen(Parameters::seed);
     std::normal_distribution<double> dist(0.0, 1.0);
 
-    int retries = 0;
-    for (int n = 0; n < num_samples; ++n) {
-        // Step 1: random unit vector on 5D sphere
-        double d[5], norm_sq = 0.0;
-        for (int i = 0; i < 5; ++i) { d[i] = dist(gen); norm_sq += d[i]*d[i]; }
-        double norm = std::sqrt(norm_sq);
-        if (norm < 1e-12) { --n; ++retries; continue; }
-        for (int i = 0; i < 5; ++i) d[i] /= norm;
+    // ── Крок 1: будуємо тензори Шміда для всіх 48 систем (у 6D Мандела)
+    // m_alpha[i] = симетризований b⊗n у порядку [xx,yy,zz,yz,xz,xy]
+    std::vector<std::array<double,6>> schmid(NUM_SLIP_SYSTEMS);
+    for (int s = 0; s < NUM_SLIP_SYSTEMS; ++s) {
+        double n[3], b[3];
+        // нормуємо
+        double nl = 0, bl = 0;
+        for (int i=0;i<3;i++){nl+=SLIP_NORMALS[s][i]*SLIP_NORMALS[s][i]; bl+=SLIP_DIRECTIONS[s][i]*SLIP_DIRECTIONS[s][i];}
+        nl=std::sqrt(nl); bl=std::sqrt(bl);
+        for (int i=0;i<3;i++){n[i]=SLIP_NORMALS[s][i]/nl; b[i]=SLIP_DIRECTIONS[s][i]/bl;}
+        // Мандел: [xx,yy,zz, sqrt2*yz, sqrt2*xz, sqrt2*xy]
+        schmid[s] = {
+            b[0]*n[0], b[1]*n[1], b[2]*n[2],
+            (b[1]*n[2]+b[2]*n[1])*M_SQRT2*0.5,
+            (b[0]*n[2]+b[2]*n[0])*M_SQRT2*0.5,
+            (b[0]*n[1]+b[1]*n[0])*M_SQRT2*0.5
+        };
+    }
 
-        // Step 2: project onto 5D ellipsoid surface via L^{-T}
-        // d_v = L^{-T} * d  (transpose via swapped indices)
-        double d_v[5] = {0};
-        for (int i = 0; i < 5; ++i)
-            for (int j = i; j < 5; ++j)
-                d_v[i] += m_Linv_5D[j][i] * d[j];
+    // ── Крок 2: генеруємо цільові напрямки для ребер
+    // Ребро (i,j): шукаємо σ таке що |m_i·σ|=|m_j·σ|=max по всім системам
+    std::vector<std::array<double,6>> edge_dirs;
 
-        // Step 3: 5D -> 6D deviatoric stress
-        double d_sigma[6] = {0};
-        v5D_to_sigma6D(d_v, d_sigma);
+    for (int i = 0; i < NUM_SLIP_SYSTEMS; ++i) {
+        for (int j = i+1; j < NUM_SLIP_SYSTEMS; ++j) {
 
-        // Step 4: strain via S: eps = S * sigma
-        double d_eps[6] = {0}, eps_norm_sq = 0.0;
-        for (int i = 0; i < 6; ++i) {
-            for (int j = 0; j < 6; ++j) d_eps[i] += S[i][j] * d_sigma[j];
-            eps_norm_sq += d_eps[i] * d_eps[i];
+            // Напрямок ребра: лінійна комбінація двох тензорів Шміда
+            // σ_edge = alpha * m_i + (1-alpha) * m_j, нормоване
+            // Перевіряємо що обидва tau максимальні
+            for (double alpha : {0.3, 0.5, 0.7}) {
+                std::array<double,6> dir;
+                double norm_sq = 0;
+                for (int k=0;k<6;k++){
+                    dir[k] = alpha*schmid[i][k] + (1-alpha)*schmid[j][k];
+                    norm_sq += dir[k]*dir[k];
+                }
+                if (norm_sq < 1e-20) continue;
+                double norm = std::sqrt(norm_sq);
+                for (int k=0;k<6;k++) dir[k] /= norm;
+
+                // Перевіряємо що цей напрямок дійсно на ребрі:
+                // два найбільших tau мають бути приблизно рівні
+                double tau_vals[NUM_SLIP_SYSTEMS];
+                for (int s=0;s<NUM_SLIP_SYSTEMS;s++){
+                    tau_vals[s]=0;
+                    for(int k=0;k<6;k++) tau_vals[s]+=schmid[s][k]*dir[k];
+                    tau_vals[s]=std::abs(tau_vals[s]);
+                }
+                std::sort(tau_vals, tau_vals+NUM_SLIP_SYSTEMS, std::greater<double>());
+                // якщо два найбільших відрізняються менш ніж на 5% — це ребро
+                if (tau_vals[0] > 1e-10 && std::abs(tau_vals[0]-tau_vals[1])/tau_vals[0] < 0.05)
+                    edge_dirs.push_back(dir);
+            }
         }
-        double eps_norm = std::sqrt(eps_norm_sq);
-        if (eps_norm < 1e-30) {
-            qWarning() << QString("[HillCriterion::generateLoads]   Sample #%1: ||eps||~0, skipping").arg(n);
-            --n; ++retries; continue;
-        }
+    }
 
-        // Step 5: normalise to strain_val
+    qDebug() << "[generateLoads] Edge directions found:" << (int)edge_dirs.size();
+
+    // ── Крок 3: розподіл точок
+    // 70% рівномірно, 30% цілеспрямовано на ребра
+    int n_uniform = (int)(num_samples * 0.70);
+    int n_edges   = num_samples - n_uniform;
+
+    auto addLoad = [&](const std::array<double,6>& d_sigma) {
+        double d_eps[6]={0}, eps_norm_sq=0;
+        for(int i=0;i<6;i++){
+            for(int j=0;j<6;j++) d_eps[i]+=S[i][j]*d_sigma[j];
+            eps_norm_sq+=d_eps[i]*d_eps[i];
+        }
+        double eps_norm=std::sqrt(eps_norm_sq);
+        if(eps_norm<1e-30) return false;
         std::vector<double> eps(6);
-        for (int i = 0; i < 6; ++i) eps[i] = (d_eps[i] / eps_norm) * strain_val;
+        for(int i=0;i<6;i++) eps[i]=(d_eps[i]/eps_norm)*strain_val;
         load_cases.push_back(eps);
+        return true;
+    };
+
+    // Рівномірні точки (як раніше, але без L^{-T})
+    int retries=0;
+    for(int n=0; n<n_uniform; ){
+        double d[5], norm_sq=0;
+        for(int i=0;i<5;i++){d[i]=dist(gen); norm_sq+=d[i]*d[i];}
+        double norm=std::sqrt(norm_sq);
+        if(norm<1e-12){++retries; continue;}
+        for(int i=0;i<5;i++) d[i]/=norm;
+        double d_sigma[6]={0};
+        v5D_to_sigma6D(d, d_sigma);
+        std::array<double,6> ds; for(int i=0;i<6;i++) ds[i]=d_sigma[i];
+        if(addLoad(ds)) ++n; else ++retries;
     }
 
-    qDebug() << "[HillCriterion::generateLoads] ─────────────────────────────────";
-    qDebug() << "[HillCriterion::generateLoads]   Loads generated :" << (int)load_cases.size();
-    qDebug() << "[HillCriterion::generateLoads]   Retries         :" << retries;
-    qDebug() << "[HillCriterion::generateLoads]   First 3 loads (eps):";
-    for (int i = 0; i < std::min(3, (int)load_cases.size()); ++i) {
-        const auto& e = load_cases[i];
-        qDebug() << QString("    [%1] ex=%2 ey=%3 ez=%4 gxy=%5 gyz=%6 gxz=%7")
-                        .arg(i).arg(e[0],0,'e',3).arg(e[1],0,'e',3).arg(e[2],0,'e',3)
-                        .arg(e[3],0,'e',3).arg(e[4],0,'e',3).arg(e[5],0,'e',3);
+    // Цільові точки на ребрах
+    if (!edge_dirs.empty()) {
+        std::uniform_int_distribution<int> idx_dist(0, (int)edge_dirs.size()-1);
+        std::normal_distribution<double> jitter(0.0, 0.05); // невеликий шум
+        for(int n=0; n<n_edges; ){
+            auto dir = edge_dirs[idx_dist(gen)];
+            // додаємо невеликий шум щоб не дублювати точки
+            double norm_sq=0;
+            for(int i=0;i<6;i++){dir[i]+=jitter(gen); norm_sq+=dir[i]*dir[i];}
+            double norm=std::sqrt(norm_sq);
+            if(norm<1e-12) continue;
+            for(int i=0;i<6;i++) dir[i]/=norm;
+            if(addLoad(dir)) ++n;
+        }
     }
-    qDebug() << "[HillCriterion::generateLoads] ─────────────────────────────────\n";
+
+    qDebug() << "[generateLoads] Total loads:" << (int)load_cases.size()
+             << "(uniform:" << n_uniform << ", edges:" << n_edges << ")";
 
     return load_cases;
 }
