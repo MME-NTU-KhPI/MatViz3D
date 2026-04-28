@@ -28,6 +28,8 @@ void Console::setupParser(QCommandLineParser &parser)
     parser.addOption(QCommandLineOption("orientation_angle_b", "Rotation angle of the y-axis for the Probability algorithm", "value"));
     parser.addOption(QCommandLineOption("orientation_angle_c", "Rotation angle of the z-axis for the Probability algorithm", "value"));
     parser.addOption(QCommandLineOption("ellipse_order", "The degree of the superellipse equation", "value"));
+    parser.addOption(QCommandLineOption("stefan_number", "Stefan number", "value"));
+    parser.addOption(QCommandLineOption("hasProbParameters", "check for Probability parameters", "value"));
     parser.addOption(QCommandLineOption("autostart","Running a program with auto-generation of a cube"));
     parser.addOption(QCommandLineOption("nogui","Running a program with no GUI"));
     parser.addOption(QCommandLineOption("output", "Specify output file for generated cube", "directory"));

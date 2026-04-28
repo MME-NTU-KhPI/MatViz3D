@@ -619,6 +619,8 @@ void Probability_Algorithm::Next_Iteration(std::function<void()> callback)
 void Probability_Algorithm::CleanUp()
 {
     writeHistoryToCSV("./");
+    IterationNumber = 0;
+    m_history.clear();
     Parent_Algorithm::CleanUp();  // resets filled_voxels, isDone
 }
 
