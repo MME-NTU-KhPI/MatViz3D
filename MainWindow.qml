@@ -1470,7 +1470,7 @@ Window {
                         Text {
                             id: _text4
                             color: "#d9d9d9"
-                            text: qsTr("Animation controller")
+                            text: "Animation controller"
                             font.pixelSize: 14
                             font.family: montserrat.name
                         }
@@ -1505,7 +1505,7 @@ Window {
                 Item {
                     id: _item14
                     width: parent.width
-                    height: (parent.height - headerAnimWidget_row.height) / 4
+                    height: (parent.height - headerAnimWidget_row.height) * 2 / 7
 
                     Column {
                         id: column7
@@ -1520,7 +1520,7 @@ Window {
                             width: 224
                             height: 24
                             color: "#c6c6c6"
-                            text: qsTr("Exploded view")
+                            text: "Exploded view"
                             font.pixelSize: 20
                             leftPadding: 12
                             font.styleName: "Bold"
@@ -1546,7 +1546,7 @@ Window {
                 Item {
                     id: _item15
                     width: parent.width
-                    height: (parent.height - headerAnimWidget_row.height) / 4
+                    height: (parent.height - headerAnimWidget_row.height) * 2 / 7
                     Column {
                         id: column8
                         width: 228
@@ -1578,14 +1578,15 @@ Window {
                 Item {
                     id: _item16
                     width: parent.width
-                    height: (parent.height - headerAnimWidget_row.height) / 4
+                    height: (parent.height - headerAnimWidget_row.height) * 1 / 7
 
                     Row {
                         id: row2
                         width: 235
                         height: parent.height
                         anchors.centerIn: parent
-                        anchors.verticalCenterOffset: 15
+                       // anchors.verticalCenterOffset: 15
+
 
                         Text {
                             id: exploded_text2
@@ -1614,7 +1615,7 @@ Window {
                 Item {
                     id: _item17
                     width: parent.width
-                    height: (parent.height - headerAnimWidget_row.height) / 4
+                    height: (parent.height - headerAnimWidget_row.height) * 1 / 7
                     Row {
                         id: row3
                         width: 235
@@ -1624,7 +1625,7 @@ Window {
                             width: parent.width * 0.8
                             height: parent.height
                             color: "#c6c6c6"
-                            text: qsTr("Wireframe on/off")
+                            text: "Wireframe on/off"
                             font.pixelSize: 20
                             verticalAlignment: Text.AlignVCenter
                             leftPadding: 12
@@ -1643,6 +1644,39 @@ Window {
                         anchors.centerIn: parent
                     }
                 }
+
+                Item {
+                    id: _item18_orientations
+                    width: parent.width
+                    height: (parent.height - headerAnimWidget_row.height) * 1 / 7
+                    Row {
+                        id: row_orientations
+                        width: 235
+                        height: parent.height
+                        anchors.centerIn: parent
+                        Text {
+                            width: parent.width * 0.8
+                            height: parent.height
+                            color: "#c6c6c6"
+                            text: qsTr("Show orientations")
+                            font.pixelSize: 20
+                            verticalAlignment: Text.AlignVCenter
+                            leftPadding: 12
+                            font.styleName: "Bold"
+                            font.family: inter.name
+                        }
+                        Switch {
+                            id: _switch_orientations
+                            width: 50
+                            height: 20
+                            anchors.verticalCenter: parent.verticalCenter
+                            scale: 0.7
+                            display: AbstractButton.IconOnly
+                            onCheckedChanged: glWidget.setShowOrientations(checked)
+                        }
+                    }
+                }
+
             }
         }
     }

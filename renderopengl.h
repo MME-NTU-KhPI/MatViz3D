@@ -51,6 +51,11 @@ public:
     void drawCornerAxes();
 
     void setDevicePixelRatio(float dpr);
+
+    void updateOrientationData(const std::vector<float>& verts,
+                               const std::vector<float>& colors);
+    void setShowOrientations(bool show);
+
 protected:
 
     void initializeGL();
@@ -103,4 +108,15 @@ protected:
     bool enableFaceCulling = true;
     bool enableDepthTest = true;
     int debugMode = 0;
+
+    void drawOrientationGlyphs();
+    void initOrientationVBO();
+
+    GLuint orientationVAO  = 0;
+    GLuint orientationVBOs[2] = {0, 0};  // [0]=positions, [1]=colors
+
+    std::vector<float> orientationVerts;
+    std::vector<float> orientationColors;
+    bool   showOrientations          = false;
+    bool   orientationVBOdirty       = false;
 };

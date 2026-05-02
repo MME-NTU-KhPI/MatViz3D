@@ -640,6 +640,7 @@ void OpenGLWidgetQML::calculateScene()
             }
         }
     }
+    buildOrientationGlyphs();
     isVBOupdateRequired = true;
 }
 
@@ -656,6 +657,7 @@ void OpenGLWidgetQML::setVoxels(int32_t*** voxels, short int numCubes)
         m_render->setDistZoomFactor(distance, zoomFactor);
         m_render->setNumCubes(numCubes);
         m_render->updateVoxelData(voxelScene);
+        m_render->updateOrientationData(orientationVerts, orientationColors);
         m_render->resizeGL(this->width(), this->height());
     }
 }
@@ -817,4 +819,137 @@ void OpenGLWidgetQML::explodedValueChanged(double value)
         qWarning() << "OpenGLWidgetQML::explodedValueChanged() - ERROR: m_render is null!";
     }
 
+}
+
+
+// ── Orientation helpers ──────────────────────────────────────────────
+
+void OpenGLWidgetQML::setGrainOrientations(
+    const std::vector<std::array<float,3>>& orientations)
+{
+    grainOrientations = orientations;
+    if (voxels)
+        calculateScene();   // rebuild glyphs with new angles
+}
+
+void OpenGLWidgetQML::setShowOrientations(bool show)
+{
+    qDebug() << "setShowOrientations(); show = " << show;
+    showOrientations = show;
+    if (m_render) {
+        m_render->setShowOrientations(show);
+        update();
+    }
+}
+
+void OpenGLWidgetQML::setOrientationGlyphScale(float scale)
+{
+    orientationGlyphScale = scale;
+    if (voxels)
+        calculateScene();
+}
+
+// ── Bunge ZXZ rotation matrix ─────────────────────────────────────────
+// Returns column-major 3×3 stored as R[col][row] so that
+//   R[0] = crystal-X axis in sample frame
+//   R[1] = crystal-Y axis in sample frame
+//   R[2] = crystal-Z axis in sample frame
+static void bungeZXZ(float phi1, float Phi, float phi2,
+                     float R[3][3])
+{
+    const float c1 = cosf(phi1), s1 = sinf(phi1);
+    const float c  = cosf(Phi),  s  = sinf(Phi);
+    const float c2 = cosf(phi2), s2 = sinf(phi2);
+
+    // Standard Bunge ZXZ: R = Rz(phi1)·Rx(Phi)·Rz(phi2)
+    // Row-major storage; R[i][j] is row i, col j
+    R[0][0] =  c1*c2 - s1*s2*c;
+    R[0][1] = -c1*s2 - s1*c2*c;
+    R[0][2] =  s1*s;
+
+    R[1][0] =  s1*c2 + c1*s2*c;
+    R[1][1] = -s1*s2 + c1*c2*c;
+    R[1][2] = -c1*s;
+
+    R[2][0] =  s2*s;
+    R[2][1] =  c2*s;
+    R[2][2] =  c;
+}
+
+void OpenGLWidgetQML::buildOrientationGlyphs()
+{
+    orientationVerts.clear();
+    orientationColors.clear();
+
+    if (!showOrientations || grainOrientations.empty() || !voxels)
+        return;
+
+    // Accumulate centroid per grain ID
+    // key = grain ID (1-based); value = {sum_x, sum_y, sum_z, count}
+    std::unordered_map<int32_t, std::array<double,4>> acc;
+    acc.reserve(static_cast<size_t>(numColors) + 1);
+
+    for (int x = 0; x < numCubes; ++x)
+        for (int y = 0; y < numCubes; ++y)
+            for (int z = 0; z < numCubes; ++z) {
+                int32_t id = voxels[x][y][z];
+                if (id <= 0) continue;
+                auto& a = acc[id];
+                a[0] += x;  a[1] += y;  a[2] += z;  a[3] += 1.0;
+            }
+
+    // Colours for the three local axes
+    static const GLubyte axisRGB[3][3] = {
+        {230,  50,  50},   // crystal-X  ≈ red
+        { 50, 200,  50},   // crystal-Y  ≈ green
+        { 60, 130, 255},   // crystal-Z  ≈ blue
+    };
+
+    const float L   = orientationGlyphScale;
+    const float half = static_cast<float>(numCubes) / 2.0f;
+
+    auto pushVertex = [&](float x, float y, float z,
+                          GLubyte r, GLubyte g, GLubyte b)
+    {
+        orientationVerts.push_back(x);
+        orientationVerts.push_back(y);
+        orientationVerts.push_back(z);
+        orientationColors.push_back(r / 255.0f);
+        orientationColors.push_back(g / 255.0f);
+        orientationColors.push_back(b / 255.0f);
+    };
+
+    for (auto& [id, a] : acc) {
+        const int idx = id - 1;   // 0-based
+        if (idx < 0 || idx >= static_cast<int>(grainOrientations.size()))
+            continue;
+
+        // World-space centroid (same coordinate mapping as calculateScene)
+        const float cx = -(half - static_cast<float>(a[0] / a[3]));
+        const float cy = -(half - static_cast<float>(a[1] / a[3]));
+        const float cz = -(half - static_cast<float>(a[2] / a[3]));
+
+        const auto& eu = grainOrientations[static_cast<size_t>(idx)];
+        const float phi1 = eu[0] * static_cast<float>(M_PI) / 180.0f;
+        const float Phi  = eu[1] * static_cast<float>(M_PI) / 180.0f;
+        const float phi2 = eu[2] * static_cast<float>(M_PI) / 180.0f;
+
+        float R[3][3];
+        bungeZXZ(phi1, Phi, phi2, R);
+
+        // Three axes: column j of R gives unit vector of crystal-axis j
+        for (int axis = 0; axis < 3; ++axis) {
+            // R[row][col], col = axis
+            const float dx = L * R[0][axis];
+            const float dy = L * R[1][axis];
+            const float dz = L * R[2][axis];
+
+            const GLubyte r = axisRGB[axis][0];
+            const GLubyte g = axisRGB[axis][1];
+            const GLubyte b = axisRGB[axis][2];
+
+            pushVertex(cx,      cy,      cz,      r, g, b);  // tail
+            pushVertex(cx + dx, cy + dy, cz + dz, r, g, b);  // tip
+        }
+    }
 }

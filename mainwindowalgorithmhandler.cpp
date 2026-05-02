@@ -85,6 +85,27 @@ void MainWindowAlgorithmHandler::executeAlgorithm(Parent_Algorithm& algorithm, c
 
     updateScene();
 
+    // Assign random Bunge ZXZ orientations to each grain and send to renderer
+    {
+        OpenGLWidgetQML *ogl = OpenGLWidgetQML::getInstance();
+        const int nGrains = pow(params.getSize(), 3);
+
+        ansysWrapper tmpWrapper(/*isBatch=*/false);  // reuse random-angle generator
+        std::vector<std::array<float,3>> orientations;
+        orientations.reserve(static_cast<size_t>(nGrains));
+
+        for (int i = 0; i < nGrains; ++i) {
+            double eu[3] = {0.0, 0.0, 0.0};
+            tmpWrapper.generate_random_angles(eu, /*in_deg=*/true);
+            orientations.push_back({
+                static_cast<float>(eu[0]),
+                static_cast<float>(eu[1]),
+                static_cast<float>(eu[2])
+            });
+        }
+        ogl->setGrainOrientations(orientations);
+    }
+
     auto start = std::chrono::high_resolution_clock::now();
 
     while (!algorithm.getDone()) {

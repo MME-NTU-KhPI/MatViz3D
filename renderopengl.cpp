@@ -101,6 +101,10 @@ RenderOpenGL::~RenderOpenGL()
             qDebug() << "RenderOpenGL::~RenderOpenGL() - deleting VBOs";
             ef->glDeleteBuffers(3, vboIds);
         }
+        if (ef && orientationVAO) {
+            ef->glDeleteVertexArrays(1, &orientationVAO);
+            ef->glDeleteBuffers(2, orientationVBOs);
+        }
     } else {
         qDebug() << "RenderOpenGL::~RenderOpenGL() - context is not valid";
     }
@@ -387,6 +391,11 @@ void RenderOpenGL::initializeGL()
     qDebug() << "RenderOpenGL::initializeGL() - calling initializeVBO()";
     initializeVBO();
     qDebug() << "RenderOpenGL::initializeGL() - END";
+
+    qDebug() << "RenderOpenGL::initializeGL() - calling initOrientationVBO()";
+    initOrientationVBO();
+    qDebug() << "RenderOpenGL::initializeGL() - END";
+
 }
 
 void RenderOpenGL::updateProjection()
@@ -580,7 +589,7 @@ void RenderOpenGL::drawCornerAxes()
     ef->glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
     ef->glEnableVertexAttribArray(1);
 
-    f->glLineWidth(2.0f);
+    f->glLineWidth(1.0f);
     ef->glDrawArrays(GL_LINES, 0, vertexCount);
 
     // ── 5. Cleanup ─────────────────────────────────────────────────────────
@@ -717,7 +726,7 @@ void RenderOpenGL::drawAxisWithMVP(const QMatrix4x4& mvp)
     ef->glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
     ef->glEnableVertexAttribArray(1);
 
-    f->glLineWidth(2.0f);
+    f->glLineWidth(1.0f);
     ef->glDrawArrays(GL_LINES, 0,
                      static_cast<GLsizei>(lineVerts.size() / 3));
 
@@ -917,12 +926,15 @@ void RenderOpenGL::paintGL()
     //    qDebug() << "No voxels to draw!";
     }
 
-
+     drawOrientationGlyphs();
 
     f->glDisable(GL_BLEND);
 
     ef->glBindVertexArray(0);
     shaderProgram->release();
+
+
+
 
     // ── Corner orientation gizmo ─────────────────────────────────────
     drawCornerAxes();
@@ -1081,3 +1093,101 @@ void RenderOpenGL::createTestScene()
     isVBOupdateRequired = true;
     update();
 }
+
+
+// ── Orientation VBO setup ─────────────────────────────────────────────
+
+void RenderOpenGL::initOrientationVBO()
+{
+    QOpenGLExtraFunctions *ef =
+        QOpenGLContext::currentContext()->extraFunctions();
+    if (!ef) return;
+
+    ef->glGenVertexArrays(1, &orientationVAO);
+    ef->glGenBuffers(2, orientationVBOs);
+
+    // Bind VAO and set up attribute pointers with empty buffers
+    ef->glBindVertexArray(orientationVAO);
+
+    ef->glBindBuffer(GL_ARRAY_BUFFER, orientationVBOs[0]);
+    ef->glBufferData(GL_ARRAY_BUFFER, 0, nullptr, GL_DYNAMIC_DRAW);
+    ef->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+    ef->glEnableVertexAttribArray(0);
+
+    ef->glBindBuffer(GL_ARRAY_BUFFER, orientationVBOs[1]);
+    ef->glBufferData(GL_ARRAY_BUFFER, 0, nullptr, GL_DYNAMIC_DRAW);
+    ef->glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+    ef->glEnableVertexAttribArray(1);
+
+    ef->glBindBuffer(GL_ARRAY_BUFFER, 0);
+    ef->glBindVertexArray(0);
+}
+
+void RenderOpenGL::updateOrientationData(const std::vector<float>& verts,
+                                         const std::vector<float>& colors)
+{
+    orientationVerts  = verts;
+    orientationColors = colors;
+    orientationVBOdirty = true;
+}
+
+void RenderOpenGL::setShowOrientations(bool show)
+{
+    showOrientations = show;
+    update();
+}
+
+// ── Draw orientation glyphs as GL_LINES ───────────────────────────────
+
+void RenderOpenGL::drawOrientationGlyphs()
+{
+    if (!showOrientations || orientationVerts.empty() || !axisShaderProgram)
+        return;
+
+    QOpenGLFunctions      *f  = QOpenGLContext::currentContext()->functions();
+    QOpenGLExtraFunctions *ef = QOpenGLContext::currentContext()->extraFunctions();
+    if (!f || !ef) return;
+
+    // Lazily upload to GPU
+    if (orientationVBOdirty && orientationVAO != 0) {
+        ef->glBindVertexArray(orientationVAO);
+
+        ef->glBindBuffer(GL_ARRAY_BUFFER, orientationVBOs[0]);
+        ef->glBufferData(GL_ARRAY_BUFFER,
+                         orientationVerts.size() * sizeof(float),
+                         orientationVerts.data(), GL_DYNAMIC_DRAW);
+
+        ef->glBindBuffer(GL_ARRAY_BUFFER, orientationVBOs[1]);
+        ef->glBufferData(GL_ARRAY_BUFFER,
+                         orientationColors.size() * sizeof(float),
+                         orientationColors.data(), GL_DYNAMIC_DRAW);
+
+        ef->glBindBuffer(GL_ARRAY_BUFFER, 0);
+        ef->glBindVertexArray(0);
+        orientationVBOdirty = false;
+    }
+
+    // Build the same MVP as paintGL so glyphs align with voxels
+    QMatrix4x4 view;
+    view.setToIdentity();
+    view.translate(0.0f, 0.0f, -distance);
+    view.rotate(xRot / 16.0f, 1.0f, 0.0f, 0.0f);
+    view.rotate(yRot / 16.0f, 0.0f, 1.0f, 0.0f);
+    view.rotate(zRot / 16.0f, 0.0f, 0.0f, 1.0f);
+    QMatrix4x4 mvp = m_projection * view;
+
+    axisShaderProgram->bind();
+    axisShaderProgram->setUniformValue("uMVP", mvp);
+
+    f->glEnable(GL_DEPTH_TEST);
+    f->glLineWidth(1.0f);
+
+    ef->glBindVertexArray(orientationVAO);
+    const GLsizei vertexCount =
+        static_cast<GLsizei>(orientationVerts.size() / 3);
+    ef->glDrawArrays(GL_LINES, 0, vertexCount);
+    ef->glBindVertexArray(0);
+
+    axisShaderProgram->release();
+}
+

@@ -47,7 +47,19 @@ public:
     QVector<QColor> getColorMap(int numLevels);
     void setComponent(int index);
 
-    int cubeSize = 1;
+    const int cubeSize = 1;
+
+    /**
+     * Supply Euler angles (Bunge ZXZ, degrees) for every grain.
+     * Index 0 = grain ID 1, etc.  Pass an empty vector to clear.
+     */
+    void setGrainOrientations(const std::vector<std::array<float,3>>& orientations);
+
+    Q_INVOKABLE void setShowOrientations(bool show);
+
+    /** Scale of each orientation triad relative to one voxel unit. */
+    void setOrientationGlyphScale(float scale);
+
 
 protected:
     //struct RenderOpenGL::Voxel;
@@ -71,6 +83,18 @@ protected:
     std::array<GLubyte, 4> scalarToColor(float value, const std::vector<std::array<GLubyte, 4>>& colorMap);
     ansysWrapper *wr;
     int plotComponent;
+
+    // Euler angles per grain: [phi1_deg, Phi_deg, phi2_deg], indexed by (grainID - 1)
+    std::vector<std::array<float,3>> grainOrientations;
+
+    // Flat geometry for orientation glyphs: positions (x0,y0,z0, x1,y1,z1) × N lines
+    std::vector<float> orientationVerts;   // 6 floats per line vertex pair
+    std::vector<float> orientationColors;  // 3 floats per vertex
+
+    bool   showOrientations     = false;
+    float  orientationGlyphScale = 1.5f;   // in voxel units
+
+    void buildOrientationGlyphs();           // called from calculateScene()
 
 public slots:
     // slots for xyz-rotation slider
