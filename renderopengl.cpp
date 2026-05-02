@@ -242,7 +242,7 @@ void RenderOpenGL::initializeGL()
         uniform float uLightWeights[6];
         uniform vec3 uViewPos;
         uniform int uDebugMode;
-
+        uniform int uWireframe;
         void main()
         {
             // --- Geometry ---
@@ -302,10 +302,13 @@ void RenderOpenGL::initializeGL()
                 // If scene disappears here, the issue is in geometry not lighting.
                 gl_FragColor = vec4(1.0, 1.0, 1.0, Color.a);
 
-            } else {
-                // Normal lighting mode (uDebugMode == 0)
-                gl_FragColor = vec4(result, Color.a);
-            }
+            } else if (uWireframe == 1) {
+                // Flat gray for wireframe lines, ignore lighting and voxel color
+                gl_FragColor = vec4(0.6, 0.6, 0.6, 1.0);
+                } else {
+                    // Normal lighting mode (uDebugMode == 0)
+                    gl_FragColor = vec4(result, Color.a);
+                }
         }
  )";
 
@@ -884,6 +887,7 @@ void RenderOpenGL::paintGL()
 
    // QVector3D viewPos(0.0f, 0.0f, -distance);
     shaderProgram->setUniformValue("uDebugMode", debugMode);
+    shaderProgram->setUniformValue("uWireframe", plotWireFrame ? 1 : 0);
 
     ef->glBindVertexArray(vaoId);
 
@@ -905,25 +909,32 @@ void RenderOpenGL::paintGL()
     }
 
     if (plotWireFrame) {
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-        f->glLineWidth(0.5f);
-
+        // First pass: solid fill with normal colors
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        shaderProgram->setUniformValue("uWireframe", 0);
         for (size_t i = 0; i < voxelScene.size(); i += 4) {
-            ef->glDrawArrays(GL_POLYGON, i, 4);
+            ef->glDrawArrays(GL_TRIANGLE_FAN, i, 4);
         }
 
+        // Second pass: wireframe overlay as quad outlines (no diagonal)
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        float lineWidth = qBound(0.15f, 15.0f / static_cast<float>(numCubes), 1.0f);
+        f->glLineWidth(lineWidth);
+        shaderProgram->setUniformValue("uWireframe", 1);
+        f->glEnable(GL_DEPTH_TEST);       // keep depth test ON so hidden faces are culled
+        glDepthRange(0.0, 0.9999);        // shift lines slightly toward camera to beat Z-fight
+        for (size_t i = 0; i < voxelScene.size(); i += 4) {
+            ef->glDrawArrays(GL_LINE_LOOP, i, 4);
+        }
+        glDepthRange(0.0, 1.0);           // restore default depth range
+        shaderProgram->setUniformValue("uWireframe", 0);
     }
 
-    //qDebug() << "Drawing voxels - count:" << voxelScene.size();
-    if (!voxelScene.empty()) {
+    if (!voxelScene.empty() && !plotWireFrame) {
         for (size_t i = 0; i < voxelScene.size(); i += 4) {
             // Draw quad as triangle fan (v0, v1, v2, v3)
             ef->glDrawArrays(GL_TRIANGLE_FAN, i, 4);
         }
-    //    qDebug() << "Voxel drawing completed";
-    } else {
-    //    qDebug() << "No voxels to draw!";
     }
 
      drawOrientationGlyphs();

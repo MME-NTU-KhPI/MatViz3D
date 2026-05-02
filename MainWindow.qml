@@ -1541,6 +1541,7 @@ Window {
                             anchors.verticalCenter: parent.verticalCenter
                             scale: 0.7
                             display: AbstractButton.IconOnly
+                            onCheckedChanged: glWidget.setPlotWireFrame(checked)
                         }
                         anchors.centerIn: parent
                     }

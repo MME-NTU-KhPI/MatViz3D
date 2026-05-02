@@ -43,7 +43,7 @@ public:
 
     std::vector<std::array<GLubyte, 4>> generateDistinctColors();
 
-    void setPlotWireFrame(bool status);
+    Q_INVOKABLE void setPlotWireFrame(bool status);
     QVector<QColor> getColorMap(int numLevels);
     void setComponent(int index);
 
