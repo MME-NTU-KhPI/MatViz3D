@@ -1,4 +1,5 @@
 #include "openglwidgetqml.h"
+#include "qquickwindow.h"
 #include "renderopengl.h"
 #include "ansyswrapper.h"
 
@@ -53,6 +54,7 @@ QQuickFramebufferObject::Renderer *OpenGLWidgetQML::createRenderer() const
     }
     m_render = new RenderOpenGL();
     m_render->resizeGL(this->width(), this->height());
+    m_render->setDevicePixelRatio(window() ? window()->devicePixelRatio() : 1.0f);
     return m_render;
 }
 
@@ -359,6 +361,7 @@ void OpenGLWidgetQML::handleResize()
 {
     if (m_render) 
     {
+        m_render->setDevicePixelRatio(window() ? window()->devicePixelRatio() : 1.0f);
         m_render->resizeGL(this->width(), this->height());
     }
     update();
@@ -649,6 +652,7 @@ void OpenGLWidgetQML::setVoxels(int32_t*** voxels, short int numCubes)
     if (m_render)
     {
         this->setNumCubes(numCubes);
+        m_render->setDevicePixelRatio(window() ? window()->devicePixelRatio() : 1.0f);
         m_render->setDistZoomFactor(distance, zoomFactor);
         m_render->setNumCubes(numCubes);
         m_render->updateVoxelData(voxelScene);

@@ -434,6 +434,43 @@ Window {
                 id: glWidget
                 width: _item_GLWidget.width
                 height: _item_GLWidget.height
+
+                //start coord axis preview
+                Item {
+                    id: axisLabelOverlay
+                    anchors.fill: parent
+                    anchors.leftMargin: 10
+                    anchors.bottomMargin: 10
+
+                    // Labels are positioned to match the corner gizmo at ~(10, bottom-10)
+                    // Offsets match L=0.8 axis length projected to ~80px viewport
+
+                    Text {
+                        text: "X"
+                        color: "#FF4444"
+                        font.pixelSize: 14
+                        font.bold: true
+                        x: parent.width - 20   // right edge
+                        y: parent.height - 50
+                    }
+                    Text {
+                        text: "Y"
+                        color: "#44FF44"
+                        font.pixelSize: 14
+                        font.bold: true
+                        x: parent.width - 60
+                        y: parent.height - 95
+                    }
+                    Text {
+                        text: "Z"
+                        color: "#4488FF"
+                        font.pixelSize: 14
+                        font.bold: true
+                        x: parent.width - 95
+                        y: parent.height - 50
+                    }
+                }
+
             }
 
             MouseArea

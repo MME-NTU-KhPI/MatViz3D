@@ -48,6 +48,9 @@ public:
 
     QOpenGLFramebufferObject* createFramebufferObject(const QSize &size) override;
     void updateVBO();
+    void drawCornerAxes();
+
+    void setDevicePixelRatio(float dpr);
 protected:
 
     void initializeGL();
@@ -62,7 +65,10 @@ protected:
 
     void initializeVBO();
 
+    int m_cornerSize = 80;   // px
+    int m_cornerMargin = 10; // px
 
+    float m_dpr = 1.0f;  // device pixel ratio
 protected:
 
     GLuint vboIds[3];

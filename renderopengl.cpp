@@ -121,6 +121,12 @@ void inline RenderOpenGL::initLights()
 {
 }
 
+void RenderOpenGL::setDevicePixelRatio(float dpr)
+{
+    m_dpr = dpr;
+}
+
+
 void RenderOpenGL::debugCallback(GLenum source, GLenum type, GLuint id, GLenum severity,
                                GLsizei length, const GLchar* message, const void* userParam) {
     Q_UNUSED(length);
@@ -427,67 +433,288 @@ void RenderOpenGL::drawAxis()
     qDebug() << "RenderOpenGL::drawAxis() - END (immediate mode test)";
 }
 
-void RenderOpenGL::drawAxisWithMVP(const QMatrix4x4& mvp)
+
+void RenderOpenGL::drawCornerAxes()
 {
-    if (!axisShaderProgram) {
-        return;
-    }
+    if (!axisShaderProgram) return;
 
-    float halfNum = static_cast<float>(numCubes) / 2.0f;
-    float multNum = 1.15f * static_cast<float>(numCubes);
-
-    std::vector<float> axisVertices = {
-        -halfNum, -halfNum, -halfNum,
-        multNum, -halfNum, -halfNum,
-        -halfNum, -halfNum, -halfNum,
-        -halfNum, multNum, -halfNum,
-        -halfNum, -halfNum, -halfNum,
-        -halfNum, -halfNum, multNum
-    };
-
-    std::vector<float> axisColors = {
-        1.0f, 0.0f, 0.0f,
-        1.0f, 0.0f, 0.0f,
-        0.0f, 1.0f, 0.0f,
-        0.0f, 1.0f, 0.0f,
-        0.0f, 0.0f, 1.0f,
-        0.0f, 0.0f, 1.0f
-    };
-
+    QOpenGLFunctions    *f  = QOpenGLContext::currentContext()->functions();
     QOpenGLExtraFunctions *ef = QOpenGLContext::currentContext()->extraFunctions();
-    if (!ef) {
-        return;
-    }
+    if (!f || !ef) return;
 
+    // Convert logical → physical pixels
+    const int physW      = static_cast<int>(width  * m_dpr);
+    const int physH      = static_cast<int>(height * m_dpr);
+    const int physSize   = static_cast<int>(m_cornerSize   * m_dpr);
+    const int physMargin = static_cast<int>(m_cornerMargin * m_dpr);
+
+    f->glViewport(physW - physSize - physMargin,  // x: right edge
+                  physH - physSize - physMargin,                      // y: bottom edge (GL origin)
+                  physSize,
+                  physSize);
+
+/*
+    // ── 1. Switch to a small corner viewport ──────────────────────────────
+    f->glViewport(width  - m_cornerSize - m_cornerMargin,
+                  height - m_cornerSize - m_cornerMargin,
+                  m_cornerSize,
+                  m_cornerSize);
+*/
+    // Clear only the depth for this region so axes always appear on top
+    f->glClear(GL_DEPTH_BUFFER_BIT);
+    f->glEnable(GL_DEPTH_TEST);
+
+    // ── 2. Build rotation-only MVP (no scene translation/scale) ───────────
+    QMatrix4x4 view;
+    view.setToIdentity();
+    view.translate(0.0f, 0.0f, -2.8f);          // pull camera back slightly
+    view.rotate( xRot / 16.0f, 1.0f, 0.0f, 0.0f);
+    view.rotate( yRot / 16.0f, 0.0f, 1.0f, 0.0f);
+    view.rotate( zRot / 16.0f, 0.0f, 0.0f, 1.0f);
+
+    QMatrix4x4 proj;
+    proj.setToIdentity();
+    proj.perspective(45.0f, 1.0f, 0.1f, 10.0f); // square aspect — matches square viewport
+
+    QMatrix4x4 mvp = proj * view;
+
+    // ── 3. Geometry: unit-length axes + small arrow-tip cross-bars ─────────
+    //  X = red   Y = green   Z = blue
+    //  Each axis: shaft + two short perpendicular lines at tip (cheap arrowhead)
+    const float L  = 0.8f;   // shaft length
+    const float TL = 0.12f;  // arrowhead half-width
+
+    // clang-format off
+    std::vector<float> verts = {
+        // X shaft
+        0,  0,  0,    L,  0,  0,
+        // X arrowhead tick
+        L,  0,  0,    L-TL,  TL, 0,
+        L,  0,  0,    L-TL, -TL, 0,
+
+        // Y shaft
+        0,  0,  0,    0,  L,  0,
+        // Y arrowhead tick
+        0,  L,  0,    TL,  L-TL, 0,
+        0,  L,  0,   -TL,  L-TL, 0,
+
+        // Z shaft
+        0,  0,  0,    0,  0,  L,
+        // Z arrowhead tick
+        0,  0,  L,    TL, 0,  L-TL,
+        0,  0,  L,   -TL, 0,  L-TL,
+    };
+
+    std::vector<float> colors = {
+        // X — red (9 segments × 2 verts)
+        1,0,0, 1,0,0,
+        1,0,0, 1,0,0,
+        1,0,0, 1,0,0,
+        // Y — green
+        0,1,0, 0,1,0,
+        0,1,0, 0,1,0,
+        0,1,0, 0,1,0,
+        // Z — blue
+        0,0.5f,1, 0,0.5f,1,
+        0,0.5f,1, 0,0.5f,1,
+        0,0.5f,1, 0,0.5f,1,
+    };
+    // clang-format on
+
+    const int vertexCount = static_cast<int>(verts.size()) / 3;
+
+    // ── 4. Upload and draw ─────────────────────────────────────────────────
     axisShaderProgram->bind();
     axisShaderProgram->setUniformValue("uMVP", mvp);
 
-    GLuint axisVAO;
-    ef->glGenVertexArrays(1, &axisVAO);
-    ef->glBindVertexArray(axisVAO);
+    GLuint vao = 0;
+    GLuint vbo[2] = {0, 0};
+    ef->glGenVertexArrays(1, &vao);
+    ef->glBindVertexArray(vao);
+    ef->glGenBuffers(2, vbo);
 
-    GLuint axisVBO[2];
-    ef->glGenBuffers(2, axisVBO);
-
-    ef->glBindBuffer(GL_ARRAY_BUFFER, axisVBO[0]);
-    ef->glBufferData(GL_ARRAY_BUFFER, axisVertices.size() * sizeof(float), axisVertices.data(), GL_STATIC_DRAW);
+    ef->glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
+    ef->glBufferData(GL_ARRAY_BUFFER,
+                     verts.size() * sizeof(float),
+                     verts.data(), GL_STATIC_DRAW);
     ef->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
     ef->glEnableVertexAttribArray(0);
 
-    ef->glBindBuffer(GL_ARRAY_BUFFER, axisVBO[1]);
-    ef->glBufferData(GL_ARRAY_BUFFER, axisColors.size() * sizeof(float), axisColors.data(), GL_STATIC_DRAW);
+    ef->glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
+    ef->glBufferData(GL_ARRAY_BUFFER,
+                     colors.size() * sizeof(float),
+                     colors.data(), GL_STATIC_DRAW);
     ef->glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
     ef->glEnableVertexAttribArray(1);
 
-    ef->glDrawArrays(GL_LINES, 0, 6);
+    f->glLineWidth(2.0f);
+    ef->glDrawArrays(GL_LINES, 0, vertexCount);
 
+    // ── 5. Cleanup ─────────────────────────────────────────────────────────
     ef->glBindBuffer(GL_ARRAY_BUFFER, 0);
     ef->glBindVertexArray(0);
-    ef->glDeleteVertexArrays(1, &axisVAO);
-    ef->glDeleteBuffers(2, axisVBO);
+    ef->glDeleteBuffers(2, vbo);
+    ef->glDeleteVertexArrays(1, &vao);
 
     axisShaderProgram->release();
 }
+
+void RenderOpenGL::drawAxisWithMVP(const QMatrix4x4& mvp)
+{
+    if (!axisShaderProgram) return;
+
+    QOpenGLFunctions      *f  = QOpenGLContext::currentContext()->functions();
+    QOpenGLExtraFunctions *ef = QOpenGLContext::currentContext()->extraFunctions();
+    if (!f || !ef) return;
+
+    float halfNum = static_cast<float>(numCubes) / 2.0f;
+    float tipX    = 1.15f * static_cast<float>(numCubes);  // arrow tip position
+
+    // ── Cone parameters ──────────────────────────────────────────────────
+    const int   CONE_SEGS   = 12;       // segments around cone base circle
+    const float CONE_HEIGHT = numCubes * 0.08f;
+    const float CONE_RADIUS = numCubes * 0.03f;
+    const float SHAFT_END   = tipX - CONE_HEIGHT;  // shaft stops here, cone starts
+
+    // ── Helper: append one cone (tip along +axis) ────────────────────────
+    // tip    = apex point
+    // base   = center of base circle
+    // right/up = two orthogonal vectors spanning the base plane
+    auto appendCone = [&](std::vector<float>& verts,
+                          std::vector<float>& cols,
+                          QVector3D tip,
+                          QVector3D base,
+                          QVector3D right,
+                          QVector3D up,
+                          QVector3D color)
+    {
+        for (int i = 0; i < CONE_SEGS; ++i)
+        {
+            float a0 = 2.0f * M_PI * i       / CONE_SEGS;
+            float a1 = 2.0f * M_PI * (i + 1) / CONE_SEGS;
+
+            QVector3D p0 = base + CONE_RADIUS * (cosf(a0) * right + sinf(a0) * up);
+            QVector3D p1 = base + CONE_RADIUS * (cosf(a1) * right + sinf(a1) * up);
+
+            // Side triangle: tip → p0 → p1
+            auto push3 = [&](QVector3D v) {
+                verts.push_back(v.x());
+                verts.push_back(v.y());
+                verts.push_back(v.z());
+                cols.push_back(color.x());
+                cols.push_back(color.y());
+                cols.push_back(color.z());
+            };
+
+            push3(tip); push3(p0); push3(p1);
+
+            // Base disk triangle: base center → p1 → p0  (flipped winding)
+            push3(base); push3(p1); push3(p0);
+        }
+    };
+
+    // ── Line vertices: shafts (stop before cone base) ────────────────────
+    std::vector<float> lineVerts = {
+        // X shaft  -halfNum → SHAFT_END
+        -halfNum,  -halfNum, -halfNum,
+        SHAFT_END, -halfNum, -halfNum,
+        // Y shaft
+        -halfNum, -halfNum,  -halfNum,
+        -halfNum,  SHAFT_END, -halfNum,
+        // Z shaft
+        -halfNum, -halfNum, -halfNum,
+        -halfNum, -halfNum,  SHAFT_END,
+    };
+
+    std::vector<float> lineColors = {
+        1,0,0,  1,0,0,   // X red
+        0,1,0,  0,1,0,   // Y green
+        0,0.5f,1, 0,0.5f,1, // Z blue
+    };
+
+    // ── Cone vertices ─────────────────────────────────────────────────────
+    std::vector<float> coneVerts;
+    std::vector<float> coneColors;
+    coneVerts.reserve(CONE_SEGS * 6 * 3 * 3);
+    coneColors.reserve(CONE_SEGS * 6 * 3 * 3);
+
+    // X cone  (tip along +X, base circle in YZ plane)
+    appendCone(coneVerts, coneColors,
+               { tipX,    -halfNum, -halfNum },   // tip
+               { SHAFT_END, -halfNum, -halfNum },  // base center
+               { 0, 1, 0 }, { 0, 0, 1 },           // right=Y, up=Z
+               { 1, 0, 0 });
+
+    // Y cone  (tip along +Y, base circle in XZ plane)
+    appendCone(coneVerts, coneColors,
+               { -halfNum, tipX,    -halfNum },
+               { -halfNum, SHAFT_END, -halfNum },
+               { 1, 0, 0 }, { 0, 0, 1 },
+               { 0, 1, 0 });
+
+    // Z cone  (tip along +Z, base circle in XY plane)
+    appendCone(coneVerts, coneColors,
+               { -halfNum, -halfNum, tipX    },
+               { -halfNum, -halfNum, SHAFT_END },
+               { 1, 0, 0 }, { 0, 1, 0 },
+               { 0, 0.5f, 1 });
+
+    // ── Upload & draw ─────────────────────────────────────────────────────
+    axisShaderProgram->bind();
+    axisShaderProgram->setUniformValue("uMVP", mvp);
+
+    GLuint vao = 0;
+    GLuint vbo[4] = {0, 0, 0, 0};
+    ef->glGenVertexArrays(1, &vao);
+    ef->glBindVertexArray(vao);
+    ef->glGenBuffers(4, vbo);
+
+    // — Lines —
+    ef->glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
+    ef->glBufferData(GL_ARRAY_BUFFER,
+                     lineVerts.size() * sizeof(float),
+                     lineVerts.data(), GL_STATIC_DRAW);
+    ef->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+    ef->glEnableVertexAttribArray(0);
+
+    ef->glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
+    ef->glBufferData(GL_ARRAY_BUFFER,
+                     lineColors.size() * sizeof(float),
+                     lineColors.data(), GL_STATIC_DRAW);
+    ef->glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+    ef->glEnableVertexAttribArray(1);
+
+    f->glLineWidth(2.0f);
+    ef->glDrawArrays(GL_LINES, 0,
+                     static_cast<GLsizei>(lineVerts.size() / 3));
+
+    // — Cones —
+    ef->glBindBuffer(GL_ARRAY_BUFFER, vbo[2]);
+    ef->glBufferData(GL_ARRAY_BUFFER,
+                     coneVerts.size() * sizeof(float),
+                     coneVerts.data(), GL_STATIC_DRAW);
+    ef->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+    ef->glEnableVertexAttribArray(0);
+
+    ef->glBindBuffer(GL_ARRAY_BUFFER, vbo[3]);
+    ef->glBufferData(GL_ARRAY_BUFFER,
+                     coneColors.size() * sizeof(float),
+                     coneColors.data(), GL_STATIC_DRAW);
+    ef->glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+    ef->glEnableVertexAttribArray(1);
+
+    ef->glDrawArrays(GL_TRIANGLES, 0,
+                     static_cast<GLsizei>(coneVerts.size() / 3));
+
+    // — Cleanup —
+    ef->glBindBuffer(GL_ARRAY_BUFFER, 0);
+    ef->glBindVertexArray(0);
+    ef->glDeleteBuffers(4, vbo);
+    ef->glDeleteVertexArrays(1, &vao);
+
+    axisShaderProgram->release();
+}
+
 
 void RenderOpenGL::initializeVBO()
 {
@@ -657,10 +884,20 @@ void RenderOpenGL::paintGL()
     //    qDebug() << "No voxels to draw!";
     }
 
+
+
     f->glDisable(GL_BLEND);
 
     ef->glBindVertexArray(0);
     shaderProgram->release();
+
+    // ── Corner orientation gizmo ─────────────────────────────────────
+    drawCornerAxes();
+
+    // Restore full viewport for next frame
+    f->glViewport(0, 0,
+                  static_cast<int>(width  * m_dpr),
+                  static_cast<int>(height * m_dpr));
 }
 
 void RenderOpenGL::resizeGL(int width, int height)
