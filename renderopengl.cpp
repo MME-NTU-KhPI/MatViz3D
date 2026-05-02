@@ -1190,7 +1190,7 @@ void RenderOpenGL::drawOrientationGlyphs()
     axisShaderProgram->bind();
     axisShaderProgram->setUniformValue("uMVP", mvp);
 
-    f->glEnable(GL_DEPTH_TEST);
+    f->glDisable(GL_DEPTH_TEST);
     f->glLineWidth(1.0f);
 
     ef->glBindVertexArray(orientationVAO);
@@ -1198,7 +1198,7 @@ void RenderOpenGL::drawOrientationGlyphs()
         static_cast<GLsizei>(orientationVerts.size() / 3);
     ef->glDrawArrays(GL_LINES, 0, vertexCount);
     ef->glBindVertexArray(0);
-
+    f->glEnable(GL_DEPTH_TEST);
     axisShaderProgram->release();
 }
 

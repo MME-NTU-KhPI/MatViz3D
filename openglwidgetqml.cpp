@@ -806,19 +806,20 @@ void OpenGLWidgetQML::explodedValueChanged(double value)
 {
     if (qFuzzyCompare(distanceFactor, (float)value))
         return;
-    value = value < 1 ? 0: value;
+    value = value < 1 ? 0 : value;
 
+    // setDistanceFactor() calls calculateScene() which rebuilds both
+    // voxelScene and orientationVerts with the new explosion offset.
     setDistanceFactor(value);
 
     if (m_render) {
         m_render->updateVoxelData(voxelScene);
-       // m_render->updateVBO();
-        qDebug() << "Exploede View Value Changed";
-
+        // Push updated glyph positions so they track their grains.
+        m_render->updateOrientationData(orientationVerts, orientationColors);
+        qDebug() << "Exploded View Value Changed";
     } else {
         qWarning() << "OpenGLWidgetQML::explodedValueChanged() - ERROR: m_render is null!";
     }
-
 }
 
 
@@ -828,8 +829,14 @@ void OpenGLWidgetQML::setGrainOrientations(
     const std::vector<std::array<float,3>>& orientations)
 {
     grainOrientations = orientations;
-    if (voxels)
-        calculateScene();   // rebuild glyphs with new angles
+    if (voxels) {
+        calculateScene();   // rebuild voxel scene + orientation glyphs
+        if (m_render) {
+            m_render->updateVoxelData(voxelScene);
+            m_render->updateOrientationData(orientationVerts, orientationColors);
+            update();
+        }
+    }
 }
 
 void OpenGLWidgetQML::setShowOrientations(bool show)
@@ -837,6 +844,12 @@ void OpenGLWidgetQML::setShowOrientations(bool show)
     qDebug() << "setShowOrientations(); show = " << show;
     showOrientations = show;
     if (m_render) {
+        // Re-upload orientation data whenever the switch is turned on.
+        // This covers the case where the data was built during the algorithm
+        // run but not yet pushed to the renderer (e.g. showOrientations was
+        // false at the time and the VBO was never dirtied).
+        if (show)
+            m_render->updateOrientationData(orientationVerts, orientationColors);
         m_render->setShowOrientations(show);
         update();
     }
@@ -881,11 +894,13 @@ void OpenGLWidgetQML::buildOrientationGlyphs()
     orientationVerts.clear();
     orientationColors.clear();
 
-    if (!showOrientations || grainOrientations.empty() || !voxels)
+    // Always build the data — visibility is controlled by the renderer flag.
+    // This ensures the VBO is populated before the user enables "Show orientations".
+    if (grainOrientations.empty() || !voxels)
         return;
 
-    // Accumulate centroid per grain ID
-    // key = grain ID (1-based); value = {sum_x, sum_y, sum_z, count}
+    // ── Pass 1: accumulate centroid AND voxel count per grain ────────────
+    // acc[grainID] = { sumX, sumY, sumZ, voxelCount }
     std::unordered_map<int32_t, std::array<double,4>> acc;
     acc.reserve(static_cast<size_t>(numColors) + 1);
 
@@ -898,16 +913,16 @@ void OpenGLWidgetQML::buildOrientationGlyphs()
                 a[0] += x;  a[1] += y;  a[2] += z;  a[3] += 1.0;
             }
 
-    // Colours for the three local axes
+    // Colours for the three local crystal axes
     static const GLubyte axisRGB[3][3] = {
         {230,  50,  50},   // crystal-X  ≈ red
         { 50, 200,  50},   // crystal-Y  ≈ green
         { 60, 130, 255},   // crystal-Z  ≈ blue
     };
 
-    const float L   = orientationGlyphScale;
     const float half = static_cast<float>(numCubes) / 2.0f;
 
+    // Append one vertex (position + colour) to the flat VBO arrays.
     auto pushVertex = [&](float x, float y, float z,
                           GLubyte r, GLubyte g, GLubyte b)
     {
@@ -919,16 +934,49 @@ void OpenGLWidgetQML::buildOrientationGlyphs()
         orientationColors.push_back(b / 255.0f);
     };
 
+    // ── Pass 2: emit one orientation triad per grain ─────────────────────
     for (auto& [id, a] : acc) {
-        const int idx = id - 1;   // 0-based
+        const int idx = id - 1;   // 0-based colour/orientation index
         if (idx < 0 || idx >= static_cast<int>(grainOrientations.size()))
             continue;
 
-        // World-space centroid (same coordinate mapping as calculateScene)
-        const float cx = -(half - static_cast<float>(a[0] / a[3]));
-        const float cy = -(half - static_cast<float>(a[1] / a[3]));
-        const float cz = -(half - static_cast<float>(a[2] / a[3]));
+        // ── Grain centroid in world space ─────────────────────────────────
+        // calculateScene() maps grid index k → world = -(half - k),
+        // so the centroid is -(half - mean_grid_coord).
+        float cx = -(half - static_cast<float>(a[0] / a[3]));
+        float cy = -(half - static_cast<float>(a[1] / a[3]));
+        float cz = -(half - static_cast<float>(a[2] / a[3]));
 
+        // ── Exploded-view offset ──────────────────────────────────────────
+        // calculateScene() shifts every voxel of a grain by a vector
+        //   directionFactor * (colour/255 - 1) * distanceFactor
+        // The centroid must receive the same rigid-body shift so the
+        // glyph stays centred on its grain when exploded view is active.
+        if (distanceFactor > 0.0f) {
+            const size_t ci = static_cast<size_t>(idx);
+            if (ci < colors.size() && ci < directionFactors.size()) {
+                const auto& col = colors[ci];
+                const float df  = directionFactors[ci];
+                cx += df * (col[0] / 255.0f - 1.0f) * distanceFactor;
+                cy += df * (col[1] / 255.0f - 1.0f) * distanceFactor;
+                cz += df * (col[2] / 255.0f - 1.0f) * distanceFactor;
+            }
+        }
+
+        // ── Per-grain line half-length ────────────────────────────────────
+        // Treat the grain as a sphere of the same volume.
+        //   voxelCount = (4/3)π r³  →  r = cbrt(3N / 4π)
+        // L = orientationGlyphScale * r, so every grain gets a triad
+        // proportional to its own physical size.
+        // Each line is CENTRED on the centroid (tip-to-tip = 2 * halfL),
+        // so both tips are at distance halfL from the centroid.  As long as
+        // halfL > grainRadius both tips protrude past the surface and remain
+        // visible even without special depth-test handling.
+        const float grainRadius = std::cbrt(
+            static_cast<float>(a[3]) * 3.0f / (4.0f * static_cast<float>(M_PI)));
+        const float halfL = orientationGlyphScale * grainRadius;
+
+        // ── Bunge ZXZ rotation matrix ─────────────────────────────────────
         const auto& eu = grainOrientations[static_cast<size_t>(idx)];
         const float phi1 = eu[0] * static_cast<float>(M_PI) / 180.0f;
         const float Phi  = eu[1] * static_cast<float>(M_PI) / 180.0f;
@@ -937,19 +985,22 @@ void OpenGLWidgetQML::buildOrientationGlyphs()
         float R[3][3];
         bungeZXZ(phi1, Phi, phi2, R);
 
-        // Three axes: column j of R gives unit vector of crystal-axis j
+        // ── Emit three centred line segments ──────────────────────────────
+        // Column `axis` of R is the unit vector of crystal axis `axis`
+        // expressed in the sample (world) frame.
+        // The line runs from  centroid - halfL*dir
+        //                 to  centroid + halfL*dir
         for (int axis = 0; axis < 3; ++axis) {
-            // R[row][col], col = axis
-            const float dx = L * R[0][axis];
-            const float dy = L * R[1][axis];
-            const float dz = L * R[2][axis];
+            const float hx = halfL * R[0][axis];
+            const float hy = halfL * R[1][axis];
+            const float hz = halfL * R[2][axis];
 
             const GLubyte r = axisRGB[axis][0];
             const GLubyte g = axisRGB[axis][1];
             const GLubyte b = axisRGB[axis][2];
 
-            pushVertex(cx,      cy,      cz,      r, g, b);  // tail
-            pushVertex(cx + dx, cy + dy, cz + dz, r, g, b);  // tip
+            //pushVertex(cx - hx, cy - hy, cz - hz, r, g, b);  // negative tip
+            pushVertex(cx + hx, cy + hy, cz + hz, r, g, b);  // positive tip
         }
     }
 }
