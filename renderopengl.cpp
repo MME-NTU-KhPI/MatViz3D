@@ -389,6 +389,39 @@ void RenderOpenGL::initializeGL()
     qDebug() << "RenderOpenGL::initializeGL() - END";
 }
 
+void RenderOpenGL::updateProjection()
+{
+    if (height <= 0 || width <= 0) return;
+
+    float aspect     = static_cast<float>(width) / static_cast<float>(height);
+    float sceneRadius = numCubes * 0.866f;
+
+    // Near plane: never clip into the scene, never go below epsilon
+    float nearVal = std::max(0.01f, distance - sceneRadius * 2.0f);
+
+    // Far plane: always covers the full scene from any distance
+    float farVal  = distance + sceneRadius * 2.0f + 1.0f;
+
+    // Guard against degenerate frustum
+    if (farVal <= nearVal)
+        farVal = nearVal + 1.0f;
+
+    // Keep depth precision reasonable — avoid >10000 ratio
+    if (farVal / nearVal > 10000.0f)
+        nearVal = farVal / 10000.0f;
+
+    float fov = 45.0f;
+
+    m_projection.setToIdentity();
+    m_projection.perspective(fov, aspect, nearVal, farVal);
+
+    qDebug() << "updateProjection: distance=" << distance
+             << "near=" << nearVal << "far=" << farVal
+             << "numCubes=" << numCubes;
+}
+
+
+
 void RenderOpenGL::drawAxis()
 {
     qDebug() << "RenderOpenGL::drawAxis() - START (immediate mode test)";
@@ -902,52 +935,16 @@ void RenderOpenGL::paintGL()
 
 void RenderOpenGL::resizeGL(int width, int height)
 {
-    qDebug() << "RenderOpenGL::resizeGL() - START - width:" << width << "height:" << height;
-    this->width = width;
+    this->width  = width;
     this->height = height;
 
-    if (height <= 0 || width <= 0) {
-        qDebug() << "RenderOpenGL::resizeGL() - invalid dimensions, returning";
-        return;
-    }
-
     QOpenGLContext *ctx = QOpenGLContext::currentContext();
-    if (!ctx) {
-        qDebug() << "RenderOpenGL::resizeGL() - No OpenGL context, skipping viewport setting";
-    } else {
-        QOpenGLFunctions *f = ctx->functions();
-        f->glViewport(0, 0, width, height);
-        qDebug() << "RenderOpenGL::resizeGL() - viewport set";
+    if (ctx)
+    {
+        ctx->functions()->glViewport(0, 0, width, height);
     }
 
-    float aspect = static_cast<float>(width) / static_cast<float>(height);
-    float sceneRadius = numCubes * 0.866f;
-
-    float fov = 45.0f;
-    if (numCubes > 30) {
-        fov = 50.0f;
-    }
-
-    float distanceToSceneCenter = distance;
-    float nearVal = std::max(0.1f, distanceToSceneCenter - sceneRadius - 1.0f);
-    float farVal = distanceToSceneCenter + sceneRadius + 1.0f;
-
-    if (nearVal < 0.1f) nearVal = 0.1f;
-    if (farVal < nearVal + 1.0f) farVal = nearVal + 1.0f;
-
-    float depthRatio = farVal / nearVal;
-    if (depthRatio > 1000.0f) {
-        nearVal = farVal / 1000.0f;
-    }
-
-    m_projection.setToIdentity();
-    m_projection.perspective(fov, aspect, nearVal, farVal);
-
-    qDebug() << "ResizeGL: width=" << width << "height=" << height
-             << "near=" << nearVal << "far=" << farVal
-             << "distance=" << distance << "numCubes=" << numCubes
-             << "fov=" << fov;
-    qDebug() << "RenderOpenGL::resizeGL() - END";
+    updateProjection();  // replaces the old inline projection code
 }
 
 void RenderOpenGL::setRotations(int xRot, int yRot, int zRot)
@@ -960,8 +957,9 @@ void RenderOpenGL::setRotations(int xRot, int yRot, int zRot)
 
 void RenderOpenGL::setNumCubes(int numCubes)
 {
-    this->distance = 2 * numCubes;
     this->numCubes = numCubes;
+    this->distance = 2 * numCubes;
+    updateProjection();
     update();
 }
 
@@ -969,6 +967,7 @@ void RenderOpenGL::setDistZoomFactor(float distance, float zoomFactor)
 {
     this->distance = distance;
     this->zoomFactor = zoomFactor;
+    updateProjection();
     update();
 }
 

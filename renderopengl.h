@@ -58,7 +58,7 @@ protected:
     void drawAxis();
     void drawAxisWithMVP(const QMatrix4x4& mvp);
     void initLights();
-
+    void updateProjection();
 
     QSize minimumSizeHint() const;
     QSize sizeHint() const;
