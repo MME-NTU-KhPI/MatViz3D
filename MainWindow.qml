@@ -797,54 +797,18 @@ Window {
                                         font.family: inter.name
                                     }
 
-                                    Rectangle {
-                                        id: recInput1_pav
-                                        width: 224
-                                        height: 28
-                                        color: "#282828"
-                                        border.color: "#969696"
-                                        border.width: 1
-                                        radius: 11
-
-                                        TextInput {
-                                            id: size_textInput
-                                            anchors.fill: parent
-                                            anchors.margins: 5
-                                            color: "#969696"
-
-                                            text: Parameters.size !== undefined ? Parameters.size : "1"
-
-                                            font.pixelSize: 12
-                                            font.family: montserrat.name
-                                            verticalAlignment: Text.AlignVCenter
-                                            font.bold: true
-                                            padding: 3.5
-                                            leftPadding: 10
-                                            rightPadding: 10
-
-                                            selectByMouse: true
-
-                                            MouseArea {
-                                                anchors.fill: parent
-                                                acceptedButtons: Qt.LeftButton
-
-                                                onDoubleClicked: {
-                                                    size_textInput.forceActiveFocus()
-                                                    size_textInput.selectAll()
-                                                }
-
-                                                onPressed: (mouse) => mouse.accepted = false
-                                            }
-
-                                            onTextChanged: {
-                                                console.log("Change: ", text);
-                                                // Додаємо перевірку, щоб не відправляти пустий рядок
-                                                if (text !== "") {
-                                                    Parameters.setSize(parseInt(text, 10))
-                                                }
+                                    PlaceholderInput {
+                                        id: size_textInput
+                                        initialValue: Parameters.size !== undefined ? String(Parameters.size) : ""
+                                        placeholderText: Parameters.size !== undefined ? String(Parameters.size) : "1"
+                                        onTextChanged: (text) => {
+                                            if (text !== "") {
+                                                Parameters.setSize(parseInt(text, 10))
                                             }
                                         }
                                     }
+
+
                                 }
                             }
 
@@ -891,38 +855,17 @@ Window {
                                             }
                                         }
                                     }
-
-                                    Rectangle {
-                                        id: recInput2_pav
-                                        width: 224
-                                        height: 28
-                                        color: "#282828"
-                                        border.color: "#969696"
-                                        border.width: 1
-                                        radius: 11
-
-                                        TextInput {
-                                            id: num_textInput
-                                            anchors.fill: parent
-                                            anchors.margins: 5
-                                            color: "#969696"
-                                            text: qsTr("0")
-                                            font.pixelSize: 12
-                                            font.family: montserrat.name
-                                            verticalAlignment: Text.AlignTop
-                                            font.bold: true
-                                            rightPadding: 10
-                                            leftPadding: 10
-                                            bottomPadding: 1
-                                            topPadding: 1
-                                            horizontalAlignment: Text.AlignLeft
-
-                                            onTextChanged: {
-                                                console.log("Change: ", text);
-                                                Parameters.processPointInput(text);
+                                    PlaceholderInput {
+                                        id: num_textInput
+                                        placeholderText: "0"
+                                        initialValue: Parameters.points !== undefined ? String(Parameters.points) : ""
+                                        onTextChanged: (text) => {
+                                            if (text !== "") {
+                                                Parameters.processPointInput(parseInt(text, 0))
                                             }
                                         }
                                     }
+
                                 }
                             }
 
@@ -946,31 +889,16 @@ Window {
                                         font.family: inter.name
                                     }
 
-                                    Rectangle {
-                                        id: recInput2_pav1
-                                        width: 224
-                                        height: 28
-                                        color: "#282828"
-                                        radius: 11
-                                        border.color: "#969696"
-                                        border.width: 1
-                                        TextInput {
-                                            id: num_textInput1
-                                            color: "#969696"
-                                            text: qsTr("0")
-                                            anchors.fill: parent
-                                            anchors.margins: 5
-                                            font.pixelSize: 12
-                                            horizontalAlignment: Text.AlignLeft
-                                            verticalAlignment: Text.AlignTop
-                                            topPadding: 1
-                                            rightPadding: 10
-                                            leftPadding: 10
-                                            font.family: montserrat.name
-                                            font.bold: true
-                                            bottomPadding: 1
+                                    PlaceholderInput {
+                                        id: num_textInput1
+                                        placeholderText: "0"
+                                        onTextChanged: (text) => {
+                                            if (text !== "") {
+                                                Parameters.setWaveCoefficient(parseFloat(text, 0))
+                                            }
                                         }
                                     }
+
                                 }
                                 anchors.horizontalCenter: parent.horizontalCenter
                             }

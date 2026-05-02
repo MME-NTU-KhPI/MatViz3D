@@ -6,7 +6,7 @@ Parameters* Parameters::m_instance = nullptr;
 
 int32_t*** Parameters::voxels;
 int Parameters::size = 1;
-int Parameters::points = 0;
+int Parameters::points = 1;
 QString Parameters::algorithm = "";
 unsigned int Parameters::seed = 0;
 QString Parameters::filename = "";
