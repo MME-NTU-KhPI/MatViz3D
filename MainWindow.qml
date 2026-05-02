@@ -668,6 +668,7 @@ Window {
                             font.pointSize: 10
                             font.family: montserrat.name
                             editable: true
+                            currentIndex: 0
                             background: Rectangle {
                                 color: "#282828"
                                 radius: 11
@@ -685,63 +686,36 @@ Window {
                                 ListElement { text: "DLCA" }
                             }
 
-                            onActivated: {
-                                if (comboBox.currentIndex === 0) {
-                                    poly_alg_item.visible = true
-                                    comp_alg_item.visible = false
-                                    dlca_alg_item.visible = false
-                                }
+                            Component.onCompleted: applySelection(currentIndex)
 
-                                else if (comboBox.currentIndex === 1) {
-                                    poly_alg_item.visible = true
-                                    comp_alg_item.visible = false
-                                    dlca_alg_item.visible = false
-                                }
+                            // Extract logic into reusable function
+                               function applySelection(index) {
+                                   empty_alg_item.visible = false
+                                   poly_alg_item.visible = false
+                                   comp_alg_item.visible = false
+                                   dlca_alg_item.visible = false
 
-                                else if (comboBox.currentIndex === 2) {
-                                    poly_alg_item.visible = true
-                                    comp_alg_item.visible = false
-                                    dlca_alg_item.visible = false
-                                }
+                                   if (index === 0 || index === 1 || index === 2 || index === 3 || index === 4) {
+                                       poly_alg_item.visible = true
+                                       if (index === 4) {
+                                           probabilityAlgorithmLoader.active = true
+                                           probabilityAlgorithmLoader.item.visible = true
+                                       }
+                                   } else if (index === 5) {
+                                       comp_alg_item.visible = true
+                                   } else if (index === 6) {
+                                       dlca_alg_item.visible = true
+                                   }
 
-                                else if (comboBox.currentIndex === 3) {
-                                    poly_alg_item.visible = true
-                                    comp_alg_item.visible = false
-                                    dlca_alg_item.visible = false
-                                }
+                                   if (index !== -1) {
+                                       Qt.callLater(() => {
+                                           console.log("Algorithm selected:", currentText)
+                                           Parameters.setAlgorithm(currentText)
+                                       })
+                                   }
+                               }
 
-                                else if (comboBox.currentIndex === 4) {
-                                    poly_alg_item.visible = true
-                                    comp_alg_item.visible = false
-                                    dlca_alg_item.visible = false
-                                    probabilityAlgorithmLoader.active = true;
-                                    probabilityAlgorithmLoader.item.visible = true;
-                                }
-
-                                else if (comboBox.currentIndex === 5) {
-                                    comp_alg_item.visible = true
-                                    poly_alg_item.visible = false
-                                    dlca_alg_item.visible = false
-                                }
-
-                                else if (comboBox.currentIndex === 6) {
-                                    dlca_alg_item.visible = true
-                                    comp_alg_item.visible = false
-                                    poly_alg_item.visible = false
-                                }
-
-                                else {
-                                    empty_alg_item.visible = true
-                                    comp_alg_item.visible = false
-                                    poly_alg_item.visible = false
-                                    dlca_alg_item.visible = false
-                                }
-
-                                Qt.callLater(() => {
-                                    console.log("Algorithm selected:", currentText)
-                                    Parameters.setAlgorithm(currentText)
-                                })
-                            }
+                            onActivated:applySelection(currentIndex)
 
                             onAccepted: {
                                 if (find(editText) === -1)
