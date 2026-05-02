@@ -8,6 +8,7 @@
 #include "mainwindowwrapper.h"
 #include "materialdatabaseviewwrapper.h"
 #include "probabilityalgorithmviewwrapper.h"
+#include "consolelogger.h"
 
 
 int main(int argc, char *argv[])
@@ -17,6 +18,9 @@ int main(int argc, char *argv[])
 #endif
     QApplication app(argc, argv);
 
+    // Install before engine
+    qInstallMessageHandler(ConsoleLogger::messageHandler);
+
     QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
 
     QIcon icon(":/img/Plugin icon - 1icon.ico");
@@ -25,6 +29,9 @@ int main(int argc, char *argv[])
     QQuickStyle::setStyle("Material");
 
     QQmlApplicationEngine engine;
+
+    // Register to QML
+    engine.rootContext()->setContextProperty("ConsoleLogger", ConsoleLogger::instance());
 
     qmlRegisterSingletonInstance<Parameters>("parameters", 1, 0, "Parameters", Parameters::instance());
 

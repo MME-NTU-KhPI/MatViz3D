@@ -36,5 +36,6 @@
         <file>MaterialDatabaseView.qml</file>
         <file>img/toolBar/gifIcon.svg</file>
         <file>PlaceholderInput.qml</file>
+        <file>ConsoleOutput.qml</file>
     </qresource>
 </RCC>

@@ -554,11 +554,10 @@ Window {
                         width: columnConsole.width - 40
                         height: columnConsole.height - _item8.height - 30
 
-                        Text {
-                            id: consoleOutput
-                            anchors.fill: parent
-                            wrapMode: TextArea.Wrap
-                        }
+                        ConsoleOutput {
+                                id: consoleOutput_
+                                anchors.fill: parent
+                            }
                     }
                 }
             }
