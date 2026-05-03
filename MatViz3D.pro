@@ -17,6 +17,7 @@ QML_IMPORT_MAJOR_VERSION = 1
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
+        commandline_parser.cpp \
         consolelogger.cpp \
         dbmanager.cpp \
         algorithmfactory.cpp \
@@ -54,7 +55,9 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
 HEADERS += \
+    commandline_parser.h \
     consolelogger.h \
+    cpuinfo.hpp \
     dbmanager.h \
     algorithmfactory.h \
     ansyswrapper.h \

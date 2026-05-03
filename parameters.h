@@ -27,6 +27,9 @@ class Parameters : public QObject
     Q_PROPERTY(QString pointsMode READ getPointsMode WRITE setPointsMode NOTIFY pointsModeChanged)
     Q_PROPERTY(bool isAnimation READ getIsAnimation() WRITE setIsAnimation() NOTIFY isAnimationChanged)
 
+    Q_PROPERTY(bool hasProbParameters READ getHasProbParameters WRITE setHasProbParameters NOTIFY hasProbParametersChanged)
+    Q_PROPERTY(double ellipse_order READ getEllipseOrder WRITE setEllipseOrder NOTIFY ellipseOrderChanged)
+
 public:
     explicit Parameters(QObject* parent = nullptr);
 
@@ -84,6 +87,12 @@ public:
     bool getIsAnimation() const { return isAnimation; }
     Q_INVOKABLE void setIsAnimation(bool value);
 
+    bool getHasProbParameters() const { return hasProbParameters; }
+    Q_INVOKABLE void setHasProbParameters(bool value);
+
+    double getEllipseOrder() const { return ellipse_order; }
+    Q_INVOKABLE void setEllipseOrder(double value);
+
     Q_INVOKABLE void processPointInput(const QString &text);
 
     static Parameters* m_instance;
@@ -124,6 +133,9 @@ signals:
     void isAnimationChanged();
     void initialConditionSelectionChanged();
 
+    void hasProbParametersChanged();
+    void ellipseOrderChanged();
+
 private:
     static int size;
     static int points;
@@ -143,6 +155,9 @@ private:
 
     static QString points_mode; // "count" / "density"
     static bool isAnimation;
+
+    static bool hasProbParameters;
+    static double ellipse_order;
 };
 
 #endif // PARAMETERS_H

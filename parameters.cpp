@@ -5,8 +5,8 @@
 Parameters* Parameters::m_instance = nullptr;
 
 int32_t*** Parameters::voxels;
-int Parameters::size = 1;
-int Parameters::points = 1;
+int Parameters::size = 10;
+int Parameters::points = 10;
 QString Parameters::algorithm = "";
 unsigned int Parameters::seed = 0;
 QString Parameters::filename = "";
@@ -25,6 +25,9 @@ float Parameters::orientation_angle_c = 0.0f;
 QString Parameters::points_mode = "count";
 bool Parameters::isAnimation = false;
 
+bool   Parameters::hasProbParameters = false;
+double Parameters::ellipse_order     = 2.0; // 2.0 = standard ellipsoid
+
 Parameters::Parameters(QObject* parent) : QObject(parent) {}
 
 void Parameters::processPointInput(const QString &text)
@@ -35,7 +38,7 @@ void Parameters::processPointInput(const QString &text)
     if (getPointsMode() == "count")
     {
         points = text.toInt(&ok);
-        if (ok)
+        if (ok && ogl != nullptr)
         {
             ogl->setNumColors(points);
         }
@@ -47,7 +50,8 @@ void Parameters::processPointInput(const QString &text)
         {
             int volume = std::pow(size, 3);
             points = static_cast<int>(concentration * volume / 100.0);
-            ogl->setNumColors(points);
+            if (ogl)
+                ogl->setNumColors(points);
         }
         qDebug() << "Calculated Points:" << points;
     }
@@ -167,5 +171,20 @@ void Parameters::setIsAnimation(bool value) {
     if (isAnimation != value) {
         isAnimation = value;
         emit isAnimationChanged();
+    }
+}
+
+
+void Parameters::setHasProbParameters(bool value) {
+    if (hasProbParameters != value) {
+        hasProbParameters = value;
+        emit hasProbParametersChanged();
+    }
+}
+
+void Parameters::setEllipseOrder(double value) {
+    if (ellipse_order != value) {
+        ellipse_order = value;
+        emit ellipseOrderChanged();
     }
 }

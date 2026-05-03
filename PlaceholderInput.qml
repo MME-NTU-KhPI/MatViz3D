@@ -17,6 +17,11 @@ Item {
         }
     }
 
+    onInitialValueChanged: {
+        if (initialValue !== "" && !textInput.activeFocus)
+            textInput.text = initialValue
+    }
+
     signal textChanged(string text)
 
     Rectangle {
