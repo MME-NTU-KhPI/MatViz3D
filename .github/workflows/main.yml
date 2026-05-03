@@ -1,0 +1,256 @@
+name: Build MatViz3D
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master ]
+
+# ─── Shared Qt version ────────────────────────────────────────────────────────
+env:
+  QT_VERSION: '6.7.0'
+
+jobs:
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  LINUX
+# ══════════════════════════════════════════════════════════════════════════════
+  build-linux:
+    name: Linux (Ubuntu + GCC)
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Qt's OpenGL / SQL / Quick dependencies
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            libgl1-mesa-dev libglu1-mesa-dev \
+            libxkbcommon-dev libxkbcommon-x11-dev \
+            libxcb-icccm4-dev libxcb-image0-dev \
+            libxcb-keysyms1-dev libxcb-randr0-dev \
+            libxcb-render-util0-dev libxcb-shape0-dev \
+            libxcb-xinerama0-dev libxcb-xfixes0-dev \
+            libxcb-cursor-dev \
+            libsqlite3-dev \
+            libpulse-dev \
+            libomp-dev \
+            fuse libfuse2 \
+            patchelf
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: 'linux'
+          target: 'desktop'
+          arch: 'linux_gcc_64'
+          modules: 'qtcharts qt5compat'
+          cache: true
+
+      - name: Build
+        run: |
+          qmake MatViz3D.pro CONFIG+=release
+          make -j$(nproc)
+
+      # Bundle into an AppImage so the binary is portable
+      - name: Package as AppImage
+        run: |
+          # Download linuxdeploy + Qt plugin
+          curl -fsSL -o linuxdeploy \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          curl -fsSL -o linuxdeploy-plugin-qt \
+            https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy linuxdeploy-plugin-qt
+
+          # Minimal AppDir structure
+          mkdir -p AppDir/usr/bin AppDir/usr/lib AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
+
+          # Copy binary (qmake puts it next to the .pro file in release mode)
+          BIN=$(find . -maxdepth 2 -name MatViz3D -type f | head -1)
+          cp "$BIN" AppDir/usr/bin/MatViz3D
+
+          # Minimal desktop entry & icon (placeholder — replace with real icon path)
+          cat > AppDir/usr/share/applications/MatViz3D.desktop <<'EOF'
+          [Desktop Entry]
+          Name=MatViz3D
+          Exec=MatViz3D
+          Icon=MatViz3D
+          Type=Application
+          Categories=Science;
+          EOF
+
+          touch AppDir/usr/share/icons/hicolor/256x256/apps/MatViz3D.png
+
+          QMAKE=$(which qmake) \
+          OUTPUT=MatViz3D-${{ github.ref_name || 'dev' }}-linux-x86_64.AppImage \
+          ./linuxdeploy \
+            --appdir AppDir \
+            --plugin qt \
+            --output appimage
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MatViz3D-linux-x86_64
+          path: '*.AppImage'
+          retention-days: 14
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  WINDOWS
+# ══════════════════════════════════════════════════════════════════════════════
+  build-windows:
+    name: Windows (Qt + MinGW)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_mingw'
+          modules: 'qtcharts qt5compat'
+          cache: true
+
+      # jurplel/install-qt-action ships its own MinGW; add it to PATH
+      - name: Add Qt MinGW to PATH
+        shell: pwsh
+        run: |
+          $mingwDir = Get-ChildItem "$env:RUNNER_WORKSPACE\Qt\Tools" -Filter "mingw*" |
+                      Sort-Object Name -Descending | Select-Object -First 1
+          echo "$($mingwDir.FullName)\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Configure and build
+        shell: cmd
+        run: |
+          qmake MatViz3D.pro CONFIG+=release
+          mingw32-make -j%NUMBER_OF_PROCESSORS%
+
+      - name: Deploy Qt DLLs
+        shell: cmd
+        run: |
+          mkdir dist
+          copy release\MatViz3D.exe dist\
+          windeployqt --release --no-translations --no-system-d3d-compiler dist\MatViz3D.exe
+
+      - name: Zip artifact
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist\* `
+            -DestinationPath MatViz3D-windows-x64.zip
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MatViz3D-windows-x64
+          path: MatViz3D-windows-x64.zip
+          retention-days: 14
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  MACOS
+# ══════════════════════════════════════════════════════════════════════════════
+  build-macos:
+    name: macOS (Qt + Clang)
+    runs-on: macos-14          # Apple Silicon; use macos-13 for Intel
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # OpenMP is not bundled with Apple Clang — use llvm from Homebrew
+      - name: Install OpenMP via Homebrew
+        run: |
+          brew install libomp
+          # Expose headers/libs so qmake can find them
+          echo "CPPFLAGS=-I$(brew --prefix libomp)/include" >> $GITHUB_ENV
+          echo "LDFLAGS=-L$(brew --prefix libomp)/lib"      >> $GITHUB_ENV
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: 'mac'
+          target: 'desktop'
+          arch: 'clang_64'
+          modules: 'qtcharts qt5compat'
+          cache: true
+
+      # Patch .pro so OpenMP links correctly against Homebrew libomp
+      - name: Patch .pro for macOS OpenMP
+        run: |
+          LIBOMP=$(brew --prefix libomp)
+          cat >> MatViz3D.pro <<EOF
+
+          # ── macOS OpenMP (Homebrew libomp) ──────────────────────────────
+          macx {
+              QMAKE_CXXFLAGS += -Xpreprocessor -fopenmp -I${LIBOMP}/include
+              QMAKE_LFLAGS   += -L${LIBOMP}/lib -lomp
+              QMAKE_CXXFLAGS -= -fopenmp          # remove GCC-style flag
+              LIBS           -= -fopenmp
+          }
+          EOF
+
+      - name: Build
+        run: |
+          qmake MatViz3D.pro CONFIG+=release
+          make -j$(sysctl -n hw.logicalcpu)
+
+      # macdeployqt bundles all Qt frameworks into a self-contained .app
+      - name: Deploy and create DMG
+        run: |
+          APP=$(find . -name "MatViz3D.app" | head -1)
+          macdeployqt "$APP" \
+            -dmg \
+            -no-strip
+          mv MatViz3D.dmg MatViz3D-macos.dmg
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MatViz3D-macos
+          path: MatViz3D-macos.dmg
+          retention-days: 14
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  RELEASE  (runs only on version tags, e.g. v1.2.3)
+# ══════════════════════════════════════════════════════════════════════════════
+  release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-22.04
+    needs: [ build-linux, build-windows, build-macos ]
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets/
+
+      - name: Rename artifacts with version tag
+        run: |
+          TAG="${{ github.ref_name }}"
+          find release-assets -type f | while read f; do
+            base=$(basename "$f")
+            dir=$(dirname "$f")
+            # Insert tag before the last extension group
+            newname="${base%.*}-${TAG}.${base##*.}"
+            mv "$f" "$dir/$newname"
+          done
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/**/*
+          generate_release_notes: true
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
