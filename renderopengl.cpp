@@ -135,6 +135,12 @@ void RenderOpenGL::debugCallback(GLenum source, GLenum type, GLuint id, GLenum s
                                GLsizei length, const GLchar* message, const void* userParam) {
     Q_UNUSED(length);
     Q_UNUSED(userParam);
+    static int num_line_width_waring;
+
+    if (num_line_width_waring && type == GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR)
+        return;
+    else
+        num_line_width_waring++;
 
     QString sourceStr;
     switch (source) {
@@ -493,18 +499,13 @@ void RenderOpenGL::drawCornerAxes()
     const int physSize   = static_cast<int>(m_cornerSize   * m_dpr);
     const int physMargin = static_cast<int>(m_cornerMargin * m_dpr);
 
+    // ── 1. Switch to a small corner viewport ──────────────────────────────
+
     f->glViewport(physW - physSize - physMargin,  // x: right edge
-                  physH - physSize - physMargin,                      // y: bottom edge (GL origin)
+                  physH - physSize - physMargin,  // y: bottom edge (GL origin)
                   physSize,
                   physSize);
 
-/*
-    // ── 1. Switch to a small corner viewport ──────────────────────────────
-    f->glViewport(width  - m_cornerSize - m_cornerMargin,
-                  height - m_cornerSize - m_cornerMargin,
-                  m_cornerSize,
-                  m_cornerSize);
-*/
     // Clear only the depth for this region so axes always appear on top
     f->glClear(GL_DEPTH_BUFFER_BIT);
     f->glEnable(GL_DEPTH_TEST);
@@ -1150,6 +1151,7 @@ void RenderOpenGL::setShowOrientations(bool show)
 
 // ── Draw orientation glyphs as GL_LINES ───────────────────────────────
 
+/*
 void RenderOpenGL::drawOrientationGlyphs()
 {
     if (!showOrientations || orientationVerts.empty() || !axisShaderProgram)
@@ -1185,7 +1187,10 @@ void RenderOpenGL::drawOrientationGlyphs()
     view.rotate(xRot / 16.0f, 1.0f, 0.0f, 0.0f);
     view.rotate(yRot / 16.0f, 0.0f, 1.0f, 0.0f);
     view.rotate(zRot / 16.0f, 0.0f, 0.0f, 1.0f);
-    QMatrix4x4 mvp = m_projection * view;
+
+    QMatrix4x4 model;
+    model.setToIdentity();
+    QMatrix4x4 mvp = m_projection * view * model;
 
     axisShaderProgram->bind();
     axisShaderProgram->setUniformValue("uMVP", mvp);
@@ -1199,6 +1204,229 @@ void RenderOpenGL::drawOrientationGlyphs()
     ef->glDrawArrays(GL_LINES, 0, vertexCount);
     ef->glBindVertexArray(0);
     f->glEnable(GL_DEPTH_TEST);
+    f->glDepthFunc(GL_LEQUAL);
     axisShaderProgram->release();
 }
 
+*/
+
+void RenderOpenGL::drawOrientationGlyphs()
+{
+    if (!showOrientations || orientationVerts.empty() || !axisShaderProgram)
+        return;
+
+    QOpenGLFunctions      *f  = QOpenGLContext::currentContext()->functions();
+    QOpenGLExtraFunctions *ef = QOpenGLContext::currentContext()->extraFunctions();
+    if (!f || !ef) return;
+
+    // ── Lazily upload to GPU ──────────────────────────────────────────────
+    if (orientationVBOdirty && orientationVAO != 0) {
+        ef->glBindVertexArray(orientationVAO);
+
+        ef->glBindBuffer(GL_ARRAY_BUFFER, orientationVBOs[0]);
+        ef->glBufferData(GL_ARRAY_BUFFER,
+                         orientationVerts.size() * sizeof(float),
+                         orientationVerts.data(), GL_DYNAMIC_DRAW);
+
+        ef->glBindBuffer(GL_ARRAY_BUFFER, orientationVBOs[1]);
+        ef->glBufferData(GL_ARRAY_BUFFER,
+                         orientationColors.size() * sizeof(float),
+                         orientationColors.data(), GL_DYNAMIC_DRAW);
+
+        ef->glBindBuffer(GL_ARRAY_BUFFER, 0);
+        ef->glBindVertexArray(0);
+        orientationVBOdirty = false;
+    }
+
+    // ── Build MVP (same as paintGL) ───────────────────────────────────────
+    QMatrix4x4 view;
+    view.setToIdentity();
+    view.translate(0.0f, 0.0f, -distance);
+    view.rotate(xRot / 16.0f, 1.0f, 0.0f, 0.0f);
+    view.rotate(yRot / 16.0f, 0.0f, 1.0f, 0.0f);
+    view.rotate(zRot / 16.0f, 0.0f, 0.0f, 1.0f);
+    QMatrix4x4 mvp = m_projection * view;
+
+    // Disable depth test — lines inside grain volume must still be visible.
+    f->glDisable(GL_DEPTH_TEST);
+    f->glEnable(GL_BLEND);
+    f->glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    const GLsizei vertexCount =
+        static_cast<GLsizei>(orientationVerts.size() / 3);
+
+    // ── Pass 1: dark outline (thick, black, full opacity) ─────────────────
+    // Drawing each line slightly thicker in a near-black colour first
+    // creates a thin contrasting halo around the coloured line drawn on
+    // top in Pass 2.  This makes lines readable against any grain colour.
+    {
+        // Temporarily replace every colour with near-black.
+        // We reuse the same VAO but upload a solid-colour override buffer.
+        std::vector<float> blackColors(orientationColors.size(), 0.08f);
+        // Keep alpha at 1 — every third component starting at index 2
+        // is blue in RGB, not alpha, so no special handling needed.
+
+        GLuint tmpVBO = 0;
+        ef->glGenBuffers(1, &tmpVBO);
+
+        ef->glBindVertexArray(orientationVAO);
+        ef->glBindBuffer(GL_ARRAY_BUFFER, tmpVBO);
+        ef->glBufferData(GL_ARRAY_BUFFER,
+                         blackColors.size() * sizeof(float),
+                         blackColors.data(), GL_STREAM_DRAW);
+        ef->glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+        ef->glEnableVertexAttribArray(1);
+        ef->glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+        axisShaderProgram->bind();
+        axisShaderProgram->setUniformValue("uMVP", mvp);
+        f->glLineWidth(5.0f);   // outline is thicker than the coloured line
+        ef->glDrawArrays(GL_LINES, 0, vertexCount);
+        axisShaderProgram->release();
+
+        // Restore the real colour buffer
+        ef->glBindBuffer(GL_ARRAY_BUFFER, orientationVBOs[1]);
+        ef->glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+        ef->glEnableVertexAttribArray(1);
+        ef->glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+        ef->glBindVertexArray(0);
+        ef->glDeleteBuffers(1, &tmpVBO);
+    }
+
+    // ── Pass 2: coloured line (thinner, drawn on top of outline) ─────────
+    axisShaderProgram->bind();
+    axisShaderProgram->setUniformValue("uMVP", mvp);
+    f->glLineWidth(2.5f);
+
+    ef->glBindVertexArray(orientationVAO);
+    ef->glDrawArrays(GL_LINES, 0, vertexCount);
+    ef->glBindVertexArray(0);
+
+    axisShaderProgram->release();
+
+    // ── Pass 3: cone arrowheads at the positive tip of every segment ──────
+    // orientationVerts layout: for every triad, 6 consecutive pairs of
+    // vertices (neg tip, pos tip) × 3 axes.
+    // We draw a small cone only at the positive tip (odd-indexed vertices).
+    if (axisShaderProgram) {
+        // Recompute axis colours in the same order as buildOrientationGlyphs.
+        static const float axisRGBf[3][3] = {
+            {230/255.0f,  50/255.0f,  50/255.0f},  // X red
+            { 50/255.0f, 200/255.0f,  50/255.0f},  // Y green
+            { 60/255.0f, 130/255.0f, 255/255.0f},  // Z blue
+        };
+
+        const int   SEGS        = 10;
+        const float CONE_HEIGHT = 0.35f;   // in voxel units
+        const float CONE_RADIUS = 0.12f;
+
+        std::vector<float> coneVerts;
+        std::vector<float> coneColors;
+        coneVerts.reserve(512);
+        coneColors.reserve(512);
+
+        // Each triad has 3 axes × 2 verts = 6 verts in orientationVerts.
+        // Stride between triads = 6 vertices × 3 floats = 18 floats.
+        const int triads = vertexCount / 6;   // 2 verts per line × 3 axes
+
+        for (int t = 0; t < triads; ++t) {
+            for (int axis = 0; axis < 3; ++axis) {
+                // Negative tip: vertex index (t*6 + axis*2 + 0)
+                // Positive tip: vertex index (t*6 + axis*2 + 1)
+                const int posIdx = (t * 6 + axis * 2 + 1) * 3;
+                const int negIdx = (t * 6 + axis * 2 + 0) * 3;
+
+                if (posIdx + 2 >= static_cast<int>(orientationVerts.size()))
+                    continue;
+
+                const QVector3D tip(orientationVerts[posIdx],
+                                    orientationVerts[posIdx + 1],
+                                    orientationVerts[posIdx + 2]);
+
+                const QVector3D base(orientationVerts[negIdx],
+                                     orientationVerts[negIdx + 1],
+                                     orientationVerts[negIdx + 2]);
+
+                // Unit direction from base to tip
+                QVector3D dir = (tip - base).normalized();
+
+                // Cone base centre is slightly behind the tip
+                QVector3D coneBase = tip - CONE_HEIGHT * dir;
+
+                // Build two vectors perpendicular to dir for the base circle.
+                // Choose an arbitrary up vector that is not parallel to dir.
+                QVector3D up = (std::abs(dir.y()) < 0.9f)
+                                   ? QVector3D(0, 1, 0)
+                                   : QVector3D(1, 0, 0);
+                QVector3D right = QVector3D::crossProduct(dir, up).normalized();
+                up = QVector3D::crossProduct(right, dir).normalized();
+
+                const float r = axisRGBf[axis][0];
+                const float g = axisRGBf[axis][1];
+                const float b = axisRGBf[axis][2];
+
+                // Fan of triangles: tip → p[i] → p[i+1]
+                for (int s = 0; s < SEGS; ++s) {
+                    const float a0 = 2.0f * M_PI * s       / SEGS;
+                    const float a1 = 2.0f * M_PI * (s + 1) / SEGS;
+
+                    QVector3D p0 = coneBase
+                                   + CONE_RADIUS * (cosf(a0) * right
+                                                    + sinf(a0) * up);
+                    QVector3D p1 = coneBase
+                                   + CONE_RADIUS * (cosf(a1) * right
+                                                    + sinf(a1) * up);
+
+                    auto push3 = [&](QVector3D v) {
+                        coneVerts.push_back(v.x());
+                        coneVerts.push_back(v.y());
+                        coneVerts.push_back(v.z());
+                        coneColors.push_back(r);
+                        coneColors.push_back(g);
+                        coneColors.push_back(b);
+                    };
+
+                    push3(tip);  push3(p0);  push3(p1);        // side
+                    push3(coneBase); push3(p1); push3(p0);     // base cap
+                }
+            }
+        }
+
+        if (!coneVerts.empty()) {
+            GLuint vao = 0, vbo[2] = {0, 0};
+            ef->glGenVertexArrays(1, &vao);
+            ef->glBindVertexArray(vao);
+            ef->glGenBuffers(2, vbo);
+
+            ef->glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
+            ef->glBufferData(GL_ARRAY_BUFFER,
+                             coneVerts.size() * sizeof(float),
+                             coneVerts.data(), GL_STREAM_DRAW);
+            ef->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+            ef->glEnableVertexAttribArray(0);
+
+            ef->glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
+            ef->glBufferData(GL_ARRAY_BUFFER,
+                             coneColors.size() * sizeof(float),
+                             coneColors.data(), GL_STREAM_DRAW);
+            ef->glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+            ef->glEnableVertexAttribArray(1);
+
+            axisShaderProgram->bind();
+            axisShaderProgram->setUniformValue("uMVP", mvp);
+            ef->glDrawArrays(GL_TRIANGLES, 0,
+                             static_cast<GLsizei>(coneVerts.size() / 3));
+            axisShaderProgram->release();
+
+            ef->glBindBuffer(GL_ARRAY_BUFFER, 0);
+            ef->glBindVertexArray(0);
+            ef->glDeleteBuffers(2, vbo);
+            ef->glDeleteVertexArrays(1, &vao);
+        }
+    }
+
+    // Restore state
+    f->glEnable(GL_DEPTH_TEST);
+    f->glDisable(GL_BLEND);
+}

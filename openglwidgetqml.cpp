@@ -999,6 +999,7 @@ void OpenGLWidgetQML::buildOrientationGlyphs()
             const GLubyte g = axisRGB[axis][1];
             const GLubyte b = axisRGB[axis][2];
 
+            pushVertex(cx, cy, cz, r, g, b);
             //pushVertex(cx - hx, cy - hy, cz - hz, r, g, b);  // negative tip
             pushVertex(cx + hx, cy + hy, cz + hz, r, g, b);  // positive tip
         }
