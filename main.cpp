@@ -11,6 +11,7 @@
 #include "probabilityalgorithmviewwrapper.h"
 #include "consolelogger.h"
 #include "commandline_parser.h"
+#include "logo_printer.h"
 
 #ifdef _WIN32
     #include <windows.h>
@@ -42,6 +43,9 @@ int main(int argc, char *argv[])
 
     QApplication::setApplicationName("MatViz3D");
     QApplication::setApplicationVersion("3.01");
+
+
+    Logo::print(Logo::Style::Full);
 
     // ── Parse CLI early so --help / --version exit before any UI is built,
     //    and so --nogui can be checked before loading QML at all.

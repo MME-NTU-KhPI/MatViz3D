@@ -25,6 +25,7 @@ SOURCES += \
         composite.cpp \
         dlca.cpp \
         legendview.cpp \
+        logo_printer.cpp \
         main.cpp \
         mainwindowalgorithmhandler.cpp \
         mainwindowwrapper.cpp \
@@ -64,6 +65,7 @@ HEADERS += \
     composite.h \
     dlca.h \
     legendview.h \
+    logo_printer.h \
     mainwindowalgorithmhandler.h \
     mainwindowwrapper.h \
     materialdatabaseviewwrapper.h \
