@@ -2,9 +2,9 @@ name: Build MatViz3D
 
 on:
   push:
-    branches: [ main, master, develop ]
+    branches: [ qml-project, qml-development ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ qml-project, qml-development ]
 
 # ─── Shared Qt version ────────────────────────────────────────────────────────
 env:
