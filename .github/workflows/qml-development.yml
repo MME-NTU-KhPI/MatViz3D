@@ -1,0 +1,84 @@
+name: Build MatViz3D
+
+on:
+  push:
+    branches:
+      - qml-development
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    name: Linux Qt Build
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.6.3'
+          host: 'linux'
+          target: 'desktop'
+          modules: 'qtquickcontrols2 qt5compat'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            libgl1-mesa-dev \
+            libglu1-mesa-dev \
+            mesa-common-dev \
+            libxkbcommon-x11-0 \
+            libfontconfig1-dev \
+            libx11-dev
+
+      - name: Configure
+        run: |
+          qmake MatViz3D.pro CONFIG+=release
+
+      - name: Build
+        run: |
+          make -j$(nproc)
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MatViz3D-linux
+          path: |
+            MatViz3D
+            *.so
+
+  build-windows:
+    name: Windows Qt Build
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.6.3'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2019_64'
+          modules: 'qtquickcontrols2 qt5compat'
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configure
+        shell: cmd
+        run: |
+          qmake MatViz3D.pro CONFIG+=release
+
+      - name: Build
+        shell: cmd
+        run: |
+          nmake
+            qml/
