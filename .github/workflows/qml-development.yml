@@ -85,8 +85,8 @@ jobs:
           QML_SOURCES_PATHS: ${{ github.workspace }}
           LD_LIBRARY_PATH: ${{ github.workspace }}/Qt/6.6.3/gcc_64/lib
         run: |
-          # Remove Mimer SQL driver — it requires libmimerapi.so which is not on the runner
-          rm -f "${{ github.workspace }}/Qt/6.6.3/gcc_64/plugins/sqldrivers/libqsqlmimer.so"
+          # Remove Mimer SQL driver regardless of exact Qt install path
+          find / -name "libqsqlmimer.so" -delete 2>/dev/null || true
           export PATH="${{ github.workspace }}/Qt/6.6.3/gcc_64/bin:$PATH"
           ./linuxdeploy.AppImage \
             --appdir packaging/linux \
