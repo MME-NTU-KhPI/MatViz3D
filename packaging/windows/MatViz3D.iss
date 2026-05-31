@@ -15,7 +15,7 @@ OutputBaseFilename=MatViz3D-Setup
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
-SetupIconFile=images\Plugin_icon.ico
+SetupIconFile=img\Plugin_icon.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 
 [Languages]
