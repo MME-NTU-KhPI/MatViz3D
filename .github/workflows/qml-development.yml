@@ -35,7 +35,11 @@ jobs:
             mesa-common-dev \
             libxkbcommon-x11-0 \
             libfontconfig1-dev \
-            libx11-dev
+            libx11-dev \
+            libfuse2 \
+            ruby ruby-dev \
+            rpm
+          sudo gem install --no-document fpm
 
       - name: Configure
         run: |
@@ -45,13 +49,71 @@ jobs:
         run: |
           make -j$(nproc)
 
-      - name: Upload Linux artifact
+      - name: Prepare packaging files
+        run: |
+          mkdir -p packaging/linux/usr/bin
+          mkdir -p packaging/linux/usr/share/applications
+          mkdir -p packaging/linux/usr/share/icons/hicolor/256x256/apps
+
+          cp MatViz3D packaging/linux/usr/bin/
+          cp images/Plugin_icon.ico packaging/linux/usr/share/icons/hicolor/256x256/apps/MatViz3D.ico
+
+          cat > packaging/linux/usr/share/applications/matviz3d.desktop <<'EOF'
+          [Desktop Entry]
+          Type=Application
+          Name=MatViz3D
+          Exec=/usr/bin/MatViz3D
+          Icon=MatViz3D
+          Categories=Science;Education;Graphics;
+          Terminal=false
+          EOF
+
+      - name: Download linuxdeployqt
+        run: |
+          wget -O linuxdeployqt.AppImage \
+            https://github.com/probonopd/linuxdeployqt/releases/download/continuous/linuxdeployqt-continuous-x86_64.AppImage
+          chmod +x linuxdeployqt.AppImage
+
+      - name: Bundle Qt libraries
+        env:
+          LD_LIBRARY_PATH: ${{ github.workspace }}/Qt/6.6.3/gcc_64/lib
+        run: |
+          ./linuxdeployqt.AppImage packaging/linux/usr/share/applications/matviz3d.desktop \
+            -bundle-non-qt-libs \
+            -unsupported-allow-new-glibc \
+            -qmake="${{ github.workspace }}/Qt/6.6.3/gcc_64/bin/qmake"
+
+      - name: Build DEB package
+        run: |
+          fpm -s dir -t deb \
+            -n matviz3d \
+            -v "${APP_VERSION}" \
+            --architecture amd64 \
+            --description "Tool for microstructure modeling using cellular automata" \
+            --maintainer "MME-NTU-KhPI" \
+            --license "MIT" \
+            -C packaging/linux \
+            .
+
+      - name: Build RPM package
+        run: |
+          fpm -s dir -t rpm \
+            -n matviz3d \
+            -v "${APP_VERSION}" \
+            --architecture x86_64 \
+            --description "Tool for microstructure modeling using cellular automata" \
+            --maintainer "MME-NTU-KhPI" \
+            --license "MIT" \
+            -C packaging/linux \
+            .
+
+      - name: Upload Linux packages
         uses: actions/upload-artifact@v4
         with:
-          name: MatViz3D-linux
+          name: MatViz3D-linux-packages
           path: |
-            MatViz3D
-            *.so
+            *.deb
+            *.rpm
 
   build-windows:
     name: Windows Qt Build
@@ -88,3 +150,26 @@ jobs:
         shell: cmd
         run: |
           mingw32-make -j2
+          
+      - name: Create dist folder
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force dist
+          Copy-Item release\MatViz3D.exe dist\
+          & windeployqt --release --no-translations dist\MatViz3D.exe
+          Copy-Item images\Plugin_icon.ico dist\
+
+      - name: Install Inno Setup
+        shell: powershell
+        run: choco install innosetup -y
+
+      - name: Build installer
+        shell: powershell
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" packaging\windows\MatViz3D.iss
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: MatViz3D-windows-installer
+          path: packaging\windows\Output\MatViz3D-Setup.exe
