@@ -11,7 +11,6 @@ jobs:
   build-linux:
     name: Linux Qt Build
     runs-on: ubuntu-24.04
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -23,6 +22,8 @@ jobs:
           host: 'linux'
           target: 'desktop'
           modules: 'qt5compat'
+          ref: qml-development
+          fetch-depth: 0
 
       - name: Install system dependencies
         run: |
@@ -68,6 +69,9 @@ jobs:
           target: 'desktop'
           arch: 'win64_msvc2019_64'
           modules: 'qt5compat'
+          ref: qml-development
+          fetch-depth: 0
+
 
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
