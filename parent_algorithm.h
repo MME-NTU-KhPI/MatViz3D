@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <vector>
 #include <functional>
-#include <Parameters.h>
+#include "parameters.h"
 
 /**
  * @brief Structure containing algorithm flags.
