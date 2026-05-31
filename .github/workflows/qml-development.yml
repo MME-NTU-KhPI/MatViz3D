@@ -82,10 +82,10 @@ jobs:
       - name: Bundle Qt libraries
         env:
           APPIMAGE_EXTRACT_AND_RUN: "1"
-          # Scan only the qml/ subdirectory to avoid picking up example/internal modules
-          QML_SOURCES_PATHS: ${{ github.workspace }}/qml
+          # Point at workspace root so qmlimportscanner finds .qml files wherever they live
+          QML_SOURCES_PATHS: ${{ github.workspace }}
           LD_LIBRARY_PATH: ${{ github.workspace }}/Qt/6.6.3/gcc_64/lib
-          # Deploy only SQLite; skip Mimer which requires libmimerapi.so not present on runner
+          # Deploy only SQLite; skip Mimer (requires libmimerapi.so absent on runner)
           DEPLOY_PLUGINS_SQLDRIVERS: "libqsqlite.so"
         run: |
           export PATH="${{ github.workspace }}/Qt/6.6.3/gcc_64/bin:$PATH"
