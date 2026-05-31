@@ -66,27 +66,32 @@ jobs:
           printf '[Desktop Entry]\nType=Application\nName=MatViz3D\nExec=MatViz3D\nIcon=MatViz3D\nCategories=Science;Education;Graphics;\nTerminal=false\n' \
             > packaging/linux/usr/share/applications/matviz3d.desktop
 
-      - name: Download linuxdeployqt
+      - name: Download linuxdeploy and Qt plugin
         run: |
-          wget -q -O linuxdeployqt.AppImage \
-            https://github.com/probonopd/linuxdeployqt/releases/download/continuous/linuxdeployqt-continuous-x86_64.AppImage
-          chmod +x linuxdeployqt.AppImage
+          wget -q -O linuxdeploy.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -q -O linuxdeploy-plugin-qt.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy.AppImage linuxdeploy-plugin-qt.AppImage
 
       - name: Debug bundled binary
         run: |
           file packaging/linux/usr/bin/MatViz3D
           ldd packaging/linux/usr/bin/MatViz3D || true
-          readelf -d packaging/linux/usr/bin/MatViz3D || true
 
       - name: Bundle Qt libraries
         env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+          QML_SOURCES_PATHS: ${{ github.workspace }}
           LD_LIBRARY_PATH: ${{ github.workspace }}/Qt/6.6.3/gcc_64/lib
         run: |
-          ./linuxdeployqt.AppImage packaging/linux/usr/share/applications/matviz3d.desktop \
-            -verbose=2 \
-            -bundle-non-qt-libs \
-            -unsupported-allow-new-glibc \
-            -qmake="${{ github.workspace }}/Qt/6.6.3/gcc_64/bin/qmake"
+          # Remove Mimer SQL driver regardless of exact Qt install path
+          find / -name "libqsqlmimer.so" -delete 2>/dev/null || true
+          export PATH="${{ github.workspace }}/Qt/6.6.3/gcc_64/bin:$PATH"
+          ./linuxdeploy.AppImage \
+            --appdir packaging/linux \
+            --plugin qt \
+            --verbosity=2
 
       - name: Build DEB package
         run: |
@@ -161,7 +166,7 @@ jobs:
           New-Item -ItemType Directory -Force dist
           Copy-Item release\MatViz3D.exe dist\
           & windeployqt --release --no-translations dist\MatViz3D.exe
-          Copy-Item img\Plugin_icon.ico dist\
+          Copy-Item "img\Plugin icon - 1icon.ico" dist\
 
       - name: Install Inno Setup
         shell: powershell
