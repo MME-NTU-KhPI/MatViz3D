@@ -3,7 +3,19 @@ QT += core gui opengl widgets
 QT += openglwidgets
 QT += quickwidgets
 
-LIBS += -lopengl32
+
+win32 {
+    LIBS += -lopengl32
+}
+
+unix:!macos {
+    LIBS += -lGL
+}
+
+macos {
+    LIBS += -framework OpenGL
+}
+
 
 QMAKE_CXXFLAGS += -fopenmp
 LIBS += -fopenmp
