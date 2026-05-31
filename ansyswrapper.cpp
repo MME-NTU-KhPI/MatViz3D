@@ -5,7 +5,7 @@
 #include <cfloat>
 #include <random>
 
-#include "ansysWrapper.h"
+#include "ansyswrapper.h"
 
 #ifndef ANSYSWRAPPER_CPP_INCLUDED
 #define ANSYSWRAPPER_CPP_INCLUDED
