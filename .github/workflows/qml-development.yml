@@ -58,20 +58,13 @@ jobs:
           mkdir -p packaging/linux/usr/bin
           mkdir -p packaging/linux/usr/share/applications
           mkdir -p packaging/linux/usr/share/icons/hicolor/256x256/apps
-
+ 
           cp MatViz3D packaging/linux/usr/bin/
           cp "img/MatViz3D.png" packaging/linux/usr/share/icons/hicolor/256x256/apps/MatViz3D.png
-
+ 
           # No leading whitespace — linuxdeployqt is strict about .desktop format
-          cat > packaging/linux/usr/share/applications/matviz3d.desktop <<'EOF'
-[Desktop Entry]
-Type=Application
-Name=MatViz3D
-Exec=MatViz3D
-Icon=MatViz3D
-Categories=Science;Education;Graphics;
-Terminal=false
-EOF
+          printf '[Desktop Entry]\nType=Application\nName=MatViz3D\nExec=MatViz3D\nIcon=MatViz3D\nCategories=Science;Education;Graphics;\nTerminal=false\n' \
+            > packaging/linux/usr/share/applications/matviz3d.desktop
 
       - name: Download linuxdeployqt
         run: |
