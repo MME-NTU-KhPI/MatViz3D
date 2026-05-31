@@ -14,6 +14,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: qml-development
+          fetch-depth: 0
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
@@ -22,9 +25,7 @@ jobs:
           host: 'linux'
           target: 'desktop'
           modules: 'qt5compat'
-          ref: qml-development
-          fetch-depth: 0
-
+          
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -62,7 +63,7 @@ jobs:
           [Desktop Entry]
           Type=Application
           Name=MatViz3D
-          Exec=/usr/bin/MatViz3D
+          Exec=MatViz3D
           Icon=MatViz3D
           Categories=Science;Education;Graphics;
           Terminal=false
@@ -118,6 +119,10 @@ jobs:
   build-windows:
     name: Windows Qt Build
     runs-on: windows-2022
+    with:
+      ref: qml-development
+      fetch-depth: 0      
+    
 
     steps:
       - name: Checkout repository
@@ -131,8 +136,6 @@ jobs:
           target: 'desktop'
           arch: 'win64_mingw'
           modules: 'qt5compat'
-          ref: qml-development
-          fetch-depth: 0
 
 
       - name: Install MinGW tools
