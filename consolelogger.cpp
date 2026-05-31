@@ -1,5 +1,5 @@
-// ConsoleLogger.cpp
-#include "ConsoleLogger.h"
+// consolelogger.cpp
+#include "consolelogger.h"
 
 ConsoleLogger* ConsoleLogger::m_instance = nullptr;
 
