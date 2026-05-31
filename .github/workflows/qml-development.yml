@@ -82,10 +82,11 @@ jobs:
       - name: Bundle Qt libraries
         env:
           APPIMAGE_EXTRACT_AND_RUN: "1"
-          QMAKE: ${{ github.workspace }}/Qt/6.6.3/gcc_64/bin/qmake
           QML_SOURCES_PATHS: ${{ github.workspace }}
           LD_LIBRARY_PATH: ${{ github.workspace }}/Qt/6.6.3/gcc_64/lib
         run: |
+          # Put Qt bin on PATH so linuxdeploy-plugin-qt finds qmake reliably
+          export PATH="${{ github.workspace }}/Qt/6.6.3/gcc_64/bin:$PATH"
           ./linuxdeploy.AppImage \
             --appdir packaging/linux \
             --plugin qt \
@@ -180,4 +181,3 @@ jobs:
         with:
           name: MatViz3D-windows-installer
           path: packaging\windows\Output\MatViz3D-Setup.exe
-          
