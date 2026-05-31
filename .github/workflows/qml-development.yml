@@ -175,10 +175,12 @@ jobs:
       - name: Build installer
         shell: powershell
         run: |
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" packaging\windows\MatViz3D.iss
+          Copy-Item -Recurse -Force dist packaging\windows\dist          
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DMyAppVersion="${env:APP_VERSION}" packaging\windows\MatViz3D.iss
 
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
           name: MatViz3D-windows-installer
           path: packaging\windows\Output\MatViz3D-Setup.exe
+          
