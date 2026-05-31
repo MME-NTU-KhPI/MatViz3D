@@ -74,12 +74,20 @@ jobs:
           wget -O linuxdeployqt.AppImage \
             https://github.com/probonopd/linuxdeployqt/releases/download/continuous/linuxdeployqt-continuous-x86_64.AppImage
           chmod +x linuxdeployqt.AppImage
+          
+      - name: Debug bundled binary
+        run: |
+          file packaging/linux/usr/bin/MatViz3D
+          ldd packaging/linux/usr/bin/MatViz3D || true
+          readelf -d packaging/linux/usr/bin/MatViz3D || true
+
 
       - name: Bundle Qt libraries
         env:
           LD_LIBRARY_PATH: ${{ github.workspace }}/Qt/6.6.3/gcc_64/lib
         run: |
           ./linuxdeployqt.AppImage packaging/linux/usr/share/applications/matviz3d.desktop \
+            -verbose=3 \
             -bundle-non-qt-libs \
             -unsupported-allow-new-glibc \
             -qmake="${{ github.workspace }}/Qt/6.6.3/gcc_64/bin/qmake"
