@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "dbmanager.h"
 
 DBManager::DBManager(QObject *parent)

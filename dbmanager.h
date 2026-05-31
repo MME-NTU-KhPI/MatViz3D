@@ -1,7 +1,13 @@
 #ifndef DBMANAGER_H
 #define DBMANAGER_H
 
-#include <QtSql/QtSQL>
+#include <QObject>
+#include <QVariant>
+#include <QSqlDatabase>
+#include <QSqlTableModel>
+#include <QSqlQuery>
+#include <QSqlError>
+#include <QSqlRecord>
 #include <QDebug>
 #include <QStandardPaths>
 #include <QDir>
