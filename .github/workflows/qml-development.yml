@@ -79,9 +79,9 @@ jobs:
           readelf -d packaging/linux/usr/bin/MatViz3D || true
 
        - name: Bundle Qt libraries
-        env:
-          LD_LIBRARY_PATH: ${{ github.workspace }}/Qt/6.6.3/gcc_64/lib
-          APPIMAGE_EXTRACT_AND_RUN: "1"
+         env:
+           LD_LIBRARY_PATH: ${{ github.workspace }}/Qt/6.6.3/gcc_64/lib
+           APPIMAGE_EXTRACT_AND_RUN: "1"
         run: |
           ./linuxdeployqt.AppImage packaging/linux/usr/share/applications/matviz3d.desktop \
             -verbose=2 \
