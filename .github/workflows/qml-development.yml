@@ -67,14 +67,17 @@ jobs:
           version: '6.6.3'
           host: 'windows'
           target: 'desktop'
-          arch: 'win64_msvc2019_64'
+          arch: 'win64_mingw'
           modules: 'qt5compat'
           ref: qml-development
           fetch-depth: 0
 
 
-      - name: Setup MSVC
-        uses: ilammy/msvc-dev-cmd@v1
+       - name: Install MinGW tools
+        shell: pwsh
+        run: |
+          choco install mingw -y
+          echo "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Configure
         shell: cmd
@@ -84,5 +87,4 @@ jobs:
       - name: Build
         shell: cmd
         run: |
-          nmake
-            qml/
+          mingw32-make -j2
