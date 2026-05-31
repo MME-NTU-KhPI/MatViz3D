@@ -184,3 +184,30 @@ jobs:
           name: MatViz3D-windows-installer
           path: packaging\windows\packaging\windows\Output\MatViz3D-Setup.exe
           
+          
+  publish:
+    name: Publish Release
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/qml-development'
+    steps:
+      - name: Download Linux packages
+        uses: actions/download-artifact@v4
+        with:
+          name: MatViz3D-linux-packages
+          path: dist/
+
+      - name: Download Windows installer
+        uses: actions/download-artifact@v4
+        with:
+          name: MatViz3D-windows-installer
+          path: dist/
+
+      - name: Create or update release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-dev
+          name: "Latest development build"
+          prerelease: true
+          files: dist/*
+          
