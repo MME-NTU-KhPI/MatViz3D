@@ -38,7 +38,7 @@ jobs:
 
       - name: Configure
         run: |
-          qmake MatViz3D.pro CONFIG+=release
+          qmake MatViz3D.pro CONFIG+=debug
 
       - name: Build
         run: |
@@ -75,7 +75,7 @@ jobs:
       - name: Configure
         shell: cmd
         run: |
-          qmake MatViz3D.pro CONFIG+=release
+          qmake MatViz3D.pro CONFIG+=debug
 
       - name: Build
         shell: cmd
