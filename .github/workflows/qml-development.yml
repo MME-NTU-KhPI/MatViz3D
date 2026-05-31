@@ -14,9 +14,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          ref: qml-development
-          fetch-depth: 0
+          with:
+            ref: qml-development
+            fetch-depth: 0
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
@@ -119,9 +119,9 @@ jobs:
   build-windows:
     name: Windows Qt Build
     runs-on: windows-2022
-    with:
-      ref: qml-development
-      fetch-depth: 0      
+      with:
+        ref: qml-development
+        fetch-depth: 0      
     
 
     steps:
