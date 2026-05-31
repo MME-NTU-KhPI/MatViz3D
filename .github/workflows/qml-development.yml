@@ -182,5 +182,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: MatViz3D-windows-installer
-          path: packaging\windows\Output\MatViz3D-Setup.exe
+          path: packaging\windows\packaging\windows\Output\MatViz3D-Setup.exe
           
