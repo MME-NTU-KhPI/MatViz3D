@@ -56,7 +56,7 @@ jobs:
           mkdir -p packaging/linux/usr/share/icons/hicolor/256x256/apps
 
           cp MatViz3D packaging/linux/usr/bin/
-          cp "img/Plugin icon - 1icon.ico" packaging/linux/usr/share/icons/hicolor/256x256/apps/MatViz3D.ico
+          cp "img/MatViz3D.png" packaging/linux/usr/share/icons/hicolor/256x256/apps/MatViz3D.png
 
           cat > packaging/linux/usr/share/applications/matviz3d.desktop <<'EOF'
           [Desktop Entry]
