@@ -1,7 +1,5 @@
-#include <windows.h>
 #include <ctime>
 #include <cmath>
-#include "openglwidgetqml.h"
 #include "neumann.h"
 
 Neumann::Neumann()
