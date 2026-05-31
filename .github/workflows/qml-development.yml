@@ -22,7 +22,7 @@ jobs:
           version: '6.6.3'
           host: 'linux'
           target: 'desktop'
-          modules: 'qtquickcontrols2 qt5compat'
+          modules: 'qt5compat'
 
       - name: Install system dependencies
         run: |
@@ -38,7 +38,7 @@ jobs:
 
       - name: Configure
         run: |
-          qmake MatViz3D.pro CONFIG+=release
+          qmake MatViz3D.pro CONFIG+=debug
 
       - name: Build
         run: |
@@ -75,7 +75,7 @@ jobs:
       - name: Configure
         shell: cmd
         run: |
-          qmake MatViz3D.pro CONFIG+=release
+          qmake MatViz3D.pro CONFIG+=debug
 
       - name: Build
         shell: cmd
