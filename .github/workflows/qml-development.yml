@@ -73,7 +73,7 @@ jobs:
           fetch-depth: 0
 
 
-       - name: Install MinGW tools
+      - name: Install MinGW tools
         shell: pwsh
         run: |
           choco install mingw -y
