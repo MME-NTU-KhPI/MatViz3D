@@ -141,6 +141,12 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
         Parameters::initial_nuclei_count = str.toFloat();
         qInfo() << "initial_nuclei_count:" << Parameters::initial_nuclei_count;
     }
+    if (parser.isSet("stefan_number"))
+    {
+        QString str = parser.value("stefan_number");
+        Parameters::stefan_number = str.toFloat();
+        qInfo() << "stefan_number: " << Parameters::stefan_number;
+    }
     if (parser.isSet("algorithm"))
     {
         Parameters::algorithm = parser.value("algorithm");
@@ -180,12 +186,6 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
 
     }
     qInfo() << "Number of threads (--np):" << Parameters::num_threads;
-    if (parser.isSet("autostart"))
-    {
-        qInfo() << "autostart:" << true;
-        window.onStartClicked();
-    }
-
     if (parser.isSet("num_rnd_loads"))
     {
         int val = parser.value("num_rnd_loads").toInt();
@@ -207,7 +207,11 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
         Parameters::working_directory = parser.value("working_directory");
         qInfo() << "working_directory:" << Parameters::working_directory;
     }
-
+    if (parser.isSet("autostart"))
+    {
+        qInfo() << "autostart:" << true;
+        window.onStartClicked();
+    }
     if (parser.isSet("run_stress_calc"))
     {
         qInfo() << "run_stress_calc:" << true;

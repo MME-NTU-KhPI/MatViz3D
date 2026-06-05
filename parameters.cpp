@@ -10,7 +10,7 @@ QString Parameters::algorithm;
 QString Parameters::filename;
 int Parameters::num_rnd_loads; // number of loading poinst in stressanalis.cpp
 
-QString Parameters::working_directory;
+QString Parameters::working_directory = "./";
 
 float Parameters::wave_coefficient;
 float Parameters::wave_spread;
