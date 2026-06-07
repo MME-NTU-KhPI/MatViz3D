@@ -618,6 +618,9 @@ void Probability_Algorithm::Next_Iteration(std::function<void()> callback)
 void Probability_Algorithm::CleanUp()
 {
     writeHistoryToCSV(Parameters::working_directory);
+    auto stats = GrainAnalyzer::analyze(voxels, numCubes);
+    GrainAnalyzer::writeToCSV(stats,
+                              Parameters::working_directory + "/grain_size_distribution.csv");
     IterationNumber = 0;
     m_history.clear();
     Parent_Algorithm::CleanUp();  // resets filled_voxels, isDone

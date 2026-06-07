@@ -1,556 +1,393 @@
 #include "statistics.h"
 #include "ui_statistics.h"
+#include "grain_analyzer.h"
 
 #include <QtCharts>
 #include <QVector>
+#include <QFileDialog>
 #include <algorithm>
 #include <fstream>
 #include <vector>
-#include <QSet>
 #include <cmath>
-#include <vector>
 #include <queue>
 #include <unordered_map>
-#include <unordered_set>
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Constructor / Destructor
+// ═══════════════════════════════════════════════════════════════════════════
 
 Statistics::Statistics(QWidget *parent)
     : QWidget(parent), ui(new Ui::Statistics)
 {
     ui->setupUi(this);
 
-    connect(ui->d2RadiaoButton, &QRadioButton::toggled, this, &Statistics::updatePropertyBox);
-    connect(ui->d3RadiaoButton, &QRadioButton::toggled, this, &Statistics::updatePropertyBox);
-
-    allObjects2D = QList<Object>();
-    allObjects3D = QList<Object>();
+    connect(ui->d2RadiaoButton, &QRadioButton::toggled,
+            this, &Statistics::updatePropertyBox);
+    connect(ui->d3RadiaoButton, &QRadioButton::toggled,
+            this, &Statistics::updatePropertyBox);
 
     ui->propertyBox->setCurrentText("-----");
     selectProperty();
-    connect(ui->propertyBox, QOverload<int>::of(&QComboBox::activated), [this](int index){
-        Q_UNUSED(index);
-        this->selectProperty();
-    });
-}
 
+    connect(ui->propertyBox,
+            QOverload<int>::of(&QComboBox::activated),
+            [this](int){ this->selectProperty(); });
+}
 
 Statistics::~Statistics()
 {
     delete ui;
 }
 
-void Statistics::setPropertyBoxText(const QString &text)
+// ═══════════════════════════════════════════════════════════════════════════
+// Main entry points
+// ═══════════════════════════════════════════════════════════════════════════
+
+void Statistics::analyzeAndDisplay(int32_t*** voxels, int numCubes)
+{
+    // 3D: delegate entirely to GrainAnalyzer — no UI code there
+    m_grainStats = GrainAnalyzer::analyze(voxels, numCubes);
+
+    // 2D: layer-by-layer ECR / area / perimeter (kept here — needs Qt types)
+    processLayers2D(voxels, numCubes);
+}
+
+void Statistics::layersProcessing(int32_t*** voxels, int numCubes)
+{
+    // Compatibility wrapper — mainwindow.cpp can keep calling this
+    analyzeAndDisplay(voxels, numCubes);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 2D layer analysis (private)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── helpers ───────────────────────────────────────────────────────────────
+
+struct Point2D { int x, y; };
+
+static int compute_perimeter(const std::vector<std::vector<int>>& img,
+                             int i, int j)
+{
+    const int rows = img.size();
+    const int cols = img[0].size();
+    const int color = img[i][j];
+
+    const std::array<Point2D, 4> nb = {{ {i-1,j},{i+1,j},{i,j-1},{i,j+1} }};
+    for (const auto& p : nb)
+        if (p.x < 0 || p.x >= rows || p.y < 0 || p.y >= cols
+            || img[p.x][p.y] != color)
+            return 1;   // on boundary → contributes 1
+
+    return 0;
+}
+
+static std::vector<Object>
+label_connected_regions(const std::vector<std::vector<int>>& image)
+{
+    const int rows       = image.size();
+    const int cols       = image[0].size();
+    const double totalArea = rows * cols;
+    constexpr double pi  = 3.14159265358979;
+
+    std::vector<std::vector<bool>> visited(rows, std::vector<bool>(cols, false));
+    std::unordered_map<int,
+                       std::tuple<int,int,double,double,double>> grainData;
+
+    for (int i = 0; i < rows; ++i)
+        for (int j = 0; j < cols; ++j)
+        {
+            if (!image[i][j] || visited[i][j]) continue;
+
+            int size = 0, perimeter = 0;
+            const int color = image[i][j];
+            std::queue<Point2D> q;
+            q.push({i, j});
+            visited[i][j] = true;
+
+            while (!q.empty())
+            {
+                auto [ci, cj] = q.front(); q.pop();
+                size++;
+                perimeter += compute_perimeter(image, ci, cj);
+
+                for (const auto& nb : std::array<Point2D,4>
+                     {{ {ci-1,cj},{ci+1,cj},{ci,cj-1},{ci,cj+1} }})
+                {
+                    if (nb.x >= 0 && nb.x < rows &&
+                        nb.y >= 0 && nb.y < cols &&
+                        image[nb.x][nb.y] == color && !visited[nb.x][nb.y])
+                    {
+                        visited[nb.x][nb.y] = true;
+                        q.push(nb);
+                    }
+                }
+            }
+
+            const double normArea    = static_cast<double>(size) / totalArea;
+            const double ecr         = std::sqrt(normArea / pi);
+            const double shape_factor = (perimeter > 0)
+                                            ? 4.0 * pi * size / (static_cast<double>(perimeter) * perimeter)
+                                            : 0.0;
+            grainData[color] = { size, perimeter, normArea, shape_factor, ecr };
+        }
+
+    std::vector<Object> objects;
+    for (const auto& [label, t] : grainData)
+        objects.emplace_back(label,
+                             std::get<0>(t), std::get<1>(t),
+                             std::get<2>(t), std::get<3>(t), std::get<4>(t));
+    return objects;
+}
+
+void Statistics::processLayers2D(int32_t*** voxels, int numCubes)
+{
+    allObjects2D.clear();
+
+    for (int z = 0; z < numCubes; ++z)
+    {
+        std::vector<std::vector<int>> layer(numCubes,
+                                            std::vector<int>(numCubes));
+        for (int y = 0; y < numCubes; ++y)
+            for (int x = 0; x < numCubes; ++x)
+                layer[y][x] = voxels[x][y][z];
+
+        auto objects = label_connected_regions(layer);
+        allObjects2D.append(QList<Object>(objects.begin(), objects.end()));
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// selectProperty — reads from m_grainStats (3D) or allObjects2D (2D)
+// ═══════════════════════════════════════════════════════════════════════════
+
+void Statistics::selectProperty()
+{
+    QVector<float> values;
+    QString title;
+    const QString prop = ui->propertyBox->currentText();
+
+    // ── 2D ────────────────────────────────────────────────────────────────
+    if (prop == "Area") {
+        title = "Distribution of grain area";
+        for (const auto& o : allObjects2D) values.push_back(o.size);
+
+    } else if (prop == "Norm Area") {
+        title = "Distribution of normalized grain area";
+        for (const auto& o : allObjects2D) values.push_back(o.normArea);
+
+    } else if (prop == "Perimeter") {
+        title = "Distribution of grain perimeter";
+        for (const auto& o : allObjects2D) values.push_back(o.perimeter);
+
+    } else if (prop == "ECR") {
+        title = "Distribution of ECR";
+        for (const auto& o : allObjects2D) values.push_back(o.ecr);
+
+    } else if (prop == "Shape factor") {
+        title = "Distribution of Shape factor";
+        for (const auto& o : allObjects2D) values.push_back(o.shape_factor);
+
+        // ── 3D — from GrainAnalyzer ───────────────────────────────────────────
+    } else if (prop == "Volume") {
+        title = "Distribution of grain volume";
+        for (const auto& [id, s] : m_grainStats)
+            values.push_back(static_cast<float>(s.volume));
+
+    } else if (prop == "Norm Volume") {
+        title = "Distribution of normalized grain volume";
+        for (const auto& [id, s] : m_grainStats)
+            values.push_back(static_cast<float>(s.norm_volume));
+
+    } else if (prop == "Surface Area") {
+        title = "Distribution of grain surface area";
+        for (const auto& [id, s] : m_grainStats)
+            values.push_back(static_cast<float>(s.surface_area));
+
+    } else if (prop == "ESR") {
+        title = "Distribution of ESR";
+        for (const auto& [id, s] : m_grainStats)
+            values.push_back(static_cast<float>(s.esr));
+
+    } else if (prop == "Inertia Moment") {
+        title = "Distribution of grain inertia moment";
+        for (const auto& [id, s] : m_grainStats)
+            values.push_back(static_cast<float>(s.moment_inertia));
+
+    } else {
+        title = "Choose a grain property";
+    }
+
+    // Filter NaN / Inf / zero
+    values.erase(
+        std::remove_if(values.begin(), values.end(),
+                       [](float v){ return std::isinf(v) || std::isnan(v) || v == 0.0f; }),
+        values.end());
+
+    clearLayout(ui->horizontalFrame->layout());
+    buildHistogram(values, title);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// UI helpers — unchanged from original
+// ═══════════════════════════════════════════════════════════════════════════
+
+void Statistics::setPropertyBoxText(const QString& text)
 {
     ui->propertyBox->setCurrentText(text);
 }
 
-struct Point {
-    int x, y;
-    Point(int _x, int _y) : x(_x), y(_y) {}
-};
-
-void Statistics::updatePropertyBox() {
+void Statistics::updatePropertyBox()
+{
     ui->propertyBox->clear();
 
     if (ui->d2RadiaoButton->isChecked()) {
         ui->propertyBox->setCurrentText("-----");
         selectProperty();
-        ui->propertyBox->addItems({"-----", "Area", "Norm Area", "Perimeter", "ECR", "Shape factor"});
+        ui->propertyBox->addItems(
+            {"-----", "Area", "Norm Area", "Perimeter", "ECR", "Shape factor"});
     } else if (ui->d3RadiaoButton->isChecked()) {
         ui->propertyBox->setCurrentText("-----");
         selectProperty();
-        ui->propertyBox->addItems({"-----", "Volume", "Norm Volume", "Surface Area", "ESR", "Inertia Moment"});
+        ui->propertyBox->addItems(
+            {"-----", "Volume", "Norm Volume", "Surface Area",
+             "ESR", "Inertia Moment"});
     }
 }
 
-// Функція для побудови гістограми
-QChart* Statistics::createChart(const QString& selectedTitleProperty) {
-    QChart *chart = new QChart();
-    chart->setTitle(selectedTitleProperty);
+QChart* Statistics::createChart(const QString& title)
+{
+    QChart* chart = new QChart();
+    chart->setTitle(title);
     chart->setTitleFont(QFont("Arial", 20));
     chart->setTitleBrush(QBrush(QColor(0, 0, 0)));
     chart->setAnimationOptions(QChart::SeriesAnimations);
-
     chart->setBackgroundBrush(QColor(170, 170, 170));
     chart->setPlotAreaBackgroundBrush(QColor(170, 170, 170));
     chart->setPlotAreaBackgroundVisible(true);
-
     return chart;
 }
 
-QValueAxis* Statistics::createAxisX() {
-    QValueAxis *axisX = new QValueAxis();
-    axisX->setTitleText("Value");
-    axisX->setTitleBrush(QBrush(QColor(0, 0, 0)));
-    axisX->setTitleFont(QFont("Arial", 14));
-    axisX->setLabelsColor(QColor(0, 0, 0));
-    axisX->setLinePenColor(QColor(0, 0, 0));
-    axisX->setGridLineColor(QColor(0, 0, 0, 90));
-    return axisX;
+QValueAxis* Statistics::createAxisX()
+{
+    QValueAxis* ax = new QValueAxis();
+    ax->setTitleText("Value");
+    ax->setTitleBrush(QBrush(Qt::black));
+    ax->setTitleFont(QFont("Arial", 14));
+    ax->setLabelsColor(Qt::black);
+    ax->setLinePenColor(Qt::black);
+    ax->setGridLineColor(QColor(0, 0, 0, 90));
+    return ax;
 }
 
-QValueAxis* Statistics::createAxisY() {
-    QValueAxis *axisY = new QValueAxis();
-    axisY->setTitleText("Frequency");
-    axisY->setLabelFormat("%.1f");
-    axisY->setTitleBrush(QBrush(QColor(0, 0, 0)));
-    axisY->setTitleFont(QFont("Arial", 14));
-    axisY->setLinePenColor(QColor(0, 0, 0));
-    axisY->setGridLineColor(QColor(0, 0, 0, 90));
-    axisY->setLabelsColor(QColor(0, 0, 0));
-    return axisY;
+QValueAxis* Statistics::createAxisY()
+{
+    QValueAxis* ay = new QValueAxis();
+    ay->setTitleText("Frequency");
+    ay->setLabelFormat("%.1f");
+    ay->setTitleBrush(QBrush(Qt::black));
+    ay->setTitleFont(QFont("Arial", 14));
+    ay->setLinePenColor(Qt::black);
+    ay->setGridLineColor(QColor(0, 0, 0, 90));
+    ay->setLabelsColor(Qt::black);
+    return ay;
 }
 
-void Statistics::adjustAxisX(QValueAxis *axisX, const QVector<float>& counts) {
-    float minValue = *std::min_element(counts.constBegin(), counts.constEnd());
-    float maxValue = *std::max_element(counts.constBegin(), counts.constEnd());
-    int numberOfBins = static_cast<int>(std::round(std::sqrt(counts.size()))/2);
-    float binSize = (maxValue - minValue) / numberOfBins;
+void Statistics::adjustAxisX(QValueAxis* axisX,
+                             const QVector<float>& counts)
+{
+    const float minV = *std::min_element(counts.constBegin(), counts.constEnd());
+    const float maxV = *std::max_element(counts.constBegin(), counts.constEnd());
+    const int   bins = static_cast<int>(std::round(std::sqrt(counts.size())) / 2);
+    const float bin  = (maxV - minV) / bins;
 
-    float tickMinValue = minValue - binSize;
-    float tickMaxValue = maxValue + binSize;
-
-    tickMinValue = qMax(0.0f, tickMinValue);
-
-    int tickCount = qMin(10, numberOfBins);
-    axisX->setTickCount(tickCount);
+    axisX->setTickCount(std::min(10, bins));
     axisX->setLabelFormat("%.4g");
-    axisX->setMin(tickMinValue);
-    axisX->setMax(tickMaxValue);
+    axisX->setMin(std::max(0.0f, minV - bin));
+    axisX->setMax(maxV + bin);
 }
 
-QAreaSeries* Statistics::createHistogramSeries(const QVector<float>& counts) {
-    QAreaSeries *series = new QAreaSeries();
+QAreaSeries* Statistics::createHistogramSeries(const QVector<float>& counts)
+{
+    const float minV = *std::min_element(counts.constBegin(), counts.constEnd());
+    const float maxV = *std::max_element(counts.constBegin(), counts.constEnd());
+    const int   bins = static_cast<int>(std::round(std::sqrt(counts.size())) / 2);
+    const float bin  = (maxV - minV) / bins;
 
-    float minValue = *std::min_element(counts.constBegin(), counts.constEnd());
-    float maxValue = *std::max_element(counts.constBegin(), counts.constEnd());
-    int numberOfBins = static_cast<int>(std::round(std::sqrt(counts.size()))/2);
-    float binSize = (maxValue - minValue) / numberOfBins;
-
-    QVector<int> binCounts(numberOfBins, 0);
-
-    for (float value : counts) {
-        int binIndex = static_cast<int>((value - minValue) / binSize);
-        if (binIndex >= 0 && binIndex < numberOfBins) {
-            binCounts[binIndex]++;
-        }
+    QVector<int> binCounts(bins, 0);
+    for (float v : counts) {
+        int idx = static_cast<int>((v - minV) / bin);
+        if (idx >= 0 && idx < bins) binCounts[idx]++;
     }
 
-    QVector<QPointF> lowerPoints;
-    QVector<QPointF> upperPoints;
-    for (int i = 0; i < numberOfBins; ++i) {
-        float binStart = minValue + i * binSize;
-        float binEnd = minValue + (i + 1) * binSize;
-        lowerPoints.append(QPointF(binStart, 0));
-        lowerPoints.append(QPointF(binEnd, 0));
-        upperPoints.append(QPointF(binStart, binCounts[i]));
-        upperPoints.append(QPointF(binEnd, binCounts[i]));
+    QVector<QPointF> lo, hi;
+    for (int i = 0; i < bins; ++i) {
+        const float s = minV + i * bin;
+        const float e = s + bin;
+        lo << QPointF(s, 0) << QPointF(e, 0);
+        hi << QPointF(s, binCounts[i]) << QPointF(e, binCounts[i]);
     }
 
-    QLineSeries *lowerSeries = new QLineSeries();
-    QLineSeries *upperSeries = new QLineSeries();
-    lowerSeries->append(lowerPoints);
-    upperSeries->append(upperPoints);
-    series->setLowerSeries(lowerSeries);
-    series->setUpperSeries(upperSeries);
+    auto* lower  = new QLineSeries(); lower->append(lo);
+    auto* upper  = new QLineSeries(); upper->append(hi);
+    auto* series = new QAreaSeries(upper, lower);
 
-    QBrush areaBrush(QColor(0, 86, 77, 150));
-    QPen areaPen(QColor(0, 86, 77, 255));
-    areaPen.setWidth(2);
-
-    series->setBrush(areaBrush);
-    series->setPen(areaPen);
-
+    series->setBrush(QBrush(QColor(0, 86, 77, 150)));
+    series->setPen(QPen(QColor(0, 86, 77, 255), 2));
     return series;
 }
 
-
-void Statistics::buildHistogram(const QVector<float>& counts, QString selectedTitleProperty)
+void Statistics::buildHistogram(const QVector<float>& counts,
+                                const QString& title)
 {
-    QChart *chart = createChart(selectedTitleProperty);
-
-    QValueAxis *axisX = createAxisX();
-    QValueAxis *axisY = createAxisY();
+    QChart*     chart = createChart(title);
+    QValueAxis* axisX = createAxisX();
+    QValueAxis* axisY = createAxisY();
 
     chart->addAxis(axisX, Qt::AlignBottom);
     chart->addAxis(axisY, Qt::AlignLeft);
 
-    if (!counts.isEmpty()) {
-        QAreaSeries *series = createHistogramSeries(counts);
+    if (!counts.isEmpty())
+    {
+        auto* series = createHistogramSeries(counts);
         chart->addSeries(series);
 
-        QLineSeries *lowerSeries = static_cast<QLineSeries*>(series->lowerSeries());
-        lowerSeries->attachAxis(axisX);
-        lowerSeries->attachAxis(axisY);
+        auto* lower = static_cast<QLineSeries*>(series->lowerSeries());
+        lower->attachAxis(axisX);
+        lower->attachAxis(axisY);
 
         adjustAxisX(axisX, counts);
 
-        int maxBinCount = *std::max_element(counts.constBegin(), counts.constEnd());
-        int maxAxisValue = (maxBinCount + 9) / 10 * 10;
-        axisY->setRange(0, maxAxisValue + 10);
+        const int maxBin = *std::max_element(counts.constBegin(),
+                                             counts.constEnd());
+        axisY->setRange(0, (maxBin / 10 + 1) * 10 + 10);
     }
 
     chart->legend()->hide();
 
-    clearLayout(ui->horizontalFrame->layout());
-
-    QChartView *chartView = new QChartView(chart);
-    chartView->setRenderHint(QPainter::Antialiasing);
-    ui->horizontalFrame->layout()->addWidget(chartView);
+    auto* view = new QChartView(chart);
+    view->setRenderHint(QPainter::Antialiasing);
+    ui->horizontalFrame->layout()->addWidget(view);
 }
 
-
-void Statistics::clearLayout(QLayout *layout)
+void Statistics::clearLayout(QLayout* layout)
 {
-    QLayoutItem *item;
+    QLayoutItem* item;
     while ((item = layout->takeAt(0)) != nullptr) {
         delete item->widget();
         delete item;
     }
 }
 
-void Statistics::selectProperty() {
-    QVector<float> propertyValues;
-
-    QString selectedProperty = ui->propertyBox->currentText();
-    QString selectedTitleProperty;
-
-    if (selectedProperty == "Norm Area") {
-        selectedTitleProperty = "Distribution of normalized grain area";
-        for (const auto& obj : allObjects2D) {
-            propertyValues.push_back(obj.normArea);
-        }
-    } else if (selectedProperty == "Perimeter") {
-        selectedTitleProperty = "Distribution of grain perimeter";
-        for (const auto& obj : allObjects2D) {
-            propertyValues.push_back(obj.perimeter);
-        }
-    } else if (selectedProperty == "ECR") {
-        selectedTitleProperty = "Distribution of ECR";
-        for (const auto& obj : allObjects2D) {
-            propertyValues.push_back(obj.ecr);
-        }
-    } else if (selectedProperty == "Shape factor") {
-        selectedTitleProperty = "Distribution of Shape factor";
-        for (const auto& obj : allObjects2D) {
-            propertyValues.push_back(obj.shape_factor);
-        }
-    } else if (selectedProperty == "Area") {
-        selectedTitleProperty = "Distribution of grain area";
-        for (const auto& obj : allObjects2D) {
-            propertyValues.push_back(obj.size);
-        }
-    } else if (selectedProperty == "Volume") {
-        selectedTitleProperty = "Distribution of grain volume";
-        for (const auto& obj : allObjects3D) {
-            propertyValues.push_back(obj.volume_3D);
-        }
-    } else if (selectedProperty == "Norm Volume") {
-        selectedTitleProperty = "Distribution of normalized grain volume";
-        for (const auto& obj : allObjects3D) {
-            propertyValues.push_back(obj.norm_volume_3D);
-        }
-    } else if (selectedProperty == "Surface Area") {
-        selectedTitleProperty = "Distribution of grain surface Area";
-        for (const auto& obj : allObjects3D) {
-            propertyValues.push_back(obj.surface_area_3D);
-        }
-    } else if (selectedProperty == "ESR") {
-        selectedTitleProperty = "Distribution of ESR";
-        for (const auto& obj : allObjects3D) {
-            propertyValues.push_back(obj.ESR_3D);
-        }
-    } else if (selectedProperty == "Inertia Moment") {
-        selectedTitleProperty = "Distribution of grain Inertia moment";
-        for (const auto& obj : allObjects3D) {
-            propertyValues.push_back(obj.moment_inertia_3D);
-        }
-    } else {
-        selectedTitleProperty = "Choose a grain property";
-        propertyValues.clear();
-    }
-
-    propertyValues.erase(std::remove_if(propertyValues.begin(), propertyValues.end(), [](float value) {
-                             return std::isinf(value) || std::isnan(value) || value == 0.0f;
-                         }), propertyValues.end());
-
-    clearLayout(ui->horizontalFrame->layout());
-    buildHistogram(propertyValues, selectedTitleProperty);
-}
-
-
-void saveToCSV(const QList<Object>& objects, const std::string& filename) {
-    std::ofstream file(filename);
-    if (!file.is_open()) {
-        qDebug() << "Error: Unable to open file for writing";
-        return;
-    }
-
-    file << "NormArea,Perimeter,Shape Factor,ECR,Volume,NormVolume,SurfaceArea,MomentInertia3D,ESR\n";
-
-    for (const auto& obj : objects) {
-        file << obj.normArea << "," << obj.perimeter << "," << obj.shape_factor << "," << obj.ecr << "," << obj.volume_3D << "," << obj.norm_volume_3D << "," << obj.surface_area_3D << "," << obj.moment_inertia_3D << "," << obj.ESR_3D << "\n";
-    }
-
-    file.close();
-}
-
-
-int compute_perimeter(const std::vector<std::vector<int>>& image, int i, int j) {
-    int rows = image.size();
-    int cols = image[0].size();
-    int perimeter = 0;
-    int color = image[i][j];
-    bool onEdge = false;
-
-    std::vector<Point> neighbors = {{i - 1, j}, {i + 1, j}, {i, j - 1}, {i, j + 1}};
-    for (const auto& neighbor : neighbors) {
-        int ni = neighbor.x;
-        int nj = neighbor.y;
-        if (ni < 0 || ni >= rows || nj < 0 || nj >= cols || image[ni][nj] != color) {
-            perimeter++;
-            onEdge = true;
-        }
-    }
-
-    if (onEdge) {
-        perimeter = 1;
-    } else {
-        perimeter = 0;
-    }
-
-    return perimeter;
-}
-
-const double pi = 3.14159;
-
-std::vector<Object> label_connected_regions(const std::vector<std::vector<int>>& image) {
-    int rows = image.size();
-    int cols = image[0].size();
-    double totalArea = rows * cols;
-
-    std::vector<std::vector<bool>> visited(rows, std::vector<bool>(cols, false));
-    std::unordered_map<int, std::tuple<int, int, double, double, double>> grainData;
-
-    std::vector<Object> objects;
-
-    for (int i = 0; i < rows; ++i) {
-        for (int j = 0; j < cols; ++j) {
-            if (image[i][j] && !visited[i][j]) {
-                int size = 0;
-                int perimeter = 0;
-                int color = image[i][j];
-                std::queue<Point> q;
-
-                q.push(Point(i, j));
-                visited[i][j] = true;
-
-                while (!q.empty()) {
-                    Point p = q.front();
-                    q.pop();
-                    size++;
-
-                    perimeter += compute_perimeter(image, p.x, p.y);
-
-                    std::vector<Point> neighbors = {{p.x - 1, p.y}, {p.x + 1, p.y}, {p.x, p.y - 1}, {p.x, p.y + 1}};
-                    for (const auto& neighbor : neighbors) {
-                        int ni = neighbor.x;
-                        int nj = neighbor.y;
-                        if (ni >= 0 && ni < rows && nj >= 0 && nj < cols && image[ni][nj] == color && !visited[ni][nj]) {
-                            q.push(neighbor);
-                            visited[ni][nj] = true;
-                        }
-                    }
-                }
-
-                double normArea = static_cast<double>(size) / totalArea;
-                double ecr = sqrt(normArea/pi);
-                double shape_factor = 4 * pi * size / (perimeter^2);
-
-                grainData[color] = std::make_tuple(size, perimeter, normArea, shape_factor, ecr);
-            }
-        }
-    }
-
-    for (const auto& pair : grainData) {
-        int label = pair.first;
-        int size = std::get<0>(pair.second);
-        int perimeter = std::get<1>(pair.second);
-        double normArea = std::get<2>(pair.second);
-        double shape_factor = std::get<3>(pair.second);
-        double ecr = std::get<4>(pair.second);
-        objects.emplace_back(label, size, perimeter, normArea, shape_factor, ecr);
-    }
-
-    return objects;
-}
-
-
-void Statistics::layersProcessing(int32_t*** voxels, int numCubes)
-{
-    allObjects2D.clear();
-    allObjects3D.clear();
-
-    int sizeX = numCubes;
-    int sizeY = numCubes;
-    int sizeZ = numCubes;
-
-    for (int z = 0; z < sizeZ; ++z) {
-        std::vector<std::vector<int>> layerImage(sizeY, std::vector<int>(sizeX));
-
-        for (int y = 0; y < sizeY; ++y) {
-            for (int x = 0; x < sizeX; ++x) {
-                layerImage[y][x] = voxels[x][y][z];
-            }
-        }
-        std::vector<Object> objects = label_connected_regions(layerImage);
-        QList<Object> objectList(objects.begin(), objects.end());
-        allObjects2D.append(objectList);
-    }
-
-    surfaceArea3D(voxels, numCubes);
-    calcVolume3D(voxels, numCubes);
-    calcNormVolume3D();
-    calcESR();
-    calcMomentInertia();
-
-    // Збереження властивостей у CSV файл
-    // std::string filename = "All_Layers_Properties_3.csv";
-    // saveToCSV(allObjects, filename);
-}
-
-
 void Statistics::on_saveChartAsIMGButton_clicked()
 {
-    QRect rect = ui->horizontalFrame->geometry();
-    int width = rect.width();
-    int height = rect.height();
-
-    QPixmap pixmap(width, height);
+    const QRect rect = ui->horizontalFrame->geometry();
+    QPixmap pixmap(rect.width(), rect.height());
     ui->horizontalFrame->render(&pixmap);
 
-    QString fileName = QFileDialog::getSaveFileName(this, "Save Image", "", "Image Files (*.png);;All Files (*.*)");
-    if (!fileName.isEmpty()) {
+    const QString fileName = QFileDialog::getSaveFileName(
+        this, "Save Image", "",
+        "Image Files (*.png);;All Files (*.*)");
+    if (!fileName.isEmpty())
         pixmap.save(fileName);
-    }
 }
-
-//Functions for 3D properties
-
-void Statistics::surfaceArea3D(int32_t ***voxels, int numCubes) {
-    surface_area_3D.clear();
-
-    std::map<int, int> local_surface_area;
-
-    for (int z = 0; z < numCubes; ++z) {
-        for (int y = 0; y < numCubes; ++y) {
-            for (int x = 0; x < numCubes; ++x) {
-                int current = voxels[z][y][x];
-                if (current != 0) {
-                    int face_count = 0;
-                    face_count += (x == 0 || voxels[z][y][x-1] != current) ? 1 : 0;
-                    face_count += (x == numCubes-1 || voxels[z][y][x+1] != current) ? 1 : 0;
-                    face_count += (y == 0 || voxels[z][y-1][x] != current) ? 1 : 0;
-                    face_count += (y == numCubes-1 || voxels[z][y+1][x] != current) ? 1 : 0;
-                    face_count += (z == 0 || voxels[z-1][y][x] != current) ? 1 : 0;
-                    face_count += (z == numCubes-1 || voxels[z+1][y][x] != current) ? 1 : 0;
-
-                    local_surface_area[current] += face_count;
-                }
-            }
-        }
-    }
-
-    for (auto &entry : local_surface_area) {
-        surface_area_3D[entry.first] += entry.second;
-    }
-
-    for (const auto& pair : surface_area_3D) {
-        if (pair.first >= allObjects3D.size()) {
-            allObjects3D.resize(pair.first + 1);
-        }
-        allObjects3D[pair.first].surface_area_3D = pair.second;
-    }
-}
-
-void Statistics::calcVolume3D(int32_t ***voxels, int numCubes) {
-    volume_3D.clear();
-
-    std::map<int, int> local_volume_counts;
-
-    for (int z = 0; z < numCubes; ++z) {
-        for (int y = 0; y < numCubes; ++y) {
-            for (int x = 0; x < numCubes; ++x) {
-                int grain_id = voxels[z][y][x];
-                if (grain_id > 0) {
-                    local_volume_counts[grain_id]++;
-                }
-            }
-        }
-    }
-
-    for (const auto& pair : local_volume_counts) {
-        volume_3D[pair.first] += pair.second;
-    }
-
-    for (const auto& pair : volume_3D) {
-        if (pair.first >= allObjects3D.size()) {
-            allObjects3D.resize(pair.first + 1);
-        }
-        allObjects3D[pair.first].volume_3D = pair.second;
-    }
-}
-
-void Statistics::calcNormVolume3D() {
-    norm_volume_3D.clear();
-    double max_volume = 0;
-
-    for (const auto& pair : volume_3D) {
-        if (pair.second > max_volume) {
-            max_volume = pair.second;
-        }
-    }
-
-    if (max_volume > 0) {
-        for (const auto& pair : volume_3D) {
-            norm_volume_3D[pair.first] = pair.second / max_volume;
-
-            if (pair.first >= allObjects3D.size()) {
-                allObjects3D.resize(pair.first + 1);
-            }
-            allObjects3D[pair.first].norm_volume_3D = norm_volume_3D[pair.first];
-        }
-    }
-}
-
-
-void Statistics::calcESR() {
-    ESR_3D.clear();
-
-    for (const auto& pair : volume_3D) {
-        double esr = std::pow((3.0 / (4.0 * M_PI)) * pair.second, 1.0 / 3.0);
-        ESR_3D[pair.first] = esr;
-
-        if (pair.first >= allObjects3D.size()) {
-            allObjects3D.resize(pair.first + 1);
-        }
-
-        allObjects3D[pair.first].ESR_3D = esr;
-    }
-}
-
-
-void Statistics::calcMomentInertia() {
-    moment_inertia_3D.clear();
-
-    for (const auto& pair : ESR_3D) {
-        double moment_inertia = (2.0 / 5.0) * std::pow(pair.second, 2);
-        moment_inertia_3D[pair.first] = moment_inertia;
-
-        if (pair.first >= allObjects3D.size()) {
-            allObjects3D.resize(pair.first + 1);
-        }
-
-        allObjects3D[pair.first].moment_inertia_3D = moment_inertia;
-    }
-}
-

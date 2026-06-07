@@ -3,15 +3,14 @@
 
 #include <QWidget>
 #include <QVector>
-
 #include <QtCharts>
 #include <QChartView>
 #include <QBarSet>
 #include <QBarSeries>
 #include <QtCharts/QBarCategoryAxis>
 #include <QtCharts/QLineSeries>
+#include "grain_analyzer.h"
 
-// Прототип структури Object
 struct Object;
 
 namespace Ui {
@@ -24,74 +23,70 @@ class Statistics : public QWidget
 
 public:
     explicit Statistics(QWidget *parent = nullptr);
-    // Statistics(int32_t*** voxels, int numCubes, QWidget *parent = nullptr);
     ~Statistics();
-    void layersProcessing(int32_t ***voxels, int numCubes);
-    void buildHistogram(const QVector<float>& counts, QString selectedTitleProperty);
-    void selectProperty();
-    void clearLayout(QLayout *layout);
-    QChart* createChart(const QString& selectedTitleProperty);
-    QValueAxis* createAxisX();
-    QValueAxis* createAxisY();
-    void adjustAxisX(QValueAxis *axisX, const QVector<float>& counts);
-    QAreaSeries* createHistogramSeries(const QVector<float>& counts);
-    void setPropertyBoxText(const QString &text);
 
-    void surfaceArea3D(int32_t ***voxels, int numCubes);
-    void calcVolume3D(int32_t ***voxels, int numCubes);
-    void calcNormVolume3D();
-    void calcMomentInertia();
-    void calcESR();
+    /**
+     * @brief Main entry point.
+     * Replaces: layersProcessing + calcVolume3D + calcESR +
+     *           calcNormVolume3D + calcMomentInertia + surfaceArea3D
+     *
+     * Delegates 3D computation to GrainAnalyzer (no UI code there).
+     * Keeps 2D layer analysis here (needs Qt types internally).
+     */
+    void analyzeAndDisplay(int32_t*** voxels, int numCubes);
+
+    /**
+     * @brief Compatibility wrapper — calls analyzeAndDisplay().
+     * Keep while mainwindow.cpp still calls layersProcessing().
+     */
+    void layersProcessing(int32_t*** voxels, int numCubes);
+
+    // ── UI helpers ────────────────────────────────────────────────────────
+    void         buildHistogram(const QVector<float>& counts,
+                        const QString& title);
+    void         selectProperty();
+    void         clearLayout(QLayout* layout);
+    void         setPropertyBoxText(const QString& text);
+
+    QChart*      createChart(const QString& title);
+    QValueAxis*  createAxisX();
+    QValueAxis*  createAxisY();
+    void         adjustAxisX(QValueAxis* axisX,
+                     const QVector<float>& counts);
+    QAreaSeries* createHistogramSeries(const QVector<float>& counts);
 
 private slots:
     void on_saveChartAsIMGButton_clicked();
 
 private:
-    Ui::Statistics *ui;
+    Ui::Statistics* ui;
 
+    // 3D grain stats — computed by GrainAnalyzer
+    std::map<int32_t, GrainAnalyzer::GrainStats> m_grainStats;
+
+    // 2D per-layer objects (ECR, area, perimeter, shape factor)
     QList<Object> allObjects2D;
-    QList<Object> allObjects3D;
 
     void updatePropertyBox();
-
-    std::map<int, double> surface_area_3D;
-    std::map<int, double> volume_3D;
-    std::map<int, double> norm_volume_3D;
-    std::map<int, double> moment_inertia_3D;
-    std::map<int, double> ESR_3D;
-
+    void processLayers2D(int32_t*** voxels, int numCubes);
 };
 
-// Оголошення структури Object
-struct Object {
-    int label;
-    int size;
-    int perimeter;
-    double normArea;
-    double ecr;
-    double shape_factor;
-    int volume_3D;
-    double norm_volume_3D;
-    double surface_area_3D;
-    double moment_inertia_3D;
-    double ESR_3D;
+// ── Object: 2D per-layer grain metrics ───────────────────────────────────
+struct Object
+{
+    int    label        = 0;
+    int    size         = 0;
+    int    perimeter    = 0;
+    double normArea     = 0.0;
+    double ecr          = 0.0;
+    double shape_factor = 0.0;
 
-    // Default constructor
-    Object() : label(0), size(0), perimeter(0), normArea(0.0), ecr(0.0),
-        shape_factor(0.0), volume_3D(0), norm_volume_3D(0.0),
-        surface_area_3D(0.0), moment_inertia_3D(0.0), ESR_3D(0.0) {}
+    Object() = default;
 
-    // Parameterized constructor
-    Object(int _volume3d, double _normvolume3d, double _surfacearea3d,
-           double _momentinertia3d, double _esr3d)
-        : volume_3D(_volume3d),
-        norm_volume_3D(_normvolume3d), surface_area_3D(_surfacearea3d),
-        moment_inertia_3D(_momentinertia3d), ESR_3D(_esr3d) {}
-
-    Object(int label, int size, int perimeter, double normArea, double shape_factor, double ecr)
-        : label(label), size(size), perimeter(perimeter), normArea(normArea), ecr(ecr), shape_factor(shape_factor) {}
-
+    Object(int label, int size, int perimeter,
+           double normArea, double shape_factor, double ecr)
+        : label(label), size(size), perimeter(perimeter),
+        normArea(normArea), ecr(ecr), shape_factor(shape_factor) {}
 };
-
 
 #endif // STATISTICS_H

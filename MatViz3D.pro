@@ -52,6 +52,7 @@ SOURCES += \
     console.cpp \
     export.cpp \
     dlca.cpp \
+    grain_analyzer.cpp \
     hdf5wrapper.cpp \
     legendview.cpp \
     loadstepmanager.cpp \
@@ -79,6 +80,7 @@ HEADERS += \
     cpuinfo.hpp \
     export.h \
     dlca.h \
+    grain_analyzer.h \
     hdf5wrapper.h \
     legendview.h \
     loadstepmanager.h \
