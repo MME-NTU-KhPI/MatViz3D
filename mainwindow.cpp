@@ -302,16 +302,9 @@ void MainWindow::on_statistics_clicked()
         QMessageBox::information(nullptr, "Warning!", "The structure was not generated.");
     }
     else{
-        form.layersProcessing(Parameters::voxels, Parameters::size);
+        form.analyzeAndDisplay(Parameters::voxels, Parameters::size);
         form.setPropertyBoxText("-----");
         form.selectProperty();
-
-	//form.setVoxelCounts(Parameters::voxels, Parameters::size);
-        form.calcVolume3D(Parameters::voxels, Parameters::size);
-        form.surfaceArea3D(Parameters::voxels, Parameters::size);
-        form.calcESR();
-        form.calcMomentInertia();
-        form.calcNormVolume3D();
 
         QString selectedAlgorithm = ui->AlgorithmsBox->currentText();
 

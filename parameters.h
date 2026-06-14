@@ -18,6 +18,8 @@ public:
     static QString working_directory; // save working directory
 
     static float wave_coefficient;
+    static float wave_spread;
+    static int initial_nuclei_count;
 
     static float halfaxis_a;
     static float halfaxis_b;
@@ -30,6 +32,7 @@ public:
 
     static bool nogui;
     static bool hasProbParameters;
+    static float stefan_number;
 };
 
 #endif // PARAMETERS_H

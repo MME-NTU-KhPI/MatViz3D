@@ -19,6 +19,8 @@ void Console::setupParser(QCommandLineParser &parser)
     parser.addOption(QCommandLineOption("seed","Set the seed of generation","seed"));
     parser.addOption(QCommandLineOption("np", "Set the number of processors for single or multi-threaded execution of algorithms.", "num_threads"));
     parser.addOption(QCommandLineOption("wave_coefficient", "Coefficient for wave generation", "value"));
+    parser.addOption(QCommandLineOption("wave_spread", "Standard deviation (sigma) for wave nucleation (controls the duration of the process)", "value"));
+    parser.addOption(QCommandLineOption("initial_nuclei_count", "Initial number of nuclei for wave-based nucleation (defines the starting seed count)", "value"));
     parser.addOption(QCommandLineOption("halfaxis_a", "The length of the semi-axis A for the Probability algorithm", "value"));
     parser.addOption(QCommandLineOption("halfaxis_b", "The length of the semi-axis B for the Probability algorithm", "value"));
     parser.addOption(QCommandLineOption("halfaxis_c", "The length of the semi-axis C for the Probability algorithm", "value"));
@@ -26,6 +28,8 @@ void Console::setupParser(QCommandLineParser &parser)
     parser.addOption(QCommandLineOption("orientation_angle_b", "Rotation angle of the y-axis for the Probability algorithm", "value"));
     parser.addOption(QCommandLineOption("orientation_angle_c", "Rotation angle of the z-axis for the Probability algorithm", "value"));
     parser.addOption(QCommandLineOption("ellipse_order", "The degree of the superellipse equation", "value"));
+    parser.addOption(QCommandLineOption("stefan_number", "Stefan number", "value"));
+    parser.addOption(QCommandLineOption("hasProbParameters", "check for Probability parameters", "value"));
     parser.addOption(QCommandLineOption("autostart","Running a program with auto-generation of a cube"));
     parser.addOption(QCommandLineOption("nogui","Running a program with no GUI"));
     parser.addOption(QCommandLineOption("output", "Specify output file for generated cube", "directory"));
@@ -125,6 +129,24 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
     {
         Parameters::wave_coefficient = 0.1;
     }
+    if (parser.isSet("wave_spread"))
+    {
+        QString str = parser.value("wave_spread");
+        Parameters::wave_spread = str.toFloat();
+        qInfo() << "wave_spread:" << Parameters::wave_spread;
+    }
+    if (parser.isSet("initial_nuclei_count"))
+    {
+        QString str = parser.value("initial_nuclei_count");
+        Parameters::initial_nuclei_count = str.toFloat();
+        qInfo() << "initial_nuclei_count:" << Parameters::initial_nuclei_count;
+    }
+    if (parser.isSet("stefan_number"))
+    {
+        QString str = parser.value("stefan_number");
+        Parameters::stefan_number = str.toFloat();
+        qInfo() << "stefan_number: " << Parameters::stefan_number;
+    }
     if (parser.isSet("algorithm"))
     {
         Parameters::algorithm = parser.value("algorithm");
@@ -164,12 +186,6 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
 
     }
     qInfo() << "Number of threads (--np):" << Parameters::num_threads;
-    if (parser.isSet("autostart"))
-    {
-        qInfo() << "autostart:" << true;
-        window.onStartClicked();
-    }
-
     if (parser.isSet("num_rnd_loads"))
     {
         int val = parser.value("num_rnd_loads").toInt();
@@ -191,7 +207,11 @@ void Console::processOptions(const QCommandLineParser &parser, MainWindow &windo
         Parameters::working_directory = parser.value("working_directory");
         qInfo() << "working_directory:" << Parameters::working_directory;
     }
-
+    if (parser.isSet("autostart"))
+    {
+        qInfo() << "autostart:" << true;
+        window.onStartClicked();
+    }
     if (parser.isSet("run_stress_calc"))
     {
         qInfo() << "run_stress_calc:" << true;

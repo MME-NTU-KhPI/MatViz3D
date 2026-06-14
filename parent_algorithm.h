@@ -7,6 +7,7 @@
 #include <functional>
 #include <random>
 #include "parameters.h"
+#include "grain_analyzer.h"
 #include "loadstepmanager.h"
 /**
  * @brief Structure containing algorithm flags.

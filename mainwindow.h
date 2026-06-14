@@ -34,7 +34,7 @@ public:
     void closeProbabilityWindow();
     void callExportToCSV();
     bool isAnimation = false;
-    bool isWaveGeneration = false;
+    bool isWaveGeneration = true;
     bool isPeriodicStructure = false;
     int delayAnimation;
     ~MainWindow();
