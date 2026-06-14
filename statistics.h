@@ -11,8 +11,6 @@
 #include <QtCharts/QLineSeries>
 #include "grain_analyzer.h"
 
-struct Object;
-
 namespace Ui {
 class Statistics;
 }
@@ -62,31 +60,12 @@ private:
     Ui::Statistics* ui;
 
     // 3D grain stats — computed by GrainAnalyzer
-    std::map<int32_t, GrainAnalyzer::GrainStats> m_grainStats;
+    std::map<int32_t, GrainAnalyzer::GrainStats3D> m_grainStats;
 
-    // 2D per-layer objects (ECR, area, perimeter, shape factor)
-    QList<Object> allObjects2D;
+    // 2D per-layer grain stats — computed by GrainAnalyzer
+    std::vector<GrainAnalyzer::GrainStats2D> m_grainStats2D;
 
     void updatePropertyBox();
-    void processLayers2D(int32_t*** voxels, int numCubes);
-};
-
-// ── Object: 2D per-layer grain metrics ───────────────────────────────────
-struct Object
-{
-    int    label        = 0;
-    int    size         = 0;
-    int    perimeter    = 0;
-    double normArea     = 0.0;
-    double ecr          = 0.0;
-    double shape_factor = 0.0;
-
-    Object() = default;
-
-    Object(int label, int size, int perimeter,
-           double normArea, double shape_factor, double ecr)
-        : label(label), size(size), perimeter(perimeter),
-        normArea(normArea), ecr(ecr), shape_factor(shape_factor) {}
 };
 
 #endif // STATISTICS_H

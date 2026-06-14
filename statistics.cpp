@@ -1,16 +1,11 @@
 #include "statistics.h"
 #include "ui_statistics.h"
 #include "grain_analyzer.h"
-
 #include <QtCharts>
 #include <QVector>
 #include <QFileDialog>
 #include <algorithm>
-#include <fstream>
-#include <vector>
 #include <cmath>
-#include <queue>
-#include <unordered_map>
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Constructor / Destructor
@@ -45,11 +40,9 @@ Statistics::~Statistics()
 
 void Statistics::analyzeAndDisplay(int32_t*** voxels, int numCubes)
 {
-    // 3D: delegate entirely to GrainAnalyzer — no UI code there
-    m_grainStats = GrainAnalyzer::analyze(voxels, numCubes);
-
-    // 2D: layer-by-layer ECR / area / perimeter (kept here — needs Qt types)
-    processLayers2D(voxels, numCubes);
+    // 3D + 2D: both delegated to GrainAnalyzer — no compute code here
+    m_grainStats   = GrainAnalyzer::analyze3D(voxels, numCubes);
+    m_grainStats2D = GrainAnalyzer::analyze2D(voxels, numCubes);
 }
 
 void Statistics::layersProcessing(int32_t*** voxels, int numCubes)
@@ -59,106 +52,7 @@ void Statistics::layersProcessing(int32_t*** voxels, int numCubes)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 2D layer analysis (private)
-// ═══════════════════════════════════════════════════════════════════════════
-
-// ── helpers ───────────────────────────────────────────────────────────────
-
-struct Point2D { int x, y; };
-
-static int compute_perimeter(const std::vector<std::vector<int>>& img,
-                             int i, int j)
-{
-    const int rows = img.size();
-    const int cols = img[0].size();
-    const int color = img[i][j];
-
-    const std::array<Point2D, 4> nb = {{ {i-1,j},{i+1,j},{i,j-1},{i,j+1} }};
-    for (const auto& p : nb)
-        if (p.x < 0 || p.x >= rows || p.y < 0 || p.y >= cols
-            || img[p.x][p.y] != color)
-            return 1;   // on boundary → contributes 1
-
-    return 0;
-}
-
-static std::vector<Object>
-label_connected_regions(const std::vector<std::vector<int>>& image)
-{
-    const int rows       = image.size();
-    const int cols       = image[0].size();
-    const double totalArea = rows * cols;
-    constexpr double pi  = 3.14159265358979;
-
-    std::vector<std::vector<bool>> visited(rows, std::vector<bool>(cols, false));
-    std::unordered_map<int,
-                       std::tuple<int,int,double,double,double>> grainData;
-
-    for (int i = 0; i < rows; ++i)
-        for (int j = 0; j < cols; ++j)
-        {
-            if (!image[i][j] || visited[i][j]) continue;
-
-            int size = 0, perimeter = 0;
-            const int color = image[i][j];
-            std::queue<Point2D> q;
-            q.push({i, j});
-            visited[i][j] = true;
-
-            while (!q.empty())
-            {
-                auto [ci, cj] = q.front(); q.pop();
-                size++;
-                perimeter += compute_perimeter(image, ci, cj);
-
-                for (const auto& nb : std::array<Point2D,4>
-                     {{ {ci-1,cj},{ci+1,cj},{ci,cj-1},{ci,cj+1} }})
-                {
-                    if (nb.x >= 0 && nb.x < rows &&
-                        nb.y >= 0 && nb.y < cols &&
-                        image[nb.x][nb.y] == color && !visited[nb.x][nb.y])
-                    {
-                        visited[nb.x][nb.y] = true;
-                        q.push(nb);
-                    }
-                }
-            }
-
-            const double normArea    = static_cast<double>(size) / totalArea;
-            const double ecr         = std::sqrt(normArea / pi);
-            const double shape_factor = (perimeter > 0)
-                                            ? 4.0 * pi * size / (static_cast<double>(perimeter) * perimeter)
-                                            : 0.0;
-            grainData[color] = { size, perimeter, normArea, shape_factor, ecr };
-        }
-
-    std::vector<Object> objects;
-    for (const auto& [label, t] : grainData)
-        objects.emplace_back(label,
-                             std::get<0>(t), std::get<1>(t),
-                             std::get<2>(t), std::get<3>(t), std::get<4>(t));
-    return objects;
-}
-
-void Statistics::processLayers2D(int32_t*** voxels, int numCubes)
-{
-    allObjects2D.clear();
-
-    for (int z = 0; z < numCubes; ++z)
-    {
-        std::vector<std::vector<int>> layer(numCubes,
-                                            std::vector<int>(numCubes));
-        for (int y = 0; y < numCubes; ++y)
-            for (int x = 0; x < numCubes; ++x)
-                layer[y][x] = voxels[x][y][z];
-
-        auto objects = label_connected_regions(layer);
-        allObjects2D.append(QList<Object>(objects.begin(), objects.end()));
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// selectProperty — reads from m_grainStats (3D) or allObjects2D (2D)
+// selectProperty — reads from m_grainStats (3D) or m_grainStats2D (2D)
 // ═══════════════════════════════════════════════════════════════════════════
 
 void Statistics::selectProperty()
@@ -170,23 +64,23 @@ void Statistics::selectProperty()
     // ── 2D ────────────────────────────────────────────────────────────────
     if (prop == "Area") {
         title = "Distribution of grain area";
-        for (const auto& o : allObjects2D) values.push_back(o.size);
+        for (const auto& o : m_grainStats2D) values.push_back(o.size);
 
     } else if (prop == "Norm Area") {
         title = "Distribution of normalized grain area";
-        for (const auto& o : allObjects2D) values.push_back(o.normArea);
+        for (const auto& o : m_grainStats2D) values.push_back(o.norm_area);
 
     } else if (prop == "Perimeter") {
         title = "Distribution of grain perimeter";
-        for (const auto& o : allObjects2D) values.push_back(o.perimeter);
+        for (const auto& o : m_grainStats2D) values.push_back(o.perimeter);
 
     } else if (prop == "ECR") {
         title = "Distribution of ECR";
-        for (const auto& o : allObjects2D) values.push_back(o.ecr);
+        for (const auto& o : m_grainStats2D) values.push_back(o.ecr);
 
     } else if (prop == "Shape factor") {
         title = "Distribution of Shape factor";
-        for (const auto& o : allObjects2D) values.push_back(o.shape_factor);
+        for (const auto& o : m_grainStats2D) values.push_back(o.shape_factor);
 
         // ── 3D — from GrainAnalyzer ───────────────────────────────────────────
     } else if (prop == "Volume") {
