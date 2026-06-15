@@ -54,6 +54,7 @@ SOURCES += \
     dlca.cpp \
     grain_analyzer.cpp \
     hdf5wrapper.cpp \
+    hillcriterion.cpp \
     legendview.cpp \
     loadstepmanager.cpp \
     main.cpp \
@@ -82,6 +83,7 @@ HEADERS += \
     dlca.h \
     grain_analyzer.h \
     hdf5wrapper.h \
+    hillcriterion.h \
     legendview.h \
     loadstepmanager.h \
     mainwindow.h \
