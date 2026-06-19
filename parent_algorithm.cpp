@@ -67,7 +67,17 @@ template <class T> void Parent_Algorithm::Delete3D(T*** array)
 };
 
 // Explicit instantiation of Delete3D for int
-template void Parent_Algorithm::Delete3D<int>(int***);
+template void Parent_Algorithm::Delete3D<int32_t>(int32_t***);
+
+Parent_Algorithm::Coordinate Parent_Algorithm::randomCoord()
+{
+    std::uniform_int_distribution<int> dist(0, numCubes - 1);
+    Coordinate a;
+    a.x = dist(m_rng);
+    a.y = dist(m_rng);
+    a.z = dist(m_rng);
+    return a;
+}
 
 int32_t Parent_Algorithm::birthGrain(int x, int y, int z)
 {
@@ -82,26 +92,24 @@ void Parent_Algorithm::CleanUp()
 {
     if (voxels) {
         filled_voxels = 0;
+        color = 0;
+        grains.clear();
+        seedPoints.clear();
         flags.isDone = false;
     }
 }
 
-void Parent_Algorithm::Random_Generate_Points(int currentPoints, std::ofstream& file)
+void Parent_Algorithm::Random_Generate_Points(int currentPoints)
 {
-    std::mt19937 generator(Parameters::seed);
-    std::uniform_int_distribution<int> distribution(0, numCubes - 1);
-    Coordinate a;
-    for(int i = 0; i < currentPoints; i++)
+    for (int i = 0; i < currentPoints; i++)
     {
-        a.x = distribution(generator);
-        a.y = distribution(generator);
-        a.z = distribution(generator);
-        birthGrain(a.x, a.y, a.z);
-        file << a.x << "," << a.y << "," << a.z << "," << voxels[a.x][a.y][a.z] << "\n";
+        Coordinate a = randomCoord();
+        if (voxels[a.x][a.y][a.z] == 0)
+            birthGrain(a.x, a.y, a.z);
     }
 }
 
-void Parent_Algorithm::Grid_Generate_Points(int totalPoints, std::ofstream& file)
+void Parent_Algorithm::Grid_Generate_Points(int totalPoints)
 {
     const int N = std::max(1, static_cast<int>(std::cbrt(static_cast<double>(totalPoints))));
     const int num_points_to_generate = N * N * N;
@@ -169,7 +177,6 @@ void Parent_Algorithm::Grid_Generate_Points(int totalPoints, std::ofstream& file
                 if (voxels[x][y][z] == 0)
                 {
                     birthGrain(x, y, z);
-                    file << x << "," << y << "," << z << "," << assigned_color << "\n";
                 }
 
                 color_index++;
@@ -180,6 +187,8 @@ void Parent_Algorithm::Grid_Generate_Points(int totalPoints, std::ofstream& file
 
 void Parent_Algorithm::Initialization(bool isWaveGeneration)
 {
+    m_rng.seed(Parameters::seed);
+
     int currentPoints;
     if (isWaveGeneration)
     {
@@ -198,8 +207,8 @@ void Parent_Algorithm::Initialization(bool isWaveGeneration)
         qCritical() << "Unable to open file: crystallization_seeds.csv";
     }
     file << "x,y,z,color\n";
-    Random_Generate_Points(currentPoints, file);
-    //Grid_Generate_Points(currentPoints, file);
+    Random_Generate_Points(currentPoints);
+    //Grid_Generate_Points(currentPoints);
 }
 
 std::vector<Parent_Algorithm::Coordinate> Parent_Algorithm::Add_New_Points(std::vector<Coordinate> grains, int numPoints)

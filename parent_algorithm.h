@@ -43,8 +43,8 @@ private:
      * @param array Pointer to the 3D array.
      */
     template <class T> static void Delete3D(T*** array);
-    void Random_Generate_Points(int currentPoints, std::ofstream& file);
-    void Grid_Generate_Points(int currentPoints, std::ofstream& file);
+    void Random_Generate_Points(int currentPoints);
+    void Grid_Generate_Points(int currentPoints);
 
 protected:
     AlgorithmFlags flags; ///< Algorithm flags
@@ -57,6 +57,7 @@ protected:
     int numColors; ///< Number of colors
     int32_t color = 0; ///< Current color
     unsigned int filled_voxels = 0; ///< Number of filled voxels
+    std::mt19937 m_rng; ///< Single generator
 
 public:
 #pragma pack(push, 4)
@@ -71,10 +72,26 @@ public:
     };
 #pragma pack(pop)
 
-    std::vector<Coordinate> grains; ///< Vector of structure grains
+    /// @brief Vector of structure grains (contains coordinates of all elements belonging to the grains).
+    std::vector<Coordinate> grains;
+
+    /// @brief Vector of seed points from which grain growth begins.
     std::vector<Coordinate> seedPoints;
 
+    /**
+     * @brief Nucleates a new grain at the specified 3D coordinates.
+     * @param x X-coordinate of the nucleation point.
+     * @param y Y-coordinate of the nucleation point.
+     * @param z Z-coordinate of the nucleation point.
+     * @return int32_t The unique identifier (ID) or index of the created grain.
+     */
     int32_t birthGrain(int x, int y, int z);
+
+    /**
+     * @brief Generates a random coordinate within the valid modeling domain.
+     * @return Coordinate The generated random coordinate.
+     */
+    Coordinate randomCoord();
 
     /** @brief Sets the number of cubes. */
     void setNumCubes(short int numCubes) { this->numCubes = numCubes; };

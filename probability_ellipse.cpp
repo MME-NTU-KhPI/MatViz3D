@@ -47,9 +47,10 @@ void Probability_Ellipse::Next_Iteration(std::function<void()> callback)
                     int32_t newY = p+y;
                     int32_t newZ = l+z;
                     bool isValidXYZ = (newX >= 0 && newX < numCubes) && (newY >= 0 && newY < numCubes) && (newZ >= 0 && newZ < numCubes) && voxels[newX][newY][newZ] == 0;
-                    bool Chance50 = (rand() % 100) < 50;
-                    bool Chance16 = (rand() % 100) < 16;
-                    bool Chance44 = (rand() % 100) < 44;
+                    std::uniform_int_distribution<int> pct(0, 99);
+                    bool Chance50 = pct(m_rng) < 50;
+                    bool Chance16 = pct(m_rng) < 16;
+                    bool Chance44 = pct(m_rng) < 44;
                     if (isValidXYZ)
                     {
                         if(p == 0 || l == 0)
@@ -130,12 +131,10 @@ void Probability_Ellipse::Next_Iteration(std::function<void()> callback)
             for (int p = 0; p < pointsToCreate; ++p) {
                 bool success = false;
                 for (int retry = 0; retry < 10; ++retry) {
-                    int rx = std::rand() % numCubes;
-                    int ry = std::rand() % numCubes;
-                    int rz = std::rand() % numCubes;
+                    Coordinate c = randomCoord();
 
-                    if (voxels[rx][ry][rz] == 0) {
-                        birthGrain(rx, ry, rz);
+                    if (voxels[c.x][c.y][c.z] == 0) {
+                        birthGrain(c.x, c.y, c.z);
                         success = true;
                         placedRandomly++;
                         break;
