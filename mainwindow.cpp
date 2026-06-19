@@ -276,6 +276,7 @@ void MainWindow::executeAlgorithm(Parent_Algorithm& algorithm, const QString& al
     qDebug() << "Algorithm execution time: " << std::chrono::duration<double>(end - start).count() << " seconds";
 
     updateScene();
+    algorithm.saveSeeds();
     algorithm.CleanUp();
     qDebug() << algorithmName;
 }

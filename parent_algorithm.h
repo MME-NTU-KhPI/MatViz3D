@@ -72,6 +72,9 @@ public:
 #pragma pack(pop)
 
     std::vector<Coordinate> grains; ///< Vector of structure grains
+    std::vector<Coordinate> seedPoints;
+
+    int32_t birthGrain(int x, int y, int z);
 
     /** @brief Sets the number of cubes. */
     void setNumCubes(short int numCubes) { this->numCubes = numCubes; };
@@ -160,6 +163,8 @@ public:
      * @return Vector of points after deletion.
      */
     std::vector<Coordinate> Delete_Points(std::vector<Coordinate> grains, size_t i);
+
+    void saveSeeds();
 };
 
 #endif // PARENT_ALGORITHM_H

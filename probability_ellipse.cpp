@@ -135,9 +135,7 @@ void Probability_Ellipse::Next_Iteration(std::function<void()> callback)
                     int rz = std::rand() % numCubes;
 
                     if (voxels[rx][ry][rz] == 0) {
-                        voxels[rx][ry][rz] = ++color;
-                        grains.push_back({rx, ry, rz});
-                        filled_voxels++;
+                        birthGrain(rx, ry, rz);
                         success = true;
                         placedRandomly++;
                         break;

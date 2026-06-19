@@ -667,9 +667,7 @@ int Probability_Algorithm::nucleateWave(int totalNucleatedSoFar, QString& logInf
             int rx = coord(rng), ry = coord(rng), rz = coord(rng);
             if (voxels[rx][ry][rz] == 0)
             {
-                voxels[rx][ry][rz] = ++color;
-                grains.push_back({rx, ry, rz});
-                filled_voxels++;
+                birthGrain(rx, ry, rz);
                 placed++;
                 success = true;
                 break;

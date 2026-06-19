@@ -69,6 +69,15 @@ template <class T> void Parent_Algorithm::Delete3D(T*** array)
 // Explicit instantiation of Delete3D for int
 template void Parent_Algorithm::Delete3D<int>(int***);
 
+int32_t Parent_Algorithm::birthGrain(int x, int y, int z)
+{
+    voxels[x][y][z] = ++color;
+    grains.push_back({x, y, z});
+    seedPoints.push_back({x, y, z});
+    filled_voxels++;
+    return color;
+}
+
 void Parent_Algorithm::CleanUp()
 {
     if (voxels) {
@@ -87,9 +96,7 @@ void Parent_Algorithm::Random_Generate_Points(int currentPoints, std::ofstream& 
         a.x = distribution(generator);
         a.y = distribution(generator);
         a.z = distribution(generator);
-        voxels[a.x][a.y][a.z] = ++color;
-        grains.push_back(a);
-        filled_voxels++;
+        birthGrain(a.x, a.y, a.z);
         file << a.x << "," << a.y << "," << a.z << "," << voxels[a.x][a.y][a.z] << "\n";
     }
 }
@@ -161,10 +168,8 @@ void Parent_Algorithm::Grid_Generate_Points(int totalPoints, std::ofstream& file
 
                 if (voxels[x][y][z] == 0)
                 {
-                    voxels[x][y][z] = assigned_color;
-                    grains.push_back({x, y, z});
+                    birthGrain(x, y, z);
                     file << x << "," << y << "," << z << "," << assigned_color << "\n";
-                    filled_voxels++;
                 }
 
                 color_index++;
@@ -225,9 +230,7 @@ std::vector<Parent_Algorithm::Coordinate> Parent_Algorithm::Add_New_Points(std::
     // 4. Додавання точок
     for (int i = 0; i < numPoints; ++i) {
         Coordinate a = emptyCoords[i];
-        voxels[a.x][a.y][a.z] = ++color;
-        grains.push_back(a);
-        filled_voxels++;
+        birthGrain(a.x, a.y, a.z);
     }
 
     return grains;
@@ -238,4 +241,15 @@ std::vector<Parent_Algorithm::Coordinate> Parent_Algorithm::Delete_Points(std::v
     grains.erase(grains.begin() + i);
     i--;
     return grains;
+}
+
+void Parent_Algorithm::saveSeeds()
+{
+    std::ofstream file("crystallization_seeds.csv");
+    if (!file.is_open()) { qCritical() << "Unable to open crystallization_seeds.csv"; return; }
+    file << "x,y,z,color\n";
+    for (const Coordinate& a : seedPoints)
+        file << a.x << "," << a.y << "," << a.z << ","
+             << voxels[a.x][a.y][a.z] << "\n";
+    file.close();
 }
