@@ -341,6 +341,7 @@ void MainWindow::setupFileMenu() {
 
     QAction *openHDF = new QAction("Open MV3D hdf5" , this);
     QAction *saveAsImageAction = new QAction("Save as image", this);
+    QAction *saveSVGAction = new QAction("Save as SVG", this);
     QAction *exportWRLAction = new QAction("Export to wrl", this);
     QAction *exportCSVAction = new QAction("Export to csv", this);
     QAction *saveAsHDF = new QAction("Save as hdf5 file" , this);
@@ -348,6 +349,7 @@ void MainWindow::setupFileMenu() {
     QAction *MakeScreenshot = new QAction("Make screenshot", this);
 
     fileMenu->addAction(saveAsImageAction);
+    fileMenu->addAction(saveSVGAction);
     fileMenu->addAction(exportWRLAction);
     fileMenu->addAction(exportCSVAction);
     fileMenu->addAction(saveAsHDF);
@@ -390,6 +392,7 @@ void MainWindow::setupFileMenu() {
     actionFont.setPointSize(14);
     openHDF->setFont(actionFont);
     saveAsImageAction->setFont(actionFont);
+    saveSVGAction->setFont(actionFont);
     exportWRLAction->setFont(actionFont);
     exportCSVAction->setFont(actionFont);
     saveAsHDF->setFont(actionFont);
@@ -399,6 +402,7 @@ void MainWindow::setupFileMenu() {
     ui->FileButton->setMenu(fileMenu);
     connect(openHDF , &QAction::triggered , this , &MainWindow::openHDF);
     connect(saveAsImageAction, &QAction::triggered, this, &MainWindow::saveAsImage);
+    connect(saveSVGAction, &QAction::triggered, this, &MainWindow::saveScreenshotAsSVG);
     connect(exportWRLAction, &QAction::triggered, this, &MainWindow::exportToWRL);
     connect(exportCSVAction, &QAction::triggered, this, &MainWindow::exportToCSV);
     connect(saveAsHDF , &QAction::triggered , this , &MainWindow::saveHDF);
@@ -987,5 +991,48 @@ void MainWindow::copyScreenshotToClipboard()
     QGuiApplication::clipboard()->setImage(glImage);
 }
 
+void MainWindow::saveScreenshotAsSVG()
+{
+    QImage glImage = ui->myGLWidget->captureScreenshotWithWhiteBackground();
+    if (glImage.isNull()) {
+        QMessageBox::critical(this, "Error", "Captured image is empty.");
+        return;
+    }
 
+    // PNG → байты → base64
+    QByteArray png;
+    QBuffer buffer(&png);
+    buffer.open(QIODevice::WriteOnly);
+    glImage.save(&buffer, "PNG");
+    buffer.close();
+    const QString b64 = QString::fromLatin1(png.toBase64());
+
+    const int w = glImage.width();
+    const int h = glImage.height();
+
+    QString svg =
+        QString("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                "<svg xmlns=\"http://www.w3.org/2000/svg\" "
+                "xmlns:xlink=\"http://www.w3.org/1999/xlink\" "
+                "width=\"%1\" height=\"%2\" viewBox=\"0 0 %1 %2\">\n"
+                "  <image width=\"%1\" height=\"%2\" "
+                "xlink:href=\"data:image/png;base64,%3\"/>\n"
+                "</svg>\n")
+            .arg(w).arg(h).arg(b64);
+
+    QString fileName = QFileDialog::getSaveFileName(
+        this, "Save as SVG", "", "SVG Files (*.svg)");
+    if (fileName.isEmpty()) return;
+    if (!fileName.endsWith(".svg", Qt::CaseInsensitive))
+        fileName += ".svg";
+
+    QFile f(fileName);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QMessageBox::critical(this, "Error", "Cannot open file for writing.");
+        return;
+    }
+    QTextStream(&f) << svg;
+    f.close();
+    qDebug() << "SVG saved:" << fileName;
+}
 

@@ -188,37 +188,40 @@ QString ansysWrapper::exitCodeToText(int retcode)
     return exitcodes[retcode];
 }
 
+QString ansysWrapper::ansysSysDir() const
+{
+    QString sysdir = qEnvironmentVariable("ANSYS_SYSDIR");
+    if (sysdir.isEmpty())
+    {
+#if defined(_WIN32) || defined(_WIN64)
+        sysdir = "winx64";
+#else
+        sysdir = "linx64";
+#endif
+    }
+    return sysdir;
+}
+
 void ansysWrapper::defaultArgs()
 {
-    //-g -p ane3fl -np 2 -dir "E:\ans_proj\temp" -j "MYJOB" -s noread -l en-us -t -d win32
     m_arg.clear();
+
+    m_arg << "-p"   << ANSLIC
+          << "-np"  << QString::number(m_np)
+          << "-dir" << m_projectPath
+          << "-j"   << m_jobName;
+
     if (m_isBatch)
     {
-        //m_arg = QString::asprintf(" -b -p %s -np %u -dir \"%s\" -j \"%s\" -s noread -i %s -o %s -d win32",
-        //                           ANSLIC, m_np, m_projectPath.toLatin1().data() , m_jobName.toLatin1().data(), INPUTFILE, OUTPUTFILE );
-        m_arg <<
-            QString("-b") <<
-            QString("-p") << ANSLIC <<
-            QString("-np") << QString::number(m_np) <<
-            QString("-dir") << m_projectPath <<
-            QString("-j") << m_jobName <<
-            QString("-i") << INPUTFILE  <<
-            QString("-o") << OUTPUTFILE  <<
-            QString("-d") << "win32"; // "winx64"
+        m_arg.prepend("-b");
+        m_arg << "-i" << INPUTFILE
+              << "-o" << OUTPUTFILE;
     }
     else
     {
-        //m_arg = QString::asprintf(" -g -p %s -np %u -dir \"%s\" -j \"%s\" -s read -d win32",
-        //ANSLIC, m_np, m_projectPath.toLatin1().data() , m_jobName.toLatin1().data());
-
-        m_arg <<
-            QString("-g") <<
-            QString("-p") << ANSLIC <<
-            QString("-np") << QString::number(m_np) <<
-            QString("-dir") << m_projectPath <<
-            QString("-j") << m_jobName <<
-            QString("-s") << "read" <<
-            QString("-d") << "win32"; // "winx64"
+        m_arg.prepend("-g");
+        m_arg << "-s" << "read"
+              << "-d" << ansysSysDir();
     }
 }
 
@@ -844,9 +847,8 @@ void ansysWrapper::findPathVersion()
     env += QString(QDir::separator()) + "bin" + QString(QDir::separator());
     m_pathToAns = env;
 
-    env = qEnvironmentVariable("ANSYS_SYSDIR");
+    m_pathToAns += ansysSysDir();
 
-    m_pathToAns += env;
     m_pathToAns += QString(QDir::separator()) + "ansys" + QString::number(m_ansVersion);
     #if (defined (_WIN32) || defined (_WIN64))
         m_pathToAns += ".exe";

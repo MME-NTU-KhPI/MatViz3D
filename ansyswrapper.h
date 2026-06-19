@@ -55,6 +55,8 @@ protected:
     void findPathVersion();
     void findNp();
     void defaultArgs();
+    QString ansysProduct() const;
+    QString ansysSysDir() const;
 
     QString mergeVector(QString prefix, std::vector<double> vec);
 

@@ -34,7 +34,7 @@ public:
     void closeProbabilityWindow();
     void callExportToCSV();
     bool isAnimation = false;
-    bool isWaveGeneration = true;
+    bool isWaveGeneration = false;
     bool isPeriodicStructure = false;
     int delayAnimation;
     ~MainWindow();
@@ -68,6 +68,7 @@ private slots:
     void saveHDF();
     void openHDF();
     void copyScreenshotToClipboard();
+    void saveScreenshotAsSVG();
     void on_Start_clicked();
 
     void on_statistics_clicked();

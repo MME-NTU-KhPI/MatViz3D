@@ -68,3 +68,19 @@ crystallization_seeds.csv
 
 # development env
 .vscode/
+
+# dat
+input.dat
+output.dat
+
+# Ansys temporary and result files
+*.err
+*.out
+*.log
+*.mntr
+*.stat
+*.rst
+*.rth
+*.db
+*.emat
+*.esav

@@ -196,24 +196,20 @@ void MyGLWidget::setPlotWireFrame(bool status)
  */
 QImage MyGLWidget::captureScreenshot()
 {
-    this->makeCurrent(); // Ensure the OpenGL context is current
-
+    this->makeCurrent();
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
 
-    // Get the dimensions of the widget
-    int width = this->width();
-    int height = this->height();
+    const qreal dpr = devicePixelRatioF();
+    const int width  = qRound(this->width()  * dpr);
+    const int height = qRound(this->height() * dpr);
 
-    // Create a buffer to store pixel data
     QImage screenshot(width, height, QImage::Format_RGBA8888);
-
-    // Read pixels from OpenGL framebuffer
+    f->glPixelStorei(GL_PACK_ALIGNMENT, 1);
     f->glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, screenshot.bits());
 
-    // Convert the image from bottom-left origin to top-left origin
+    screenshot.setDevicePixelRatio(dpr);
     screenshot = screenshot.mirrored();
     this->doneCurrent();
-
     return screenshot;
 }
 
@@ -929,10 +925,10 @@ void MyGLWidget::resizeGL(int width, int height)
     // Set up perspective projection using glFrustum
     GLfloat aspect = (GLfloat)width / (GLfloat)height;
     GLfloat fov = 45.0f;
-    GLfloat baseNear = 1.0f;     // Базовое значение ближней границы
-    GLfloat baseFar = 1000.0f;   // Базовое значение дальней границы
-    GLfloat minNear = 0.1f;      // Минимальное значение ближней границы
-    GLfloat maxFar = 5000.0f;    // Максимальное значение дальней границы
+    GLfloat baseNear = 1.0f;
+    GLfloat baseFar = 1000.0f;
+    GLfloat minNear = 0.1f;
+    GLfloat maxFar = 5000.0f;
     GLfloat nearVal = std::max(baseNear / zoomFactor, minNear);
     GLfloat farVal = std::min(baseFar * zoomFactor, maxFar);
     GLfloat top = nearVal * std::tan(fov * 0.5f * 3.14159f / 180.0f);
