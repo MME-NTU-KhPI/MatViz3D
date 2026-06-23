@@ -109,9 +109,10 @@ void Composite::FillWithHexa()
 }
 
 
-void Composite::Next_Iteration(std::function<void()> callback)
+void Composite::Next_Iteration()
 {
-    Q_UNUSED(callback);
+    if (getDone()) return;
+
     setRadius(numColors);
 
     int local_filled_voxels = 0;
@@ -143,3 +144,7 @@ void Composite::Next_Iteration(std::function<void()> callback)
     }
 }
 
+bool Composite::getDone() const
+{
+    return Parent_Algorithm::getDone();
+}

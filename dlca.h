@@ -4,6 +4,12 @@
 #include <vector>
 #include "parent_algorithm.h"
 
+struct CoordinateDouble {
+    double x;
+    double y;
+    double z;
+};
+
 class DLCA_Aggregate
 {
 
@@ -14,6 +20,7 @@ public:
     std::vector <Parent_Algorithm::Coordinate> aggr;
     void move_aggregate(int dx, int dy, int dz);
     void map_to_voxels();
+    CoordinateDouble calculate_exact_center_of_mass() const;
     Parent_Algorithm::Coordinate calculate_center_of_mass() const;
     void shift_to_cube_center(int cubeSize);
     bool is_can_move_aggregate(int dx, int dy, int dz);
@@ -26,10 +33,12 @@ class DLCA : public Parent_Algorithm {
 public:
     DLCA(short int numCubes, int numColors);
     DLCA(int cubeSize);
-    void Next_Iteration(std::function<void()> callback) override;
+    void saveSeeds();
+    void Next_Iteration() override;
+    void Generate_To_End() override;
     void Generate_Filling_With_Spatial_Hashing();
     void Initialization(bool isWaveGeneration) override;
-    bool getDone() override {  if (aggregates.size() <= 1) { setDone(true); } else { setDone(false); } return flags.isDone; };
+    bool getDone() const override { return this->aggregates.size() <= 1; };
     void random_walk();
     std::vector<DLCA_Aggregate> aggregates;
     bool check_collision(size_t i, size_t j);

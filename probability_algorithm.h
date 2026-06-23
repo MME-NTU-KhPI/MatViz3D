@@ -2,6 +2,7 @@
 #define PROBABILITY_ALGORITHM_H
 
 #include <QWidget>
+#include <chrono>
 #include "parent_algorithm.h"
 
 namespace Ui {
@@ -34,7 +35,8 @@ public:
     ~Probability_Algorithm();
 
     void setHalfAxis();
-    void Next_Iteration(std::function<void()> callback) override;
+    void Next_Iteration() override;
+    bool getDone() const override;
 
     enum class ProbabilityMode {
         VolumeSampling,
@@ -60,6 +62,7 @@ public:
 
 private:
     Ui::Probability_Algorithm *ui;
+    std::chrono::time_point<std::chrono::steady_clock> run_start;
     void CleanUp() override;
     bool isPointIn(double x,double y,double z);
     void rotatePoint(double& x, double& y, double& z);

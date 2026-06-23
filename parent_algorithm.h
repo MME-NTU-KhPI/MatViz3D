@@ -57,6 +57,7 @@ protected:
     int numColors; ///< Number of colors
     int32_t color = 0; ///< Current color
     unsigned int filled_voxels = 0; ///< Number of filled voxels
+    int total_nucleated_so_far = -1;
     std::mt19937 m_rng; ///< Single generator
 
 public:
@@ -145,7 +146,9 @@ public:
     bool getAnimation() const { return flags.isAnimation; };
 
     /** @brief Checks if the algorithm is complete. */
-    virtual bool getDone() { if (filled_voxels >= pow(numCubes,3)) { setDone(true); } else { setDone(false); } return flags.isDone; };
+    virtual bool getDone() const {
+        return filled_voxels >= std::pow(numCubes, 3);
+    }
 
     /** @brief Class constructor. */
     Parent_Algorithm();
@@ -154,7 +157,9 @@ public:
     ~Parent_Algorithm();
 
     /** @brief Generates the filling of the structure. */
-    virtual void Next_Iteration(std::function<void()> callback) = 0;
+    virtual void Next_Iteration() = 0;
+
+    virtual void Generate_To_End();
 
     /** @brief Generates random starting points in cube. */
     virtual void Initialization(bool isWaveGeneration);

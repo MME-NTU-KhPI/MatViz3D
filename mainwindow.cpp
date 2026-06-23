@@ -122,24 +122,12 @@ void MainWindow::closeProbabilityWindow()
 
 void MainWindow::onAlgorithmChanged(const QString &text)
 {
-
-    if (text == "DLCA")
-    {
-        ui->checkBoxAnimation->setChecked(true);
-        ui->checkBoxAnimation->setEnabled(false);
-    }
-    else
-    {
-        ui->checkBoxAnimation->setChecked(false);
-        ui->checkBoxAnimation->setEnabled(true);
-    }
     if (text == "Probability Algorithm")
     {
         probability_algorithm = new Probability_Algorithm();
         if (!Parameters::hasProbParameters) probability_algorithm->show();
     }
     onInitialConditionSelectionChanged();
-
 }
 
 void MainWindow::onInitialConditionSelectionChanged()
@@ -268,8 +256,17 @@ void MainWindow::executeAlgorithm(Parent_Algorithm& algorithm, const QString& al
 
     auto start = std::chrono::high_resolution_clock::now();
 
-    while (!algorithm.getDone()) {
-        algorithm.Next_Iteration(updateScene);
+    if( isAnimation )
+    {
+        while(!algorithm.getDone())
+        {
+            algorithm.Next_Iteration();
+            updateScene();
+        }
+    }
+    else
+    {
+        algorithm.Generate_To_End();
     }
 
     auto end = std::chrono::high_resolution_clock::now();

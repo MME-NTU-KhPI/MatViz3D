@@ -11,7 +11,8 @@ class Moore : public Parent_Algorithm {
 public:
     Moore();
     Moore(short int numCubes, int numColors);
-    void Next_Iteration(std::function<void()> callback) override;
+    void Next_Iteration() override;
+    bool getDone() const override;
 };
 
 #endif // MOORE_H

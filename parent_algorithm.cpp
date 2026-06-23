@@ -92,6 +92,7 @@ void Parent_Algorithm::CleanUp()
 {
     if (voxels) {
         filled_voxels = 0;
+        total_nucleated_so_far = -1;
         color = 0;
         grains.clear();
         seedPoints.clear();
@@ -261,4 +262,12 @@ void Parent_Algorithm::saveSeeds()
         file << a.x << "," << a.y << "," << a.z << ","
              << voxels[a.x][a.y][a.z] << "\n";
     file.close();
+}
+
+void Parent_Algorithm::Generate_To_End()
+{
+    while (!this->getDone())
+    {
+        this->Next_Iteration();
+    }
 }

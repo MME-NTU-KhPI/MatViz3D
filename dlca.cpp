@@ -112,6 +112,55 @@ Parent_Algorithm::Coordinate DLCA_Aggregate::calculate_center_of_mass() const
     return cm;
 }
 
+CoordinateDouble DLCA_Aggregate::calculate_exact_center_of_mass() const
+{
+    if (aggr.empty()) {
+        return {0.0, 0.0, 0.0};
+    }
+
+    double ref_x = aggr[0].x;
+    double ref_y = aggr[0].y;
+    double ref_z = aggr[0].z;
+
+    double sum_dx = 0.0;
+    double sum_dy = 0.0;
+    double sum_dz = 0.0;
+
+    double halfCube = this->cubeSize / 2.0;
+
+    for (const auto &c : aggr) {
+        double dx = c.x - ref_x;
+        double dy = c.y - ref_y;
+        double dz = c.z - ref_z;
+
+        if (dx > halfCube)  dx -= this->cubeSize;
+        if (dx < -halfCube) dx += this->cubeSize;
+
+        if (dy > halfCube)  dy -= this->cubeSize;
+        if (dy < -halfCube) dy += this->cubeSize;
+
+        if (dz > halfCube)  dz -= this->cubeSize;
+        if (dz < -halfCube) dz += this->cubeSize;
+
+        sum_dx += dx;
+        sum_dy += dy;
+        sum_dz += dz;
+    }
+
+    double N = static_cast<double>(aggr.size());
+
+    CoordinateDouble cm;
+    cm.x = ref_x + (sum_dx / N) + 0.5;
+    cm.y = ref_y + (sum_dy / N) + 0.5;
+    cm.z = ref_z + (sum_dz / N) + 0.5;
+
+    if (cm.x < 0) cm.x += this->cubeSize; else if (cm.x >= this->cubeSize) cm.x -= this->cubeSize;
+    if (cm.y < 0) cm.y += this->cubeSize; else if (cm.y >= this->cubeSize) cm.y -= this->cubeSize;
+    if (cm.z < 0) cm.z += this->cubeSize; else if (cm.z >= this->cubeSize) cm.z -= this->cubeSize;
+
+    return cm;
+}
+
 
 void DLCA_Aggregate::map_to_voxels()
 {
@@ -162,22 +211,30 @@ DLCA::DLCA(short int numCubes, int numColors)
     this->numColors = numColors;
 }
 
+void DLCA::saveSeeds()
+{
+    std::ofstream file("crystallization_seeds.csv");
+    if (!file.is_open()) { qCritical() << "Unable to open crystallization_seeds.csv"; return; }
+    file << "x,y,z,color\n";
+
+    int count = 0;
+    for (const auto& aggr : aggregates)
+    {
+        if (aggr.aggr.empty()) continue;
+        const Coordinate& c = aggr.aggr[0];
+        file << c.x << "," << c.y << "," << c.z << "," << aggr.id << "\n";
+        count++;
+    }
+    file.close();
+    qDebug() << "DLCA saveSeeds: written" << count << "seeds";
+}
+
 void DLCA::Initialization(bool isWaveGeneration)
 {
     Q_UNUSED(isWaveGeneration); // this paramter actual only for polycrystall material
     std::random_device rd;
     std::mt19937 generator(rd());
     std::uniform_int_distribution<int> distribution(0, numCubes - 1);
-
-    std::ofstream file("crystallization_seeds.csv");
-    if (!file.is_open())
-    {
-        qCritical() << "Unable to open file: crystallization_seeds.csv";
-    }
-    else
-    {
-        file << "x,y,z,color\n";
-    }
 
     Coordinate a;
 
@@ -201,12 +258,6 @@ void DLCA::Initialization(bool isWaveGeneration)
         }
 
         voxels[a.x][a.y][a.z] = i + 1;
-
-        if (file.is_open())
-        {
-            // Format: x,y,z,id (where id = i + 1)
-            file << a.x << "," << a.y << "," << a.z << "," << (i + 1) << "\n";
-        }
 
         DLCA_Aggregate aggr(voxels, numCubes);
         aggr.id = i + 1;
@@ -265,10 +316,9 @@ void DLCA::join_aggregates(size_t _i, size_t _j)
     }
 }
 
-void DLCA::Next_Iteration(std::function<void()> callback)
+void DLCA::Next_Iteration()
 {
 //    this->Generate_Filling_With_Spatial_Hashing();
-
 
     if (this->aggregates.size() > 1)
     {
@@ -309,14 +359,13 @@ void DLCA::Next_Iteration(std::function<void()> callback)
     {
         this->aggregates[i].map_to_voxels();
     }
-
-    if (flags.isAnimation)
-    {
-        callback();
-    }
-
 }
 
+void DLCA::Generate_To_End()
+{
+    while (!this->getDone())
+        this->Next_Iteration();
+}
 
 void DLCA::Generate_Filling_With_Spatial_Hashing()
 {

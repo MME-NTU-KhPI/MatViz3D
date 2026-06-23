@@ -8,7 +8,6 @@
 #include <QTextStream>
 #include <QFile>
 #include <QDir>
-#include <chrono>
 
 Probability_Algorithm::Probability_Algorithm(QWidget *parent) :
     QWidget(parent), Parent_Algorithm(),
@@ -539,79 +538,83 @@ void Probability_Algorithm::partialShuffle(size_t active_size)
     }
 }
 
+bool Probability_Algorithm::getDone() const
+{
+    return grains.empty() && IterationNumber > 0;
+}
+
 // ---------------------------------------------------------------------------
 // Next_Iteration — partial Fisher-Yates replaces full shuffle (O(active) vs O(N))
 // ---------------------------------------------------------------------------
-void Probability_Algorithm::Next_Iteration(std::function<void()> callback)
+void Probability_Algorithm::Next_Iteration()
 {
+    if (getDone()) return;
+
     const unsigned int counter_max =
         static_cast<unsigned int>(std::pow(numCubes, 3));
-    int total_nucleated = static_cast<int>(grains.size());
 
-    // Timing state for rate / ETA computation
     using Clock = std::chrono::steady_clock;
-    auto run_start = Clock::now();
 
-    while (!grains.empty() || this->IterationNumber == 0)
+    if (total_nucleated_so_far == -1)
     {
-        QApplication::processEvents();
-
-        auto iter_start = Clock::now();
-
-        const unsigned int cap          = computeThermodynamicCap(counter_max);
-        const size_t       frontier_size = grains.size();
-
-        // --- Active subset size -----------------------------------------
-        // alpha=3 gives enough headroom to reach cap even at low probability.
-        constexpr float alpha = 3.0f;
-        const size_t active_size =
-            (cap < frontier_size / 4)
-                ? std::min(frontier_size,
-                           static_cast<size_t>(std::ceil(alpha * cap)))
-                : frontier_size;
-
-        // Shuffle only the active prefix — O(active_size), not O(frontier)
-        partialShuffle(active_size);
-
-        // --- Grow frontier ----------------------------------------------
-        const unsigned int captured = growFrontier(cap, active_size);
-        filled_voxels += captured;
-
-        // Wave nucleation
-        QString nucleationLog;
-        int nucleated_this_iter = 0;
-        if (flags.isWaveGeneration)
-        {
-            nucleated_this_iter  = nucleateWave(total_nucleated, nucleationLog);
-            total_nucleated     += nucleated_this_iter;
-        }
-        this->IterationNumber++;
-
-        // Record history entry for CSV export / statistics analysis
-        recordIteration(counter_max, cap, captured,
-                        active_size, nucleated_this_iter, total_nucleated);
-
-
-        // --- Progress output --------------------------------------------
-        const double iter_dt =
-            std::chrono::duration<double>(Clock::now() - iter_start).count();
-        const double elapsed =
-            std::chrono::duration<double>(Clock::now() - run_start).count();
-
-        const bool shouldLog =
-            (this->IterationNumber <= 10) ||
-            (this->IterationNumber <= 100 && this->IterationNumber % 5  == 0) ||
-            (this->IterationNumber % 20 == 0);
-
-        if (shouldLog)
-            logIteration(counter_max, cap, captured, active_size,
-                         frontier_size, iter_dt, elapsed, nucleationLog);
-
-        if (flags.isAnimation)
-            callback();
+        total_nucleated_so_far = static_cast<int>(grains.size());
+        run_start = Clock::now();
     }
 
-    fillIsolatedVoxels();
+    auto iter_start = Clock::now();
+
+    const unsigned int cap        = computeThermodynamicCap(counter_max);
+    const size_t       frontier_size = grains.size();
+
+    // --- Active subset size -----------------------------------------
+    constexpr float alpha = 3.0f;
+    const size_t active_size =
+        (cap < frontier_size / 4)
+            ? std::min(frontier_size,
+                       static_cast<size_t>(std::ceil(alpha * cap)))
+            : frontier_size;
+
+    // Shuffle only the active prefix
+    partialShuffle(active_size);
+
+    // --- Grow frontier ----------------------------------------------
+    const unsigned int captured = growFrontier(cap, active_size);
+    filled_voxels += captured;
+
+    // Wave nucleation
+    QString nucleationLog;
+    int nucleated_this_iter = 0;
+    if (flags.isWaveGeneration)
+    {
+        nucleated_this_iter     = nucleateWave(total_nucleated_so_far, nucleationLog);
+        total_nucleated_so_far += nucleated_this_iter;
+    }
+    this->IterationNumber++;
+
+    // Record history entry for CSV export / statistics analysis
+    recordIteration(counter_max, cap, captured,
+                    active_size, nucleated_this_iter, total_nucleated_so_far);
+
+
+    // --- Progress output --------------------------------------------
+    const double iter_dt =
+        std::chrono::duration<double>(Clock::now() - iter_start).count();
+    const double elapsed =
+        std::chrono::duration<double>(Clock::now() - run_start).count();
+
+    const bool shouldLog =
+        (this->IterationNumber <= 10) ||
+        (this->IterationNumber <= 100 && this->IterationNumber % 5  == 0) ||
+        (this->IterationNumber % 20 == 0);
+
+    if (shouldLog)
+        logIteration(counter_max, cap, captured, active_size,
+                     frontier_size, iter_dt, elapsed, nucleationLog);
+
+    if (grains.empty())
+    {
+        fillIsolatedVoxels();
+    }
 }
 
 

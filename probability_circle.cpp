@@ -19,8 +19,9 @@ Probability_Circle::Probability_Circle(short int numCubes, int numColors)
     this->numColors = numColors;
 }
 
-void Probability_Circle::Next_Iteration(std::function<void()> callback)
+void Probability_Circle::Next_Iteration()
 {
+    if (getDone()) return;
     srand(time(NULL));
     unsigned int counter_max = pow(numCubes,3);
     Coordinate temp;
@@ -28,7 +29,9 @@ void Probability_Circle::Next_Iteration(std::function<void()> callback)
     std::vector<Coordinate> newGrains;
 
     const int N_gr = numColors;
-    int total_nucleated_so_far = static_cast<int>(grains.size());
+    if (total_nucleated_so_far == -1) {
+        total_nucleated_so_far = static_cast<int>(grains.size());
+    }
 
     for(size_t i = 0; i < grains.size(); i++)
     {
@@ -167,9 +170,9 @@ void Probability_Circle::Next_Iteration(std::function<void()> callback)
     }
 
     qDebug().noquote() << logLine;
+}
 
-    if (flags.isAnimation)
-    {
-        callback();
-    }
+bool Probability_Circle::getDone() const
+{
+    return Parent_Algorithm::getDone();
 }
