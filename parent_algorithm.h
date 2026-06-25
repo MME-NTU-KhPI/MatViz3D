@@ -186,7 +186,7 @@ public:
      */
     std::vector<Coordinate> Delete_Points(std::vector<Coordinate> grains, size_t i);
 
-    void saveSeeds();
+    virtual void saveSeeds();
 };
 
 #endif // PARENT_ALGORITHM_H

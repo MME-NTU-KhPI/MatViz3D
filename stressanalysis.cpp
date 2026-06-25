@@ -43,9 +43,10 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
     qDebug() << "[StressAnalysis] v PHASE 1.0 DONE. S matrix (6x6) [1/Pa]:";
     for (int i = 0; i < 6; ++i) {
         QString row;
-        for (int j = 0; j < 6; ++j)
-            row += QString::number(S_matrix[i][j], 'e', 3) + "  ";
-        qDebug().noquote() << QString("  S[%1]:  ").arg(i) + row;
+        for (int j = 0; j < 6; ++j) {
+            row += QString("%1").arg(S_matrix[i][j], 12, 'e', 3) + " ";
+        }
+        qDebug().noquote() << QString("  Row[%1]: [").arg(i) + row + "]";
     }
 
     // ─── PHASE 1.5 ──────────────────────────────────────────────────────────

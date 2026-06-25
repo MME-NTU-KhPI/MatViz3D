@@ -213,57 +213,74 @@ DLCA::DLCA(short int numCubes, int numColors)
 
 void DLCA::saveSeeds()
 {
-    std::ofstream file("crystallization_seeds.csv");
-    if (!file.is_open()) { qCritical() << "Unable to open crystallization_seeds.csv"; return; }
-    file << "x,y,z,color\n";
+    // std::ofstream file("crystallization_seeds.csv");
+    // if (!file.is_open()) { qCritical() << "Unable to open crystallization_seeds.csv"; return; }
+    // file << "x,y,z,color\n";
 
-    int count = 0;
-    for (const auto& aggr : aggregates)
-    {
-        if (aggr.aggr.empty()) continue;
-        const Coordinate& c = aggr.aggr[0];
-        file << c.x << "," << c.y << "," << c.z << "," << aggr.id << "\n";
-        count++;
-    }
-    file.close();
-    qDebug() << "DLCA saveSeeds: written" << count << "seeds";
+    // int count = 0;
+    // for (const auto& aggr : aggregates)
+    // {
+    //     if (aggr.aggr.empty()) continue;
+    //     const Coordinate& c = aggr.aggr[0];
+    //     file << c.x << "," << c.y << "," << c.z << "," << aggr.id << "\n";
+    //     count++;
+    // }
+    // file.close();
+    // qDebug() << "DLCA saveSeeds: written" << count << "seeds";
+    qDebug() << "DLCA saveSeeds: seeds were already saved during initialization.";
 }
 
 void DLCA::Initialization(bool isWaveGeneration)
 {
-    Q_UNUSED(isWaveGeneration); // this paramter actual only for polycrystall material
+    Q_UNUSED(isWaveGeneration); // only for polycrystal materials
     std::random_device rd;
     std::mt19937 generator(rd());
     std::uniform_int_distribution<int> distribution(0, numCubes - 1);
 
+    QFile file("crystallization_seeds.csv");
+    QFileInfo fileInfo(file);
+
+    qDebug() << "====================================================";
+    qDebug() << "[DLCA] FILE WILL BE SAVED TO:" << fileInfo.absoluteFilePath();
+    qDebug() << "====================================================";
+
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        qCritical() << "[DLCA] Failed to open file for writing!";
+    }
+
+    QTextStream out(&file);
+    out << "x,y,z,color\n";
+
     Coordinate a;
+    int successfully_placed = 0;
 
     for (int i = 0; i < numColors; i++)
     {
         int num_tries = 5;
-        do
-        {
+        do {
             a.x = distribution(generator);
             a.y = distribution(generator);
             a.z = distribution(generator);
             num_tries--;
-        }
-        while (voxels[a.x][a.y][a.z] != 0 && num_tries > 0);
+        } while (voxels[a.x][a.y][a.z] != 0 && num_tries > 0);
 
-        if (num_tries == 0)
-        {
-            qDebug() << "Error: cannot find free cell to add new one";
-            qDebug() << a.x << a.y << a.z << i;
+        if (num_tries == 0) {
             continue;
         }
 
         voxels[a.x][a.y][a.z] = i + 1;
+
+        out << a.x << "," << a.y << "," << a.z << "," << (i + 1) << "\n";
+        successfully_placed++;
 
         DLCA_Aggregate aggr(voxels, numCubes);
         aggr.id = i + 1;
         aggr.aggr.push_back(a);
         this->aggregates.push_back(aggr);
     }
+
+    file.close();
+    qDebug() << "[DLCA] Successfully generated and saved" << successfully_placed << "seeds.";
 }
 
 #include <limits.h>

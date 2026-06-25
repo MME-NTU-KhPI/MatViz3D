@@ -33,7 +33,7 @@ class DLCA : public Parent_Algorithm {
 public:
     DLCA(short int numCubes, int numColors);
     DLCA(int cubeSize);
-    void saveSeeds();
+    void saveSeeds() override;
     void Next_Iteration() override;
     void Generate_To_End() override;
     void Generate_Filling_With_Spatial_Hashing();
