@@ -41,6 +41,9 @@ inline uint qHash(const node3d &key, uint seed)
 class ansysWrapper
 {
 protected:
+    int m_numCubes = 0;
+    double m_solid_fraction = 1.0; // частка твердої фази (з вокселів)
+    double m_porosity = 0.0;       // = 1.0 - m_solid_fraction
     int m_ansVersion;
     QString m_pathToAns;
     QStringList m_arg;

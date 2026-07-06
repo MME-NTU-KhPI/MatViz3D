@@ -114,10 +114,14 @@ std::vector<std::array<double,6>> HillCriterion::computeYieldPoints(
 
         qDebug() << QString("[HillCriterion::computeYieldPoints]   Elements in step: %1").arg((int)results.size());
 
-        double max_tau      = 0.0;
-        int    max_elem_idx = 0;
-        int    elem_skipped = 0;
+        // --- СТАРТ НОВОГО БЛОКА ФИЛЬТРАЦИИ ---
+        struct ElemTau { int idx; double tau; };
+        std::vector<ElemTau> tau_list;
+        tau_list.reserve(results.size());
 
+        int elem_skipped = 0;
+
+        // Начинаем перебор всех элементов
         for (int e = 0; e < (int)results.size(); ++e) {
             int elem_id  = (int)results[e][ID];
             int idx      = elem_id - 1;
@@ -134,7 +138,7 @@ std::vector<std::array<double,6>> HillCriterion::computeYieldPoints(
                 continue;
             }
 
-            // Rotate stress tensor from global frame into crystal frame
+            // Матрица поворота Эйлера
             double phi1 = local_cs[array_idx][0], Phi = local_cs[array_idx][1], phi2 = local_cs[array_idx][2];
             double R[3][3];
             eulerToBungeMatrix(phi1, Phi, phi2, R);
@@ -145,7 +149,7 @@ std::vector<std::array<double,6>> HillCriterion::computeYieldPoints(
                 {results[e][SXZ], results[e][SYZ], results[e][SZ] }
             };
 
-            // sigma_local = R * sigma_global * R^T
+            // Перевод в локальную систему координат
             double sigma_l[3][3] = {0};
             for (int i = 0; i < 3; ++i)
                 for (int j = 0; j < 3; ++j)
@@ -153,15 +157,40 @@ std::vector<std::array<double,6>> HillCriterion::computeYieldPoints(
                         for (int l = 0; l < 3; ++l)
                             sigma_l[i][j] += R[i][k] * sigma_g[k][l] * R[j][l];
 
-            // Loop over all slip systems, track maximum |tau|
+            // Ищем максимальное касательное напряжение для ТЕКУЩЕГО элемента
+            double elem_max_tau = 0.0;
             for (int sys = 0; sys < NUM_SLIP_SYSTEMS; ++sys) {
                 double tau = std::abs(resolvedShearStress(sigma_l, SLIP_NORMALS[sys], SLIP_DIRECTIONS[sys]));
-                if (tau > max_tau) {
-                    max_tau      = tau;
-                    max_elem_idx = e;
+                if (tau > elem_max_tau) {
+                    elem_max_tau = tau;
                 }
             }
+
+            // Сохраняем элемент и его напряжение в общий список
+            tau_list.push_back({e, elem_max_tau});
         }
+        // Конец цикла по элементам
+
+        if (tau_list.empty()) continue;
+
+        // --- ФИЛЬТРАЦИЯ (Отсекаем артефакты сетки) ---
+        // Сортируем элементы по возрастанию напряжения tau
+        std::sort(tau_list.begin(), tau_list.end(), [](const ElemTau& a, const ElemTau& b) {
+            return a.tau < b.tau;
+        });
+
+        // Настройка порога:
+        // 0.995 (99.5%) - хорошо для поликристаллов (почти нет шума)
+        // 0.98  (98.0%) - хорошо для пористых сред (DLCA), убирает острые концентраторы
+        double percentile_threshold = 0.98;
+
+        int p_index = static_cast<int>(tau_list.size() * percentile_threshold);
+        if (p_index >= tau_list.size()) p_index = tau_list.size() - 1;
+
+        // Берем "очищенный" максимум вместо абсолютного
+        double max_tau = tau_list[p_index].tau;
+        int max_elem_idx = tau_list[p_index].idx;
+        // --- КОНЕЦ НОВОГО БЛОКА ФИЛЬТРАЦИИ ---
 
         if (elem_skipped > 0)
             qDebug() << QString("[HillCriterion::computeYieldPoints]   Elements skipped (invalid grain_id): %1").arg(elem_skipped);
@@ -387,28 +416,53 @@ bool HillCriterion::fit(const std::vector<std::array<double,6>>& yield_points) {
         for (int j = 0; j < 5; ++j)
             m_P_Hill_5D[i][j] = x[param_idx(i,j)] / (scale * scale);
 
-    // Small diagonal shift to guarantee positive definiteness
-    double shift = 1e-6 / (scale * scale);
-    qDebug() << "[HillCriterion::fit]   Diagonal shift eps = 1e-6/scale^2 =" << shift << "(ensures PD)";
-    for (int i = 0; i < 5; ++i)
-        m_P_Hill_5D[i][i] += shift;
-
-    qDebug() << "\n[HillCriterion::fit] === P_Hill_5D before Cholesky decomposition ===";
+    // --- АДАПТИВНАЯ РЕГУЛЯРИЗАЦИЯ ---
+    // 1. Находим максимальный элемент на главной диагонали
+    double max_diag = 0.0;
     for (int i = 0; i < 5; ++i) {
-        QString row;
-        for (int j = 0; j < 5; ++j)
-            row += QString::number(m_P_Hill_5D[i][j], 'e', 4) + "  ";
-        qDebug().noquote() << "  [" + QString::number(i) + "]  " + row;
+        if (m_P_Hill_5D[i][i] > max_diag) max_diag = m_P_Hill_5D[i][i];
     }
-    qDebug() << "[HillCriterion::fit] ═══════════════════════════════════════════";
+    if (max_diag < 1e-30) max_diag = 1e-6 / (scale * scale);
 
-    // Cholesky: verifies that P_5D is symmetric and positive definite
+    // 2. Делаем бекап "чистой" матрицы
+    double P_backup[5][5];
+    for (int i = 0; i < 5; ++i) {
+        for (int j = 0; j < 5; ++j) {
+            P_backup[i][j] = m_P_Hill_5D[i][j];
+        }
+    }
+
+    // 3. Пытаемся разложить "чистую" матрицу (сработает для поликристаллов)
     qDebug() << "[HillCriterion::fit] --- Cholesky decomposition P_5D = L*L^T ---";
-    if (!computeCholesky5D()) {
-        qWarning() << "[HillCriterion::fit] ERROR: P_Hill_5D is not positive definite. Fit failed.";
+    bool is_pd = computeCholesky5D();
+
+    int attempts = 0;
+    double shift_multiplier = 1e-4; // Начинаем с очень мягкого сдвига (0.01%)
+
+    // 4. Если матрица гиперболоид (DLCA), постепенно усиливаем сдвиг, пока она не станет эллипсоидом
+    while (!is_pd && attempts < 6) {
+        qWarning() << QString("[HillCriterion::fit] Matrix not PD. Retrying with dynamic shift: %1% of max_diag")
+        .arg(shift_multiplier * 100);
+
+        // Восстанавливаем чистую матрицу и добавляем новый сдвиг
+        for (int i = 0; i < 5; ++i) {
+            for (int j = 0; j < 5; ++j) {
+                m_P_Hill_5D[i][j] = P_backup[i][j];
+            }
+            m_P_Hill_5D[i][i] += max_diag * shift_multiplier; // Усиливаем диагональ
+        }
+
+        is_pd = computeCholesky5D();
+        shift_multiplier *= 10.0; // Если не помогло, на следующей итерации бьем в 10 раз сильнее
+        attempts++;
+    }
+
+    if (!is_pd) {
+        qWarning() << "[HillCriterion::fit] ERROR: P_Hill_5D is not positive definite even after heavy regularization. Fit failed.";
         return false;
     }
     qDebug() << "[HillCriterion::fit]   Cholesky succeeded. P_Hill_5D is valid.";
+    // ----------------------------------------
 
     // Project back to 6D for HDF5 export
     qDebug() << "[HillCriterion::fit] --- Projecting 5D -> 6D for HDF5 export ---";

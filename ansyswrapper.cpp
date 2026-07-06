@@ -228,6 +228,7 @@ void ansysWrapper::defaultArgs()
 
 void ansysWrapper::createFEfromArray(int32_t*** voxels, short int numCubes, int numSeeds, bool is_random_orientation)
 {
+    this->m_numCubes = numCubes;
     for (int i = 0; i < numSeeds + 1; i++)
         this->createLocalCS(is_random_orientation);
 
@@ -326,6 +327,26 @@ void ansysWrapper::createFEfromArray(int32_t*** voxels, short int numCubes, int 
         }
     }
 
+    // Після циклу генерації вузлів і елементів:
+    int total_voxels = 0;
+    int solid_voxels = 0;
+    for (int i = 0; i < numCubes; i++)
+        for (int j = 0; j < numCubes; j++)
+            for (int k = 0; k < numCubes; k++)
+            {
+                total_voxels++;
+                if (voxels[i][j][k] != 0)
+                    solid_voxels++;
+            }
+
+    m_solid_fraction = (total_voxels > 0)
+                           ? (double)solid_voxels / (double)total_voxels
+                           : 1.0;
+    m_porosity = 1.0 - m_solid_fraction;
+
+    qDebug() << "Solid fraction (from voxels):" << m_solid_fraction;
+    qDebug() << "Porosity:" << m_porosity;
+
     QTextStream apdl(&m_apdl);
 
 
@@ -407,6 +428,7 @@ void ansysWrapper::createFEfromArray(int32_t*** voxels, short int numCubes, int 
 
 void ansysWrapper::createFEfromArray8Node(int32_t*** voxels, short int numCubes, int numSeeds, bool is_random_orientation)
 {
+    this->m_numCubes = numCubes;
     QVector<QVector<int>> seedsData;
     QFile file("crystallization_seeds.csv");
 
@@ -510,6 +532,26 @@ void ansysWrapper::createFEfromArray8Node(int32_t*** voxels, short int numCubes,
             qDebug() << "Progress: " << i * 100 / numCubes << "%";
         }
     }
+
+    // Після циклу генерації вузлів і елементів:
+    int total_voxels = 0;
+    int solid_voxels = 0;
+    for (int i = 0; i < numCubes; i++)
+        for (int j = 0; j < numCubes; j++)
+            for (int k = 0; k < numCubes; k++)
+            {
+                total_voxels++;
+                if (voxels[i][j][k] != 0)
+                    solid_voxels++;
+            }
+
+    m_solid_fraction = (total_voxels > 0)
+                           ? (double)solid_voxels / (double)total_voxels
+                           : 1.0;
+    m_porosity = 1.0 - m_solid_fraction;
+
+    qDebug() << "Solid fraction (from voxels):" << m_solid_fraction;
+    qDebug() << "Porosity:" << m_porosity;
 
     QTextStream apdl(&m_apdl);
 
@@ -720,6 +762,7 @@ n3d::node3d ansysWrapper::EstimateDisplacement(const n3d::node3d& node,
     displacement.data[0] = u_x;
     displacement.data[1] = u_y;
     displacement.data[2] = u_z;
+
     return displacement;
 }
 
@@ -1325,6 +1368,7 @@ void ansysWrapper::load_loadstep(int num)
             this->loadstep_results[i-2][j] = parts[j].toFloat();
         }
     }
+    file.close();
     this->loadstep_results_avg.clear();
     this->loadstep_results_avg.resize(num_columns);
 
@@ -1336,8 +1380,13 @@ void ansysWrapper::load_loadstep(int num)
     this->loadstep_results_min.resize(num_columns);
     std::fill(this->loadstep_results_min.begin(), this->loadstep_results_min.end(), FLT_MAX);
 
+    this->result_nodes.clear();
+
+    int valid_count = 0;
+
     for (size_t i = 0; i < this->loadstep_results.size(); i++)
     {
+        valid_count++;
         for (int j = 0; j < num_columns; j++)
         {
             this->loadstep_results_avg[j] += this->loadstep_results[i][j];
@@ -1350,17 +1399,42 @@ void ansysWrapper::load_loadstep(int num)
         key.data[2] = this->loadstep_results[i][Z];
         int line_id = i;
         this->result_nodes.insert(key, line_id);
-
     }
+
+    if (valid_count == 0)
+    {
+        qCritical() << "load_loadstep: valid_count = 0! Перевір фільтрацію або CSV файл.";
+        return;
+    }
+
     for (int j = 0; j < num_columns; j++)
     {
-        this->loadstep_results_avg[j] /= (float)this->loadstep_results.size();
+        this->loadstep_results_avg[j] /= (float)valid_count;
     }
+
+    int total_RVE_nodes = std::pow(m_numCubes + 1, 3);
+
+    float solid_fraction = (float)valid_count / (float)total_RVE_nodes;
+
+    // 3. Корректируем ТОЛЬКО макронапряжения с учетом пористости.
+    // Индексы SX (7) ... SXZ (12) соответствуют вашему массиву num_columns
+    for (int j = SX; j <= SXZ; j++)
+    {
+        this->loadstep_results_avg[j] *= solid_fraction;
+    }
+
+    // for (int j = 0; j < num_columns; j++)
+    // {
+    //     this->loadstep_results_avg[j] /= (float)this->loadstep_results.size();
+    // }
     auto &avg = this->loadstep_results_avg;
     auto &max = this->loadstep_results_max;
     auto &min = this->loadstep_results_min;
     auto &load = this->eps_as_loading[num - 1];
-    qDebug() << QString("------ LS NUM %1------- ").arg(num);
+    qDebug() << QString("------ LS NUM %1 ------- ").arg(num);
+    qDebug() << "Total nodes:" << (int)this->loadstep_results.size()
+             << "| Valid (solid) nodes:" << valid_count
+             << "| Excluded (void):" << ((int)this->loadstep_results.size() - valid_count);
     qDebug() << "AVG S tensor: ";
     qDebug() << "  "<< avg[SX]  << avg[SXY] << avg[SXZ];
     qDebug() << "  "<< avg[SXY] << avg[SY]  << avg[SYZ];
@@ -1384,8 +1458,6 @@ void ansysWrapper::load_loadstep(int num)
     qDebug() << "  "<< eps_err(avg[EpsX],    load[0]) << eps_err(avg[EpsXY]/2, load[3]) << eps_err(avg[EpsXZ]/2, load[5]);
     qDebug() << "  "<< eps_err(avg[EpsXY]/2, load[3]) << eps_err(avg[EpsY],    load[1]) << eps_err(avg[EpsYZ]/2, load[4]);
     qDebug() << "  "<< eps_err(avg[EpsXZ]/2, load[5]) << eps_err(avg[EpsYZ]/2, load[4]) << eps_err(avg[EpsZ],    load[2]) << "\n";
-
-
 
     // qDebug() << "MAX S tensor: ";
     // qDebug() << "  "<< max[SX]  << max[SXY] << max[SXZ];
@@ -1455,9 +1527,23 @@ ansysWrapper::ElasticProperties ansysWrapper::calculateElasticProperties()
         auto& avg = this->loadstep_results_avg;     // Stresses (Sigma) - these are our ‘coefficients’
         auto& load = this->eps_as_loading[k];       // Deformations (Eps) - these are our ‘values’
 
-        double sigma[6] = { avg[SX], avg[SY], avg[SZ], avg[SXY], avg[SYZ], avg[SXZ] };
-        double eps[6]   = { (double)load[0], (double)load[1], (double)load[2],
-                         (double)load[3], (double)load[4], (double)load[5] };
+        double sigma[6] = {
+            avg[SX]  * m_solid_fraction,
+            avg[SY]  * m_solid_fraction,
+            avg[SZ]  * m_solid_fraction,
+            avg[SXY] * m_solid_fraction,
+            avg[SYZ] * m_solid_fraction,
+            avg[SXZ] * m_solid_fraction
+        };
+
+        double eps[6] = {
+            (double)load[0],
+            (double)load[1],
+            (double)load[2],
+            (double)load[3],
+            (double)load[4],
+            (double)load[5]
+        };
 
         // We construct a row of the design matrix for each of the 6 tensor equations.
         for (int row = 0; row < 6; ++row) {
