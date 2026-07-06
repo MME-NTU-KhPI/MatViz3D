@@ -4,20 +4,28 @@
 #include <QProcess>
 #include <cfloat>
 #include <random>
-
 #include "ansyswrapper.h"
 
 #ifndef ANSYSWRAPPER_CPP_INCLUDED
 #define ANSYSWRAPPER_CPP_INCLUDED
 
-#define ANS_HI_VER 250	// ANSYS 25.0
+#define ANS_HI_VER 300	// ANSYS 30.0
 #define ANS_LOW_VER 50	// ANSYS 5.0
 #define BUFLEN 255
 
-#define ANSLIC "ane3fl"
+#define ANSLIC "ansys"
 
 #define INPUTFILE "input.dat"
 #define OUTPUTFILE "output.dat"
+
+static const int S_MAP[6][6] = {
+    {0,  1,  2,  3,  4,  5},
+    {1,  6,  7,  8,  9,  10},
+    {2,  7,  11, 12, 13, 14},
+    {3,  8,  12, 15, 16, 17},
+    {4,  9,  13, 16, 18, 19},
+    {5,  10, 14, 17, 19, 20}
+};
 
 ansysWrapper::ansysWrapper(bool isBatch)
 {
@@ -45,7 +53,14 @@ ansysWrapper::ansysWrapper(bool isBatch)
 
 void ansysWrapper::setWorkingDirectory(QString path)
 {
-    //tempDir = QTemporaryDir(path);
+    #if QT_VERSION >= QT_VERSION_CHECK(6, 4, 0)
+        tempDir = QTemporaryDir(path);
+    #endif
+    
+    if (!tempDir.isValid()) {
+        qCritical() << "Failed to create temporary directory at path:" << path;
+        return;
+    }
     m_projectPath = tempDir.path();
     m_projectPath = QDir::toNativeSeparators(m_projectPath);
     qDebug() << "Woring directory is set to: " << m_projectPath;
@@ -79,11 +94,10 @@ bool ansysWrapper::run(QString apdl)
     {
         QString ansVersionStr;
         ansVersionStr = QString::number(m_ansVersion);
-        //fileName = m_projectPath + "/start" + ansVersionStr + ".ans";
         fileName = m_projectPath + "/start.ans";
     }
 
-    qDebug() <<"temp dir path" << m_projectPath;
+    qDebug() << "temp dir path" << m_projectPath;
     if (!tempDir.isValid())
     {
         qDebug() <<"Temp dir error: " << tempDir.errorString();
@@ -106,7 +120,29 @@ bool ansysWrapper::run(QString apdl)
     QProcess pr;
     pr.setWorkingDirectory(m_projectPath);
     pr.start(m_pathToAns, m_arg);
-    pr.waitForFinished(INT_MAX);
+
+    QString monitorFilePath = m_projectPath + "/" + m_jobName + ".mntr";
+    QFile monitorFile(monitorFilePath);
+
+    while (!pr.waitForFinished(1000)) // Check every second
+    {
+        if (monitorFile.exists() && monitorFile.open(QIODevice::ReadOnly | QIODevice::Text))
+        {
+            QTextStream in(&monitorFile);
+            QString lastLine;
+            while (!in.atEnd())
+            {
+                lastLine = in.readLine();
+            }
+            monitorFile.close();
+
+            if (!lastLine.isEmpty())
+            {
+                qDebug().noquote() << "ANSYS Progress: " << lastLine;
+            }
+        }
+    }
+
     qDebug().noquote() << "Ansys process output:\n" + pr.readAll();
     qDebug() << "Ansys process finished with code: " << pr.exitCode() << " Status: " << exitCodeToText(pr.exitCode());
 
@@ -152,43 +188,47 @@ QString ansysWrapper::exitCodeToText(int retcode)
     return exitcodes[retcode];
 }
 
+QString ansysWrapper::ansysSysDir() const
+{
+    QString sysdir = qEnvironmentVariable("ANSYS_SYSDIR");
+    if (sysdir.isEmpty())
+    {
+#if defined(_WIN32) || defined(_WIN64)
+        sysdir = "winx64";
+#else
+        sysdir = "linx64";
+#endif
+    }
+    return sysdir;
+}
+
 void ansysWrapper::defaultArgs()
 {
-    //-g -p ane3fl -np 2 -dir "E:\ans_proj\temp" -j "MYJOB" -s noread -l en-us -t -d win32
     m_arg.clear();
+
+    m_arg << "-p"   << ANSLIC
+          << "-np"  << QString::number(m_np)
+          << "-dir" << m_projectPath
+          << "-j"   << m_jobName;
+
     if (m_isBatch)
     {
-        //m_arg = QString::asprintf(" -b -p %s -np %u -dir \"%s\" -j \"%s\" -s noread -i %s -o %s -d win32",
-        //                           ANSLIC, m_np, m_projectPath.toLatin1().data() , m_jobName.toLatin1().data(), INPUTFILE, OUTPUTFILE );
-        m_arg <<
-            QString("-b") <<
-            QString("-p") << ANSLIC <<
-            QString("-np") << QString::number(m_np) <<
-            QString("-dir") << m_projectPath <<
-            QString("-j") << m_jobName <<
-            QString("-i") << INPUTFILE  <<
-            QString("-o") << OUTPUTFILE  <<
-            QString("-d") << "win32";
+        m_arg.prepend("-b");
+        m_arg << "-i" << INPUTFILE
+              << "-o" << OUTPUTFILE;
     }
     else
     {
-        //m_arg = QString::asprintf(" -g -p %s -np %u -dir \"%s\" -j \"%s\" -s read -d win32",
-        //ANSLIC, m_np, m_projectPath.toLatin1().data() , m_jobName.toLatin1().data());
-
-        m_arg <<
-            QString("-g") <<
-            QString("-p") << ANSLIC <<
-            QString("-np") << QString::number(m_np) <<
-            QString("-dir") << m_projectPath <<
-            QString("-j") << m_jobName <<
-            QString("-s") << "read" <<
-            QString("-d") << "win32";
+        m_arg.prepend("-g");
+        m_arg << "-s" << "read"
+              << "-d" << ansysSysDir();
     }
 }
 
 
 void ansysWrapper::createFEfromArray(int32_t*** voxels, short int numCubes, int numSeeds, bool is_random_orientation)
 {
+    this->m_numCubes = numCubes;
     for (int i = 0; i < numSeeds + 1; i++)
         this->createLocalCS(is_random_orientation);
 
@@ -257,6 +297,9 @@ void ansysWrapper::createFEfromArray(int32_t*** voxels, short int numCubes, int 
         for (int j = 0; j < numCubes; j++)
             for (int k = 0; k < numCubes; k++)
             {
+                if (voxels[i][j][k] == 0) // skip empty cells
+                    continue;
+
                 for (int l = 1; l <= 20; l++)
                 {
                     key.data[0] = node_coordinates[l][0] + i;
@@ -284,6 +327,26 @@ void ansysWrapper::createFEfromArray(int32_t*** voxels, short int numCubes, int 
         }
     }
 
+    // Після циклу генерації вузлів і елементів:
+    int total_voxels = 0;
+    int solid_voxels = 0;
+    for (int i = 0; i < numCubes; i++)
+        for (int j = 0; j < numCubes; j++)
+            for (int k = 0; k < numCubes; k++)
+            {
+                total_voxels++;
+                if (voxels[i][j][k] != 0)
+                    solid_voxels++;
+            }
+
+    m_solid_fraction = (total_voxels > 0)
+                           ? (double)solid_voxels / (double)total_voxels
+                           : 1.0;
+    m_porosity = 1.0 - m_solid_fraction;
+
+    qDebug() << "Solid fraction (from voxels):" << m_solid_fraction;
+    qDebug() << "Porosity:" << m_porosity;
+
     QTextStream apdl(&m_apdl);
 
 
@@ -307,8 +370,9 @@ void ansysWrapper::createFEfromArray(int32_t*** voxels, short int numCubes, int 
     apdl << "EBLOCK,19,SOLID" << Qt::endl;
     apdl << "(19i10)" << Qt::endl;
     size_t el_size = elemets.size();
+    int max_created_cs_id = m_lcs - 1;
 
-    for (size_t ei = 0; ei < el_size; ei+=20)
+    for (size_t ei = 0; ei < el_size; ei += 8)
     {
         key = reverse_nodes.value(elemets[ei]);
         int kx = (int)key[0], ky = (int)key[1], kz = (int)key[2];
@@ -316,15 +380,25 @@ void ansysWrapper::createFEfromArray(int32_t*** voxels, short int numCubes, int 
         int el_id = 1;
         int real_const = 1;
         int sec_id = 1;
-        int coord_sys_id = voxels[kx][ky][kz] + 11; // 11 - first ansys user-def coord sys
+
+        int calculated_cs_id = voxels[kx][ky][kz] + 11;
+        int coord_sys_id;
+
+        if (calculated_cs_id > max_created_cs_id)
+        {
+            coord_sys_id = 0;
+        } else {
+            coord_sys_id = calculated_cs_id;
+        }
+
         int bd_flag = 0;
         int sld_ref = 0;
         int el_shape = 0;
-        int el_num_nodes = 20;
+        int el_num_nodes = 8;
         int exclude_key = 0;
         int el_number = ei / el_num_nodes + 1;
 
-        apdl.setFieldWidth(10);
+        apdl.setFieldWidth(9);
         apdl << mat_id << el_id << real_const << sec_id << coord_sys_id << bd_flag << sld_ref
              << el_shape << el_num_nodes << exclude_key << el_number;
         for (size_t j = ei; j < ei+20; j++)
@@ -352,23 +426,219 @@ void ansysWrapper::createFEfromArray(int32_t*** voxels, short int numCubes, int 
     qInfo().noquote() << FEM_info.arg(nodes.size()).arg(elemets.size()/20);
 }
 
-int ansysWrapper::createLocalCS(bool is_random_orientation)
+void ansysWrapper::createFEfromArray8Node(int32_t*** voxels, short int numCubes, int numSeeds, bool is_random_orientation)
+{
+    this->m_numCubes = numCubes;
+    QVector<QVector<int>> seedsData;
+    QFile file("crystallization_seeds.csv");
+
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text))
+    {
+        QTextStream in(&file);
+        QString header = in.readLine();
+
+        while (!in.atEnd())
+        {
+            QString line = in.readLine();
+            QStringList parts = line.split(',');
+
+            if (parts.size() >= 3)
+            {
+                QVector<int> seed;
+                for (int i = 0; i < 3; ++i)
+                    seed.push_back(parts[i].toInt());
+                seedsData.push_back(seed);
+            }
+        }
+        file.close();
+    }
+    else
+    {
+        qWarning() << "Failed to open crystallization_seeds.csv";
+        return;
+    }
+
+    int actualSeedsCount = seedsData.size();
+
+    for (int i = 0; i < actualSeedsCount + 1; ++i)
+    {
+        double x = 0, y = 0, z = 0;
+
+        if (i != 0)
+        {
+            x = seedsData[i - 1][0];
+            y = seedsData[i - 1][1];
+            z = seedsData[i - 1][2];
+        }
+
+        qDebug() << x << y << z;
+        this->createLocalCS(is_random_orientation, x, y, z);
+    }
+
+    static const float node_coordinates[9][3] =
+        {
+            {-999, -999, -999},
+            {0.0, 0.0, 0.0}, // 1
+            {1.0, 0.0, 0.0}, // 2
+            {1.0, 1.0, 0.0}, // 3
+            {0.0, 1.0, 0.0}, // 4
+            {0.0, 0.0, 1.0}, // 5
+            {1.0, 0.0, 1.0}, // 6
+            {1.0, 1.0, 1.0}, // 7
+            {0.0, 1.0, 1.0}  // 8
+        };
+
+    n3d::node3d key;
+    QVector<int> elements;
+    QVector<int> tmp_elements(8);
+    int node_number = 0;
+
+    int approx_num_nodes = pow(numCubes + 1, 3); // Estimate for memory allocation
+    nodes.reserve(approx_num_nodes);
+    QHash<int, n3d::node3d> reverse_nodes;
+    reverse_nodes.reserve(approx_num_nodes);
+
+    qDebug() << "Creating nodes for 8-node elements";
+    for (int i = 0; i < numCubes; i++)
+    {
+        for (int j = 0; j < numCubes; j++)
+            for (int k = 0; k < numCubes; k++)
+            {
+                if (voxels[i][j][k] == 0) // Skip empty cells
+                    continue;
+
+                for (int l = 1; l <= 8; l++)
+                {
+                    key.data[0] = node_coordinates[l][0] + i;
+                    key.data[1] = node_coordinates[l][1] + j;
+                    key.data[2] = node_coordinates[l][2] + k;
+
+                    if (nodes.contains(key))
+                    {
+                        tmp_elements[l - 1] = nodes[key];
+                    }
+                    else
+                    {
+                        nodes.insert(key, node_number);
+                        reverse_nodes.insert(node_number, key);
+                        tmp_elements[l - 1] = node_number;
+                        node_number++;
+                    }
+                }
+                elements.append(tmp_elements);
+            }
+        if (i % 3 == 0)
+        {
+            qDebug() << "Progress: " << i * 100 / numCubes << "%";
+        }
+    }
+
+    // Після циклу генерації вузлів і елементів:
+    int total_voxels = 0;
+    int solid_voxels = 0;
+    for (int i = 0; i < numCubes; i++)
+        for (int j = 0; j < numCubes; j++)
+            for (int k = 0; k < numCubes; k++)
+            {
+                total_voxels++;
+                if (voxels[i][j][k] != 0)
+                    solid_voxels++;
+            }
+
+    m_solid_fraction = (total_voxels > 0)
+                           ? (double)solid_voxels / (double)total_voxels
+                           : 1.0;
+    m_porosity = 1.0 - m_solid_fraction;
+
+    qDebug() << "Solid fraction (from voxels):" << m_solid_fraction;
+    qDebug() << "Porosity:" << m_porosity;
+
+    QTextStream apdl(&m_apdl);
+
+    // Write nodes
+    apdl << "NBLOCK,3,,13" << Qt::endl;
+    apdl << "(1i9,3e20.9e3)" << Qt::endl;
+    for (auto ni = nodes.constBegin(); ni != nodes.constEnd(); ni++)
+    {
+        apdl.setFieldWidth(9);
+        apdl << ni.value() + 1;
+        apdl.setFieldWidth(20);
+        apdl << QString::number(ni.key().data[0], 'E', 9)
+             << QString::number(ni.key().data[1], 'E', 9)
+             << QString::number(ni.key().data[2], 'E', 9);
+        apdl.setFieldWidth(0);
+        apdl << Qt::endl;
+    }
+    apdl << -1 << Qt::endl;
+
+    // Write element type
+    apdl << "ET,1,185" << Qt::endl;
+
+    // Write elements
+    apdl << "EBLOCK,19,SOLID,,2" << Qt::endl;
+    apdl << "(19i9)" << Qt::endl;
+    size_t el_size = elements.size();
+
+    for (size_t ei = 0; ei < el_size; ei += 8)
+    {
+        key = reverse_nodes.value(elements[ei]);
+        int kx = (int)key[0], ky = (int)key[1], kz = (int)key[2];
+        int mat_id = 1;
+        int el_id = 1;
+        int real_const = 1;
+        int sec_id = 1;
+        int coord_sys_id = voxels[kx][ky][kz] + 11; // 11 - first ansys user-def coord sys
+        int bd_flag = 0;
+        int sld_ref = 0;
+        int el_shape = 0;
+        int el_num_nodes = 8;
+        int exclude_key = 0;
+        int el_number = ei / el_num_nodes + 1;
+
+        apdl.setFieldWidth(9);
+        apdl << mat_id << el_id << real_const << sec_id << coord_sys_id << bd_flag << sld_ref
+             << el_shape << el_num_nodes << exclude_key << el_number;
+        for (size_t j = ei; j < ei + 8; j++)
+        {
+            apdl << elements[j] + 1;
+        }
+        apdl.setFieldWidth(0);
+        apdl << Qt::endl;
+
+        if (el_size > 100 && ei % (el_size / 100) == 0)
+            qDebug() << "Progress: " << ei * 100 / el_size << "%";
+    }
+    apdl << -1 << Qt::endl;
+
+    // Switch to global coordinate system
+    apdl << "CSYS, 0" << Qt::endl;
+
+    QString FEM_info = "FE Model info:\n\t nodes:%1\n\t elements:%2";
+    qInfo().noquote() << FEM_info.arg(nodes.size()).arg(elements.size() / 8);
+}
+
+int ansysWrapper::createLocalCS(bool is_random_orientation, double x, double y, double z)
 {
     QTextStream apdl(&m_apdl);
     int cs_id = this->m_lcs;
     double eu_angles[3] = {0};
-    if (is_random_orientation) // otherwise 0 as angle
+    if (is_random_orientation)
         this->generate_random_angles(eu_angles, true);
 
     this->local_cs.push_back(std::vector<float>(eu_angles, eu_angles + 3));
-    qDebug() << "Creating local CS #" << cs_id;
-    qDebug() << "    phi1 " << eu_angles[0];
-    qDebug() << "    phi "  << eu_angles[1];
-    qDebug() << "    phi2 " << eu_angles[2];
 
-    apdl << "LOCAL,"<< this->m_lcs << ", 0, 0, 0, 0,"
+    qDebug() << "Creating local CS #" << cs_id;
+    qDebug() << "    Position: (" << x << "," << y << "," << z << ")";
+    qDebug() << "    phi1: " << eu_angles[0];
+    qDebug() << "    phi: "  << eu_angles[1];
+    qDebug() << "    phi2: " << eu_angles[2];
+
+    apdl << "LOCAL," << cs_id << ","
+         << 0 << "," << x << "," << y << ","
+         << z << ","
          << eu_angles[0] << "," << eu_angles[1] << "," << eu_angles[2]
-         << "," << 1 << "," << 1 <<",\n";
+         << "," << 1 << "," << 1 << ",\n";
+
     this->m_lcs++;
     return cs_id;
 }
@@ -492,6 +762,7 @@ n3d::node3d ansysWrapper::EstimateDisplacement(const n3d::node3d& node,
     displacement.data[0] = u_x;
     displacement.data[1] = u_y;
     displacement.data[2] = u_z;
+
     return displacement;
 }
 
@@ -542,6 +813,7 @@ void ansysWrapper::applyComplexLoads(double x1, double y1, double z1,
     this->eps_as_loading.push_back(eps_vec);
 
     apdl << "!-----Apply BC for 3D case -------" << Qt::endl;
+    apdl <<"/NOPR" << Qt::endl;
     for (auto ni = nodes.begin(); ni!=nodes.end(); ni++)
     {
         bool is_on_face = ansysWrapper::IsFaceNode(ni.key(), x1, y1, z1, x2, y2, z2);
@@ -556,6 +828,7 @@ void ansysWrapper::applyComplexLoads(double x1, double y1, double z1,
         }
 
     }
+    apdl <<"/GOPR" << Qt::endl;
     apdl << "!-----END Apply BC for 3D case -------" << Qt::endl;
     apdl << "NSEL,S, , ,all" << Qt::endl;
     apdl << "LSWRITE," << Qt::endl;
@@ -609,17 +882,20 @@ void ansysWrapper::findPathVersion()
     }
     if (m_ansVersion == -1)
     {
-        qDebug() << "Ansys not found";
+        qCritical() << "Ansys not found";
+        std::terminate();
         return;
     }
     assert(m_ansVersion != -1);
-    env += "\\bin\\";
+    env += QString(QDir::separator()) + "bin" + QString(QDir::separator());
     m_pathToAns = env;
 
-    env = qEnvironmentVariable("ANSYS_SYSDIR");
+    m_pathToAns += ansysSysDir();
 
-    m_pathToAns += env;
-    m_pathToAns += "\\ansys" + QString::number(m_ansVersion) + ".exe";
+    m_pathToAns += QString(QDir::separator()) + "ansys" + QString::number(m_ansVersion);
+    #if (defined (_WIN32) || defined (_WIN64))
+        m_pathToAns += ".exe";
+    #endif
 }
 
 int ansysWrapper::kp(double x, double y)
@@ -632,7 +908,7 @@ int ansysWrapper::spline(std::vector<int> kps, int left_boundary, int right_boun
 {
     if (kps.size() < 2) return -1;
 
-    m_apdl += QString::asprintf("FLST,3,%lld,3\n", kps.size());
+    m_apdl += QString::asprintf("FLST,3,%zu,3\n", kps.size());
 
     for (size_t i = 0; i < kps.size(); i++)
     {
@@ -966,41 +1242,101 @@ void ansysWrapper::setNP(int np)
     defaultArgs();
 }
 
+/**
+ * @brief Generates uniformly distributed random orientations (Euler angles).
+ *
+ * This function generates uniformly distributed random orientations in SO(3)
+ * using the method of sampling uniformly distributed quaternions. It then
+ * converts the quaternion to Bunge ZXZ Euler angles (phi1, Phi, phi2).
+ *
+ * @param angl Pointer to a double array of size 3 where the calculated
+ * Euler angles (phi1, Phi, phi2) in radians will be stored.
+ * @param in_deg If true, converts the output angles to degrees.
+ * @param epsilon Tolerance for checking singularity conditions (gimbal lock).
+ */
 void ansysWrapper::generate_random_angles(double *angl, bool in_deg, double epsilon)
 {
-    if (!angl)
-        return;
+    if (!angl) return;
 
-    std::uniform_real_distribution<double> unif(-1.0, 1.0);
     static std::mt19937 re(this->seed);
+    std::normal_distribution<double> norm_dist(0.0, 1.0);
 
-    double g[3][3];
-    for (int i = 0; i < 3; i++)
-        for (int j = 0; j < 3; j++)
-            g[i][j] = unif(re);
+    double q0 = norm_dist(re); // w
+    double q1 = norm_dist(re); // x
+    double q2 = norm_dist(re); // y
+    double q3 = norm_dist(re); // z
 
-    double n_phi = acos(g[2][2]);
-    double n_phi1, n_phi2;
+    double norm = std::sqrt(q0*q0 + q1*q1 + q2*q2 + q3*q3);
+    if (norm < epsilon) {
+        angl[0] = 0.0; angl[1] = 0.0; angl[2] = 0.0;
+        return;
+    }
+    double w = q0 / norm;
+    double x = q1 / norm;
+    double y = q2 / norm;
+    double z = q3 / norm;
 
-    if ( (fabs(n_phi) < epsilon) ||  (fabs(n_phi - M_PI) < epsilon) )
+    //2(xy - wz)
+    double m12 = 2.0 * (x * y - w * z);
+
+    // 1 - 2(x^2 + z^2)
+    double m22 = 1.0 - 2.0 * (x * x + z * z);
+
+    // 2(yz + wx)
+    double m32 = 2.0 * (y * z + w * x);
+
+    // 2(xz - wy)
+    double m31 = 2.0 * (x * z - w * y);
+
+    // 1 - 2(x^2 + y^2)
+    double m33 = 1.0 - 2.0 * (x * x + y * y);
+
+    //(Sequence 3,1,2 = ZXY)
+    double theta1, theta2, theta3;
+
+    if (m32 > 1.0) m32 = 1.0;
+    if (m32 < -1.0) m32 = -1.0;
+
+    // tan^-1( -m12 / m22 )
+    // atan2(Y, X) = tan^-1(Y/X)
+    theta1 = std::atan2(-m12, m22);
+
+    // Картинка: tan^-1( m32 / sqrt(1 - m32^2) )
+    double cos_theta2 = std::sqrt(1.0 - m32 * m32);
+
+    if (cos_theta2 < epsilon)
     {
-        n_phi1 = atan2(g[0][1], g[0][0]);
-        n_phi2 = 0;
+        // Gimbal Lock: ось X повернута на 90 градусів.
+        theta2 = (m32 > 0) ? (M_PI / 2.0) : (-M_PI / 2.0);
+
+        theta1 = 0.0;
+
+        // Альтернативна формула для Y в замочку:
+        // m31 = sin(th2)*sin(th3) -> +/- sin(th3)
+        // m33 = 0
+        // Надійніше через кватерніон: Y = 2 * atan2(x, w) * sign
+        double sign = (m32 > 0) ? 1.0 : -1.0;
+        theta3 = sign * 2.0 * std::atan2(x, w);
     }
     else
     {
-        n_phi1 = atan2(g[2][0],-g[2][1]);
-        n_phi2 = atan2(g[0][2], g[1][2]);
+        theta2 = std::atan2(m32, cos_theta2);
+
+        //tan^-1( -m31 / m33 )
+        theta3 = std::atan2(-m31, m33);
     }
 
-    angl[0] = n_phi1;
-    angl[1] = n_phi;
-    angl[2] = n_phi2;
+    //THXY (Z), THYZ (X), THZX (Y)
+    angl[0] = theta1; // Z
+    angl[1] = theta2; // X
+    angl[2] = theta3; // Y
+
     if (in_deg)
     {
-        angl[0] = angl[0] / M_PI * 180.0;
-        angl[1] = angl[1] / M_PI * 180.0;
-        angl[2] = angl[2] / M_PI * 180.0;
+        double rad_to_deg = 180.0 / M_PI;
+        angl[0] *= rad_to_deg;
+        angl[1] *= rad_to_deg;
+        angl[2] *= rad_to_deg;
     }
 }
 
@@ -1032,6 +1368,7 @@ void ansysWrapper::load_loadstep(int num)
             this->loadstep_results[i-2][j] = parts[j].toFloat();
         }
     }
+    file.close();
     this->loadstep_results_avg.clear();
     this->loadstep_results_avg.resize(num_columns);
 
@@ -1043,8 +1380,13 @@ void ansysWrapper::load_loadstep(int num)
     this->loadstep_results_min.resize(num_columns);
     std::fill(this->loadstep_results_min.begin(), this->loadstep_results_min.end(), FLT_MAX);
 
+    this->result_nodes.clear();
+
+    int valid_count = 0;
+
     for (size_t i = 0; i < this->loadstep_results.size(); i++)
     {
+        valid_count++;
         for (int j = 0; j < num_columns; j++)
         {
             this->loadstep_results_avg[j] += this->loadstep_results[i][j];
@@ -1057,35 +1399,76 @@ void ansysWrapper::load_loadstep(int num)
         key.data[2] = this->loadstep_results[i][Z];
         int line_id = i;
         this->result_nodes.insert(key, line_id);
-
     }
+
+    if (valid_count == 0)
+    {
+        qCritical() << "load_loadstep: valid_count = 0! Перевір фільтрацію або CSV файл.";
+        return;
+    }
+
     for (int j = 0; j < num_columns; j++)
     {
-        this->loadstep_results_avg[j] /= (float)this->loadstep_results.size();
+        this->loadstep_results_avg[j] /= (float)valid_count;
     }
-    // auto &avg = this->loadstep_results_avg;
-    // auto &max = this->loadstep_results_max;
-    // auto &min = this->loadstep_results_min;
 
-    // qDebug() << "AVG Stress tensor: ";
-    // qDebug() << "  "<< avg[SX]  << avg[SXY] << avg[SXZ];
-    // qDebug() << "  "<< avg[SXY] << avg[SY]  << avg[SYZ];
-    // qDebug() << "  "<< avg[SXZ] << avg[SYZ] << avg[SZ];
+    int total_RVE_nodes = std::pow(m_numCubes + 1, 3);
 
-    // qDebug() << "AVG Strain tensor: ";
-    // qDebug() << "  "<< avg[EpsX]  << avg[EpsXY] << avg[EpsXZ];
-    // qDebug() << "  "<< avg[EpsXY] << avg[EpsY]  << avg[EpsYZ];
-    // qDebug() << "  "<< avg[EpsXZ] << avg[EpsYZ] << avg[EpsZ];
+    float solid_fraction = (float)valid_count / (float)total_RVE_nodes;
 
-    // qDebug() << "MAX Stress tensor: ";
+    // 3. Корректируем ТОЛЬКО макронапряжения с учетом пористости.
+    // Индексы SX (7) ... SXZ (12) соответствуют вашему массиву num_columns
+    for (int j = SX; j <= SXZ; j++)
+    {
+        this->loadstep_results_avg[j] *= solid_fraction;
+    }
+
+    // for (int j = 0; j < num_columns; j++)
+    // {
+    //     this->loadstep_results_avg[j] /= (float)this->loadstep_results.size();
+    // }
+    auto &avg = this->loadstep_results_avg;
+    auto &max = this->loadstep_results_max;
+    auto &min = this->loadstep_results_min;
+    auto &load = this->eps_as_loading[num - 1];
+    qDebug() << QString("------ LS NUM %1 ------- ").arg(num);
+    qDebug() << "Total nodes:" << (int)this->loadstep_results.size()
+             << "| Valid (solid) nodes:" << valid_count
+             << "| Excluded (void):" << ((int)this->loadstep_results.size() - valid_count);
+    qDebug() << "AVG S tensor: ";
+    qDebug() << "  "<< avg[SX]  << avg[SXY] << avg[SXZ];
+    qDebug() << "  "<< avg[SXY] << avg[SY]  << avg[SYZ];
+    qDebug() << "  "<< avg[SXZ] << avg[SYZ] << avg[SZ] << "\n";
+
+
+    qDebug() << "AVG EPS tensor: ";
+    qDebug() << "  "<< avg[EpsX]  << avg[EpsXY] << avg[EpsXZ];
+    qDebug() << "  "<< avg[EpsXY] << avg[EpsY]  << avg[EpsYZ];
+    qDebug() << "  "<< avg[EpsXZ] << avg[EpsYZ] << avg[EpsZ] << "\n";
+
+
+    qDebug() << "AVG EPS Load tensor: ";
+    qDebug() << "  "<< load[0] << load[3] << load[5];
+    qDebug() << "  "<< load[3] << load[1] << load[4];
+    qDebug() << "  "<< load[5] << load[4] << load[2] << "\n";
+
+
+    auto eps_err = [](float e1, float e2) { return std::round(e2 ? (e2 - e1) / e2 * 10000 : 0) / 100; };
+    qDebug() << "AVG EPS Error tensor, %: ";
+    qDebug() << "  "<< eps_err(avg[EpsX],    load[0]) << eps_err(avg[EpsXY]/2, load[3]) << eps_err(avg[EpsXZ]/2, load[5]);
+    qDebug() << "  "<< eps_err(avg[EpsXY]/2, load[3]) << eps_err(avg[EpsY],    load[1]) << eps_err(avg[EpsYZ]/2, load[4]);
+    qDebug() << "  "<< eps_err(avg[EpsXZ]/2, load[5]) << eps_err(avg[EpsYZ]/2, load[4]) << eps_err(avg[EpsZ],    load[2]) << "\n";
+
+    // qDebug() << "MAX S tensor: ";
     // qDebug() << "  "<< max[SX]  << max[SXY] << max[SXZ];
     // qDebug() << "  "<< max[SXY] << max[SY]  << max[SYZ];
     // qDebug() << "  "<< max[SXZ] << max[SYZ] << max[SZ];
-
-    // qDebug() << "MIN Stress tensor: ";
+    // qDebug() << "\n";
+    // qDebug() << "MIN S tensor: ";
     // qDebug() << "  "<< min[SX]  << min[SXY] << min[SXZ];
     // qDebug() << "  "<< min[SXY] << min[SY]  << min[SYZ];
     // qDebug() << "  "<< min[SXZ] << min[SYZ] << min[SZ];
+    // qDebug() << "\n";
 }
 
 float ansysWrapper::scaleValue01(float val, int component)
@@ -1122,6 +1505,165 @@ float ansysWrapper::getValByCoord(n3d::node3d &key, int component)
     }
     qDebug() << "Coord not found : "<< key[0] << key[1] << key[2];
     return 0;
+}
+
+ansysWrapper::ElasticProperties ansysWrapper::calculateElasticProperties()
+{
+    ElasticProperties res = {0};
+    res.isValid = false;
+
+    int numSteps = this->eps_as_loading.size();
+    if (numSteps < 1) return res;
+
+    // Formation of a system of normal equations (A^T * A * x = A^T * b)
+    // We are looking for 21 components of the S matrix.
+    // Equation: Eps = S * Sigma
+    double ATA[21][21] = {0};
+    double ATb[21] = {0};
+
+    for (int k = 0; k < numSteps; ++k) {
+        // Let's make sure that the data is loaded for the step k+1
+        this->load_loadstep(k + 1);
+        auto& avg = this->loadstep_results_avg;     // Stresses (Sigma) - these are our ‘coefficients’
+        auto& load = this->eps_as_loading[k];       // Deformations (Eps) - these are our ‘values’
+
+        double sigma[6] = {
+            avg[SX]  * m_solid_fraction,
+            avg[SY]  * m_solid_fraction,
+            avg[SZ]  * m_solid_fraction,
+            avg[SXY] * m_solid_fraction,
+            avg[SYZ] * m_solid_fraction,
+            avg[SXZ] * m_solid_fraction
+        };
+
+        double eps[6] = {
+            (double)load[0],
+            (double)load[1],
+            (double)load[2],
+            (double)load[3],
+            (double)load[4],
+            (double)load[5]
+        };
+
+        // We construct a row of the design matrix for each of the 6 tensor equations.
+        for (int row = 0; row < 6; ++row) {
+            // In this line, non-zero elements are located where the indices correspond to S_MAP[row][col]
+            double A_row[21] = {0};
+            for (int col = 0; col < 6; ++col) {
+                int param_idx = S_MAP[row][col];
+                A_row[param_idx] = sigma[col];
+            }
+
+            // We are accumulating funds for the MNC
+            for (int i = 0; i < 21; ++i) {
+                for (int j = 0; j < 21; ++j) {
+                    ATA[i][j] += A_row[i] * A_row[j];
+                }
+                ATb[i] += A_row[i] * eps[row];
+            }
+        }
+    }
+
+    // System solution
+    double x[21] = {0};
+    if (!solveSystem21x21(ATA, ATb, x)) {
+        qCritical() << "Matrix calculation failed: Singular matrix in Least Squares.";
+        return res;
+    }
+
+    // Filling in the S matrix
+    for (int i = 0; i < 6; ++i) {
+        for (int j = 0; j < 6; ++j) {
+            res.S[i][j] = x[S_MAP[i][j]];
+        }
+    }
+
+    // Inversion S -> C
+    if (!invert6x6(res.S, res.C)) {
+        qCritical() << "Matrix calculation failed: Cannot invert S matrix.";
+        return res;
+    }
+
+    // Calculation of P (Poisson's ratios)
+    // P_matrix[i, :] *= -modulus (where modulus = 1/S_diag)
+    for (int i = 0; i < 6; ++i) {
+        double diag = res.S[i][i];
+        double modulus_inv = (std::abs(diag) > 1e-20) ? (1.0 / diag) : 0.0;
+        for (int j = 0; j < 6; ++j) {
+            res.P[i][j] = -res.S[i][j] * modulus_inv;
+        }
+    }
+
+    res.isValid = true;
+    return res;
+}
+
+// Solving a system of linear equations using Gauss's method with selection of the principal element
+bool ansysWrapper::solveSystem21x21(double A[21][21], double b[21], double x[21]) {
+    const int N = 21;
+    double M[N][N + 1];
+
+    // Copy to the extended matrix
+    for (int i = 0; i < N; ++i) {
+        for (int j = 0; j < N; ++j) M[i][j] = A[i][j];
+        M[i][N] = b[i];
+    }
+
+    // Straight run
+    for (int i = 0; i < N; ++i) {
+        int pivot = i;
+        for (int j = i + 1; j < N; ++j) {
+            if (std::abs(M[j][i]) > std::abs(M[pivot][i])) pivot = j;
+        }
+        // Swap rows
+        for (int k = 0; k <= N; ++k) std::swap(M[i][k], M[pivot][k]);
+
+        if (std::abs(M[i][i]) < 1e-18) return false; // Singular matrix
+
+        for (int j = i + 1; j < N; ++j) {
+            double factor = M[j][i] / M[i][i];
+            for (int k = i; k <= N; ++k) M[j][k] -= factor * M[i][k];
+        }
+    }
+
+    // Reverse gear
+    for (int i = N - 1; i >= 0; --i) {
+        double sum = 0;
+        for (int j = i + 1; j < N; ++j) sum += M[i][j] * x[j];
+        x[i] = (M[i][N] - sum) / M[i][i];
+    }
+    return true;
+}
+
+// Inversion of a 6x6 matrix using the Gauss-Jordan method
+bool ansysWrapper::invert6x6(const double A[6][6], double inv[6][6]) {
+    double temp[6][12];
+
+    for (int i = 0; i < 6; ++i) {
+        for (int j = 0; j < 6; ++j) {
+            temp[i][j] = A[i][j];
+            temp[i][j + 6] = (i == j) ? 1.0 : 0.0;
+        }
+    }
+
+    for (int i = 0; i < 6; ++i) {
+        double pivot = temp[i][i];
+        if (std::abs(pivot) < 1e-18) return false;
+
+        for (int j = 0; j < 12; ++j) temp[i][j] /= pivot;
+
+        for (int k = 0; k < 6; ++k) {
+            if (k != i) {
+                double factor = temp[k][i];
+                for (int j = 0; j < 12; ++j) temp[k][j] -= factor * temp[i][j];
+            }
+        }
+    }
+
+    for (int i = 0; i < 6; ++i) {
+        for (int j = 0; j < 6; ++j) inv[i][j] = temp[i][j + 6];
+    }
+    return true;
 }
 
 
@@ -1242,7 +1784,7 @@ NSEL,S,S,EQV,,, ,0 !- Select nodes with results
 !
 !WRITING TO A FILE: !set the file name as desired.  includes the time step in the file name as a variable
 
-*cfopen,ls_%current_time%,CSV
+*cfopen,ls_%current_time%,csv
 
 *vwrite,'ID','X','Y','Z','UX','UY','UZ','SX','SY','SZ','SXY','SYZ','SXZ','EpsX','EpsY','EpsZ','EpsXY','EpsYZ','EpsXZ'
 %C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C
@@ -1265,6 +1807,141 @@ set,next !read next set
 *del,nummax,nopr
 *del,numnode,nopr
 ALLS
+
+                )";
+
+    m_apdl += s;
+}
+
+void ansysWrapper::addStrainToBCMacro(double eps_xx, double eps_yy, double eps_zz,
+                                      double eps_xy, double eps_xz, double eps_yz, int CubeSize)
+{
+    this->prep7();
+    this->clearBC();
+
+    std::vector<float> eps_vec = {static_cast<float>(eps_xx),
+                                  static_cast<float>(eps_yy),
+                                  static_cast<float>(eps_zz),
+                                  static_cast<float>(eps_xy),
+                                  static_cast<float>(eps_yz),
+                                  static_cast<float>(eps_xz)};
+
+    this->eps_as_loading.push_back(eps_vec);
+
+    this->m_apdl += "!-----Apply BC for 3D case -------\n";
+
+    this->m_apdl += QString("ApplyStrainAsDisp, %1, %2, %3, %4, %5, %6, %7\n").\
+                    arg(eps_xx).arg(eps_yy).arg(eps_zz).arg(eps_xy).arg(eps_yz).arg(eps_xz).arg(CubeSize);
+
+    this->m_apdl += "!-----END Apply BC for 3D case -------\n";
+    this->m_apdl += "NSEL,S, , ,all\n";
+    this->m_apdl += "LSWRITE,\n";
+}
+
+void ansysWrapper::addStrainToBCMacroBlob()
+{
+    auto s = R"(
+
+*CREATE, ApplyStrainAsDisp, mac
+!---------------------------------------------------------------------
+! Macro: ApplyStrainAsDisp
+! Purpose: Create loading tables and apply displacements based on
+!          the given strain components and cube size.
+!
+! Input:
+!   epsxx, epsyy, epszz - Normal strain components
+!   epsxy, epsyz, epsxz - Shear strain components
+!   cubeSize          - Size of the cube along X, Y, and Z directions
+!---------------------------------------------------------------------
+
+epsxx = ARG1
+epsyy = ARG2
+epszz = ARG3
+epsxy = ARG4
+epsyz = ARG5
+epsxz = ARG6
+cubeSize = ARG7
+
+*DEL,loadtableUX
+
+loadtableUX=
+*dim,loadtableUX(1),table,2,2,2,x,y,z !-- Define loading table
+*taxis, loadtableUX(1), 1, 0, cubeSize !-- Set range [0, cubeSize] for X-axis
+*taxis, loadtableUX(1), 2, 0, cubeSize !-- Set range [0, cubeSize] for Y-axis
+*taxis, loadtableUX(1), 3, 0, cubeSize !-- Set range [0, cubeSize] for X-axis
+
+loadtableUX(1,1,1) = 0
+
+loadtableUX(2,1,1) = epsxx
+loadtableUX(2,2,1) = epsxx + epsxy
+loadtableUX(2,2,2) = epsxx + epsxy + epsxz
+
+loadtableUX(1,2,1) = epsxy
+loadtableUX(1,2,2) = epsxy + epsxz
+loadtableUX(1,1,2) = epsxz
+
+loadtableUX(2,1,2) = epsxx + epsxz
+
+
+*DEL,loadtableUY
+loadtableUY=
+*dim,loadtableUY(1),table,2,2,2,x,y,z
+*taxis, loadtableUY(1), 1, 0, cubeSize
+*taxis, loadtableUY(1), 2, 0, cubeSize
+*taxis, loadtableUY(1), 3, 0, cubeSize
+
+loadtableUY(1,1,1) = 0
+
+loadtableUY(2,1,1) = epsxy
+loadtableUY(2,2,1) = epsxy + epsyy
+loadtableUY(2,2,2) = epsxy + epsyy + epsyz
+
+loadtableUY(1,2,1) = epsyy
+loadtableUY(1,2,2) = epsyy + epsyz
+loadtableUY(1,1,2) = epsyz
+
+loadtableUY(2,1,2) = epsxy + epsyz
+
+
+*DEL,loadtableUZ
+loadtableUZ=
+*dim,loadtableUZ(1),table,2,2,2,x,y,z
+*taxis, loadtableUZ(1), 1, 0, cubeSize
+*taxis, loadtableUZ(1), 2, 0, cubeSize
+*taxis, loadtableUZ(1), 3, 0, cubeSize
+
+loadtableUZ(1,1,1) = 0
+
+loadtableUZ(2,1,1) = epsxz
+loadtableUZ(2,2,1) = epsxz + epsyz
+loadtableUZ(2,2,2) = epsxz + epsyz + epszz
+
+loadtableUZ(1,2,1) = epsyz
+loadtableUZ(1,2,2) = epsyz + epszz
+loadtableUZ(1,1,2) = epszz
+
+loadtableUZ(2,1,2) = epsxz + epszz
+
+!--- Selecing nodes on faces
+NSEL,S,LOC,X,0
+NSEL,A,LOC,X,cubeSize
+
+NSEL,A,LOC,Y,0
+NSEL,A,LOC,Y,cubeSize
+
+NSEL,A,LOC,Z,0
+NSEL,A,LOC,Z,cubeSize
+
+!- Appling displacement
+D,All,UX,%loadtableUX%
+D,All,UY,%loadtableUY%
+D,All,UZ,%loadtableUZ%
+
+Allsel,all
+
+*END
+
+
 
                 )";
 

@@ -1,8 +1,54 @@
 #include "dlca.h"
+#include <fstream>
 #include <random>
 #include <QDebug>
 
 using namespace std;
+
+struct HashGrid {
+    int cellSize;
+    std::unordered_map<int64_t, std::vector<size_t>> grid; // Map from hashed cell index to aggregate indices
+
+    HashGrid(int cellSize) : cellSize(cellSize) {}
+
+    // Compute hash for a 3D cell
+    int64_t hash(int x, int y, int z) const {
+        return (static_cast<int64_t>(x) << 40) | (static_cast<int64_t>(y) << 20) | static_cast<int64_t>(z);
+    }
+
+    // Add aggregate to the grid
+    void insert(const DLCA_Aggregate &aggregate, size_t index) {
+        for (const auto &coord : aggregate.aggr) {
+            int cellX = coord.x;
+            int cellY = coord.y;
+            int cellZ = coord.z;
+            int64_t h = hash(cellX, cellY, cellZ);
+            grid[h].push_back(index);
+        }
+    }
+
+    // Query neighboring cells for potential collisions
+    std::vector<size_t> query(int x, int y, int z) const {
+        std::vector<size_t> neighbors;
+        for (int dx = -1; dx <= 1; ++dx) {
+            for (int dy = -1; dy <= 1; ++dy) {
+                for (int dz = -1; dz <= 1; ++dz) {
+                    int64_t h = hash(x + dx, y + dy, z + dz);
+                    if (grid.count(h)) {
+                        neighbors.insert(neighbors.end(), grid.at(h).begin(), grid.at(h).end());
+                    }
+                }
+            }
+        }
+        return neighbors;
+    }
+
+    // Clear the grid for the next update
+    void clear() {
+        grid.clear();
+    }
+};
+
 
 DLCA_Aggregate::DLCA_Aggregate(int32_t*** voxels, int cubeSize)
 {
@@ -37,15 +83,93 @@ bool DLCA_Aggregate::is_can_move_aggregate(int dx, int dy, int dz)
     return true;
 }
 
+void DLCA_Aggregate::shift_to_cube_center(int cubeSize)
+{
+    DLCA::Coordinate cm = calculate_center_of_mass();
+    int dx = (cubeSize / 2 - cm.x + cubeSize) % cubeSize;
+    int dy = (cubeSize / 2 - cm.y + cubeSize) % cubeSize;
+    int dz = (cubeSize / 2 - cm.z + cubeSize) % cubeSize;
+    DLCA::Coordinate cm_before = calculate_center_of_mass();
+    qDebug() << "Center of mass BEFORE shift:" << cm_before.x << cm_before.y << cm_before.z;
+    move_aggregate(dx, dy, dz);
+    DLCA::Coordinate cm_after = calculate_center_of_mass();
+    qDebug() << "Center of mass AFTER shift:" << cm_after.x << cm_after.y << cm_after.z;
+}
+
+Parent_Algorithm::Coordinate DLCA_Aggregate::calculate_center_of_mass() const
+{
+    int64_t sum_x = 0, sum_y = 0, sum_z = 0;
+    size_t N = aggr.size();
+    for (const auto &c : aggr) {
+        sum_x += c.x;
+        sum_y += c.y;
+        sum_z += c.z;
+    }
+    DLCA::Coordinate cm;
+    cm.x = static_cast<int32_t>(sum_x / N);
+    cm.y = static_cast<int32_t>(sum_y / N);
+    cm.z = static_cast<int32_t>(sum_z / N);
+    return cm;
+}
+
+CoordinateDouble DLCA_Aggregate::calculate_exact_center_of_mass() const
+{
+    if (aggr.empty()) {
+        return {0.0, 0.0, 0.0};
+    }
+
+    double ref_x = aggr[0].x;
+    double ref_y = aggr[0].y;
+    double ref_z = aggr[0].z;
+
+    double sum_dx = 0.0;
+    double sum_dy = 0.0;
+    double sum_dz = 0.0;
+
+    double halfCube = this->cubeSize / 2.0;
+
+    for (const auto &c : aggr) {
+        double dx = c.x - ref_x;
+        double dy = c.y - ref_y;
+        double dz = c.z - ref_z;
+
+        if (dx > halfCube)  dx -= this->cubeSize;
+        if (dx < -halfCube) dx += this->cubeSize;
+
+        if (dy > halfCube)  dy -= this->cubeSize;
+        if (dy < -halfCube) dy += this->cubeSize;
+
+        if (dz > halfCube)  dz -= this->cubeSize;
+        if (dz < -halfCube) dz += this->cubeSize;
+
+        sum_dx += dx;
+        sum_dy += dy;
+        sum_dz += dz;
+    }
+
+    double N = static_cast<double>(aggr.size());
+
+    CoordinateDouble cm;
+    cm.x = ref_x + (sum_dx / N) + 0.5;
+    cm.y = ref_y + (sum_dy / N) + 0.5;
+    cm.z = ref_z + (sum_dz / N) + 0.5;
+
+    if (cm.x < 0) cm.x += this->cubeSize; else if (cm.x >= this->cubeSize) cm.x -= this->cubeSize;
+    if (cm.y < 0) cm.y += this->cubeSize; else if (cm.y >= this->cubeSize) cm.y -= this->cubeSize;
+    if (cm.z < 0) cm.z += this->cubeSize; else if (cm.z >= this->cubeSize) cm.z -= this->cubeSize;
+
+    return cm;
+}
+
+
 void DLCA_Aggregate::map_to_voxels()
 {
     for (size_t i = 0; i < aggr.size(); i++)
     {
-        Parent_Algorithm::Coordinate c = aggr[i];
+        DLCA::Coordinate c = aggr[i];
         voxels[c.x][c.y][c.z] = this->id;
     }
 }
-
 
 void DLCA::random_walk()
 {
@@ -58,9 +182,9 @@ void DLCA::random_walk()
     for (size_t i = 0; i < this->aggregates.size(); i++)
     {
         do {
-          dx = int_distro(rand_engine);
-          dy = int_distro(rand_engine);
-          dz = int_distro(rand_engine);
+            dx = int_distro(rand_engine);
+            dy = int_distro(rand_engine);
+            dz = int_distro(rand_engine);
         } while (dx == 0 && dy == 0 && dz == 0);
 
         if (aggregates[i].is_can_move_aggregate(dx, dy, dz))
@@ -87,40 +211,76 @@ DLCA::DLCA(short int numCubes, int numColors)
     this->numColors = numColors;
 }
 
+void DLCA::saveSeeds()
+{
+    // std::ofstream file("crystallization_seeds.csv");
+    // if (!file.is_open()) { qCritical() << "Unable to open crystallization_seeds.csv"; return; }
+    // file << "x,y,z,color\n";
+
+    // int count = 0;
+    // for (const auto& aggr : aggregates)
+    // {
+    //     if (aggr.aggr.empty()) continue;
+    //     const Coordinate& c = aggr.aggr[0];
+    //     file << c.x << "," << c.y << "," << c.z << "," << aggr.id << "\n";
+    //     count++;
+    // }
+    // file.close();
+    // qDebug() << "DLCA saveSeeds: written" << count << "seeds";
+    qDebug() << "DLCA saveSeeds: seeds were already saved during initialization.";
+}
+
 void DLCA::Initialization(bool isWaveGeneration)
 {
+    Q_UNUSED(isWaveGeneration); // only for polycrystal materials
     std::random_device rd;
     std::mt19937 generator(rd());
     std::uniform_int_distribution<int> distribution(0, numCubes - 1);
 
-    Coordinate a;
+    QFile file("crystallization_seeds.csv");
+    QFileInfo fileInfo(file);
 
-    grains.push_back({0,0,0});
+    qDebug() << "====================================================";
+    qDebug() << "[DLCA] FILE WILL BE SAVED TO:" << fileInfo.absoluteFilePath();
+    qDebug() << "====================================================";
+
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        qCritical() << "[DLCA] Failed to open file for writing!";
+    }
+
+    QTextStream out(&file);
+    out << "x,y,z,color\n";
+
+    Coordinate a;
+    int successfully_placed = 0;
+
     for (int i = 0; i < numColors; i++)
     {
         int num_tries = 5;
-        do
-        {
+        do {
             a.x = distribution(generator);
             a.y = distribution(generator);
             a.z = distribution(generator);
             num_tries--;
-        }
-        while (voxels[a.x][a.y][a.z] != 0 && num_tries > 0);
+        } while (voxels[a.x][a.y][a.z] != 0 && num_tries > 0);
 
-        voxels[a.x][a.y][a.z] = i + 1; // add new cell to voxel array
-
-        if (num_tries == 0) //possible no free space, skip iteration
-        {
-            qDebug() << "Error: cannot find free cell to add new one";
-            qDebug() << a.x << a.y << a.z << i;
+        if (num_tries == 0) {
             continue;
         }
+
+        voxels[a.x][a.y][a.z] = i + 1;
+
+        out << a.x << "," << a.y << "," << a.z << "," << (i + 1) << "\n";
+        successfully_placed++;
+
         DLCA_Aggregate aggr(voxels, numCubes);
         aggr.id = i + 1;
         aggr.aggr.push_back(a);
         this->aggregates.push_back(aggr);
     }
+
+    file.close();
+    qDebug() << "[DLCA] Successfully generated and saved" << successfully_placed << "seeds.";
 }
 
 #include <limits.h>
@@ -135,7 +295,7 @@ bool DLCA::check_collision(size_t _i, size_t _j)
     auto &a1 = this->aggregates[_i];
     auto &a2 = this->aggregates[_j];
 
-    int dist = cubeSize;
+//    int dist = cubeSize;
     int dist_ij = 0;
     const size_t a1_size = a1.aggr.size();
     const size_t a2_size = a2.aggr.size();
@@ -143,16 +303,17 @@ bool DLCA::check_collision(size_t _i, size_t _j)
     for (size_t i = 0; i < a1_size; i++)
         for (size_t j = 0; j < a2_size; j++)
         {
-            const Coordinate &c1 = a1.aggr[i];
-            const Coordinate &c2 = a2.aggr[j];
+            const DLCA::Coordinate &c1 = a1.aggr[i];
+            const DLCA::Coordinate &c2 = a2.aggr[j];
 
             dist_ij = my_abs(c1.x - c2.x) +
                       my_abs(c1.y - c2.y) +
                       my_abs(c1.z - c2.z);
 
-            dist = min(dist, dist_ij);
+            if (dist_ij == 1)
+                return true;
         }
-    return dist == 1;
+    return false;
 }
 
 void DLCA::join_aggregates(size_t _i, size_t _j)
@@ -172,15 +333,17 @@ void DLCA::join_aggregates(size_t _i, size_t _j)
     }
 }
 
-void DLCA::Next_Iteration(std::function<void()> callback)
+void DLCA::Next_Iteration()
 {
+//    this->Generate_Filling_With_Spatial_Hashing();
+
     if (this->aggregates.size() > 1)
     {
-        grains.push_back({0,0,0});
+        //grains.push_back({0,0,0});
         // qDebug() << this->aggregates.size();
-        if (this->aggregates.size() < 5)
-            for (size_t i = 0; i < this->aggregates.size(); i++)
-                qDebug() << i << this->aggregates[i].id << this->aggregates[i].aggr.size();
+        //if (this->aggregates.size() <= 5)
+        //    for (size_t i = 0; i < this->aggregates.size(); i++)
+        //        qDebug() << i << this->aggregates[i].id << this->aggregates[i].aggr.size();
     }
     this->random_walk();
 
@@ -190,7 +353,7 @@ void DLCA::Next_Iteration(std::function<void()> callback)
             bool status = check_collision(i, j);
             if (status == true)
             {
-                qDebug() << "Collision detected" << i << j;
+                //qDebug() << "Collision detected" << i << j;
                 join_aggregates(i, j);
             }
         }
@@ -198,13 +361,66 @@ void DLCA::Next_Iteration(std::function<void()> callback)
                                           [](const DLCA_Aggregate a)
                                           { return a.aggr.size()==0; }), this->aggregates.end());
 
-    for (int i = 0; i < cubeSize; i++)
-        for (int j = 0; j < cubeSize; j++)
-            for (int k = 0; k < cubeSize; k++)
+    // Clear and repopulate the voxel array
+    #pragma omp parallel for collapse(3)
+    for (int i = 0; i < cubeSize; ++i)
+        for (int j = 0; j < cubeSize; ++j)
+            for (int k = 0; k < cubeSize; ++k)
                 voxels[i][j][k] = 0;
+
+    if (aggregates.size() == 1) {
+        aggregates[0].shift_to_cube_center(cubeSize);
+    }
 
     for (size_t i = 0; i < this->aggregates.size(); i++)
     {
-        aggregates[i].map_to_voxels();
+        this->aggregates[i].map_to_voxels();
     }
+}
+
+void DLCA::Generate_To_End()
+{
+    while (!this->getDone())
+        this->Next_Iteration();
+}
+
+void DLCA::Generate_Filling_With_Spatial_Hashing()
+{
+    HashGrid hashGrid(cubeSize);
+
+    // Populate the spatial hash grid with aggregates
+    for (size_t i = 0; i < aggregates.size(); ++i) {
+        hashGrid.insert(aggregates[i], i);
+    }
+
+    // Random walk for aggregates
+    this->random_walk();
+
+    // Check collisions using spatial hashing
+    std::vector<bool> joined(aggregates.size(), false);
+    for (size_t i = 0; i < aggregates.size(); ++i) {
+        if (joined[i]) continue;
+        for (const auto &neighborIndex : hashGrid.query(aggregates[i].aggr[0].x,
+                                                        aggregates[i].aggr[0].y,
+                                                        aggregates[i].aggr[0].z)) {
+            if (i != neighborIndex && !joined[neighborIndex]) {
+                join_aggregates(i, neighborIndex);
+                joined[neighborIndex] = true;
+            }
+        }
+    }
+
+    // Clean up empty aggregates
+    this->aggregates.erase(std::remove_if(this->aggregates.begin(), this->aggregates.end(),
+                                          [](const DLCA_Aggregate &a) { return a.aggr.empty(); }), this->aggregates.end());
+
+
+    for (auto &aggregate : aggregates) {
+        aggregate.map_to_voxels();
+    }
+
+    if (aggregates.size() == 1)
+        grains.clear();
+
+    hashGrid.clear();
 }

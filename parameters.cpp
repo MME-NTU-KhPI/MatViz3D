@@ -13,6 +13,8 @@ QString Parameters::filename = "";
 int Parameters::num_threads = 1;
 QString Parameters::working_directory = "";
 float Parameters::wave_coefficient = 0.0f;
+float Parameters::wave_spread;
+int Parameters::initial_nuclei_count = 1;
 
 float Parameters::halfaxis_a = 0.0f;
 float Parameters::halfaxis_b = 0.0f;

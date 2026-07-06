@@ -28,6 +28,29 @@ QML_IMPORT_MAJOR_VERSION = 1
 # In order to do so, uncomment the following line.
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
+# define include paths for hdf5 library
+unix {
+    HDF5_INCLUDEPATH = "/usr/include/hdf5/serial"
+    HDF5_LIBPATH = "/usr/lib/x86_64-linux-gnu"
+    LIBS += -L$${HDF5_LIBPATH} -lhdf5_serial
+    INCLUDEPATH += $$HDF5_INCLUDEPATH
+}
+
+win32 {
+    HDF5_ROOT = "C:\Program Files\HDF_Group\HDF5"
+    message(HDF5_ROOT = $$HDF5_ROOT)
+    HCMD = dir /B /AD \"$$HDF5_ROOT\" | findstr \"^[0-9]\"
+    message(HCMD = $$HCMD)
+    HDF5_VERSION = $$system($$HCMD)
+    message(HDF5_VERSION = $$HDF5_VERSION)
+    HDF5_LIBPATH = "$$HDF5_ROOT/$$HDF5_VERSION/lib"
+    message(HDF5_LIBPATH = $$HDF5_LIBPATH)
+    HDF5_INCLUDEPATH = "$$HDF5_ROOT/$$HDF5_VERSION/include"
+    message(HDF5_INCLUDEPATH = $$HDF5_INCLUDEPATH)
+    INCLUDEPATH += $$HDF5_INCLUDEPATH
+    LIBS += -L$$HDF5_LIBPATH -lhdf5
+}
+
 SOURCES += \
         commandline_parser.cpp \
         consolelogger.cpp \

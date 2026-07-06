@@ -6,7 +6,7 @@
 #include <QHash>
 #include <vector>
 
-enum tensor_components{ID,X,Y,Z,UX,UY,UZ,SX,SY,SZ,SXY,SYZ,SXZ,EpsX,EpsY,EpsZ,EpsXY,EpsYZ,EpsXZ};
+enum tensor_components{ID,X,Y,Z,UX,UY,UZ,SX,SY,SZ,SXY,SYZ,SXZ,EpsX,EpsY,EpsZ,EpsXY,EpsYZ,EpsXZ, USUM, SEQV, EpsEQV};
 
 namespace n3d
 {
@@ -41,6 +41,9 @@ inline uint qHash(const node3d &key, uint seed)
 class ansysWrapper
 {
 protected:
+    int m_numCubes = 0;
+    double m_solid_fraction = 1.0; // частка твердої фази (з вокселів)
+    double m_porosity = 0.0;       // = 1.0 - m_solid_fraction
     int m_ansVersion;
     QString m_pathToAns;
     QStringList m_arg;
@@ -55,8 +58,13 @@ protected:
     void findPathVersion();
     void findNp();
     void defaultArgs();
+    QString ansysProduct() const;
+    QString ansysSysDir() const;
 
     QString mergeVector(QString prefix, std::vector<double> vec);
+
+    static bool solveSystem21x21(double A[21][21], double b[21], double x[21]);
+    static bool invert6x6(const double A[6][6], double inv[6][6]);
 
     QTemporaryDir tempDir;
     QString exitCodeToText(int retcode);
@@ -114,8 +122,15 @@ public:
     void setNP(int np);
 
     void createFEfromArray(int32_t*** voxels, short int numCubes,int numSeeds, bool is_random_orientation = true);
-    int createLocalCS(bool is_random_orientation = true);
+    void createFEfromArray8Node(int32_t*** voxels, short int numCubes, int numSeeds, bool is_random_orientation=true);
+
+    int createLocalCS(bool is_random_orientation = true, double x = 0.0, double y = 0.0, double z = 0.0);
     void generate_random_angles(double *angl, bool in_deg=false, double epsilon=1e-6);
+
+    void addStrainToBCMacroBlob();
+    void addStrainToBCMacro(double eps_xx, double eps_yy, double eps_zz,
+                            double eps_xy, double eps_xz, double eps_yz, int CubeSize);
+
     void applyTensBC(double x1, double y1, double z1,
                      double x2, double y2, double z2,
                      double epsx, double epsy, double epsz);
@@ -143,6 +158,15 @@ public:
     float scaleValue01(float val, int component);
     float getValByCoord(float x, float y, float z, int component);
     float getValByCoord(n3d::node3d &key, int component);
+
+    struct ElasticProperties {
+        double S[6][6]; // Матрица податливости (Compliance)
+        double C[6][6]; // Матрица жесткости (Stiffness)
+        double P[6][6]; // Матрица коэффициентов Пуассона
+        bool isValid;   // Флаг успешности расчета
+    };
+
+    ElasticProperties calculateElasticProperties();
 
     std::vector<std::vector<float>> loadstep_results;
 

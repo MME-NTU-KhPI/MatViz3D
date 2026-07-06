@@ -104,12 +104,15 @@ public:
     static int num_threads;
     static QString working_directory;
     static float wave_coefficient;
+    static float wave_spread;
+    static int initial_nuclei_count;
     static float halfaxis_a;
     static float halfaxis_b;
     static float halfaxis_c;
     static float orientation_angle_a;
     static float orientation_angle_b;
     static float orientation_angle_c;
+    static float stefan_number;
 
 signals:
     void sizeChanged();
@@ -155,7 +158,7 @@ private:
 
     static QString points_mode; // "count" / "density"
     static bool isAnimation;
-
+    static bool nogui;
     static bool hasProbParameters;
     static double ellipse_order;
 };

@@ -108,8 +108,17 @@ void MainWindowAlgorithmHandler::executeAlgorithm(Parent_Algorithm& algorithm, c
 
     auto start = std::chrono::high_resolution_clock::now();
 
-    while (!algorithm.getDone()) {
-        algorithm.Next_Iteration(updateScene);
+    if( params.getIsAnimation() )
+    {
+        while(!algorithm.getDone())
+        {
+            algorithm.Next_Iteration();
+            updateScene();
+        }
+    }
+    else
+    {
+        algorithm.Generate_To_End();
     }
 
     auto end = std::chrono::high_resolution_clock::now();

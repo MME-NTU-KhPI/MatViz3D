@@ -245,7 +245,7 @@ void Probability_Algorithm::processValuesGrid()
     writeProbabilitiesToCSV(QDir::currentPath(), N);
 }
 
-void Probability_Algorithm::Next_Iteration(std::function<void()> callback)
+void Probability_Algorithm::Next_Iteration()
 {
     const unsigned int counter_max = pow(numCubes, 3);
 
@@ -325,7 +325,7 @@ void Probability_Algorithm::Next_Iteration(std::function<void()> callback)
                 grains.insert(grains.end(), newPoints.begin(), newPoints.end());
                 remainingPoints -= pointsForThisStep;
             }
-            callback();
+            //callback();
         }
     }
 

@@ -12,7 +12,8 @@ class Neumann : public Parent_Algorithm
 public:
     Neumann();
     Neumann(short int numCubes, int numColors);
-    void Next_Iteration(std::function<void()> callback) override;
+    void Next_Iteration() override;
+    bool getDone() const override;
 };
 
 #endif // NEUMANN_H

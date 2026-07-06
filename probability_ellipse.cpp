@@ -1,9 +1,7 @@
-#include <iostream>
 #include <ctime>
-#include <list>
 #include <cmath>
 #include <cstdint>
-#include "openglwidgetqml.h"
+#include <QDebug>
 #include "probability_ellipse.h"
 #include "parent_algorithm.h"
 
@@ -22,13 +20,20 @@ Probability_Ellipse::Probability_Ellipse(short int numCubes, int numColors)
 }
 
 
-void Probability_Ellipse::Next_Iteration(std::function<void()> callback)
+void Probability_Ellipse::Next_Iteration()
 {
+    if (getDone()) return;
     srand(time(NULL));
     unsigned int counter_max = pow(numCubes,3);
     Coordinate temp;
     int32_t x,y,z;
     std::vector<Coordinate> newGrains;
+
+    const int N_gr = numColors;
+    if (total_nucleated_so_far == -1) {
+        total_nucleated_so_far = static_cast<int>(grains.size());
+    }
+
     for(size_t i = 0; i < grains.size(); i++)
     {
         temp = grains[i];
@@ -45,9 +50,10 @@ void Probability_Ellipse::Next_Iteration(std::function<void()> callback)
                     int32_t newY = p+y;
                     int32_t newZ = l+z;
                     bool isValidXYZ = (newX >= 0 && newX < numCubes) && (newY >= 0 && newY < numCubes) && (newZ >= 0 && newZ < numCubes) && voxels[newX][newY][newZ] == 0;
-                    bool Chance50 = (rand() % 100) < 50;
-                    bool Chance16 = (rand() % 100) < 16;
-                    bool Chance44 = (rand() % 100) < 44;
+                    std::uniform_int_distribution<int> pct(0, 99);
+                    bool Chance50 = pct(m_rng) < 50;
+                    bool Chance16 = pct(m_rng) < 16;
+                    bool Chance44 = pct(m_rng) < 44;
                     if (isValidXYZ)
                     {
                         if(p == 0 || l == 0)
@@ -99,20 +105,75 @@ void Probability_Ellipse::Next_Iteration(std::function<void()> callback)
     newGrains.clear();
     qDebug() << filled_voxels << "\t" << pow(numCubes,3);
     IterationNumber++;
-    double o = (double)filled_voxels/counter_max;
-    qDebug().nospace() << o << "\t" << IterationNumber << "\t" << grains.size();
-    if (flags.isAnimation)
+
+    QString nuclLogInfo = "";
+
+    if (flags.isWaveGeneration && total_nucleated_so_far < N_gr && filled_voxels < counter_max)
     {
-        if (flags.isWaveGeneration)
+        double cumulative_fraction = 0.0;
+        int wave_contribution = 0;
+
+        if (IterationNumber > 1)
         {
-            if (remainingPoints > 0)
-            {
-                pointsForThisStep = max(1, static_cast<int>(Parameters::wave_coefficient * remainingPoints));
-                newGrains = Add_New_Points(newGrains,pointsForThisStep);
-                grains.insert(grains.end(), newGrains.begin(), newGrains.end());
-                remainingPoints -= pointsForThisStep;
-            }
+            double arg = (IterationNumber - (Parameters::wave_coefficient / 2.0)) / (Parameters::wave_spread * std::sqrt(2.0));
+            cumulative_fraction = 0.5 * (1.0 + std::erf(arg));
+
+            int remaining_to_nucleate = N_gr - Parameters::initial_nuclei_count;
+
+            wave_contribution = static_cast<int>(std::floor(cumulative_fraction * remaining_to_nucleate));
         }
-        callback();
+
+        int total_should_be_now = Parameters::initial_nuclei_count + wave_contribution;
+
+        int pointsToCreate = total_should_be_now - total_nucleated_so_far;
+
+        if (pointsToCreate > 0)
+        {
+            int placedRandomly = 0;
+
+            for (int p = 0; p < pointsToCreate; ++p) {
+                bool success = false;
+                for (int retry = 0; retry < 10; ++retry) {
+                    Coordinate c = randomCoord();
+
+                    if (voxels[c.x][c.y][c.z] == 0) {
+                        birthGrain(c.x, c.y, c.z);
+                        success = true;
+                        placedRandomly++;
+                        break;
+                    }
+                }
+                if (!success) break;
+            }
+
+            int leftToPlace = pointsToCreate - placedRandomly;
+
+            if (leftToPlace > 0) {
+                grains = Add_New_Points(grains, leftToPlace);
+            }
+
+            total_nucleated_so_far += pointsToCreate;
+        }
+        nuclLogInfo = QString(" | [Nucl] N(n): %1 | Added: %2 | Tot: %3")
+                          .arg(cumulative_fraction, -8, 'f', 4)
+                          .arg(pointsToCreate, -6)
+                          .arg(total_nucleated_so_far, -6);
     }
+
+    double o = static_cast<double>(filled_voxels) / counter_max;
+    QString logLine = QString("%1 %2 %3")
+                          .arg(o, -12, 'g', 6)
+                          .arg(IterationNumber, -6)
+                          .arg((int)grains.size(), -10);
+
+    if (!nuclLogInfo.isEmpty()) {
+        logLine += nuclLogInfo;
+    }
+
+    qDebug().noquote() << logLine;
+}
+
+bool Probability_Ellipse::getDone() const
+{
+    return Parent_Algorithm::getDone();
 }
