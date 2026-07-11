@@ -114,17 +114,22 @@ std::vector<std::array<double,6>> HillCriterion::computeYieldPoints(
 
         qDebug() << QString("[HillCriterion::computeYieldPoints]   Elements in step: %1").arg((int)results.size());
 
-        // --- СТАРТ НОВОГО БЛОКА ФИЛЬТРАЦИИ ---
         struct ElemTau { int idx; double tau; };
         std::vector<ElemTau> tau_list;
         tau_list.reserve(results.size());
 
         int elem_skipped = 0;
 
-        // Начинаем перебор всех элементов
         for (int e = 0; e < (int)results.size(); ++e) {
             int elem_id  = (int)results[e][ID];
-            int idx      = elem_id - 1;
+            int ansys_index = elem_id - 1;
+            if (ansys_index < 0 || ansys_index >= (int)wr->ansys_to_voxel_map.size()) {
+                ++elem_skipped;
+                ++skipped_elements;
+                continue;
+            }
+
+            int idx = wr->ansys_to_voxel_map[ansys_index];
             int iz       = idx / (N * N);
             int iy       = (idx / N) % N;
             int ix       = idx % N;
@@ -138,7 +143,6 @@ std::vector<std::array<double,6>> HillCriterion::computeYieldPoints(
                 continue;
             }
 
-            // Матрица поворота Эйлера
             double phi1 = local_cs[array_idx][0], Phi = local_cs[array_idx][1], phi2 = local_cs[array_idx][2];
             double R[3][3];
             eulerToBungeMatrix(phi1, Phi, phi2, R);
@@ -149,7 +153,6 @@ std::vector<std::array<double,6>> HillCriterion::computeYieldPoints(
                 {results[e][SXZ], results[e][SYZ], results[e][SZ] }
             };
 
-            // Перевод в локальную систему координат
             double sigma_l[3][3] = {0};
             for (int i = 0; i < 3; ++i)
                 for (int j = 0; j < 3; ++j)
@@ -157,7 +160,6 @@ std::vector<std::array<double,6>> HillCriterion::computeYieldPoints(
                         for (int l = 0; l < 3; ++l)
                             sigma_l[i][j] += R[i][k] * sigma_g[k][l] * R[j][l];
 
-            // Ищем максимальное касательное напряжение для ТЕКУЩЕГО элемента
             double elem_max_tau = 0.0;
             for (int sys = 0; sys < NUM_SLIP_SYSTEMS; ++sys) {
                 double tau = std::abs(resolvedShearStress(sigma_l, SLIP_NORMALS[sys], SLIP_DIRECTIONS[sys]));
@@ -166,37 +168,28 @@ std::vector<std::array<double,6>> HillCriterion::computeYieldPoints(
                 }
             }
 
-            // Сохраняем элемент и его напряжение в общий список
             tau_list.push_back({e, elem_max_tau});
         }
-        // Конец цикла по элементам
 
         if (tau_list.empty()) continue;
 
-        // --- ФИЛЬТРАЦИЯ (Отсекаем артефакты сетки) ---
-        // Сортируем элементы по возрастанию напряжения tau
         std::sort(tau_list.begin(), tau_list.end(), [](const ElemTau& a, const ElemTau& b) {
             return a.tau < b.tau;
         });
 
-        // Настройка порога:
-        // 0.995 (99.5%) - хорошо для поликристаллов (почти нет шума)
-        // 0.98  (98.0%) - хорошо для пористых сред (DLCA), убирает острые концентраторы
         double percentile_threshold = 0.98;
 
         int p_index = static_cast<int>(tau_list.size() * percentile_threshold);
         if (p_index >= tau_list.size()) p_index = tau_list.size() - 1;
 
-        // Берем "очищенный" максимум вместо абсолютного
         double max_tau = tau_list[p_index].tau;
         int max_elem_idx = tau_list[p_index].idx;
-        // --- КОНЕЦ НОВОГО БЛОКА ФИЛЬТРАЦИИ ---
 
         if (elem_skipped > 0)
             qDebug() << QString("[HillCriterion::computeYieldPoints]   Elements skipped (invalid grain_id): %1").arg(elem_skipped);
 
-        if (max_tau < 1e-9) {
-            qWarning() << QString("[HillCriterion::computeYieldPoints]   Step %1: max tau < 1e-9 (~0), no yield point created").arg(ls);
+        if (max_tau < 10.0) {
+            qWarning() << QString("[HillCriterion::computeYieldPoints]   Step %1: max tau is too small (%2), skipping to prevent math explosion").arg(ls).arg(max_tau);
             continue;
         }
 
@@ -207,9 +200,16 @@ std::vector<std::array<double,6>> HillCriterion::computeYieldPoints(
         qDebug() << QString("[HillCriterion::computeYieldPoints]   Scale k = CRSS/tau_max = %1 / %2 = %3")
                         .arg(CRSS, 0, 'e', 4).arg(max_tau, 0, 'e', 4).arg(k, 0, 'f', 6);
 
+        double macro_sx  = wr->loadstep_results_avg[SX]  * wr->m_solid_fraction;
+        double macro_sy  = wr->loadstep_results_avg[SY]  * wr->m_solid_fraction;
+        double macro_sz  = wr->loadstep_results_avg[SZ]  * wr->m_solid_fraction;
+        double macro_sxy = wr->loadstep_results_avg[SXY] * wr->m_solid_fraction;
+        double macro_syz = wr->loadstep_results_avg[SYZ] * wr->m_solid_fraction;
+        double macro_sxz = wr->loadstep_results_avg[SXZ] * wr->m_solid_fraction;
+
         std::array<double,6> sigma_yield = {
-            results[max_elem_idx][SX]*k, results[max_elem_idx][SY]*k, results[max_elem_idx][SZ]*k,
-            results[max_elem_idx][SXY]*k, results[max_elem_idx][SYZ]*k, results[max_elem_idx][SXZ]*k
+            macro_sx * k, macro_sy * k, macro_sz * k,
+            macro_sxy * k, macro_syz * k, macro_sxz * k
         };
 
         // Subtract hydrostatic part -> pure deviator

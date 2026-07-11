@@ -2,10 +2,10 @@
 
 REM Set parameters here
 
-set N_RUN=100
-set SIZES_LIST=15
+set N_RUN=50
+set SIZES_LIST=50
 set POINTS=500
-set CONCENTRATION=15
+set CONCENTRATION=10
 set NUM_PROC=4
 set ALGORITHM=DLCA
 set OUTPUT_DIR=D:\ansys_results\
@@ -32,7 +32,7 @@ FOR %%s IN (%SIZES_LIST%) DO (
         
         REM Run the application with command line arguments
         
-        %PATH_TO_MATVIZ3D% --size %%s --points %POINTS% --algorithm %ALGORITHM% --autostart --nogui --np %NUM_PROC% --output "%OUTPUT_DIR%\result-%%s-%CONCENTRATION%.hdf5" --num_rnd_loads %NUM_RND_LOADS% --run_stress_calc --working_directory %WORKING_DIRECTORY%
+        %PATH_TO_MATVIZ3D% --size %%s --concentration %CONCENTRATION% --algorithm %ALGORITHM% --autostart --nogui --np %NUM_PROC% --output "%OUTPUT_DIR%\result-%%s-%CONCENTRATION%.hdf5" --num_rnd_loads %NUM_RND_LOADS% --run_stress_calc --working_directory %WORKING_DIRECTORY%
 
         h5ls "%OUTPUT_DIR%\result-%%s-%CONCENTRATION%.hdf5"
 
