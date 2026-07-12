@@ -689,31 +689,33 @@ Window {
                             Component.onCompleted: applySelection(currentIndex)
 
                             // Extract logic into reusable function
-                               function applySelection(index) {
-                                   empty_alg_item.visible = false
-                                   poly_alg_item.visible = false
-                                   comp_alg_item.visible = false
-                                   dlca_alg_item.visible = false
+                            function applySelection(index) {
+                                empty_alg_item.visible = false
+                                poly_alg_item.visible = false
+                                comp_alg_item.visible = false
+                                dlca_alg_item.visible = false
 
-                                   if (index === 0 || index === 1 || index === 2 || index === 3 || index === 4) {
-                                       poly_alg_item.visible = true
-                                       if (index === 4) {
-                                           probabilityAlgorithmLoader.active = true
-                                           probabilityAlgorithmLoader.item.visible = true
-                                       }
-                                   } else if (index === 5) {
-                                       comp_alg_item.visible = true
-                                   } else if (index === 6) {
-                                       dlca_alg_item.visible = true
-                                   }
+                                if (index >= 0 && index <= 4) {
+                                    poly_alg_item.visible = true
+                                } else if (index === 5) {
+                                    comp_alg_item.visible = true
+                                } else if (index === 6) {
+                                    dlca_alg_item.visible = true
+                                }
 
-                                   if (index !== -1) {
-                                       Qt.callLater(() => {
-                                           console.log("Algorithm selected:", currentText)
-                                           Parameters.setAlgorithm(currentText)
-                                       })
-                                   }
-                               }
+                                if (index !== -1) {
+                                    Qt.callLater(() => {
+                                        console.log("Algorithm selected:", currentText)
+                                        Parameters.setAlgorithm(currentText)
+                                        schemaController.onAlgorithmSelected(currentText)    // сначала схема
+
+                                        if (index === 4) {                                    // потом окно
+                                            probabilityAlgorithmLoader.active = true
+                                            probabilityAlgorithmLoader.item.visible = true
+                                        }
+                                    })
+                                }
+                            }
 
                             onActivated:applySelection(currentIndex)
 

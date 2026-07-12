@@ -2,16 +2,21 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import parameters 1.0
 
-
 Window {
     id: probabilityAlgorithmView
+
+    // Число полей в текущей схеме
+    property int fieldCount: schemaController.currentSchema.length
+
+    // Число строк в сетке: по 2 поля в ряд
+    property int gridRows: Math.max(1, Math.ceil(fieldCount / 2))
+
     width: 534
-    height: 522
-    color: "#282828"
-    property alias _item_b1_pav: _item_b1_pav
-    minimumHeight: 522
+    height: 140 + gridRows * 110          // шапка/кнопки + строки полей
     minimumWidth: 534
-    title: qsTr("Probability Alghorithm Settings")
+    minimumHeight: 250
+    color: "#282828"
+    title: qsTr("Algorithm Settings")
 
     FontLoader {
         id: inter
@@ -19,298 +24,65 @@ Window {
     }
 
     Column {
-        id: column_probabilityAlgorithmView
+        id: column_pav
         anchors.fill: parent
 
+        // ── СЕТКА ПОЛЕЙ (строится из схемы) ──
         Grid {
-            id: grid_probabilityAlgorithmView
-            width: column_probabilityAlgorithmView.width
-            height: column_probabilityAlgorithmView.height * 0.7
-            rows: 3
+            id: grid_pav
+            width: column_pav.width
+            height: probabilityAlgorithmView.gridRows * 110
             columns: 2
+            rows: probabilityAlgorithmView.gridRows
 
-            Item {
-                id: item1_pav
-                width: grid_probabilityAlgorithmView.width * 0.5
-                height: grid_probabilityAlgorithmView.height / 3
+            Repeater {
+                model: schemaController.currentSchema
 
-                Column {
-                    id: column1_pav
-                    width: column1_pav.childrenRect.width
-                    height: column1_pav.childrenRect.height
-                    spacing: 15
-                    anchors.centerIn: parent
+                delegate: Item {
+                    width: grid_pav.width * 0.5      // половина ширины — 2 колонки
+                    height: 110
 
-                    Text {
-                        id: _text1_pav
-                        color: "#969696"
-                        text: qsTr("Half-axis a")
-                        font.pixelSize: 20
-                        font.styleName: "Bold"
-                        font.family: inter.name
-                    }
+                    property var f: modelData         // текущее поле схемы
 
-                    Rectangle {
-                        id: recInput1_pav
-                        width: 228
-                        height: 26
-                        color: "#00000000"
-                        border.color: "#969696"
-                        border.width: 1
-                        radius: 5
+                    Column {
+                        spacing: 12
+                        anchors.centerIn: parent
 
-                        TextInput {
-                            id: textInput1_pav
-                            anchors.fill: parent
-                            anchors.margins: 5
+                        // Подпись поля — из схемы
+                        Text {
                             color: "#969696"
-                            text: qsTr("1.5")
-                            font.pixelSize: 15
-                            verticalAlignment: Text.AlignTop
-                            horizontalAlignment: Text.AlignLeft
-                            onTextChanged: {
-                                console.log("Change: ", text);
-                                Parameters.setHalfAxisA(parseInt(text, 10));
-                            }
+                            text: f.label
+                            font.pixelSize: 18
+                            font.styleName: "Bold"
+                            font.family: inter.name
                         }
-                    }
-                }
-            }
 
-            Item {
-                id: item2_pav
-                width: grid_probabilityAlgorithmView.width * 0.5
-                height: grid_probabilityAlgorithmView.height / 3
+                        // Поле ввода — стиль как был
+                        Rectangle {
+                            width: 228
+                            height: 26
+                            color: "#00000000"
+                            border.color: "#969696"
+                            border.width: 1
+                            radius: 5
 
-                Column {
-                    id: column2_pav
-                    width: column2_pav.childrenRect.width
-                    height: column2_pav.childrenRect.height
-                    spacing: 15
-                    anchors.centerIn: parent
+                            TextInput {
+                                id: input
+                                anchors.fill: parent
+                                anchors.margins: 5
+                                color: "#969696"
+                                text: String(f.defValue)      // значение по умолчанию из схемы
+                                font.pixelSize: 15
+                                verticalAlignment: Text.AlignTop
+                                horizontalAlignment: Text.AlignLeft
+                                selectByMouse: true
 
-                    Text {
-                        id: _text2_pav
-                        color: "#969696"
-                        text: qsTr("Half-axis b")
-                        font.pixelSize: 20
-                        font.styleName: "Bold"
-                        font.family: inter.name
-                    }
-
-                    Rectangle {
-                        id: recInput2_pav
-                        width: 228
-                        height: 26
-                        color: "#00000000"
-                        border.color: "#969696"
-                        border.width: 1
-                        radius: 5
-
-                        TextInput {
-                            id: textInput2_pav
-                            anchors.fill: parent
-                            anchors.margins: 5
-                            color: "#969696"
-                            text: qsTr("1.5")
-                            font.pixelSize: 15
-                            verticalAlignment: Text.AlignTop
-                            horizontalAlignment: Text.AlignLeft
-                            onTextChanged: {
-                                console.log("Change: ", text);
-                                Parameters.setHalfAxisB(parseInt(text, 10));
-                            }
-                        }
-                    }
-                }
-            }
-
-            Item {
-                id: item3_pav
-                width: grid_probabilityAlgorithmView.width * 0.5
-                height: grid_probabilityAlgorithmView.height / 3
-
-                Column {
-                    id: column3_pav
-                    width: column3_pav.childrenRect.width
-                    height: column3_pav.childrenRect.height
-                    spacing: 15
-                    anchors.centerIn: parent
-
-                    Text {
-                        id: _text3_pav
-                        color: "#969696"
-                        text: qsTr("Half-axis c")
-                        font.pixelSize: 20
-                        font.styleName: "Bold"
-                        font.family: inter.name
-                    }
-
-                    Rectangle {
-                        id: recInput3_pav
-                        width: 228
-                        height: 26
-                        color: "#00000000"
-                        border.color: "#969696"
-                        border.width: 1
-                        radius: 5
-
-                        TextInput {
-                            id: textInput3_pav
-                            anchors.fill: parent
-                            anchors.margins: 5
-                            color: "#969696"
-                            text: qsTr("1.5")
-                            font.pixelSize: 15
-                            verticalAlignment: Text.AlignTop
-                            horizontalAlignment: Text.AlignLeft
-                            onTextChanged: {
-                                console.log("Change: ", text);
-                                Parameters.setHalfAxisC(parseInt(text, 10));
-                            }
-                        }
-                    }
-                }
-            }
-
-            Item {
-                id: item4_pav
-                width: grid_probabilityAlgorithmView.width * 0.5
-                height: grid_probabilityAlgorithmView.height / 3
-
-                Column {
-                    id: column4_pav
-                    width: column4_pav.childrenRect.width
-                    height: column4_pav.childrenRect.height
-                    spacing: 15
-                    anchors.centerIn: parent
-
-                    Text {
-                        id: _text4_pav
-                        color: "#969696"
-                        text: qsTr("Orintation angle (A)")
-                        font.pixelSize: 20
-                        font.styleName: "Bold"
-                        font.family: inter.name
-                    }
-
-                    Rectangle {
-                        id: recInput4_pav
-                        width: 228
-                        height: 26
-                        color: "#00000000"
-                        border.color: "#969696"
-                        border.width: 1
-                        radius: 5
-
-                        TextInput {
-                            id: textInput4_pav
-                            anchors.fill: parent
-                            anchors.margins: 5
-                            color: "#969696"
-                            text: qsTr("0")
-                            font.pixelSize: 15
-                            verticalAlignment: Text.AlignTop
-                            horizontalAlignment: Text.AlignLeft
-                            onTextChanged: {
-                                console.log("Change: ", text);
-                                Parameters.setOrientationAngleA(parseInt(text, 10));
-                            }
-                        }
-                    }
-                }
-            }
-
-            Item {
-                id: item5_pav
-                width: grid_probabilityAlgorithmView.width * 0.5
-                height: grid_probabilityAlgorithmView.height / 3
-
-                Column {
-                    id: column5_pav
-                    width: column5_pav.childrenRect.width
-                    height: column5_pav.childrenRect.height
-                    spacing: 15
-                    anchors.centerIn: parent
-
-                    Text {
-                        id: _text5_pav
-                        color: "#969696"
-                        text: qsTr("Orintation angle (B)")
-                        font.pixelSize: 20
-                        font.styleName: "Bold"
-                        font.family: inter.name
-                    }
-
-                    Rectangle {
-                        id: recInput5_pav
-                        width: 228
-                        height: 26
-                        color: "#00000000"
-                        border.color: "#969696"
-                        border.width: 1
-                        radius: 5
-
-                        TextInput {
-                            id: textInput5_pav
-                            anchors.fill: parent
-                            anchors.margins: 5
-                            color: "#969696"
-                            text: qsTr("0")
-                            font.pixelSize: 15
-                            verticalAlignment: Text.AlignTop
-                            horizontalAlignment: Text.AlignLeft
-                            onTextChanged: {
-                                console.log("Change: ", text);
-                                Parameters.setOrientationAngleB(parseInt(text, 10));
-                            }
-                        }
-                    }
-                }
-            }
-
-            Item {
-                id: item6_pav
-                width: grid_probabilityAlgorithmView.width * 0.5
-                height: grid_probabilityAlgorithmView.height / 3
-
-                Column {
-                    id: column6_pav
-                    width: column6_pav.childrenRect.width
-                    height: column6_pav.childrenRect.height
-                    spacing: 15
-                    anchors.centerIn: parent
-
-                    Text {
-                        id: _text6_pav
-                        color: "#969696"
-                        text: qsTr("Orintation angle (C)")
-                        font.pixelSize: 20
-                        font.styleName: "Bold"
-                        font.family: inter.name
-                    }
-
-                    Rectangle {
-                        id: recInput6_pav
-                        width: 228
-                        height: 26
-                        color: "#00000000"
-                        border.color: "#969696"
-                        border.width: 1
-                        radius: 5
-
-                        TextInput {
-                            id: textInput6_pav
-                            anchors.fill: parent
-                            anchors.margins: 5
-                            color: "#969696"
-                            text: qsTr("0")
-                            font.pixelSize: 15
-                            verticalAlignment: Text.AlignTop
-                            horizontalAlignment: Text.AlignLeft
-                            onTextChanged: {
-                                console.log("Change: ", text);
-                                Parameters.setOrientationAngleC(parseInt(text, 10));
+                                onTextChanged: {
+                                    if (text === "") return
+                                    var v = parseFloat(text)   // parseFloat, не parseInt
+                                    if (!isNaN(v))
+                                        schemaController.applyValue(f.key, v)
+                                }
                             }
                         }
                     }
@@ -318,35 +90,30 @@ Window {
             }
         }
 
+        // ── ПОДСКАЗКА ──
         Rectangle {
-            id: rectangle_probabilityAlgorithmView
-            width: column_probabilityAlgorithmView.width
-            height: column_probabilityAlgorithmView.height * 0.05
+            width: column_pav.width
+            height: 30
             color: "#00000000"
-            border.color: "#00000000"
 
             Text {
-                id: _text_pav
+                anchors.centerIn: parent
                 color: "#969696"
                 text: qsTr("If a sphere is used for construction - all half-axes must be equal")
                 font.pixelSize: 13
-                horizontalAlignment: Text.AlignLeft
-                verticalAlignment: Text.AlignVCenter
                 font.styleName: "Bold"
-                anchors.centerIn: parent
                 font.family: inter.name
             }
         }
 
+        // ── КНОПКИ ──
         Row {
-            id: row_probabilityAlgorithmView
-            width: column_probabilityAlgorithmView.width
-            height: column_probabilityAlgorithmView.height * 0.25
+            width: column_pav.width
+            height: 90
 
             Item {
-                id: _item_b1_pav
-                width: row_probabilityAlgorithmView.width * 0.5
-                height: row_probabilityAlgorithmView.height
+                width: parent.width * 0.5
+                height: parent.height
 
                 Button {
                     id: button_cancel_pav
@@ -354,41 +121,39 @@ Window {
                     height: 56
                     text: qsTr("CANCEL")
                     anchors.centerIn: parent
+
                     background: Rectangle {
-                        id: buttonBackground1
-                        width: 228
-                        height: 56
+                        id: bgCancel
                         radius: 15
                         color: "#282828"
                         border.color: "#969696"
                         border.width: 1
 
                         MouseArea {
-                            id: hoverArea1
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onEntered: buttonBackground1.color = "#3a3a3a"
-                            onExited: buttonBackground1.color = "#282828"
+                            onEntered: bgCancel.color = "#3a3a3a"
+                            onExited: bgCancel.color = "#282828"
                         }
                     }
+
                     contentItem: Text {
                         text: button_cancel_pav.text
                         font.pixelSize: 20
                         font.family: inter.name
-                        color: Qt.rgba(150 / 255, 150 / 255, 150 / 255, 0.5)
+                        color: Qt.rgba(150/255, 150/255, 150/255, 0.5)
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
-                        anchors.centerIn: parent
                     }
+
+                    onClicked: probabilityAlgorithmView.visible = false
                 }
             }
 
-
             Item {
-                id: _item_b2_pav
-                width: row_probabilityAlgorithmView.width * 0.5
-                height: row_probabilityAlgorithmView.height
+                width: parent.width * 0.5
+                height: parent.height
 
                 Button {
                     id: button_apply_pav
@@ -396,33 +161,33 @@ Window {
                     height: 56
                     text: qsTr("APPLY")
                     anchors.centerIn: parent
+
                     background: Rectangle {
-                        id: buttonBackground2
-                        width: 228
-                        height: 56
+                        id: bgApply
                         radius: 15
                         color: "#282828"
                         border.color: "#969696"
                         border.width: 1
 
                         MouseArea {
-                            id: hoverArea2
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onEntered: buttonBackground2.color = "#3a3a3a"
-                            onExited: buttonBackground2.color = "#282828"
+                            onEntered: bgApply.color = "#3a3a3a"
+                            onExited: bgApply.color = "#282828"
                         }
                     }
+
                     contentItem: Text {
                         text: button_apply_pav.text
                         font.pixelSize: 20
                         font.family: inter.name
-                        color: Qt.rgba(150 / 255, 150 / 255, 150 / 255, 0.5)
+                        color: Qt.rgba(150/255, 150/255, 150/255, 0.5)
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
-                        anchors.centerIn: parent
                     }
+
+                    onClicked: probabilityAlgorithmView.visible = false
                 }
             }
         }

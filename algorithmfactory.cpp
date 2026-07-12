@@ -46,3 +46,23 @@ void registerAlgorithms() {
     });
 }
 
+void registerSchemas()
+{
+    auto& factory = AlgorithmFactory::instance();
+
+    factory.registerSchema("Probability Algorithm", {
+                                                   { "halfaxis_a",          "Півось A",          ParamField::Double, 1.0, 0.1, 100.0, {} },
+                                                   { "halfaxis_b",          "Півось B",          ParamField::Double, 1.0, 0.1, 100.0, {} },
+                                                   { "halfaxis_c",          "Півось C",          ParamField::Double, 1.0, 0.1, 100.0, {} },
+                                                   { "orientation_angle_a", "Кут орієнтації A",  ParamField::Double, 0.0, 0.0, 360.0, {} },
+                                                   { "orientation_angle_b", "Кут орієнтації B",  ParamField::Double, 0.0, 0.0, 360.0, {} },
+                                                   { "orientation_angle_c", "Кут орієнтації C",  ParamField::Double, 0.0, 0.0, 360.0, {} },
+                                                   { "ellipse_order",       "Порядок еліпса",    ParamField::Double, 2.0, 1.0, 10.0,  {} },
+                                                   });
+
+    factory.registerSchema("Probability Circle", {
+                                                  { "halfaxis_a", "Радіус", ParamField::Double, 1.0, 0.1, 100.0, {} },
+                                                  });
+
+    // DLCA, Neumann, Moore, Radial — без доп. параметров (пустая схема по умолчанию)
+}

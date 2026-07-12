@@ -75,7 +75,8 @@ SOURCES += \
         probability_ellipse.cpp \
         probabilityalgorithmviewwrapper.cpp \
         radial.cpp \
-        renderopengl.cpp
+        renderopengl.cpp \
+        schemacontroller.cpp
 
 RESOURCES += qml.qrc
 
@@ -108,10 +109,12 @@ HEADERS += \
     neumann.h \
     openglwidgetqml.h \
     parameters.h \
+    paramfield.h \
     parent_algorithm.h \
     probability_algorithm.h \
     probability_circle.h \
     probability_ellipse.h \
     probabilityalgorithmviewwrapper.h \
     radial.h \
-    renderopengl.h
+    renderopengl.h \
+    schemacontroller.h

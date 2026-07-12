@@ -3,6 +3,7 @@
 #include <QQmlApplicationEngine>
 #include <QtQuickControls2>
 #include <QIcon>
+#include "algorithmfactory.h"
 #include "openglwidgetqml.h"
 #include "dbmanager.h"
 #include "parameters.h"
@@ -12,6 +13,7 @@
 #include "consolelogger.h"
 #include "commandline_parser.h"
 #include "logo_printer.h"
+#include "schemacontroller.h"
 
 #ifdef _WIN32
     #include <windows.h>
@@ -97,10 +99,13 @@ int main(int argc, char *argv[])
     MainWindowWrapper mainWindowWrapper;
     MaterialDatabaseViewWrapper materialDatabaseViewWrapper;
     ProbabilityAlgorithmViewWrapper probabilityAlgorithmViewWrapper;
+    SchemaController schemaController;
+    registerSchemas();
 
     engine.rootContext()->setContextProperty("mainWindowWrapper", &mainWindowWrapper);
     engine.rootContext()->setContextProperty("materialDatabaseViewWrapper", &materialDatabaseViewWrapper);
     engine.rootContext()->setContextProperty("probabilityAlgorithmViewWrapper", &probabilityAlgorithmViewWrapper);
+    engine.rootContext()->setContextProperty("schemaController", &schemaController);
 
     const QUrl url(QStringLiteral("qrc:/main.qml"));
     QObject::connect(

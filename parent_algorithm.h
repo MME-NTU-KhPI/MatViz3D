@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <functional>
 #include <random>
+#include "paramfield.h"
 #include "parameters.h"
 #include "grain_analyzer.h"
 #include "loadstepmanager.h"
@@ -87,6 +88,8 @@ public:
      * @return int32_t The unique identifier (ID) or index of the created grain.
      */
     int32_t birthGrain(int x, int y, int z);
+
+    virtual std::vector<ParamField> paramSchema() const { return {}; }
 
     /**
      * @brief Generates a random coordinate within the valid modeling domain.
