@@ -28,12 +28,48 @@ Window {
     ColumnLayout {
         id: mainColumnData
         anchors.fill: parent
-        spacing: 25
+        spacing: 0
+
+        Rectangle {
+                    Layout.fillWidth: true
+                    height: 40 // implicitHeight
+                    color: "#303030"
+                    z: 2
+
+                    HorizontalHeaderView {
+                        id: horizontalHeader
+                        anchors.fill: parent
+                        syncView: tableView
+
+                        delegate: Rectangle {
+                            implicitWidth: {
+                                if (column === 1 || column === 2) return 110;
+                                return 70;
+                            }
+                            implicitHeight: 40
+                            color: "#303030"
+                            border.color: "#3a3a3a"
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: display
+                                color: "#CFCECE"
+                                font.family: inter.name
+                                font.pixelSize: 14
+                                font.weight: Font.Bold
+                            }
+                        }
+                    }
+                }
 
         TableView {
             id: tableView
             Layout.fillWidth: true
             Layout.fillHeight: true
+            Layout.topMargin: 5
+
+            clip: True
+
             model: dbManager.getModel()
 
             columnSpacing: 1
@@ -46,6 +82,8 @@ Window {
             //     headerRow.addItem({ text: "Тип", width: 150 });
             //     tableView.insertRow(0, headerRow);
             // }
+
+            boundsBehavior: Flickable.StopAtBounds
 
             delegate: Rectangle {
                 implicitWidth: {
