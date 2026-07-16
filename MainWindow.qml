@@ -664,11 +664,11 @@ Window {
                             width: 224
                             height: 28
                             leftPadding: 10
-                            displayText: "---"
                             font.pointSize: 10
                             font.family: montserrat.name
                             editable: true
-                            currentIndex: 0
+                            currentIndex: -1
+                            displayText: currentIndex === -1 ? "---" : currentText
                             background: Rectangle {
                                 color: "#282828"
                                 radius: 11
@@ -686,30 +686,17 @@ Window {
                                 ListElement { text: "DLCA" }
                             }
 
-                            Component.onCompleted: applySelection(currentIndex)
+                            //Component.onCompleted: applySelection(currentIndex)
 
                             // Extract logic into reusable function
                             function applySelection(index) {
-                                empty_alg_item.visible = false
-                                poly_alg_item.visible = false
-                                comp_alg_item.visible = false
-                                dlca_alg_item.visible = false
-
-                                if (index >= 0 && index <= 4) {
-                                    poly_alg_item.visible = true
-                                } else if (index === 5) {
-                                    comp_alg_item.visible = true
-                                } else if (index === 6) {
-                                    dlca_alg_item.visible = true
-                                }
-
                                 if (index !== -1) {
                                     Qt.callLater(() => {
                                         console.log("Algorithm selected:", currentText)
                                         Parameters.setAlgorithm(currentText)
-                                        schemaController.onAlgorithmSelected(currentText)    // сначала схема
+                                        schemaController.onAlgorithmSelected(currentText)
 
-                                        if (index === 4) {                                    // потом окно
+                                        if (schemaController.advancedSchema.length > 0) {
                                             probabilityAlgorithmLoader.active = true
                                             probabilityAlgorithmLoader.item.visible = true
                                         }
@@ -728,569 +715,27 @@ Window {
                 }
 
                 Item {
-                    id: _item3
-                    width: data_column.width
-                    height: parent.height - (headerData_row.height + _item_column_alg.height + _item_start.height)
-                    visible: true
+                        id: _item3
+                        width: data_column.width
+                        height: parent.height - (headerData_row.height + _item_column_alg.height + _item_start.height)
 
-                    Item {
-                        id: empty_alg_item
-                        anchors.fill: parent
-                        visible: true
-                    }
-
-                    Item {
-                        id: poly_alg_item
-                        anchors.fill: parent
-                        visible: false
-
-                        Column {
-                            id: column1
+                        ScrollView {
+                            id: paramsScroll
                             anchors.fill: parent
+                            anchors.leftMargin: 20
+                            anchors.rightMargin: 20
+                            clip: true                                    // обрезаем по границам
+                            contentWidth: availableWidth                  // без горизонтального скролла
 
+                            ScrollBar.vertical.policy: ScrollBar.AsNeeded // скролл только если не влезает
+                            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
 
-                            Item {
-                                id: _item
-                                width: 224
-                                height: 77
-                                anchors.horizontalCenter: parent.horizontalCenter
-
-                                Column {
-                                    id: size_column
-                                    anchors.fill: parent
-                                    topPadding: 15
-                                    spacing: 10
-
-                                    Text {
-                                        id: size_text
-                                        width: 224
-                                        height: 24
-                                        color: "#c6c6c6"
-                                        text: qsTr("Cube size:")
-                                        font.pixelSize: 20
-                                        font.styleName: "Bold"
-                                        font.family: inter.name
-                                    }
-
-                                    PlaceholderInput {
-                                        id: size_textInput
-                                        initialValue: Parameters.size !== undefined ? String(Parameters.size) : ""
-                                        placeholderText: Parameters.size !== undefined ? String(Parameters.size) : "1"
-                                        onTextChanged: (text) => {
-                                            if (text !== "") {
-                                                Parameters.setSize(parseInt(text, 10))
-                                            }
-                                        }
-                                    }
-
-
-                                }
-                            }
-
-                            Item {
-                                id: _item4
-                                width: 224
-                                height: 110
-                                anchors.horizontalCenter: parent.horizontalCenter
-
-                                Column {
-                                    id: num_column
-                                    anchors.fill: parent
-                                    topPadding: 15
-                                    spacing: 10
-
-                                    Row {
-                                        id: row
-                                        width: parent.width
-                                        height: size_radioButton.height
-                                        leftPadding: -2
-
-                                        RadioButton {
-                                            id: size_radioButton
-                                            text: qsTr("Size")
-                                            font.pixelSize: 15
-                                            font.family: montserrat.name
-
-                                            checked: true
-                                            onClicked: {
-                                                Parameters.setPointsMode("count")
-                                                Parameters.processPointInput(num_textInput.text)
-                                            }
-                                        }
-
-                                        RadioButton {
-                                            id: concentration_radioButton
-                                            text: qsTr("Concentration")
-                                            font.pixelSize: 15
-                                            font.family: montserrat.name
-
-                                            onClicked: {
-                                                Parameters.setPointsMode("density")
-                                                Parameters.processPointInput(num_textInput.text)
-                                            }
-                                        }
-                                    }
-                                    PlaceholderInput {
-                                        id: num_textInput
-                                        placeholderText: "0"
-                                        initialValue: Parameters.points !== undefined ? String(Parameters.points) : ""
-                                        onTextChanged: (text) => {
-                                            if (text !== "") {
-                                                Parameters.processPointInput(parseInt(text, 0))
-                                            }
-                                        }
-                                    }
-
-                                }
-                            }
-
-                            Item {
-                                id: _item5
-                                width: 224
-                                height: 77
-                                Column {
-                                    id: num_column1
-                                    anchors.fill: parent
-                                    topPadding: 15
-                                    spacing: 10
-                                    Text {
-                                        id: num_text1
-                                        width: 224
-                                        height: 24
-                                        color: "#c6c6c6"
-                                        text: qsTr("Wave coefficient:")
-                                        font.pixelSize: 20
-                                        font.styleName: "Bold"
-                                        font.family: inter.name
-                                    }
-
-                                    PlaceholderInput {
-                                        id: num_textInput1
-                                        placeholderText: "0"
-                                        onTextChanged: (text) => {
-                                            if (text !== "") {
-                                                Parameters.setWaveCoefficient(parseFloat(text, 0))
-                                            }
-                                        }
-                                    }
-
-                                }
-                                anchors.horizontalCenter: parent.horizontalCenter
+                            DynamicParamBlock {
+                                id: dataParamsBlock
+                                width: paramsScroll.availableWidth
                             }
                         }
                     }
-
-                    Item {
-                        id: comp_alg_item
-                        anchors.fill: parent
-                        visible: false
-
-                        Column {
-                            id: column2
-                            x: 0
-                            y: 0
-                            anchors.fill: parent
-
-
-                            Item {
-                                id: _item23
-                                width: 224
-                                height: 85
-                                Row {
-                                    id: comp_row_material
-                                    anchors.fill: parent
-                                    spacing: 7
-                                    x: 0
-                                    y: 106
-                                    Column {
-                                        id: column9
-                                        width: (comp_row_material.width / 2)
-                                        height: 85
-                                        topPadding: 20
-                                        spacing: 10
-                                        Text {
-                                            id: _text5
-                                            width: (comp_row_material.width / 2)
-                                            height: 24
-                                            color: "#c6c6c6"
-                                            text: qsTr("Material 1:")
-                                            font.pixelSize: 20
-                                            font.styleName: "Bold"
-                                            font.family: inter.name
-                                        }
-
-                                        ComboBox {
-                                            id: comboBox3
-                                            width: (comp_row_material.width / 2)
-                                            height: 28
-                                            onAccepted: {
-                                                if (find(editText) === -1)
-                                                    model3.append({text: editText})
-                                            }
-                                            model: ListModel {
-                                                id: model3
-                                                ListElement {
-                                                    text: "fcc"
-                                                }
-
-                                                ListElement {
-                                                    text: "bcc"
-                                                }
-                                            }
-                                            leftPadding: 10
-                                            font.pointSize: 10
-                                            font.family: montserrat.name
-                                            editable: true
-                                            displayText: "---"
-                                            background: Rectangle {
-                                                color: "#282828"
-                                                radius: 11
-                                                border.color: "#969696"
-                                            }
-                                        }
-                                        anchors.verticalCenter : _item23.verticalCenter
-                                    }
-                                    Column {
-                                        id: column9_2
-                                        width: (comp_row_material.width / 2)
-                                        height: 85
-                                        topPadding: 20
-                                        spacing: 10
-                                        Text {
-                                            id: _text5_2
-                                            width: (comp_row_material.width / 2)
-                                            height: 24
-                                            color: "#c6c6c6"
-                                            text: qsTr("Material 2:")
-                                            font.pixelSize: 20
-                                            font.styleName: "Bold"
-                                            font.family: inter.name
-                                        }
-
-                                        ComboBox {
-                                            id: comboBox3_2
-                                            width: (comp_row_material.width / 2)
-                                            height: 28
-                                            onAccepted: {
-                                                if (find(editText) === -1)
-                                                    model3.append({text: editText})
-                                            }
-                                            model: ListModel {
-                                                id: model3_2
-                                                ListElement {
-                                                    text: "fcc"
-                                                }
-
-                                                ListElement {
-                                                    text: "bcc"
-                                                }
-                                            }
-                                            leftPadding: 10
-                                            font.pointSize: 10
-                                            font.family: montserrat.name
-                                            editable: true
-                                            displayText: "---"
-                                            background: Rectangle {
-                                                color: "#282828"
-                                                radius: 11
-                                                border.color: "#969696"
-                                            }
-                                        }
-                                        anchors.verticalCenter : _item23.verticalCenter
-                                    }
-                                }
-                                anchors.horizontalCenter: parent.horizontalCenter
-                            }
-
-                            Item {
-                                id: _item7
-                                width: 224
-                                height: 85
-                                anchors.horizontalCenter: parent.horizontalCenter
-
-                                Column {
-                                    id: size_column1
-                                    x: -63
-                                    y: 0
-                                    anchors.fill: parent
-                                    topPadding: 20
-                                    spacing: 10
-                                    Text {
-                                        id: size_text1
-                                        width: 224
-                                        height: 24
-                                        color: "#c6c6c6"
-                                        text: qsTr("Cube size:")
-                                        font.pixelSize: 20
-                                        font.styleName: "Bold"
-                                        font.family: inter.name
-                                    }
-
-                                    Rectangle {
-                                        id: recInput1_pav1
-                                        width: 224
-                                        height: 28
-                                        color: "#282828"
-                                        radius: 11
-                                        border.color: "#969696"
-                                        border.width: 1
-                                        TextInput {
-                                            id: size_textInput1
-                                            color: "#969696"
-                                            text: qsTr("0")
-                                            anchors.fill: parent
-                                            anchors.margins: 5
-                                            font.pixelSize: 12
-                                            horizontalAlignment: Text.AlignLeft
-                                            verticalAlignment: Text.AlignTop
-                                            topPadding: 1
-                                            rightPadding: 10
-                                            padding: 3.5
-                                            leftPadding: 10
-                                            font.family: montserrat.name
-                                            font.bold: true
-                                            bottomPadding: 1
-                                        }
-                                    }
-                                }
-                            }
-
-                            Item {
-                                id: _item6
-                                width: 224
-                                height: 110
-                                Column {
-                                    id: num_column3
-                                    anchors.fill: parent
-                                    topPadding: 15
-                                    spacing: 10
-                                    Row {
-                                        id: row5
-                                        width: parent.width
-                                        height: size_radioButton2.height
-                                        leftPadding: -2
-                                        RadioButton {
-                                            id: size_radioButton2
-                                            text: qsTr("Radius")
-                                            font.pixelSize: 15
-                                            font.family: montserrat.name
-                                        }
-
-                                        RadioButton {
-                                            id: concentration_radioButton2
-                                            text: qsTr("Concentration")
-                                            font.pixelSize: 15
-                                            font.family: montserrat.name
-                                        }
-                                    }
-
-                                    Rectangle {
-                                        id: recInput2_pav3
-                                        width: 224
-                                        height: 28
-                                        color: "#282828"
-                                        radius: 11
-                                        border.color: "#969696"
-                                        border.width: 1
-                                        TextInput {
-                                            id: num_textInput3
-                                            color: "#969696"
-                                            text: qsTr("0")
-                                            anchors.fill: parent
-                                            anchors.margins: 5
-                                            font.pixelSize: 12
-                                            horizontalAlignment: Text.AlignLeft
-                                            verticalAlignment: Text.AlignTop
-                                            topPadding: 1
-                                            rightPadding: 10
-                                            leftPadding: 10
-                                            font.family: montserrat.name
-                                            font.bold: true
-                                            bottomPadding: 1
-                                        }
-                                    }
-                                }
-                                anchors.horizontalCenter: parent.horizontalCenter
-                            }
-                        }
-                    }
-
-                    Item {
-                        id: dlca_alg_item
-                        visible: false
-                        anchors.fill: parent
-                        Column {
-                            id: column4
-                            anchors.fill: parent
-
-
-                            Item {
-                                id: _item9
-                                width: 224
-                                height: 85
-                                Column {
-                                    id: size_column3
-                                    anchors.fill: parent
-                                    topPadding: 20
-                                    spacing: 10
-                                    Text {
-                                        id: size_text3
-                                        width: 224
-                                        height: 24
-                                        color: "#c6c6c6"
-                                        text: qsTr("Cube size:")
-                                        font.pixelSize: 20
-                                        font.styleName: "Bold"
-                                        font.family: inter.name
-                                    }
-
-                                    Rectangle {
-                                        id: recInput1_pav3
-                                        width: 224
-                                        height: 28
-                                        color: "#282828"
-                                        radius: 11
-                                        border.color: "#969696"
-                                        border.width: 1
-                                        TextInput {
-                                            id: size_textInput3
-                                            color: "#969696"
-                                            text: qsTr("0")
-                                            anchors.fill: parent
-                                            anchors.margins: 5
-                                            font.pixelSize: 12
-                                            horizontalAlignment: Text.AlignLeft
-                                            verticalAlignment: Text.AlignTop
-                                            topPadding: 1
-                                            rightPadding: 10
-                                            padding: 3.5
-                                            leftPadding: 10
-                                            font.family: montserrat.name
-                                            font.bold: true
-                                            bottomPadding: 1
-                                        }
-                                    }
-                                }
-                                anchors.horizontalCenter: parent.horizontalCenter
-                            }
-
-                            Item {
-                                id: _item10
-                                width: 224
-                                height: 100
-                                Column {
-                                    id: num_column2
-                                    anchors.fill: parent
-                                    topPadding: 15
-                                    spacing: 10
-                                    Row {
-                                        id: row1
-                                        width: parent.width
-                                        height: size_radioButton1.height
-                                        leftPadding: -2
-                                        RadioButton {
-                                            id: size_radioButton1
-                                            text: qsTr("Size")
-                                            font.pixelSize: 15
-                                            font.family: montserrat.name
-                                        }
-
-                                        RadioButton {
-                                            id: concentration_radioButton1
-                                            text: qsTr("Concentration")
-                                            font.pixelSize: 15
-                                            font.family: montserrat.name
-                                        }
-                                    }
-
-                                    Rectangle {
-                                        id: recInput2_pav2
-                                        width: 224
-                                        height: 28
-                                        color: "#282828"
-                                        radius: 11
-                                        border.color: "#969696"
-                                        border.width: 1
-                                        TextInput {
-                                            id: num_textInput2
-                                            color: "#969696"
-                                            text: qsTr("0")
-                                            anchors.fill: parent
-                                            anchors.margins: 5
-                                            font.pixelSize: 12
-                                            horizontalAlignment: Text.AlignLeft
-                                            verticalAlignment: Text.AlignTop
-                                            topPadding: 1
-                                            rightPadding: 10
-                                            leftPadding: 10
-                                            font.family: montserrat.name
-                                            font.bold: true
-                                            bottomPadding: 1
-                                        }
-                                    }
-                                }
-                                anchors.horizontalCenter: parent.horizontalCenter
-                            }
-
-                            Item {
-                                id: _item11
-                                width: 224
-                                height: 85
-                                Column {
-                                    id: column5
-                                    x: 0
-                                    y: 106
-                                    anchors.fill: parent
-                                    topPadding: 20
-                                    spacing: 10
-                                    Text {
-                                        id: _text3
-                                        width: 224
-                                        height: 24
-                                        color: "#c6c6c6"
-                                        text: qsTr("Material:")
-                                        font.pixelSize: 20
-                                        font.styleName: "Bold"
-                                        font.family: inter.name
-                                    }
-
-                                    ComboBox {
-                                        id: comboBox2
-                                        width: 224
-                                        height: 28
-                                        onAccepted: {
-                                            if (find(editText) === -1)
-                                                model2.append({text: editText})
-                                        }
-                                        model: ListModel {
-                                            id: model2
-                                            ListElement {
-                                                text: "fcc"
-                                            }
-
-                                            ListElement {
-                                                text: "bcc"
-                                            }
-                                        }
-                                        leftPadding: 10
-                                        font.pointSize: 10
-                                        font.family: montserrat.name
-                                        editable: true
-                                        displayText: "---"
-                                        background: Rectangle {
-                                            color: "#282828"
-                                            radius: 11
-                                            border.color: "#969696"
-                                        }
-                                    }
-                                    anchors.centerIn: parent
-                                }
-                                anchors.horizontalCenter: parent.horizontalCenter
-                            }
-
-                        }
-                    }
-                }
 
                 Item {
                     id: _item_start
@@ -1335,7 +780,13 @@ Window {
                             anchors.centerIn: parent
                         }
 
-                        onClicked: mainWindowWrapper.onStartButton()
+                        onClicked: {
+                            if (comboBox.currentIndex === -1) {
+                                console.log("Algorithm not selected")
+                                return
+                            }
+                            mainWindowWrapper.onStartButton()
+                        }
                     }
                 }
             }

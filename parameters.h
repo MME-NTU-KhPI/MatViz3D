@@ -30,6 +30,15 @@ class Parameters : public QObject
     Q_PROPERTY(bool hasProbParameters READ getHasProbParameters WRITE setHasProbParameters NOTIFY hasProbParametersChanged)
     Q_PROPERTY(double ellipse_order READ getEllipseOrder WRITE setEllipseOrder NOTIFY ellipseOrderChanged)
 
+    Q_PROPERTY(QString material  READ getMaterial  WRITE setMaterial  NOTIFY materialChanged)
+    Q_PROPERTY(QString material1 READ getMaterial1 WRITE setMaterial1 NOTIFY material1Changed)
+    Q_PROPERTY(QString material2 READ getMaterial2 WRITE setMaterial2 NOTIFY material2Changed)
+
+    Q_PROPERTY(float wave_spread          READ getWaveSpread         WRITE setWaveSpread         NOTIFY waveSpreadChanged)
+    Q_PROPERTY(float stefan_number        READ getStefanNumber       WRITE setStefanNumber       NOTIFY stefanNumberChanged)
+    Q_PROPERTY(int   initial_nuclei_count READ getInitialNucleiCount WRITE setInitialNucleiCount NOTIFY initialNucleiCountChanged)
+    Q_PROPERTY(int   num_rnd_loads        READ getNumRndLoads        WRITE setNumRndLoads        NOTIFY numRndLoadsChanged)
+
 public:
     explicit Parameters(QObject* parent = nullptr);
 
@@ -93,7 +102,25 @@ public:
     double getEllipseOrder() const { return ellipse_order; }
     Q_INVOKABLE void setEllipseOrder(double value);
 
+    QString getMaterial()  const { return m_material; }
+    QString getMaterial1() const { return m_material1; }
+    QString getMaterial2() const { return m_material2; }
+
+    Q_INVOKABLE void setMaterial(const QString& value);
+    Q_INVOKABLE void setMaterial1(const QString& value);
+    Q_INVOKABLE void setMaterial2(const QString& value);
+
     Q_INVOKABLE void processPointInput(const QString &text);
+
+    float getWaveSpread()         const { return wave_spread; }
+    float getStefanNumber()       const { return stefan_number; }
+    int   getInitialNucleiCount() const { return initial_nuclei_count; }
+    int   getNumRndLoads()        const { return num_rnd_loads; }
+
+    Q_INVOKABLE void setWaveSpread(float value);
+    Q_INVOKABLE void setStefanNumber(float value);
+    Q_INVOKABLE void setInitialNucleiCount(int value);
+    Q_INVOKABLE void setNumRndLoads(int value);
 
     static Parameters* m_instance;
 
@@ -139,6 +166,15 @@ signals:
     void hasProbParametersChanged();
     void ellipseOrderChanged();
 
+    void materialChanged();
+    void material1Changed();
+    void material2Changed();
+
+    void waveSpreadChanged();
+    void stefanNumberChanged();
+    void initialNucleiCountChanged();
+    void numRndLoadsChanged();
+
 private:
     static int size;
     static int points;
@@ -161,6 +197,11 @@ private:
     static bool nogui;
     static bool hasProbParameters;
     static double ellipse_order;
+    static unsigned int num_rnd_loads;
+
+    static QString m_material;
+    static QString m_material1;
+    static QString m_material2;
 };
 
 #endif // PARAMETERS_H

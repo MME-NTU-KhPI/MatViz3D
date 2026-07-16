@@ -50,19 +50,43 @@ void registerSchemas()
 {
     auto& factory = AlgorithmFactory::instance();
 
-    factory.registerSchema("Probability Algorithm", {
-                                                   { "halfaxis_a",          "Півось A",          ParamField::Double, 1.0, 0.1, 100.0, {} },
-                                                   { "halfaxis_b",          "Півось B",          ParamField::Double, 1.0, 0.1, 100.0, {} },
-                                                   { "halfaxis_c",          "Півось C",          ParamField::Double, 1.0, 0.1, 100.0, {} },
-                                                   { "orientation_angle_a", "Кут орієнтації A",  ParamField::Double, 0.0, 0.0, 360.0, {} },
-                                                   { "orientation_angle_b", "Кут орієнтації B",  ParamField::Double, 0.0, 0.0, 360.0, {} },
-                                                   { "orientation_angle_c", "Кут орієнтації C",  ParamField::Double, 0.0, 0.0, 360.0, {} },
-                                                   { "ellipse_order",       "Порядок еліпса",    ParamField::Double, 2.0, 1.0, 10.0,  {} },
-                                                   });
+    std::vector<ParamField> base = {
+                                    { "size", "Cube size", ParamField::Int, 10, 1, 500, {}, "main" },
 
-    factory.registerSchema("Probability Circle", {
-                                                  { "halfaxis_a", "Радіус", ParamField::Double, 1.0, 0.1, 100.0, {} },
-                                                  });
+                                    { "points", "Points", ParamField::PointsMode, 10, 1, 100000,
+                                     { "Size", "Concentration" }, "main" },
 
-    // DLCA, Neumann, Moore, Radial — без доп. параметров (пустая схема по умолчанию)
+                                    { "wave_coefficient", "Wave coefficient", ParamField::Double, 0.0, 0.0, 10.0, {}, "main" },
+                                    { "wave_spread",      "Wave spread",      ParamField::Double, 0.0, 0.0, 10.0, {}, "main" },
+                                    };
+
+    // Neumann / Moore / Radial / Composite
+    factory.registerSchema("Neumann", base);
+    factory.registerSchema("Moore",   base);
+    factory.registerSchema("Radial",  base);
+    factory.registerSchema("Probability Circle", base);
+    factory.registerSchema("Probability Ellipse", base);
+
+    // DLCA — база + материал
+    auto dlca = base;
+    dlca.push_back(
+        { "material", "Material", ParamField::Enum, "bcc", {}, {}, { "fcc", "bcc" }, "main" }
+        );
+    factory.registerSchema("DLCA", dlca);
+
+    // Probability Algorithm — база + advanced (окно)
+    auto probAlg = base;                        // Cube size, Points, Wave* → main → блок Data
+    probAlg.insert(probAlg.end(), {
+                                   { "stefan_number",        "Stefan number",  ParamField::Double, 100.0, 1.0, 1000.0, {}, "main" },
+                                   { "initial_nuclei_count", "Initial nuclei", ParamField::Int,    1,     1,   100,    {}, "main" },
+
+                                   // Только в окне Settings
+                                   { "halfaxis_a",          "Half-axis a",           ParamField::Double, 1.5, 0.1, 100.0, {}, "advanced" },
+                                   { "halfaxis_b",          "Half-axis b",           ParamField::Double, 1.5, 0.1, 100.0, {}, "advanced" },
+                                   { "halfaxis_c",          "Half-axis c",           ParamField::Double, 1.5, 0.1, 100.0, {}, "advanced" },
+                                   { "orientation_angle_a", "Orientation angle (A)", ParamField::Double, 0.0, 0.0, 360.0, {}, "advanced" },
+                                   { "orientation_angle_b", "Orientation angle (B)", ParamField::Double, 0.0, 0.0, 360.0, {}, "advanced" },
+                                   { "orientation_angle_c", "Orientation angle (C)", ParamField::Double, 0.0, 0.0, 360.0, {}, "advanced" },
+                                   });
+    factory.registerSchema("Probability Algorithm", probAlg);
 }

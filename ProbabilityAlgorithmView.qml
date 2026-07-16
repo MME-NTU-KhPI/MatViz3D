@@ -36,7 +36,7 @@ Window {
             rows: probabilityAlgorithmView.gridRows
 
             Repeater {
-                model: schemaController.currentSchema
+                model: schemaController.advancedSchema
 
                 delegate: Item {
                     width: grid_pav.width * 0.5      // половина ширины — 2 колонки

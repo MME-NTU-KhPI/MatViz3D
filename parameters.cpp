@@ -15,6 +15,7 @@ QString Parameters::working_directory = "";
 float Parameters::wave_coefficient = 0.0f;
 float Parameters::wave_spread;
 int Parameters::initial_nuclei_count = 1;
+unsigned int Parameters::num_rnd_loads = 0;
 
 float Parameters::halfaxis_a = 0.0f;
 float Parameters::halfaxis_b = 0.0f;
@@ -29,6 +30,11 @@ bool Parameters::isAnimation = false;
 
 bool   Parameters::hasProbParameters = false;
 double Parameters::ellipse_order     = 2.0; // 2.0 = standard ellipsoid
+float Parameters::stefan_number = 100.0f;
+
+QString Parameters::m_material  = "bcc";
+QString Parameters::m_material1  = "fcc";
+QString Parameters::m_material2  = "bcc";
 
 Parameters::Parameters(QObject* parent) : QObject(parent) {}
 
@@ -188,5 +194,61 @@ void Parameters::setEllipseOrder(double value) {
     if (ellipse_order != value) {
         ellipse_order = value;
         emit ellipseOrderChanged();
+    }
+}
+
+void Parameters::setMaterial(const QString& value)
+{
+    if (m_material != value) {
+        m_material = value;
+        emit materialChanged();
+    }
+}
+
+void Parameters::setMaterial1(const QString& value)
+{
+    if (m_material1 != value) {
+        m_material1 = value;
+        emit material1Changed();
+    }
+}
+
+void Parameters::setMaterial2(const QString& value)
+{
+    if (m_material2 != value) {
+        m_material2 = value;
+        emit material2Changed();
+    }
+}
+
+void Parameters::setWaveSpread(float value)
+{
+    if (wave_spread != value) {
+        wave_spread = value;
+        emit waveSpreadChanged();
+    }
+}
+
+void Parameters::setStefanNumber(float value)
+{
+    if (stefan_number != value) {
+        stefan_number = value;
+        emit stefanNumberChanged();
+    }
+}
+
+void Parameters::setInitialNucleiCount(int value)
+{
+    if (initial_nuclei_count != value) {
+        initial_nuclei_count = value;
+        emit initialNucleiCountChanged();
+    }
+}
+
+void Parameters::setNumRndLoads(int value)
+{
+    if (num_rnd_loads != value) {
+        num_rnd_loads = value;
+        emit numRndLoadsChanged();
     }
 }
