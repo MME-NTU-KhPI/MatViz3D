@@ -5,14 +5,12 @@ import parameters 1.0
 Window {
     id: probabilityAlgorithmView
 
-    // Число полей в текущей схеме
-    property int fieldCount: schemaController.currentSchema.length
+    property int fieldCount: schemaController.advancedSchema.length
 
-    // Число строк в сетке: по 2 поля в ряд
     property int gridRows: Math.max(1, Math.ceil(fieldCount / 2))
 
     width: 534
-    height: 140 + gridRows * 110          // шапка/кнопки + строки полей
+    height: 120 + gridRows * 110 + 130
     minimumWidth: 534
     minimumHeight: 250
     color: "#282828"
@@ -27,7 +25,6 @@ Window {
         id: column_pav
         anchors.fill: parent
 
-        // ── СЕТКА ПОЛЕЙ (строится из схемы) ──
         Grid {
             id: grid_pav
             width: column_pav.width
@@ -39,16 +36,15 @@ Window {
                 model: schemaController.advancedSchema
 
                 delegate: Item {
-                    width: grid_pav.width * 0.5      // половина ширины — 2 колонки
+                    width: grid_pav.width * 0.5
                     height: 110
 
-                    property var f: modelData         // текущее поле схемы
+                    property var f: modelData
 
                     Column {
                         spacing: 12
                         anchors.centerIn: parent
 
-                        // Подпись поля — из схемы
                         Text {
                             color: "#969696"
                             text: f.label
@@ -57,7 +53,6 @@ Window {
                             font.family: inter.name
                         }
 
-                        // Поле ввода — стиль как был
                         Rectangle {
                             width: 228
                             height: 26
@@ -71,7 +66,7 @@ Window {
                                 anchors.fill: parent
                                 anchors.margins: 5
                                 color: "#969696"
-                                text: String(f.defValue)      // значение по умолчанию из схемы
+                                text: String(f.defValue)
                                 font.pixelSize: 15
                                 verticalAlignment: Text.AlignTop
                                 horizontalAlignment: Text.AlignLeft
@@ -79,7 +74,7 @@ Window {
 
                                 onTextChanged: {
                                     if (text === "") return
-                                    var v = parseFloat(text)   // parseFloat, не parseInt
+                                    var v = parseFloat(text)
                                     if (!isNaN(v))
                                         schemaController.applyValue(f.key, v)
                                 }
@@ -90,7 +85,6 @@ Window {
             }
         }
 
-        // ── ПОДСКАЗКА ──
         Rectangle {
             width: column_pav.width
             height: 30
@@ -106,7 +100,6 @@ Window {
             }
         }
 
-        // ── КНОПКИ ──
         Row {
             width: column_pav.width
             height: 90

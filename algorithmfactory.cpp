@@ -64,23 +64,24 @@ void registerSchemas()
     factory.registerSchema("Neumann", base);
     factory.registerSchema("Moore",   base);
     factory.registerSchema("Radial",  base);
+    factory.registerSchema("Composite", base);
     factory.registerSchema("Probability Circle", base);
     factory.registerSchema("Probability Ellipse", base);
 
-    // DLCA — база + материал
+    // DLCA — base + material
     auto dlca = base;
     dlca.push_back(
         { "material", "Material", ParamField::Enum, "bcc", {}, {}, { "fcc", "bcc" }, "main" }
         );
     factory.registerSchema("DLCA", dlca);
 
-    // Probability Algorithm — база + advanced (окно)
-    auto probAlg = base;                        // Cube size, Points, Wave* → main → блок Data
+    // Probability Algorithm — base + advanced
+    auto probAlg = base;                        // Cube size, Points, Wave* → main → block Data
     probAlg.insert(probAlg.end(), {
                                    { "stefan_number",        "Stefan number",  ParamField::Double, 100.0, 1.0, 1000.0, {}, "main" },
                                    { "initial_nuclei_count", "Initial nuclei", ParamField::Int,    1,     1,   100,    {}, "main" },
 
-                                   // Только в окне Settings
+                                   // Settings
                                    { "halfaxis_a",          "Half-axis a",           ParamField::Double, 1.5, 0.1, 100.0, {}, "advanced" },
                                    { "halfaxis_b",          "Half-axis b",           ParamField::Double, 1.5, 0.1, 100.0, {}, "advanced" },
                                    { "halfaxis_c",          "Half-axis c",           ParamField::Double, 1.5, 0.1, 100.0, {}, "advanced" },

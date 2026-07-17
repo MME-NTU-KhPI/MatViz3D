@@ -9,7 +9,6 @@ Column {
     spacing: 12
     topPadding: 15
 
-    // Показываем блок только когда схема непустая
     visible: schemaController.mainSchema.length > 0
 
     property var schemaModel: schemaController.mainSchema
@@ -37,7 +36,6 @@ Column {
                             font.family: inter.name
                         }
 
-                        // Делегаты прямо здесь — f виден
                         Loader {
                             width: 224
                             sourceComponent: {
@@ -49,7 +47,6 @@ Column {
                                 }
                             }
 
-                            // Число (Int + Double)
                             Component {
                                 id: numberDelegate
                                 PlaceholderInput {
@@ -98,7 +95,7 @@ Column {
                                             width: 224
                                             spacing: 10
 
-                                            // Переключатель режима
+                                            // Switch mode
                                             Row {
                                                 leftPadding: -2
                                                 RadioButton {
@@ -123,7 +120,6 @@ Column {
                                                 }
                                             }
 
-                                            // Поле числа
                                             PlaceholderInput {
                                                 id: pointsInput
                                                 initialValue: String(f.defValue)

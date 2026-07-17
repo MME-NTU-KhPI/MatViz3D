@@ -724,10 +724,10 @@ Window {
                             anchors.fill: parent
                             anchors.leftMargin: 20
                             anchors.rightMargin: 20
-                            clip: true                                    // обрезаем по границам
-                            contentWidth: availableWidth                  // без горизонтального скролла
+                            clip: true
+                            contentWidth: availableWidth
 
-                            ScrollBar.vertical.policy: ScrollBar.AsNeeded // скролл только если не влезает
+                            ScrollBar.vertical.policy: ScrollBar.AsNeeded
                             ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
 
                             DynamicParamBlock {

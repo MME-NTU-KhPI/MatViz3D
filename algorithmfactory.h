@@ -25,17 +25,17 @@ public:
         creators[name] = std::move(creator);
     }
 
-    // Регистрация схемы параметров (статические данные, без создания объекта)
+    // Registration of a parameter schema (static data, without object creation)
     void registerSchema(const QString& name, std::vector<ParamField> schema) {
         schemas[name] = std::move(schema);
     }
 
-    // Получение схемы по имени алгоритма
+    //Retrieving a schema by algorithm name
     std::vector<ParamField> schemaFor(const QString& name) const {
         auto it = schemas.find(name);
         if (it != schemas.end())
             return it->second;
-        return {};   // алгоритм без параметров — пустая схема
+        return {};
     }
 
     std::shared_ptr<Parent_Algorithm> createAlgorithm(const QString& name, const Parameters& params) {

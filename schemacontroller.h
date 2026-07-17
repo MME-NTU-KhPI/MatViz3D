@@ -21,7 +21,6 @@ public:
 
     Q_INVOKABLE void onAlgorithmSelected(const QString& name);
 
-    // Запись значения: через метод (invokeMethod) или через Q_PROPERTY
     Q_INVOKABLE void applyValue(const QString& key,
                                 const QVariant& v,
                                 const QString& method = "")
