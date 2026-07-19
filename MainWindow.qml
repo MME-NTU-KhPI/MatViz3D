@@ -115,29 +115,54 @@ Window {
                             font.family: inter.name
 
                             Action {
-                                text: qsTr("Save as image")
-                                onTriggered: console.log("Save as image")
+                                text: qsTr("Save as PNG")
+                                onTriggered: {
+                                    console.log("Save as PNG");
+                                    exportController.saveAsImage(glWidget);
+                                }
+                            }
+                            Action {
+                                text: qsTr("Save as SVG")
+                                onTriggered: {
+                                    console.log("Save as SVG");
+                                    exportController.saveAsSVG(glWidget);
+                                }
                             }
                             Action {
                                 text: qsTr("Make screenshot")
-                                onTriggered: console.log("Make screenshot")
+                                onTriggered: {
+                                    console.log("Make screenshot");
+                                    exportController.copyToClipboard(glWidget);
+                                }
                             }
                             MenuSeparator { }
                             Action {
                                 text: qsTr("Export to wrl")
-                                onTriggered: console.log("Export to wrl")
+                                onTriggered: {
+                                    console.log("Export to wrl");
+                                    exportController.exportToVRML();
+                                }
                             }
                             Action {
                                 text: qsTr("Export to csv")
-                                onTriggered: console.log("Export to csv")
+                                onTriggered: {
+                                    console.log("Export to csv");
+                                    exportController.exportToCSV();
+                                }
                             }
                             Action {
                                 text: qsTr("Save project as HDF5")
-                                onTriggered: console.log("Save project as HDF5")
+                                onTriggered: {
+                                    console.log("Save project as HDF5");
+                                    exportController.exportToHDF5();
+                                }
                             }
                             Action {
                                 text: qsTr("Open project")
-                                onTriggered: console.log("Save project as HDF5")
+                                onTriggered: {
+                                    console.log("Save project as HDF5");
+                                    exportController.openHDF5();
+                                }
                             }
                             MenuSeparator { }
                             Action {

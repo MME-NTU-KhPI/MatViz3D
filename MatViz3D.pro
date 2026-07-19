@@ -55,6 +55,7 @@ SOURCES += \
         commandline_parser.cpp \
         consolelogger.cpp \
         dbmanager.cpp \
+        exportcontroller.cpp \
         grain_analyzer.cpp \
         hdf5wrapper.cpp \
         hillcriterion.cpp \
@@ -101,6 +102,7 @@ HEADERS += \
     consolelogger.h \
     cpuinfo.hpp \
     dbmanager.h \
+    exportcontroller.h \
     grain_analyzer.h \
     hdf5wrapper.h \
     hillcriterion.h \

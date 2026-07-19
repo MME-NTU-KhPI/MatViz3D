@@ -131,11 +131,8 @@ void MainWindowAlgorithmHandler::executeAlgorithm(Parent_Algorithm& algorithm, c
 
 void MainWindowAlgorithmHandler::setAlgorithmFlags(Parent_Algorithm& algorithm)
 {
-    algorithm.setAnimation(false);
+    algorithm.setAnimation(Parameters::instance()->getIsAnimation());
     algorithm.setWaveGeneration(false);
-
-    // algorithm.setAnimation(isAnimation);
-    // algorithm.setWaveGeneration(isWaveGeneration);
     algorithm.setPeriodicStructure(false);
 }
 

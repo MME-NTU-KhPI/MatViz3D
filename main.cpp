@@ -14,6 +14,7 @@
 #include "logo_printer.h"
 #include "schemacontroller.h"
 #include "statisticscontroller.h"
+#include "exportcontroller.h"
 
 #ifdef _WIN32
     #include <windows.h>
@@ -100,12 +101,14 @@ int main(int argc, char *argv[])
     MaterialDatabaseViewWrapper materialDatabaseViewWrapper;
     SchemaController schemaController;
     StatisticsController statisticsController;
+    ExportController exportController;
     registerSchemas();
 
     engine.rootContext()->setContextProperty("mainWindowWrapper", &mainWindowWrapper);
     engine.rootContext()->setContextProperty("materialDatabaseViewWrapper", &materialDatabaseViewWrapper);
     engine.rootContext()->setContextProperty("schemaController", &schemaController);
     engine.rootContext()->setContextProperty("statisticsController", &statisticsController);
+    engine.rootContext()->setContextProperty("exportController", &exportController);
 
     const QUrl url(QStringLiteral("qrc:/main.qml"));
     QObject::connect(
