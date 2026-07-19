@@ -9,7 +9,6 @@
 #include "parameters.h"
 #include "mainwindowwrapper.h"
 #include "materialdatabaseviewwrapper.h"
-#include "probabilityalgorithmviewwrapper.h"
 #include "consolelogger.h"
 #include "commandline_parser.h"
 #include "logo_printer.h"
@@ -98,13 +97,11 @@ int main(int argc, char *argv[])
 
     MainWindowWrapper mainWindowWrapper;
     MaterialDatabaseViewWrapper materialDatabaseViewWrapper;
-    ProbabilityAlgorithmViewWrapper probabilityAlgorithmViewWrapper;
     SchemaController schemaController;
     registerSchemas();
 
     engine.rootContext()->setContextProperty("mainWindowWrapper", &mainWindowWrapper);
     engine.rootContext()->setContextProperty("materialDatabaseViewWrapper", &materialDatabaseViewWrapper);
-    engine.rootContext()->setContextProperty("probabilityAlgorithmViewWrapper", &probabilityAlgorithmViewWrapper);
     engine.rootContext()->setContextProperty("schemaController", &schemaController);
 
     const QUrl url(QStringLiteral("qrc:/main.qml"));
@@ -119,8 +116,12 @@ int main(int argc, char *argv[])
         Qt::QueuedConnection);
     engine.load(url);
 
-    QTimer::singleShot(0, [&mainWindowWrapper, &parser]() {
+    QTimer::singleShot(0, [&mainWindowWrapper, &parser, &schemaController]() {
         Commandline_Parser::processOptions(parser);
+
+        QString algo = Parameters::instance()->getAlgorithm();
+        if (!algo.isEmpty())
+            schemaController.onAlgorithmSelected(algo);
 
         OpenGLWidgetQML *ogl = OpenGLWidgetQML::getInstance();
         if (!ogl) return;

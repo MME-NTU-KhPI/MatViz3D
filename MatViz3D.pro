@@ -73,7 +73,6 @@ SOURCES += \
         probability_algorithm.cpp \
         probability_circle.cpp \
         probability_ellipse.cpp \
-        probabilityalgorithmviewwrapper.cpp \
         radial.cpp \
         renderopengl.cpp \
         schemacontroller.cpp
@@ -114,7 +113,6 @@ HEADERS += \
     probability_algorithm.h \
     probability_circle.h \
     probability_ellipse.h \
-    probabilityalgorithmviewwrapper.h \
     radial.h \
     renderopengl.h \
     schemacontroller.h

@@ -81,13 +81,12 @@ void registerSchemas()
                                    { "stefan_number",        "Stefan number",  ParamField::Double, 100.0, 1.0, 1000.0, {}, "main" },
                                    { "initial_nuclei_count", "Initial nuclei", ParamField::Int,    1,     1,   100,    {}, "main" },
 
-                                   // Settings
-                                   { "halfaxis_a",          "Half-axis a",           ParamField::Double, 1.5, 0.1, 100.0, {}, "advanced" },
-                                   { "halfaxis_b",          "Half-axis b",           ParamField::Double, 1.5, 0.1, 100.0, {}, "advanced" },
-                                   { "halfaxis_c",          "Half-axis c",           ParamField::Double, 1.5, 0.1, 100.0, {}, "advanced" },
-                                   { "orientation_angle_a", "Orientation angle (A)", ParamField::Double, 0.0, 0.0, 360.0, {}, "advanced" },
-                                   { "orientation_angle_b", "Orientation angle (B)", ParamField::Double, 0.0, 0.0, 360.0, {}, "advanced" },
-                                   { "orientation_angle_c", "Orientation angle (C)", ParamField::Double, 0.0, 0.0, 360.0, {}, "advanced" },
+                                   { "halfaxis_a",          "Half-axis a",           ParamField::Double, 1.5, 0.1, 100.0, {}, "main" },
+                                   { "halfaxis_b",          "Half-axis b",           ParamField::Double, 1.5, 0.1, 100.0, {}, "main" },
+                                   { "halfaxis_c",          "Half-axis c",           ParamField::Double, 1.5, 0.1, 100.0, {}, "main" },
+                                   { "orientation_angle_a", "Orientation angle (A)", ParamField::Double, 0.0, 0.0, 360.0, {}, "main" },
+                                   { "orientation_angle_b", "Orientation angle (B)", ParamField::Double, 0.0, 0.0, 360.0, {}, "main" },
+                                   { "orientation_angle_c", "Orientation angle (C)", ParamField::Double, 0.0, 0.0, 360.0, {}, "main" },
                                    });
     factory.registerSchema("Probability Algorithm", probAlg);
 }

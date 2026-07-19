@@ -14,7 +14,6 @@ class SchemaController : public QObject
     Q_OBJECT
     Q_PROPERTY(QVariantList currentSchema  READ currentSchema  NOTIFY schemaChanged)
     Q_PROPERTY(QVariantList mainSchema     READ mainSchema     NOTIFY schemaChanged)
-    Q_PROPERTY(QVariantList advancedSchema READ advancedSchema NOTIFY schemaChanged)
 
 public:
     explicit SchemaController(QObject* parent = nullptr);
@@ -37,7 +36,6 @@ public:
 
     QVariantList currentSchema()  const { return schemaForGroup(""); }
     QVariantList mainSchema()     const { return schemaForGroup("main"); }
-    QVariantList advancedSchema() const { return schemaForGroup("advanced"); }
 
 signals:
     void schemaChanged();

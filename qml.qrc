@@ -4,7 +4,6 @@
         <file>MainWindow.qml</file>
         <file>AboutView.qml</file>
         <file>StatisticsView.qml</file>
-        <file>ProbabilityAlgorithmView.qml</file>
         <file>fonts/Montserrat-VariableFont_wght.ttf</file>
         <file>img/AniOFF.png</file>
         <file>img/AniON.png</file>

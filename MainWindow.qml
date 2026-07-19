@@ -34,12 +34,6 @@ Window {
     }
 
     Loader {
-        id: probabilityAlgorithmLoader
-        source: "ProbabilityAlgorithmView.qml"
-        active: false
-    }
-
-    Loader {
         id: statisticsLoader
         source: "StatisticsView.qml"
         active: false
@@ -686,6 +680,14 @@ Window {
                                 ListElement { text: "DLCA" }
                             }
 
+                            Connections {
+                                    target: Parameters
+                                    function onAlgorithmChanged() {
+                                        var idx = comboBox.find(Parameters.algorithm)
+                                        if (idx !== -1) comboBox.currentIndex = idx
+                                    }
+                                }
+
                             //Component.onCompleted: applySelection(currentIndex)
 
                             // Extract logic into reusable function
@@ -695,11 +697,6 @@ Window {
                                         console.log("Algorithm selected:", currentText)
                                         Parameters.setAlgorithm(currentText)
                                         schemaController.onAlgorithmSelected(currentText)
-
-                                        if (schemaController.advancedSchema.length > 0) {
-                                            probabilityAlgorithmLoader.active = true
-                                            probabilityAlgorithmLoader.item.visible = true
-                                        }
                                     })
                                 }
                             }
