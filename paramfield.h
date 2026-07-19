@@ -7,7 +7,7 @@
 struct ParamField {
     QString key;
     QString label;
-    enum Type { Int, Double, Bool, Enum, PointsMode } type;   // ← добавлен PointsMode
+    enum Type { Int, Double, Bool, Enum, PointsMode } type;
     QVariant defValue,
             minValue,
             maxValue;

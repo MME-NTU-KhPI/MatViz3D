@@ -1,7 +1,7 @@
 #include "exportcontroller.h"
 #include "openglwidgetqml.h"
 #include "parameters.h"
-
+#include "hdf5wrapper.h"
 #include <QQuickItem>
 #include <QQuickItemGrabResult>
 #include <QFileDialog>
@@ -19,8 +19,8 @@
 namespace {
 
 /**
- * Замена фона на белый. Цвет фона берётся из угловогo пикселя,
- * сравнение с допуском — иначе сглаженные пиксели не попадут.
+ * Replacing the background with white. The background color is taken from the corner pixel;
+ * comparison with a tolerance—otherwise, anti-aliased pixels would be missed.
  */
 QImage makeWhiteBackground(const QImage& src)
 {
@@ -28,9 +28,9 @@ QImage makeWhiteBackground(const QImage& src)
         return src;
 
     QImage img = src.convertToFormat(QImage::Format_RGB32);
-    const QColor bg = img.pixelColor(0, 0);      // фон = левый верхний угол
+    const QColor bg = img.pixelColor(0, 0);      // background = top-left corner
 
-    const int tol = 6;                            // допуск в единицах 0..255
+    const int tol = 6;                            // tolerance in units 0..255
     const int br = bg.red(), bgr = bg.green(), bb = bg.blue();
 
     for (int y = 0; y < img.height(); ++y) {
@@ -57,7 +57,7 @@ ExportController::ExportController(QObject* parent)
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  PNG — исходные цвета сцены
+//  PNG — original scene colors
 // ═══════════════════════════════════════════════════════════════════
 void ExportController::saveAsImage(QQuickItem* item)
 {
@@ -66,7 +66,7 @@ void ExportController::saveAsImage(QQuickItem* item)
         return;
     }
 
-    // Путь спрашиваем ДО захвата — иначе диалог перекроет сцену
+    // Ask for the path *before* the capture—otherwise, the dialogue window will obscure the scene.
     QString fileName = QFileDialog::getSaveFileName(
         nullptr, tr("Save Image"), "",
         tr("PNG Images (*.png);;All Files (*.*)"));
@@ -76,14 +76,14 @@ void ExportController::saveAsImage(QQuickItem* item)
     if (!fileName.endsWith(".png", Qt::CaseInsensitive))
         fileName += ".png";
 
-    // Асинхронный захват элемента сцены
+    // Asynchronous capture of a scene element
     auto grab = item->grabToImage();
     if (!grab) {
         emit exportFailed(tr("grabToImage() failed — item has no window"));
         return;
     }
 
-    // grab захвачен по значению — держит объект живым до сигнала ready
+    // `grab` is captured by value—it keeps the object alive until the `ready` signal.
     connect(grab.data(), &QQuickItemGrabResult::ready, this,
             [this, grab, fileName]()
             {
@@ -102,7 +102,7 @@ void ExportController::saveAsImage(QQuickItem* item)
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  Буфер обмена — фон заменён на белый
+//  Clipboard — background replaced with white
 // ═══════════════════════════════════════════════════════════════════
 void ExportController::copyToClipboard(QQuickItem* item)
 {
@@ -132,7 +132,7 @@ void ExportController::copyToClipboard(QQuickItem* item)
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  SVG — растр в base64 внутри SVG-контейнера
+//  SVG — Base64 raster inside an SVG container
 // ═══════════════════════════════════════════════════════════════════
 void ExportController::saveAsSVG(QQuickItem* item)
 {
@@ -159,14 +159,13 @@ void ExportController::saveAsSVG(QQuickItem* item)
     connect(grab.data(), &QQuickItemGrabResult::ready, this,
             [this, grab, fileName]()
             {
-                // Белый фон — SVG обычно идёт в отчёт или статью
                 const QImage img = makeWhiteBackground(grab->image());
                 if (img.isNull()) {
                     emit exportFailed(tr("Captured image is empty"));
                     return;
                 }
 
-                // PNG -> байты -> base64
+                // PNG -> bytes -> base64
                 QByteArray png;
                 QBuffer buffer(&png);
                 buffer.open(QIODevice::WriteOnly);
@@ -201,7 +200,7 @@ void ExportController::saveAsSVG(QQuickItem* item)
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  Общий доступ к вокселям
+//  Shared access to voxels
 // ═══════════════════════════════════════════════════════════════════
 bool ExportController::fetchVoxels(int32_t***& voxelsOut, int& numCubesOut)
 {
@@ -222,7 +221,7 @@ bool ExportController::fetchVoxels(int32_t***& voxelsOut, int& numCubesOut)
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  CSV — полная сетка вокселей
+//  CSV — full voxel grid
 // ═══════════════════════════════════════════════════════════════════
 void ExportController::exportToCSV()
 {
@@ -262,7 +261,7 @@ void ExportController::exportToCSV()
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  VRML — по кубу на каждый непустой воксель
+//  VRML — one cube per non-empty voxel
 // ═══════════════════════════════════════════════════════════════════
 void ExportController::exportToVRML()
 {
@@ -273,7 +272,6 @@ void ExportController::exportToVRML()
 
     OpenGLWidgetQML* ogl = OpenGLWidgetQML::getInstance();
 
-    // Та же палитра, что у рендерера: детерминированный обход HSV
     const std::vector<std::array<GLubyte, 4>> colors = ogl->generateDistinctColors();
     if (colors.empty()) {
         emit exportFailed(tr("Colour palette is empty"));
@@ -306,14 +304,12 @@ void ExportController::exportToVRML()
 
                 const int32_t id = voxels[x][y][z];
 
-                // Пустой воксель — пропускаем.
-                // Иначе индекс colors[id-1] стал бы -1 (выход за границы).
                 if (id <= 0)
                     continue;
 
                 const size_t idx = static_cast<size_t>(id - 1);
                 if (idx >= colors.size())
-                    continue;                       // защита от чужого id
+                    continue;
 
                 const double r = colors[idx][0] / 255.0;
                 const double g = colors[idx][1] / 255.0;
