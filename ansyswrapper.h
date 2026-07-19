@@ -42,7 +42,6 @@ class ansysWrapper
 {
 protected:
     int m_numCubes = 0;
-    double m_solid_fraction = 1.0; // частка твердої фази (з вокселів)
     double m_porosity = 0.0;       // = 1.0 - m_solid_fraction
     int m_ansVersion;
     QString m_pathToAns;
@@ -70,6 +69,8 @@ protected:
     QString exitCodeToText(int retcode);
     float calc_avg(QVector<float> &x);
 
+    QHash<int, int> m_node_weights;
+
     QHash <n3d::node3d, int> nodes;
 
     QHash <n3d::node3d, int> result_nodes;
@@ -81,6 +82,9 @@ public:
 
     void setWorkingDirectory(QString path);
     void setSeed(unsigned int seed);
+
+    std::vector<int> ansys_to_voxel_map;
+    double m_solid_fraction = 1.0; // solid phase fraction (based on voxels)
 
     bool run(QString apdl);
     bool run();
@@ -160,10 +164,10 @@ public:
     float getValByCoord(n3d::node3d &key, int component);
 
     struct ElasticProperties {
-        double S[6][6]; // Матрица податливости (Compliance)
-        double C[6][6]; // Матрица жесткости (Stiffness)
-        double P[6][6]; // Матрица коэффициентов Пуассона
-        bool isValid;   // Флаг успешности расчета
+        double S[6][6]; // Compliance
+        double C[6][6]; // Stiffness
+        double P[6][6]; // Poisson's ratio matrix
+        bool isValid;   // Calculation success flag
     };
 
     ElasticProperties calculateElasticProperties();

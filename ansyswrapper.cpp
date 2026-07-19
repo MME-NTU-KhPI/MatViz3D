@@ -327,7 +327,6 @@ void ansysWrapper::createFEfromArray(int32_t*** voxels, short int numCubes, int 
         }
     }
 
-    // Після циклу генерації вузлів і елементів:
     int total_voxels = 0;
     int solid_voxels = 0;
     for (int i = 0; i < numCubes; i++)
@@ -428,6 +427,7 @@ void ansysWrapper::createFEfromArray(int32_t*** voxels, short int numCubes, int 
 
 void ansysWrapper::createFEfromArray8Node(int32_t*** voxels, short int numCubes, int numSeeds, bool is_random_orientation)
 {
+    this->ansys_to_voxel_map.clear();
     this->m_numCubes = numCubes;
     QVector<QVector<int>> seedsData;
     QFile file("crystallization_seeds.csv");
@@ -507,6 +507,10 @@ void ansysWrapper::createFEfromArray8Node(int32_t*** voxels, short int numCubes,
                 if (voxels[i][j][k] == 0) // Skip empty cells
                     continue;
 
+                // ix = i, iy = j, iz = k
+                int original_1d_index = k * (numCubes * numCubes) + j * numCubes + i;
+                ansys_to_voxel_map.push_back(original_1d_index);
+
                 for (int l = 1; l <= 8; l++)
                 {
                     key.data[0] = node_coordinates[l][0] + i;
@@ -533,7 +537,6 @@ void ansysWrapper::createFEfromArray8Node(int32_t*** voxels, short int numCubes,
         }
     }
 
-    // Після циклу генерації вузлів і елементів:
     int total_voxels = 0;
     int solid_voxels = 0;
     for (int i = 0; i < numCubes; i++)
@@ -600,7 +603,11 @@ void ansysWrapper::createFEfromArray8Node(int32_t*** voxels, short int numCubes,
              << el_shape << el_num_nodes << exclude_key << el_number;
         for (size_t j = ei; j < ei + 8; j++)
         {
-            apdl << elements[j] + 1;
+            int node_id = elements[j] + 1; // ANSYS Node ID
+            apdl << node_id;
+
+            // We increase the weight of this node by +1.
+            this->m_node_weights[node_id]++;
         }
         apdl.setFieldWidth(0);
         apdl << Qt::endl;
@@ -1301,20 +1308,20 @@ void ansysWrapper::generate_random_angles(double *angl, bool in_deg, double epsi
     // atan2(Y, X) = tan^-1(Y/X)
     theta1 = std::atan2(-m12, m22);
 
-    // Картинка: tan^-1( m32 / sqrt(1 - m32^2) )
+    // tan^-1( m32 / sqrt(1 - m32^2) )
     double cos_theta2 = std::sqrt(1.0 - m32 * m32);
 
     if (cos_theta2 < epsilon)
     {
-        // Gimbal Lock: ось X повернута на 90 градусів.
+        // Gimbal Lock: X rotated by 90 degrees.
         theta2 = (m32 > 0) ? (M_PI / 2.0) : (-M_PI / 2.0);
 
         theta1 = 0.0;
 
-        // Альтернативна формула для Y в замочку:
+        // Alternative formula for Y in the lock:
         // m31 = sin(th2)*sin(th3) -> +/- sin(th3)
         // m33 = 0
-        // Надійніше через кватерніон: Y = 2 * atan2(x, w) * sign
+        // It is more reliable using a quaternion: Y = 2 * atan2(x, w) * sign
         double sign = (m32 > 0) ? 1.0 : -1.0;
         theta3 = sign * 2.0 * std::atan2(x, w);
     }
@@ -1382,14 +1389,22 @@ void ansysWrapper::load_loadstep(int num)
 
     this->result_nodes.clear();
 
+    double total_weight = 0.0;
     int valid_count = 0;
 
     for (size_t i = 0; i < this->loadstep_results.size(); i++)
     {
         valid_count++;
+
+        // Retrieve the node ID and its weight (number of elements).
+        int node_id = static_cast<int>(this->loadstep_results[i][0]);
+        int weight = this->m_node_weights.value(node_id, 1);
+
+        total_weight += weight;
         for (int j = 0; j < num_columns; j++)
         {
-            this->loadstep_results_avg[j] += this->loadstep_results[i][j];
+            // Weighted averaging
+            this->loadstep_results_avg[j] += (this->loadstep_results[i][j] * weight);
             this->loadstep_results_min[j] = std::min(this->loadstep_results_min[j], this->loadstep_results[i][j]);
             this->loadstep_results_max[j] = std::max(this->loadstep_results_max[j], this->loadstep_results[i][j]);
         }
@@ -1401,32 +1416,18 @@ void ansysWrapper::load_loadstep(int num)
         this->result_nodes.insert(key, line_id);
     }
 
-    if (valid_count == 0)
+    if (total_weight <= 0.0)
     {
-        qCritical() << "load_loadstep: valid_count = 0! Перевір фільтрацію або CSV файл.";
+        qCritical() << "load_loadstep: total_weight <= 0! Check the filtering or the CSV file.";
         return;
     }
 
     for (int j = 0; j < num_columns; j++)
     {
-        this->loadstep_results_avg[j] /= (float)valid_count;
+        this->loadstep_results_avg[j] /= total_weight;
     }
 
-    int total_RVE_nodes = std::pow(m_numCubes + 1, 3);
 
-    float solid_fraction = (float)valid_count / (float)total_RVE_nodes;
-
-    // 3. Корректируем ТОЛЬКО макронапряжения с учетом пористости.
-    // Индексы SX (7) ... SXZ (12) соответствуют вашему массиву num_columns
-    for (int j = SX; j <= SXZ; j++)
-    {
-        this->loadstep_results_avg[j] *= solid_fraction;
-    }
-
-    // for (int j = 0; j < num_columns; j++)
-    // {
-    //     this->loadstep_results_avg[j] /= (float)this->loadstep_results.size();
-    // }
     auto &avg = this->loadstep_results_avg;
     auto &max = this->loadstep_results_max;
     auto &min = this->loadstep_results_min;

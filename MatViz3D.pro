@@ -56,11 +56,14 @@ SOURCES += \
         consolelogger.cpp \
         dbmanager.cpp \
         grain_analyzer.cpp \
+        hdf5wrapper.cpp \
+        hillcriterion.cpp \
         algorithmfactory.cpp \
         ansyswrapper.cpp \
         composite.cpp \
         dlca.cpp \
         legendview.cpp \
+        loadstepmanager.cpp \
         logo_printer.cpp \
         main.cpp \
         mainwindowalgorithmhandler.cpp \
@@ -77,7 +80,8 @@ SOURCES += \
         radial.cpp \
         renderopengl.cpp \
         schemacontroller.cpp \
-        statisticscontroller.cpp
+        statisticscontroller.cpp \
+        stressanalysis.cpp
 
 RESOURCES += qml.qrc
 
@@ -98,12 +102,15 @@ HEADERS += \
     cpuinfo.hpp \
     dbmanager.h \
     grain_analyzer.h \
+    hdf5wrapper.h \
+    hillcriterion.h \
     algorithmfactory.h \
     ansyswrapper.h \
     composite.h \
     dlca.h \
     legendview.h \
     logo_printer.h \
+    loadstepmanager.h \
     mainwindowalgorithmhandler.h \
     mainwindowwrapper.h \
     materialdatabaseviewwrapper.h \
@@ -119,4 +126,5 @@ HEADERS += \
     radial.h \
     renderopengl.h \
     schemacontroller.h \
-    statisticscontroller.h
+    statisticscontroller.h \
+    stressanalysis.h
