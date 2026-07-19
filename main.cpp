@@ -13,6 +13,7 @@
 #include "commandline_parser.h"
 #include "logo_printer.h"
 #include "schemacontroller.h"
+#include "statisticscontroller.h"
 
 #ifdef _WIN32
     #include <windows.h>
@@ -98,11 +99,13 @@ int main(int argc, char *argv[])
     MainWindowWrapper mainWindowWrapper;
     MaterialDatabaseViewWrapper materialDatabaseViewWrapper;
     SchemaController schemaController;
+    StatisticsController statisticsController;
     registerSchemas();
 
     engine.rootContext()->setContextProperty("mainWindowWrapper", &mainWindowWrapper);
     engine.rootContext()->setContextProperty("materialDatabaseViewWrapper", &materialDatabaseViewWrapper);
     engine.rootContext()->setContextProperty("schemaController", &schemaController);
+    engine.rootContext()->setContextProperty("statisticsController", &statisticsController);
 
     const QUrl url(QStringLiteral("qrc:/main.qml"));
     QObject::connect(

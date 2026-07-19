@@ -37,5 +37,6 @@
         <file>PlaceholderInput.qml</file>
         <file>ConsoleOutput.qml</file>
         <file>DynamicParamBlock.qml</file>
+        <file>ChartTheme.qml</file>
     </qresource>
 </RCC>

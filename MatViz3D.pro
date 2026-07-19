@@ -55,6 +55,7 @@ SOURCES += \
         commandline_parser.cpp \
         consolelogger.cpp \
         dbmanager.cpp \
+        grain_analyzer.cpp \
         algorithmfactory.cpp \
         ansyswrapper.cpp \
         composite.cpp \
@@ -75,7 +76,8 @@ SOURCES += \
         probability_ellipse.cpp \
         radial.cpp \
         renderopengl.cpp \
-        schemacontroller.cpp
+        schemacontroller.cpp \
+        statisticscontroller.cpp
 
 RESOURCES += qml.qrc
 
@@ -95,6 +97,7 @@ HEADERS += \
     consolelogger.h \
     cpuinfo.hpp \
     dbmanager.h \
+    grain_analyzer.h \
     algorithmfactory.h \
     ansyswrapper.h \
     composite.h \
@@ -115,4 +118,5 @@ HEADERS += \
     probability_ellipse.h \
     radial.h \
     renderopengl.h \
-    schemacontroller.h
+    schemacontroller.h \
+    statisticscontroller.h

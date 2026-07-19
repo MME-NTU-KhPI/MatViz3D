@@ -338,6 +338,7 @@ Window {
                         }
 
                         onClicked: {
+                            statisticsController.analyze()
                             statisticsLoader.active = true;
                             statisticsLoader.item.visible = true;
                         }
