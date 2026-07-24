@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Material
 import QtQuick.Shapes
+import QtQuick.Layouts
 
 Window {
     id: statisticsView
@@ -17,6 +18,7 @@ Window {
     title: qsTr("Statistics")
 
     property var ctrl: statisticsController
+    property bool showSummary: true
 
     readonly property int xTicks: 8
     readonly property int yTicks: 6
@@ -36,62 +38,40 @@ Window {
         id: controlBar
         anchors { top: parent.top; left: parent.left; right: parent.right }
         height: 60
-        color: "#00000000"
+        color: "transparent"
 
-        Row {
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.left: parent.left
+        RowLayout {
+            anchors.fill: parent
             anchors.leftMargin: 25
-            spacing: 20
+            anchors.rightMargin: 25
+            spacing: 16
 
             RadioButton {
                 id: radio3D
                 text: qsTr("3D")
                 checked: true
+                Layout.alignment: Qt.AlignVCenter
                 font.pixelSize: 15
                 font.family: montserrat.name
-                onClicked: {
-                    ctrl.setMode("3D")
-                    propertyBox.currentIndex = -1
-                }
-
-                contentItem: Text {
-                    text: radio3D.text
-                    color: chartTheme.controlText
-                    font: radio3D.font
-                    verticalAlignment: Text.AlignVCenter
-                    leftPadding: radio3D.indicator.width + radio3D.spacing
-                }
+                onClicked: { ctrl.setMode("3D"); propertyBox.currentIndex = -1 }
             }
 
             RadioButton {
                 id: radio2D
                 text: qsTr("2D")
+                Layout.alignment: Qt.AlignVCenter
                 font.pixelSize: 15
                 font.family: montserrat.name
-                onClicked: {
-                    ctrl.setMode("2D")
-                    propertyBox.currentIndex = -1
-                }
-
-                contentItem: Text {
-                    text: radio2D.text
-                    color: chartTheme.controlText
-                    font: radio2D.font
-                    verticalAlignment: Text.AlignVCenter
-                    leftPadding: radio2D.indicator.width + radio2D.spacing
-                }
+                onClicked: { ctrl.setMode("2D"); propertyBox.currentIndex = -1 }
             }
 
             ComboBox {
                 id: propertyBox
-                width: 220
-                height: 30
-                anchors.verticalCenter: parent.verticalCenter
-                model: ctrl.availableProperties        // data-driven список
+                Layout.preferredWidth: 200
+                Layout.alignment: Qt.AlignVCenter
+                model: ctrl.availableProperties
                 currentIndex: -1
                 displayText: currentIndex === -1 ? "-----" : currentText
-                leftPadding: 10
                 font.pointSize: 10
                 font.family: montserrat.name
 
@@ -100,7 +80,6 @@ Window {
                     radius: 11
                     border.color: chartTheme.controlBorder
                 }
-
                 contentItem: Text {
                     text: propertyBox.displayText
                     color: chartTheme.controlText
@@ -109,37 +88,45 @@ Window {
                     verticalAlignment: Text.AlignVCenter
                     elide: Text.ElideRight
                 }
-
-                delegate: ItemDelegate {
-                    width: propertyBox.width
-                    highlighted: propertyBox.highlightedIndex === index
-
-                    contentItem: Text {
-                        text: modelData
-                        color: chartTheme.controlText
-                        font: propertyBox.font
-                        verticalAlignment: Text.AlignVCenter
-                    }
-
-                    background: Rectangle {
-                        color: highlighted ? Qt.lighter(chartTheme.controlBackground, 1.4) : chartTheme.controlBackground
-                    }
-                }
-
                 onActivated: ctrl.selectProperty(currentText)
             }
-        }
 
-        Row {
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.right: parent.right
-            anchors.rightMargin: 25
-            spacing: 12
+            Text {
+                text: qsTr("Bins:")
+                Layout.alignment: Qt.AlignVCenter
+                color: chartTheme.controlText
+                font.pixelSize: 13
+                font.family: montserrat.name
+                visible: ctrl.hasData
+            }
+
+            Slider {
+                id: binSlider
+                Layout.preferredWidth: 130
+                Layout.alignment: Qt.AlignVCenter
+                from: 5; to: 60; stepSize: 1; value: 20
+                visible: ctrl.hasData
+                onMoved: ctrl.setBinCount(Math.round(value))
+            }
+
+            Text {
+                text: Math.round(binSlider.value)
+                Layout.preferredWidth: 24
+                Layout.alignment: Qt.AlignVCenter
+                visible: ctrl.hasData
+                color: chartTheme.axisTitle
+                font.pixelSize: 13
+                font.bold: true
+                font.family: montserrat.name
+            }
+
+            Item { Layout.fillWidth: true }
 
             Button {
                 id: saveBtn
-                width: 130
-                height: 32
+                Layout.preferredWidth: 120
+                Layout.preferredHeight: 32
+                Layout.alignment: Qt.AlignVCenter
                 text: qsTr("SAVE IMAGE")
                 enabled: ctrl.hasData
 
@@ -147,72 +134,81 @@ Window {
                     radius: 10
                     border.color: chartTheme.controlBorder
                     border.width: 1
-
                     color: saveBtn.hovered
                            ? Qt.lighter(chartTheme.controlBackground, 1.4)
                            : chartTheme.controlBackground
-
                     HoverHandler { cursorShape: Qt.PointingHandCursor }
                 }
-
                 contentItem: Text {
-                    text: saveBtn.text
-                    color: chartTheme.controlText
-                    font.pixelSize: 13
-                    font.family: inter.name
+                    text: saveBtn.text; color: chartTheme.controlText
+                    font.pixelSize: 12; font.family: inter.name
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
-
-                onClicked: chartArea.grabToImage(function(result) {
-                    result.saveToFile("histogram.png")
-                    console.log("Chart saved to histogram.png")
+                onClicked: chartArea.grabToImage(function(r) {
+                    r.saveToFile("histogram.png")
                 })
             }
 
             Button {
                 id: csvBtn
-                width: 130
-                height: 32
+                Layout.preferredWidth: 120
+                Layout.preferredHeight: 32
+                Layout.alignment: Qt.AlignVCenter
                 text: qsTr("EXPORT CSV")
 
                 background: Rectangle {
                     radius: 10
                     border.color: chartTheme.controlBorder
                     border.width: 1
-
                     color: csvBtn.hovered
                            ? Qt.lighter(chartTheme.controlBackground, 1.4)
                            : chartTheme.controlBackground
-
                     HoverHandler { cursorShape: Qt.PointingHandCursor }
                 }
-
                 contentItem: Text {
-                    text: csvBtn.text
-                    color: chartTheme.controlText
-                    font.pixelSize: 13
-                    font.family: inter.name
+                    text: csvBtn.text; color: chartTheme.controlText
+                    font.pixelSize: 12; font.family: inter.name
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
-
                 onClicked: ctrl.exportCSV("grain_statistics.csv")
+            }
+
+            Button {
+                id: statsBtn
+                Layout.preferredWidth: 90
+                Layout.preferredHeight: 32
+                Layout.alignment: Qt.AlignVCenter
+                text: qsTr("STATS")
+                enabled: ctrl.hasData
+
+                background: Rectangle {
+                    radius: 10
+                    border.color: chartTheme.controlBorder
+                    border.width: 1
+                    color: statsBtn.hovered
+                           ? Qt.lighter(chartTheme.controlBackground, 1.4)
+                           : chartTheme.controlBackground
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                }
+                contentItem: Text {
+                    text: statsBtn.text; color: chartTheme.controlText
+                    font.pixelSize: 12; font.family: inter.name
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+                onClicked: showSummary = !showSummary
             }
 
             Switch {
                 id: themeSwitch
+                Layout.alignment: Qt.AlignVCenter
                 checked: true
                 text: checked ? qsTr("Dark") : qsTr("Light")
                 font.pixelSize: 13
                 font.family: montserrat.name
-                anchors.verticalCenter: parent.verticalCenter
-
-                onCheckedChanged: {
-                    chartTheme.dark = checked
-                    console.log("Switch:", checked, "| theme.dark =", chartTheme.dark)
-                    console.log("plotBackground =", chartTheme.plotBackground)
-                }
+                onCheckedChanged: chartTheme.dark = checked
 
                 contentItem: Text {
                     text: themeSwitch.text
@@ -259,7 +255,7 @@ Window {
         }
 
         Text {
-            text: qsTr("Value")
+            text: ctrl.chartTitle.length > 0 ? ctrl.axisXLabel : qsTr("Value")
             color: chartTheme.axisTitle
             font.pixelSize: 14
             font.family: inter.name
@@ -270,10 +266,12 @@ Window {
         Item {
             id: plotArea
             anchors {
-                left: parent.left;   leftMargin: chartArea.marginLeft
+                left: parent.left
+                leftMargin: chartArea.marginLeft
                 right: parent.right
                 top: parent.top
-                bottom: parent.bottom; bottomMargin: chartArea.marginBottom
+                bottom: parent.bottom
+                bottomMargin: chartArea.marginBottom
             }
 
             Rectangle {
@@ -400,6 +398,39 @@ Window {
                 }
             }
 
+            Shape {
+                anchors.fill: parent
+                visible: ctrl.hasData
+                antialiasing: true
+
+                ShapePath {
+                    strokeColor: chartTheme.seriesStroke
+                    strokeWidth: 1
+                    strokeStyle: ShapePath.DashLine
+                    dashPattern: [3, 3]
+                    fillColor: "transparent"
+
+                    PathMultiline {
+                        paths: {
+                            var pts = ctrl.histogramPoints
+                            var rx = ctrl.axisXMax - ctrl.axisXMin
+                            if (!pts || pts.length === 0 || rx <= 0) return []
+
+                            var w = plotArea.width
+                            var h = plotArea.height
+                            var lines = []
+
+                            for (var i = 0; i < pts.length; i += 2) {
+                                var px = (pts[i].x - ctrl.axisXMin) / rx * w
+                                var py = h - (pts[i].y / ctrl.axisYMax) * h
+                                lines.push([ Qt.point(px, py), Qt.point(px, h) ])
+                            }
+                            return lines
+                        }
+                    }
+                }
+            }
+
             Text {
                 anchors.centerIn: parent
                 visible: !ctrl.hasData
@@ -407,6 +438,91 @@ Window {
                 color: chartTheme.placeholder
                 font.pixelSize: 16
                 font.family: inter.name
+            }
+        }
+    }
+
+    Rectangle {
+        id: summaryPanel
+        visible: ctrl.hasData && showSummary
+
+        anchors {
+            right: parent.right;  rightMargin: 40
+            top: chartTitle.bottom; topMargin: 25
+        }
+        width: 190
+        height: summaryColumn.implicitHeight + 24
+
+        color: chartTheme.dark ? "#e61e1e1e" : "#f2ffffff"
+        border.color: chartTheme.plotBorder
+        border.width: 1
+        radius: 8
+
+        Column {
+            id: summaryColumn
+            anchors {
+                left: parent.left;   leftMargin: 14
+                right: parent.right; rightMargin: 14
+                top: parent.top;     topMargin: 12
+            }
+            spacing: 6
+
+            Item {
+                width: parent.width
+                height: 18
+
+                Text {
+                    anchors.left: parent.left
+                    text: qsTr("Statistics")
+                    color: chartTheme.chartTitle
+                    font.pixelSize: 13
+                    font.bold: true
+                    font.family: inter.name
+                }
+
+                Text {
+                    anchors.right: parent.right
+                    text: "×"
+                    color: chartTheme.axisLabel
+                    font.pixelSize: 16
+                    MouseArea {
+                        anchors.fill: parent
+                        anchors.margins: -4
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: showSummary = false
+                    }
+                }
+            }
+
+            Rectangle {
+                width: parent.width
+                height: 1
+                color: chartTheme.plotBorder
+            }
+
+            Repeater {
+                model: ctrl.descriptiveStats
+
+                delegate: Item {
+                    width: summaryColumn.width
+                    height: 18
+
+                    Text {
+                        anchors.left: parent.left
+                        text: modelData.label
+                        color: chartTheme.axisLabel
+                        font.pixelSize: 12
+                        font.family: montserrat.name
+                    }
+                    Text {
+                        anchors.right: parent.right
+                        text: modelData.value
+                        color: chartTheme.axisTitle
+                        font.pixelSize: 12
+                        font.bold: true
+                        font.family: montserrat.name
+                    }
+                }
             }
         }
     }

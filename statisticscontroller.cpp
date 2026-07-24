@@ -36,6 +36,8 @@ void StatisticsController::setMode(const QString& mode)
 
     m_points.clear();
     m_title.clear();
+    m_descStats.clear();
+    m_axisXLabel.clear();
 
     emit modeChanged();
     emit histogramChanged();
@@ -113,8 +115,11 @@ void StatisticsController::selectProperty(const QString& propertyName)
     QString title;
     QVector<float> values = collectValues(propertyName, title);
 
+    m_lastValues = values;
     m_title = title;
+    m_axisXLabel = propertyName;
     buildHistogram(values);
+    computeDescriptiveStats(values);
 
     emit histogramChanged();
 }
@@ -133,7 +138,12 @@ void StatisticsController::buildHistogram(const QVector<float>& values)
     const float minV = *std::min_element(values.constBegin(), values.constEnd());
     const float maxV = *std::max_element(values.constBegin(), values.constEnd());
 
-    int bins = (int)std::ceil(1.0 + std::log2((double)values.size()));
+    int bins;
+    if (m_binCount > 0) {
+        bins = m_binCount;
+    } else {
+        bins = (int)std::round(std::sqrt((double)values.size())) / 2;
+    }
     if (bins < 1) bins = 1;
 
     const float binWidth = (maxV - minV) / bins;
@@ -169,10 +179,89 @@ void StatisticsController::buildHistogram(const QVector<float>& values)
     m_axisYMax = (maxCount / 10 + 1) * 10 + 10;
 }
 
+namespace {
+
+QString fmtNum(double v)
+{
+    if (v == 0.0) return QStringLiteral("0");
+    const double a = std::abs(v);
+    if (a >= 1e5 || a < 1e-3)
+        return QString::number(v, 'e', 3);
+    return QString::number(v, 'g', 5);
+}
+
+} // anonymous namespace
+
+void StatisticsController::computeDescriptiveStats(const QVector<float>& values)
+{
+    m_descStats.clear();
+
+    const int n = values.size();
+    if (n == 0)
+        return;
+
+    double sum = 0.0;
+    for (float v : values) sum += v;
+    const double mean = sum / n;
+
+    double m2 = 0.0, m3 = 0.0, m4 = 0.0;
+    for (float v : values) {
+        const double d  = v - mean;
+        const double d2 = d * d;
+        m2 += d2;
+        m3 += d2 * d;
+        m4 += d2 * d2;
+    }
+    m2 /= n;
+    m3 /= n;
+    m4 /= n;
+
+    const double variance = (n > 1) ? (m2 * n) / (n - 1) : 0.0;
+    const double stdDev   = std::sqrt(variance);
+
+    const double cv = (std::abs(mean) > 1e-30) ? (stdDev / mean * 100.0) : 0.0;
+
+    const double sigma = std::sqrt(m2);
+    const double skew  = (sigma > 1e-30) ? m3 / (sigma * sigma * sigma) : 0.0;
+    const double kurt  = (m2    > 1e-30) ? m4 / (m2 * m2) - 3.0         : 0.0;
+
+    QVector<float> sorted = values;
+    std::sort(sorted.begin(), sorted.end());
+    const double median = (n % 2 == 1)
+                              ? sorted[n / 2]
+                              : 0.5 * (sorted[n / 2 - 1] + sorted[n / 2]);
+
+    auto add = [this](const QString& label, const QString& value) {
+        m_descStats.append(QVariantMap{ {"label", label}, {"value", value} });
+    };
+
+    add(QStringLiteral("N"),        QString::number(n));
+    add(QStringLiteral("Mean"),     fmtNum(mean));
+    add(QStringLiteral("Std"),      fmtNum(stdDev));
+    add(QStringLiteral("CV"),       QString::number(cv, 'f', 1) + QStringLiteral(" %"));
+    add(QStringLiteral("Median"),   fmtNum(median));
+    add(QStringLiteral("Min"),      fmtNum(sorted.first()));
+    add(QStringLiteral("Max"),      fmtNum(sorted.last()));
+    add(QStringLiteral("Skewness"), QString::number(skew, 'f', 3));
+    add(QStringLiteral("Kurtosis"), QString::number(kurt, 'f', 3));
+}
+
 void StatisticsController::exportCSV(const QString& filePath)
 {
     if (m_mode == "2D")
         GrainAnalyzer::writeToCSV2D(m_stats2D, filePath);
     else
         GrainAnalyzer::writeToCSV3D(m_stats3D, filePath);
+}
+
+void StatisticsController::setBinCount(int count)
+{
+    if (m_binCount == count) return;
+    m_binCount = count;
+    emit binCountChanged();
+
+    if (!m_lastValues.isEmpty()) {
+        buildHistogram(m_lastValues);
+        emit histogramChanged();
+    }
 }

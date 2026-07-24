@@ -16,7 +16,6 @@ QVariantList SchemaController::schemaForGroup(const QString& group) const
 {
     QVariantList out;
     for (const ParamField& f : m_schema) {
-        // Пустая группа "" = вернуть все поля; иначе фильтруем по группе
         if (!group.isEmpty() && f.group != group)
             continue;
 
