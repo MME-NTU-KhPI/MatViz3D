@@ -38,5 +38,6 @@
         <file>ConsoleOutput.qml</file>
         <file>DynamicParamBlock.qml</file>
         <file>ChartTheme.qml</file>
+        <file>TextureView.qml</file>
     </qresource>
 </RCC>

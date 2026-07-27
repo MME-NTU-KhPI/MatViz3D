@@ -45,6 +45,12 @@ Window {
         active: false
     }
 
+    Loader {
+        id: textureLoader
+        source: "TextureView.qml"
+        active: false
+        onLoaded: item.visible = true      // покажется, как только создастся
+    }
     Grid {
         id: grid
         anchors.fill: parent
@@ -167,8 +173,20 @@ Window {
                             MenuSeparator { }
                             Action {
                                 text: qsTr("Estimate stresses")
-                                onTriggered: console.log("Estimate stresses")
+                                onTriggered: {
+                                    console.log("Estimate stresses")
+                                }
                             }
+
+                            Action {
+                                text: qsTr("Texture Editor")
+                                onTriggered: {
+                                    textureLoader.active = true
+                                    if (textureLoader.item)
+                                        textureLoader.item.visible = true
+                                }
+                            }
+
                             Action {
                                 text: qsTr("Edit material data")
                                 onTriggered: {

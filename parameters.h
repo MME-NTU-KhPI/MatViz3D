@@ -3,6 +3,8 @@
 
 #include <QObject>
 #include <QString>
+#include <vector>
+#include "texturelibrary.h"
 
 class Parameters : public QObject
 {
@@ -140,6 +142,11 @@ public:
     static float orientation_angle_b;
     static float orientation_angle_c;
     static float stefan_number;
+
+    // Компоненты текстуры, заданные через TextureController (QML) — читаются
+    // напрямую как Parameters::textureComponents, аналогично seed/working_directory.
+    // Пустой список = поведение по умолчанию (случайные ориентации), как и раньше.
+    static std::vector<TextureLibrary::Component> textureComponents;
 
 signals:
     void sizeChanged();

@@ -15,6 +15,7 @@
 #include "schemacontroller.h"
 #include "statisticscontroller.h"
 #include "exportcontroller.h"
+#include "texturecontroller.h"
 
 #ifdef _WIN32
     #include <windows.h>
@@ -102,6 +103,7 @@ int main(int argc, char *argv[])
     SchemaController schemaController;
     StatisticsController statisticsController;
     ExportController exportController;
+    TextureController textureController;
     registerSchemas();
 
     engine.rootContext()->setContextProperty("mainWindowWrapper", &mainWindowWrapper);
@@ -109,6 +111,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("schemaController", &schemaController);
     engine.rootContext()->setContextProperty("statisticsController", &statisticsController);
     engine.rootContext()->setContextProperty("exportController", &exportController);
+    engine.rootContext()->setContextProperty("textureController", &textureController);
 
     const QUrl url(QStringLiteral("qrc:/main.qml"));
     QObject::connect(
@@ -121,6 +124,12 @@ int main(int argc, char *argv[])
         },
         Qt::QueuedConnection);
     engine.load(url);
+
+    QObject::connect(&textureController, &TextureController::textureReady,
+                     &textureController,
+                     [](const std::vector<TextureLibrary::Component>& comps) {
+                         Parameters::textureComponents = comps;
+                     });
 
     QTimer::singleShot(0, [&mainWindowWrapper, &parser, &schemaController]() {
         Commandline_Parser::processOptions(parser);

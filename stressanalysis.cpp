@@ -87,6 +87,11 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
     qDebug() << "  seed              :" << Parameters::seed;
     qDebug() << "  num_threads       :" << Parameters::num_threads;
 
+    if (!Parameters::textureComponents.empty()) {
+        qDebug() << "[StressAnalysis]   Using custom texture:" << (int)Parameters::textureComponents.size() << "component(s)";
+        wr->setTextureComponents(Parameters::textureComponents);
+    }
+
     // BCC material constants (Fe-like)
     double c11 = 168.40e9, c12 = 121.40e9, c44 = 75.40e9;
     qDebug() << "[StressAnalysis] Material (BCC anisotropic):";
@@ -245,6 +250,8 @@ bool StressAnalysis::computeSMatrix(short int numCubes, short int numPoints, int
 
     temp_wr.setSeed(Parameters::seed);
     temp_wr.setNP(Parameters::num_threads);
+    if (!Parameters::textureComponents.empty())
+        temp_wr.setTextureComponents(Parameters::textureComponents);
     double c11 = 168.40e9, c12 = 121.40e9, c44 = 75.40e9;
     temp_wr.setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44);
     temp_wr.setElemByNum(185);
@@ -315,6 +322,8 @@ bool StressAnalysis::calibrateHillMatrix(short int numCubes, short int numPoints
 
     temp_wr.setSeed(Parameters::seed);
     temp_wr.setNP(Parameters::num_threads);
+    if (!Parameters::textureComponents.empty())
+        temp_wr.setTextureComponents(Parameters::textureComponents);
     double c11 = 168.40e9, c12 = 121.40e9, c44 = 75.40e9;
     temp_wr.setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44);
     temp_wr.setElemByNum(185);

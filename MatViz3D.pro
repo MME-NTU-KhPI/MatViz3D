@@ -82,7 +82,9 @@ SOURCES += \
         renderopengl.cpp \
         schemacontroller.cpp \
         statisticscontroller.cpp \
-        stressanalysis.cpp
+        stressanalysis.cpp \
+        texturelibrary.cpp \
+        texturecontroller.cpp
 
 RESOURCES += qml.qrc
 
@@ -129,4 +131,6 @@ HEADERS += \
     renderopengl.h \
     schemacontroller.h \
     statisticscontroller.h \
-    stressanalysis.h
+    stressanalysis.h \
+    texturelibrary.h \
+    texturecontroller.h
