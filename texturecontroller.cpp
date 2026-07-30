@@ -79,7 +79,6 @@ void TextureController::setProcess(int processIndex)
     m_process = processIndex;
 
     m_components = TextureLibrary::processComponents(static_cast<TextureLibrary::Process>(processIndex));
-    // применяем текущий глобальный разброс (слайдер Scatter σ) к загруженным компонентам
     for (auto& c : m_components) c.scatter_deg = m_scatterDeg;
 
     emit processChanged();

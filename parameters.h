@@ -143,9 +143,6 @@ public:
     static float orientation_angle_c;
     static float stefan_number;
 
-    // Компоненты текстуры, заданные через TextureController (QML) — читаются
-    // напрямую как Parameters::textureComponents, аналогично seed/working_directory.
-    // Пустой список = поведение по умолчанию (случайные ориентации), как и раньше.
     static std::vector<TextureLibrary::Component> textureComponents;
 
 signals:

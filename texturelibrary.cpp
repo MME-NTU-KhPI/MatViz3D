@@ -74,9 +74,6 @@ TextureLibrary::Matrix3 TextureLibrary::orientationFromMillerActive(const int hk
     return a;
 }
 
-// Волоконная текстура: кристаллографическое направление <uvw> совпадает с осью
-// волокна (RD, напр. осью экструзии), а вращение вокруг этой оси равновероятно.
-// azimuth задаёт положение TD в плоскости, перпендикулярной оси волокна.
 TextureLibrary::Matrix3 TextureLibrary::orientationFromFiberAxis(const int axis[3], double azimuth)
 {
     auto norm3 = [](double v[3]) {
@@ -92,7 +89,6 @@ TextureLibrary::Matrix3 TextureLibrary::orientationFromFiberAxis(const int axis[
     double rd[3] = { (double)axis[0], (double)axis[1], (double)axis[2] };
     norm3(rd);
 
-    // произвольный вектор, не параллельный rd
     double ref[3] = { std::fabs(rd[0]) < 0.9 ? 1.0 : 0.0,
                        std::fabs(rd[0]) < 0.9 ? 0.0 : 1.0,
                        0.0 };
@@ -279,14 +275,11 @@ std::vector<TextureLibrary::Component> TextureLibrary::processComponents(Process
 {
     switch (p) {
     case Process::Extrusion:
-        // Волоконная текстура: направление <110> совпадает с осью экструзии (ED),
-        // вращение вокруг оси свободно (fiber). hkl не используется.
         return {
             { {0,0,0}, {1,1,0}, 6.0, 1.0, "Fiber <110>||ED", false, true },
         };
 
     case Process::Rolling:
-        // Типичная прокатная текстура ГЦК: смесь Copper/S/Brass + небольшая доля Cube.
         return {
             { {1,1,2}, {1,1,-1}, 8.0, 1.0, "Copper {112}<11-1>" },
             { {1,2,3}, {6,3,-4}, 8.0, 1.0, "S {123}<634>"       },
@@ -295,14 +288,12 @@ std::vector<TextureLibrary::Component> TextureLibrary::processComponents(Process
         };
 
     case Process::Recrystallization:
-        // Текстура рекристаллизации при отжиге: доминирует Cube, часть Goss.
         return {
             { {0,0,1}, {1,0,0}, 6.0, 1.0, "Cube {001}<100>" },
             { {1,1,0}, {0,0,1}, 6.0, 0.4, "Goss {110}<001>" },
         };
 
     case Process::Shear:
-        // Компоненты простого сдвига/кручения (A, B, C).
         return {
             { {1,1,1}, {1,-1,0}, 8.0, 1.0, "A {111}<1-10>" },
             { {1,1,2}, {1,-1,0}, 8.0, 0.8, "B {112}<1-10>" },
@@ -310,9 +301,6 @@ std::vector<TextureLibrary::Component> TextureLibrary::processComponents(Process
         };
 
     case Process::Random:
-        // Чисто случайная ориентация зёрен — равномерное распределение по SO(3)
-        // (нормально распределённый кватернион, нормированный; см. randomMatrix()).
-        // hkl/uvw/scatter не используются.
         return {
             { {0,0,0}, {0,0,0}, 0.0, 1.0, "Random", true },
         };
