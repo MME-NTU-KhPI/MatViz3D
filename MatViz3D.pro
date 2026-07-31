@@ -1,7 +1,7 @@
 QT       += core gui opengl printsupport openglwidgets charts
 
 #include opengl libs
-unix: LIBS += -lGL
+linux: LIBS += -lGL
 win32: LIBS += -lopengl32
 
 #enable openmp
@@ -15,11 +15,27 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 CONFIG += c++17 console
 
 # define include paths for hdf5 library
-unix {
+linux {
     HDF5_INCLUDEPATH = "/usr/include/hdf5/serial"
     HDF5_LIBPATH = "/usr/lib/x86_64-linux-gnu"
     LIBS += -L$${HDF5_LIBPATH} -lhdf5_serial
     INCLUDEPATH += $$HDF5_INCLUDEPATH
+}
+
+macx {
+    # OpenMP — Apple Clang does not include it; use Homebrew libomp
+    QMAKE_CXXFLAGS -= -fopenmp
+    LIBS           -= -fopenmp
+    LIBOMP_PREFIX  = $$(LIBOMP_PREFIX)
+    isEmpty(LIBOMP_PREFIX): LIBOMP_PREFIX = $$system(brew --prefix libomp 2>/dev/null)
+    QMAKE_CXXFLAGS += -Xpreprocessor -fopenmp -I$$LIBOMP_PREFIX/include
+    LIBS           += -L$$LIBOMP_PREFIX/lib -lomp
+
+    # HDF5 via Homebrew
+    HDF5_PREFIX    = $$(HDF5_PREFIX)
+    isEmpty(HDF5_PREFIX): HDF5_PREFIX = $$system(brew --prefix hdf5 2>/dev/null)
+    INCLUDEPATH    += $$HDF5_PREFIX/include
+    LIBS           += -L$$HDF5_PREFIX/lib -lhdf5
 }
 
 win32 {
