@@ -34,7 +34,9 @@ jobs:
             mesa-common-dev \
             libxkbcommon-x11-0 \
             libfontconfig1-dev \
-            libx11-dev
+            libx11-dev \
+            libhdf5-dev \
+            libomp-dev
 
       - name: Configure
         run: |
