@@ -70,6 +70,7 @@ jobs:
           target: 'desktop'
           arch: 'win64_mingw'
           modules: 'qt5compat qtcharts'
+          tools: 'tools_mingw1310'
 
       - name: Add Qt MinGW to PATH
         shell: pwsh
