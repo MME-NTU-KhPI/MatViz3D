@@ -18,16 +18,24 @@ jobs:
     - name: Install Qt
       uses: jurplel/install-qt-action@v4
       with:
-        version: '6.9.0'
+        version: '6.6.3'
         host: 'linux'
         target: 'desktop'
         arch: 'gcc_64'
-        modules: 'qt3d'
-        aqtversion: '==3.1.15'
-        
-    - name: Install OpenGL Dependencies
-      # Graphical Qt applications in headless CI environments often require these core GL libraries
-      run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libxkbcommon-x11-0
+        modules: 'qtcharts qt5compat'
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libgl1-mesa-dev \
+          libglu1-mesa-dev \
+          mesa-common-dev \
+          libxkbcommon-x11-0 \
+          libfontconfig1-dev \
+          libx11-dev \
+          libhdf5-dev \
+          libomp-dev
 
     - name: Create Build Directory
       run: mkdir build
