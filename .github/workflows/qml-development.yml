@@ -105,8 +105,3 @@ jobs:
           path: |
             debug\MatViz3D.exe
             release\MatViz3D.exe
-
-        uses: actions/upload-artifact@v4
-        with:
-          name: MatViz3D-macos
-          path: MatViz3D.app
