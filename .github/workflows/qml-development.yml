@@ -105,3 +105,4 @@ jobs:
           path: |
             debug\MatViz3D.exe
             release\MatViz3D.exe
+
