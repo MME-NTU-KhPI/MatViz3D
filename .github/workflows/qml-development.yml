@@ -106,38 +106,6 @@ jobs:
             debug\MatViz3D.exe
             release\MatViz3D.exe
 
-  build-macos:
-    name: macOS Qt Build
-    runs-on: macos-13
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install Homebrew dependencies
-        run: |
-          brew install hdf5 libomp
-          echo "HDF5_PREFIX=$(brew --prefix hdf5)"       >> $GITHUB_ENV
-          echo "LIBOMP_PREFIX=$(brew --prefix libomp)"   >> $GITHUB_ENV
-
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: '6.6.3'
-          host: 'mac'
-          target: 'desktop'
-          arch: 'clang_64'
-          modules: 'qt5compat qtcharts'
-
-      - name: Configure
-        run: |
-          qmake MatViz3D.pro CONFIG+=debug
-
-      - name: Build
-        run: |
-          make -j$(sysctl -n hw.logicalcpu)
-
-      - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: MatViz3D-macos
