@@ -82,7 +82,9 @@ SOURCES += \
         renderopengl.cpp \
         schemacontroller.cpp \
         statisticscontroller.cpp \
-        stressanalysis.cpp
+        stressanalysis.cpp \
+        stressanalysis_fft.cpp \
+        stressanalysiscontroller.cpp
 
 RESOURCES += qml.qrc
 
@@ -103,6 +105,8 @@ HEADERS += \
     cpuinfo.hpp \
     dbmanager.h \
     exportcontroller.h \
+    fft_homog.hpp \
+    fft_solver_session.hpp \
     grain_analyzer.h \
     hdf5wrapper.h \
     hillcriterion.h \
@@ -116,6 +120,7 @@ HEADERS += \
     mainwindowalgorithmhandler.h \
     mainwindowwrapper.h \
     materialdatabaseviewwrapper.h \
+    matviz_homog.hpp \
     moore.h \
     neumann.h \
     openglwidgetqml.h \
@@ -129,4 +134,7 @@ HEADERS += \
     renderopengl.h \
     schemacontroller.h \
     statisticscontroller.h \
-    stressanalysis.h
+    stressanalysis.h \
+    stressanalysis_fft.h \
+    stressanalysiscontroller.h \
+    stressresult.h

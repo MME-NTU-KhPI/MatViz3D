@@ -15,6 +15,7 @@
 #include "schemacontroller.h"
 #include "statisticscontroller.h"
 #include "exportcontroller.h"
+#include "stressanalysiscontroller.h"
 
 #ifdef _WIN32
     #include <windows.h>
@@ -102,6 +103,7 @@ int main(int argc, char *argv[])
     SchemaController schemaController;
     StatisticsController statisticsController;
     ExportController exportController;
+    StressAnalysisController stressAnalysisController;
     registerSchemas();
 
     engine.rootContext()->setContextProperty("mainWindowWrapper", &mainWindowWrapper);
@@ -109,6 +111,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("schemaController", &schemaController);
     engine.rootContext()->setContextProperty("statisticsController", &statisticsController);
     engine.rootContext()->setContextProperty("exportController", &exportController);
+    engine.rootContext()->setContextProperty("stressAnalysisController", &stressAnalysisController);
 
     const QUrl url(QStringLiteral("qrc:/main.qml"));
     QObject::connect(

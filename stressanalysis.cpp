@@ -20,9 +20,8 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
     qDebug() << "[StressAnalysis]   numPoints =" << numPoints;
     qDebug() << "[StressAnalysis] ████████████████████████████████████████████████\n";
 
-    const auto N             = numCubes;
-    const double strain_val  = 1e-04;
-    const int    num_samples = 300;
+    const auto N = numCubes;
+    // strain_val / num_samples are member fields (editable from the UI).
 
     qDebug() << "[StressAnalysis] Run parameters:";
     qDebug() << "  strain_val  =" << strain_val  << "(strain amplitude for all load cases)";
@@ -320,7 +319,7 @@ bool StressAnalysis::calibrateHillMatrix(short int numCubes, short int numPoints
     temp_wr.setElemByNum(185);
     temp_wr.createFEfromArray8Node(voxels, numCubes, numPoints, true);
 
-    int num_calib = 150;
+    // num_calib is a member field (editable from the UI).
     qDebug() << "[StressAnalysis::calibrateHillMatrix]   Calibration load cases :" << num_calib;
     qDebug() << "[StressAnalysis::calibrateHillMatrix]   RNG seed: Parameters::seed + 1 =" << (Parameters::seed + 1);
 
@@ -406,4 +405,67 @@ bool StressAnalysis::calibrateHillMatrix(short int numCubes, short int numPoints
 
     qDebug() << "[StressAnalysis::calibrateHillMatrix] ──────────────────────────────\n";
     return ok;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Single known load case via ANSYS: one load step, no Hill calibration, no
+//  HDF5 output.  Used by the single-shot / verification UI.  Modeled on
+//  computeSMatrix() but with one applied load instead of six.
+// ─────────────────────────────────────────────────────────────────────────────
+SingleShotResult StressAnalysis::solveSingleLoadCase(short int numCubes, short int numPoints,
+                                                      int32_t ***voxels, const double eps[6])
+{
+    SingleShotResult out;
+
+    qDebug() << "\n[StressAnalysis::solveSingleLoadCase] ────────────────────────────────";
+    qDebug() << "[StressAnalysis::solveSingleLoadCase]   eps =" << eps[0] << eps[1] << eps[2]
+             << eps[3] << eps[4] << eps[5];
+
+    static ansysWrapper temp_wr(true);
+    QString base_dir = Parameters::working_directory.isEmpty() ? QDir::currentPath() : Parameters::working_directory;
+    QString work_dir = base_dir + "/phase0_single_shot";
+    temp_wr.setWorkingDirectory(work_dir);
+    QDir().mkpath(work_dir);
+    qDebug() << "[StressAnalysis::solveSingleLoadCase]   ANSYS working directory:" << work_dir;
+
+    temp_wr.setSeed(Parameters::seed);
+    temp_wr.setNP(Parameters::num_threads);
+    double c11 = 168.40e9, c12 = 121.40e9, c44 = 75.40e9;
+    temp_wr.setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44);
+    temp_wr.setElemByNum(185);
+    temp_wr.createFEfromArray8Node(voxels, numCubes, numPoints, true);
+
+    temp_wr.applyComplexLoads(0, 0, 0, numCubes, numCubes, numCubes,
+                              eps[0], eps[1], eps[2], eps[3], eps[4], eps[5]);
+
+    qDebug() << "[StressAnalysis::solveSingleLoadCase]   Solving 1 load step in ANSYS...";
+    temp_wr.solveLS(1, 1);
+    temp_wr.saveAll();
+
+    qDebug() << "[StressAnalysis::solveSingleLoadCase]   Launching ANSYS...";
+    if (!temp_wr.run()) {
+        out.errorMessage = QObject::tr("ANSYS run failed");
+        qWarning() << "[StressAnalysis::solveSingleLoadCase] x" << out.errorMessage;
+        return out;
+    }
+
+    temp_wr.load_loadstep(1);
+    if ((int)temp_wr.loadstep_results_avg.size() <= SEQV) {
+        out.errorMessage = QObject::tr("ANSYS returned no per-step results");
+        qWarning() << "[StressAnalysis::solveSingleLoadCase] x" << out.errorMessage;
+        temp_wr.clear_temp_data();
+        return out;
+    }
+
+    const auto& avg = temp_wr.loadstep_results_avg;
+    out.macro_stress[0] = avg[SX];  out.macro_stress[1] = avg[SY];  out.macro_stress[2] = avg[SZ];
+    out.macro_stress[3] = avg[SXY]; out.macro_stress[4] = avg[SYZ]; out.macro_stress[5] = avg[SXZ];
+    out.von_mises = avg[SEQV];
+    out.ok        = true;
+
+    temp_wr.clear_temp_data();
+
+    qDebug() << "[StressAnalysis::solveSingleLoadCase] v done. von_mises =" << out.von_mises;
+    qDebug() << "[StressAnalysis::solveSingleLoadCase] ────────────────────────────────\n";
+    return out;
 }

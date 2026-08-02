@@ -45,6 +45,12 @@ Window {
         active: false
     }
 
+    Loader {
+        id: stressAnalysisLoader
+        source: "StressAnalysisView.qml"
+        active: false
+    }
+
     Grid {
         id: grid
         anchors.fill: parent
@@ -167,7 +173,10 @@ Window {
                             MenuSeparator { }
                             Action {
                                 text: qsTr("Estimate stresses")
-                                onTriggered: console.log("Estimate stresses")
+                                onTriggered: {
+                                    stressAnalysisLoader.active = true;
+                                    stressAnalysisLoader.item.visible = true;
+                                }
                             }
                             Action {
                                 text: qsTr("Edit material data")
