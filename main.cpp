@@ -73,16 +73,11 @@ int main(int argc, char *argv[])
 
     QQuickStyle::setStyle("Material");
 
-    QQmlApplicationEngine engine;
-
-    // Register to QML
-    engine.rootContext()->setContextProperty("ConsoleLogger", ConsoleLogger::instance());
-
-    qmlRegisterSingletonInstance<Parameters>("parameters", 1, 0, "Parameters", Parameters::instance());
-
+    // NOTE: all QML-exposed controllers below must outlive the QML engine.
+    // QQmlApplicationEngine is declared last (and therefore destroyed
+    // *first*, before these controllers) so that no QML binding can observe
+    // a context property go null mid-teardown when the app closes.
     DBManager dbManager;
-    engine.rootContext()->setContextProperty("dbManager", &dbManager);
-    engine.rootContext()->setContextProperty("materialModel", dbManager.getModel());
 
     // //SQL-запит для отримання данних.
     // QString sql = "SELECT Material, c11, c44 FROM material_properties WHERE Type = 'bcc'";
@@ -105,6 +100,16 @@ int main(int argc, char *argv[])
     ExportController exportController;
     StressAnalysisController stressAnalysisController;
     registerSchemas();
+
+    QQmlApplicationEngine engine;
+
+    // Register to QML
+    engine.rootContext()->setContextProperty("ConsoleLogger", ConsoleLogger::instance());
+
+    qmlRegisterSingletonInstance<Parameters>("parameters", 1, 0, "Parameters", Parameters::instance());
+
+    engine.rootContext()->setContextProperty("dbManager", &dbManager);
+    engine.rootContext()->setContextProperty("materialModel", dbManager.getModel());
 
     engine.rootContext()->setContextProperty("mainWindowWrapper", &mainWindowWrapper);
     engine.rootContext()->setContextProperty("materialDatabaseViewWrapper", &materialDatabaseViewWrapper);

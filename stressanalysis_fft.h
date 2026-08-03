@@ -42,10 +42,6 @@ private:
     // Flatten int32_t*** voxels[ix][iy][iz] -> x-fastest grain field and report
     // the highest grain id encountered.
     static std::vector<int> buildGrainField(int N, int32_t ***voxels, int& nGrainsOut);
-
-    // Uniform-random SO(3) orientations as Bunge ZXZ Euler angles (radians),
-    // one per grain id; index 0 is the (unused) void slot.  size = nGrains+1.
-    static std::vector<std::array<double,3>> buildOrientations(int nGrains, unsigned int seed);
 };
 
 #endif // STRESSANALYSIS_FFT_H

@@ -124,6 +124,8 @@ void MainWindowAlgorithmHandler::executeAlgorithm(Parent_Algorithm& algorithm, c
     auto end = std::chrono::high_resolution_clock::now();
     qDebug() << "Algorithm execution time: " << std::chrono::duration<double>(end - start).count() << " seconds";
 
+    algorithm.saveSeeds();
+
     updateScene();
     algorithm.CleanUp();
     qDebug() << algorithmName;

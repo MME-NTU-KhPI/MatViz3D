@@ -36,23 +36,6 @@ std::vector<int> StressAnalysisFFT::buildGrainField(int N, int32_t ***voxels, in
     return field;
 }
 
-std::vector<std::array<double,3>> StressAnalysisFFT::buildOrientations(int nGrains, unsigned int seed)
-{
-    // Uniform SO(3) directly in Bunge ZXZ:
-    //   phi1 ~ U(0,2pi),  cos(Phi) ~ U(-1,1),  phi2 ~ U(0,2pi).
-    std::vector<std::array<double,3>> orient(static_cast<size_t>(nGrains) + 1, {0,0,0});
-    std::mt19937 gen(seed);
-    std::uniform_real_distribution<double> u01(0.0, 1.0);
-    const double TWO_PI = 2.0 * M_PI;
-    for (int g = 1; g <= nGrains; ++g) {
-        const double phi1 = TWO_PI * u01(gen);
-        const double Phi  = std::acos(2.0 * u01(gen) - 1.0);
-        const double phi2 = TWO_PI * u01(gen);
-        orient[g] = { phi1, Phi, phi2 };   // radians, Bunge ZXZ
-    }
-    return orient;
-}
-
 // von Mises stress from pipeline stress [sx,sy,sz,sxy,syz,sxz] -- shared with
 // StressAnalysis (ANSYS) and the controller via stressresult.h.
 static inline double vonMises(const Vec6& s) { return vonMisesPipeline(s.data()); }
@@ -81,10 +64,10 @@ void StressAnalysisFFT::estimateStressWithFFT(short int numCubes, short int numP
     std::vector<int> grain_field = buildGrainField(N, voxels, nGrains);
     if (nGrains < 1) { qCritical() << "[StressAnalysisFFT] x no grains in voxel field"; return; }
 
-    // NOTE: orientations here are freshly generated (uniform SO(3)).  If MatViz3D
-    // already stores per-grain Euler angles, feed those instead (radians, Bunge
-    // ZXZ, index == grain id) so the FFT run matches your microstructure.
-    std::vector<std::array<double,3>> orient = buildOrientations(nGrains, Parameters::seed);
+    // buildGrainOrientations() is shared with StressAnalysis (ANSYS) -- for a
+    // given Parameters::seed both solvers see the exact same per-grain Bunge
+    // ZXZ orientations, not two independent random draws.
+    std::vector<std::array<double,3>> orient = buildGrainOrientations(nGrains, Parameters::seed);
 
     FFTSolverSession session(N, N, N, grain_field, orient, C11, C12, C44);
     session.set_tolerance(fft_tol);
@@ -324,11 +307,30 @@ SingleShotResult StressAnalysisFFT::solveSingleLoadCase(short int numCubes, shor
         return out;
     }
 
-    std::vector<std::array<double,3>> orient = buildOrientations(nGrains, Parameters::seed);
+    std::array<double,3> forcedOrient;
+    const bool useForced = getForcedOrientationDebugOverride(forcedOrient);
+    std::vector<std::array<double,3>> orient = buildGrainOrientations(nGrains, Parameters::seed, useForced ? &forcedOrient : nullptr);
+    if (useForced) {
+        const double r2d = 180.0 / M_PI;
+        qDebug() << "[StressAnalysisFFT]   [DEBUG] MATVIZ_FORCE_ORIENT_DEG active: every grain forced to"
+                 << forcedOrient[0]*r2d << forcedOrient[1]*r2d << forcedOrient[2]*r2d << "(Bunge ZXZ, deg)";
+    }
+
+    qDebug() << "[StressAnalysisFFT]   [DEBUG] seed =" << Parameters::seed
+             << " C11 =" << C11 << " C12 =" << C12 << " C44 =" << C44;
+    qDebug() << "[StressAnalysisFFT]   [DEBUG] numCubes =" << numCubes << " nGrains =" << nGrains;
+    if (nGrains >= 1) {
+        const double r2d = 180.0 / M_PI;
+        const auto& g1 = orient[1]; // grain id 1, radians, Bunge ZXZ (phi1,Phi,phi2)
+        qDebug() << "[StressAnalysisFFT]   [DEBUG] grain#1 orientation (Bunge ZXZ, deg) ="
+                 << g1[0]*r2d << g1[1]*r2d << g1[2]*r2d;
+    }
 
     FFTSolverSession session(N, N, N, grain_field, orient, C11, C12, C44);
     session.set_tolerance(fft_tol);
     session.set_max_iters(fft_max_iter);
+    qDebug() << "[StressAnalysisFFT]   [DEBUG] solid_fraction =" << session.solid_fraction()
+             << " tol =" << fft_tol << " max_iter =" << fft_max_iter;
 
     Vec6 e{}; for (int i = 0; i < 6; ++i) e[i] = eps[i];
     auto r = session.solveLoadCase(e);
@@ -338,6 +340,20 @@ SingleShotResult StressAnalysisFFT::solveSingleLoadCase(short int numCubes, shor
     out.iterations = r.iterations;
     out.error      = r.error;
     out.ok         = true;
+
+    qDebug() << "[StressAnalysisFFT]   [DEBUG] macro_stress (Pa) sx,sy,sz,sxy,syz,sxz ="
+             << out.macro_stress[0] << out.macro_stress[1] << out.macro_stress[2]
+             << out.macro_stress[3] << out.macro_stress[4] << out.macro_stress[5];
+
+    // Same 3x3 layout as ansysWrapper::loadElementAveragedResults()'s
+    // NODE/ELEM comparison print, so all three (NODE, ELEM, FFT) can be
+    // compared directly.
+    qDebug() << "  S tensor   [FFT]  (Pa): " << r.macro_stress[0] << r.macro_stress[3] << r.macro_stress[5];
+    qDebug() << "                          " << r.macro_stress[3] << r.macro_stress[1] << r.macro_stress[4];
+    qDebug() << "                          " << r.macro_stress[5] << r.macro_stress[4] << r.macro_stress[2];
+    qDebug() << "  EPS tensor [FFT]:       " << r.macro_strain[0] << r.macro_strain[3] << r.macro_strain[5];
+    qDebug() << "                          " << r.macro_strain[3] << r.macro_strain[1] << r.macro_strain[4];
+    qDebug() << "                          " << r.macro_strain[5] << r.macro_strain[4] << r.macro_strain[2];
 
     qDebug() << "[StressAnalysisFFT] v solveSingleLoadCase done: iters =" << r.iterations
              << " err =" << r.error << " von_mises =" << out.von_mises;

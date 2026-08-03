@@ -4,7 +4,9 @@
 #include <QProcess>
 #include <cfloat>
 #include <random>
+#include <array>
 #include "ansyswrapper.h"
+#include "stressresult.h"
 
 #ifndef ANSYSWRAPPER_CPP_INCLUDED
 #define ANSYSWRAPPER_CPP_INCLUDED
@@ -152,6 +154,30 @@ bool ansysWrapper::run(QString apdl)
         qDebug().noquote() << ans_output.readAll();
         ans_output.close();
     }
+
+    // output.dat is ANSYS's own solver log (batch stdout redirect) -- notes
+    // and warnings about constraint equations (duplicates, conflicts with a
+    // D constraint on the same DOF, etc.) show up here, not in the .err file.
+    QFile ans_stdout(m_projectPath + "/" + OUTPUTFILE);
+    if (ans_stdout.open(QFile::ReadOnly | QFile::Text)) {
+        QTextStream in(&ans_stdout);
+        QStringList flagged;
+        while (!in.atEnd()) {
+            QString line = in.readLine();
+            if (line.contains("WARNING", Qt::CaseInsensitive) ||
+                line.contains("ERROR", Qt::CaseInsensitive) ||
+                line.contains("CONSTRAINT EQUATION", Qt::CaseInsensitive) ||
+                line.contains("NOTE", Qt::CaseInsensitive))
+                flagged << line;
+        }
+        ans_stdout.close();
+        qDebug() << "[applyPeriodicBC/run] [DEBUG] output.dat flagged lines:" << flagged.size();
+        for (const QString& l : flagged)
+            qDebug().noquote() << "  " << l;
+    } else {
+        qDebug() << "[applyPeriodicBC/run] [DEBUG] could not open output.dat at" << (m_projectPath + "/" + OUTPUTFILE);
+    }
+
     bool status = pr.exitCode() == 0 || pr.exitCode() == 8;
     return status;
 }
@@ -425,7 +451,8 @@ void ansysWrapper::createFEfromArray(int32_t*** voxels, short int numCubes, int 
     qInfo().noquote() << FEM_info.arg(nodes.size()).arg(elemets.size()/20);
 }
 
-void ansysWrapper::createFEfromArray8Node(int32_t*** voxels, short int numCubes, int numSeeds, bool is_random_orientation)
+void ansysWrapper::createFEfromArray8Node(int32_t*** voxels, short int numCubes, int numSeeds, bool is_random_orientation,
+                                          const std::vector<std::array<double,3>>& sharedOrientations)
 {
     this->ansys_to_voxel_map.clear();
     this->m_numCubes = numCubes;
@@ -472,7 +499,12 @@ void ansysWrapper::createFEfromArray8Node(int32_t*** voxels, short int numCubes,
         }
 
         qDebug() << x << y << z;
-        this->createLocalCS(is_random_orientation, x, y, z);
+        if (i < (int)sharedOrientations.size()) {
+            const auto& o = sharedOrientations[i]; // Bunge ZXZ radians (phi1,Phi,phi2)
+            this->createLocalCS(o[0], o[1], o[2], x, y, z);
+        } else {
+            this->createLocalCS(is_random_orientation, x, y, z);
+        }
     }
 
     static const float node_coordinates[9][3] =
@@ -581,6 +613,7 @@ void ansysWrapper::createFEfromArray8Node(int32_t*** voxels, short int numCubes,
     apdl << "EBLOCK,19,SOLID,,2" << Qt::endl;
     apdl << "(19i9)" << Qt::endl;
     size_t el_size = elements.size();
+    int max_created_cs_id = m_lcs - 1;
 
     for (size_t ei = 0; ei < el_size; ei += 8)
     {
@@ -590,7 +623,8 @@ void ansysWrapper::createFEfromArray8Node(int32_t*** voxels, short int numCubes,
         int el_id = 1;
         int real_const = 1;
         int sec_id = 1;
-        int coord_sys_id = voxels[kx][ky][kz] + 11; // 11 - first ansys user-def coord sys
+        int calculated_cs_id = voxels[kx][ky][kz] + 11; // 11 - first ansys user-def coord sys
+        int coord_sys_id = (calculated_cs_id > max_created_cs_id) ? 0 : calculated_cs_id;
         int bd_flag = 0;
         int sld_ref = 0;
         int el_shape = 0;
@@ -639,6 +673,34 @@ int ansysWrapper::createLocalCS(bool is_random_orientation, double x, double y, 
     qDebug() << "    phi1: " << eu_angles[0];
     qDebug() << "    phi: "  << eu_angles[1];
     qDebug() << "    phi2: " << eu_angles[2];
+
+    apdl << "LOCAL," << cs_id << ","
+         << 0 << "," << x << "," << y << ","
+         << z << ","
+         << eu_angles[0] << "," << eu_angles[1] << "," << eu_angles[2]
+         << "," << 1 << "," << 1 << ",\n";
+
+    this->m_lcs++;
+    return cs_id;
+}
+
+int ansysWrapper::createLocalCS(double phi1_bunge, double Phi_bunge, double phi2_bunge, double x, double y, double z)
+{
+    QTextStream apdl(&m_apdl);
+    int cs_id = this->m_lcs;
+
+    double thxy, thyz, thzx;
+    bungeZXZtoAnsysZXY(phi1_bunge, Phi_bunge, phi2_bunge, thxy, thyz, thzx);
+    const double r2d = 180.0 / M_PI;
+    double eu_angles[3] = { thxy * r2d, thyz * r2d, thzx * r2d };
+
+    this->local_cs.push_back(std::vector<float>(eu_angles, eu_angles + 3));
+
+    qDebug() << "Creating local CS #" << cs_id << "(shared Bunge orientation)";
+    qDebug() << "    Position: (" << x << "," << y << "," << z << ")";
+    qDebug() << "    THXY: " << eu_angles[0];
+    qDebug() << "    THYZ: "  << eu_angles[1];
+    qDebug() << "    THZX: " << eu_angles[2];
 
     apdl << "LOCAL," << cs_id << ","
          << 0 << "," << x << "," << y << ","
@@ -842,6 +904,158 @@ void ansysWrapper::applyComplexLoads(double x1, double y1, double z1,
 
     // qDebug() << "nodes size:" << nodes.size();
 
+}
+
+void ansysWrapper::applyPeriodicBC(double x1, double y1, double z1,
+                                   double x2, double y2, double z2,
+                                   double eps_x, double eps_y, double eps_z,
+                                   double eps_xy, double eps_xz, double eps_yz)
+{
+    this->prep7();
+    this->clearBC();
+    QTextStream apdl(&m_apdl);
+
+    std::vector<float> eps_vec = {static_cast<float>(eps_x),
+                                  static_cast<float>(eps_y),
+                                  static_cast<float>(eps_z),
+                                  static_cast<float>(eps_xy),
+                                  static_cast<float>(eps_yz),
+                                  static_cast<float>(eps_xz)};
+    this->eps_as_loading.push_back(eps_vec);
+
+    const double Lx = x2 - x1, Ly = y2 - y1, Lz = z2 - z1;
+
+    // Displacement jump for a periodicity vector (dx,dy,dz) connecting a
+    // boundary node to its image node: du = eps . (dx,dy,dz), same symmetric
+    // tensor convention as EstimateDisplacement() above.
+    auto jump = [&](double dx, double dy, double dz) -> std::array<double, 3> {
+        return { eps_x  * dx + eps_xy * dy + eps_xz * dz,
+                 eps_xy * dx + eps_y  * dy + eps_yz * dz,
+                 eps_xz * dx + eps_yz * dy + eps_z  * dz };
+    };
+
+    apdl << "!-----Apply periodic (RVE) BC for 3D case -------" << Qt::endl;
+    apdl << "CEDELE,ALL" << Qt::endl; // drop any CEs left over from a previous load case
+    apdl << "/NOPR" << Qt::endl;
+
+    int eqn = 0;
+    auto coupleNode = [&](int slave_id, int master_id, const std::array<double, 3>& d) {
+        // slave.Lab - master.Lab = -d  <=>  master.Lab - slave.Lab = d
+        apdl << "CE," << ++eqn << "," << -d[0] << "," << slave_id << ",UX,1," << master_id << ",UX,-1" << Qt::endl;
+        apdl << "CE," << ++eqn << "," << -d[1] << "," << slave_id << ",UY,1," << master_id << ",UY,-1" << Qt::endl;
+        apdl << "CE," << ++eqn << "," << -d[2] << "," << slave_id << ",UZ,1," << master_id << ",UZ,-1" << Qt::endl;
+    };
+
+    // ── Corners: pin the reference corner (x1,y1,z1) to remove rigid-body
+    //    translation; prescribe the other 7 directly since their offset from
+    //    the reference corner is known exactly (no need for CE there). ──
+    const double cornerOffsets[8][3] = {
+        {x1,y1,z1}, {x2,y1,z1}, {x1,y2,z1}, {x2,y2,z1},
+        {x1,y1,z2}, {x2,y1,z2}, {x1,y2,z2}, {x2,y2,z2}
+    };
+
+    n3d::node3d refKey;
+    refKey.data[0] = static_cast<float>(x1);
+    refKey.data[1] = static_cast<float>(y1);
+    refKey.data[2] = static_cast<float>(z1);
+
+    if (!nodes.contains(refKey)) {
+        qWarning() << "[applyPeriodicBC] Reference corner node not found -- skipping periodic BC.";
+        return;
+    }
+    int refId = nodes[refKey] + 1;
+    apdl << "D," << refId << ",UX,0" << Qt::endl;
+    apdl << "D," << refId << ",UY,0" << Qt::endl;
+    apdl << "D," << refId << ",UZ,0" << Qt::endl;
+
+    int nCorner = 1, nCornerMissing = 0;
+    for (int c = 1; c < 8; ++c) {
+        n3d::node3d k;
+        k.data[0] = static_cast<float>(cornerOffsets[c][0]);
+        k.data[1] = static_cast<float>(cornerOffsets[c][1]);
+        k.data[2] = static_cast<float>(cornerOffsets[c][2]);
+        if (!nodes.contains(k)) { ++nCornerMissing; continue; }
+        int id = nodes[k] + 1;
+        auto d = jump(cornerOffsets[c][0] - x1, cornerOffsets[c][1] - y1, cornerOffsets[c][2] - z1);
+        apdl << "D," << id << ",UX," << d[0] << Qt::endl;
+        apdl << "D," << id << ",UY," << d[1] << Qt::endl;
+        apdl << "D," << id << ",UZ," << d[2] << Qt::endl;
+        ++nCorner;
+    }
+
+    // ── Edges and faces: single pass over all nodes, classified by how many
+    //    of the 6 bounding planes each one sits on. ──
+    int nEdgeSlave = 0, nEdgeMissing = 0, nEdgeFree = 0;
+    int nFaceSlave = 0, nFaceMissing = 0, nFaceFree = 0;
+    int nInterior = 0;
+    for (auto it = nodes.constBegin(); it != nodes.constEnd(); ++it) {
+        const n3d::node3d& key = it.key();
+        double nx = key[0], ny = key[1], nz = key[2];
+
+        bool onX1 = (nx == x1), onX2 = (nx == x2);
+        bool onY1 = (ny == y1), onY2 = (ny == y2);
+        bool onZ1 = (nz == z1), onZ2 = (nz == z2);
+        int numPlanes = (onX1 || onX2) + (onY1 || onY2) + (onZ1 || onZ2);
+
+        if (numPlanes == 0) { ++nInterior; continue; }
+        if (numPlanes == 3) continue; // corner, handled above
+
+        if (numPlanes == 2) {
+            // Edge node: couple to the reference edge of its direction-group
+            // (the edge sharing the min-plane on both of the fixed axes).
+            if (!onX1 && !onX2) {
+                if (onY1 && onZ1) { ++nEdgeFree; continue; } // this is the reference edge
+                n3d::node3d mk; mk.data[0] = key[0]; mk.data[1] = static_cast<float>(y1); mk.data[2] = static_cast<float>(z1);
+                if (!nodes.contains(mk)) { ++nEdgeMissing; continue; }
+                coupleNode(it.value() + 1, nodes[mk] + 1, jump(0, ny - y1, nz - z1)); ++nEdgeSlave;
+            } else if (!onY1 && !onY2) {
+                if (onX1 && onZ1) { ++nEdgeFree; continue; }
+                n3d::node3d mk; mk.data[0] = static_cast<float>(x1); mk.data[1] = key[1]; mk.data[2] = static_cast<float>(z1);
+                if (!nodes.contains(mk)) { ++nEdgeMissing; continue; }
+                coupleNode(it.value() + 1, nodes[mk] + 1, jump(nx - x1, 0, nz - z1)); ++nEdgeSlave;
+            } else { // free axis Z
+                if (onX1 && onY1) { ++nEdgeFree; continue; }
+                n3d::node3d mk; mk.data[0] = static_cast<float>(x1); mk.data[1] = static_cast<float>(y1); mk.data[2] = key[2];
+                if (!nodes.contains(mk)) { ++nEdgeMissing; continue; }
+                coupleNode(it.value() + 1, nodes[mk] + 1, jump(nx - x1, ny - y1, 0)); ++nEdgeSlave;
+            }
+            continue;
+        }
+
+        // numPlanes == 1: face node. Only emit from the min-plane side,
+        // referencing its exact counterpart on the opposite (max) face --
+        // the max-plane side needs no CE of its own, it's already the
+        // master referenced here.
+        if (onX1) {
+            n3d::node3d mk; mk.data[0] = static_cast<float>(x2); mk.data[1] = key[1]; mk.data[2] = key[2];
+            if (!nodes.contains(mk)) { ++nFaceMissing; continue; }
+            coupleNode(it.value() + 1, nodes[mk] + 1, jump(Lx, 0, 0)); ++nFaceSlave;
+        } else if (onY1) {
+            n3d::node3d mk; mk.data[0] = key[0]; mk.data[1] = static_cast<float>(y2); mk.data[2] = key[2];
+            if (!nodes.contains(mk)) { ++nFaceMissing; continue; }
+            coupleNode(it.value() + 1, nodes[mk] + 1, jump(0, Ly, 0)); ++nFaceSlave;
+        } else if (onZ1) {
+            n3d::node3d mk; mk.data[0] = key[0]; mk.data[1] = key[1]; mk.data[2] = static_cast<float>(z2);
+            if (!nodes.contains(mk)) { ++nFaceMissing; continue; }
+            coupleNode(it.value() + 1, nodes[mk] + 1, jump(0, 0, Lz)); ++nFaceSlave;
+        } else {
+            // lone max-side face node (onX2/onY2/onZ2) -- already covered
+            // as the master reference from the corresponding min-side node.
+            ++nFaceFree;
+        }
+    }
+
+    qDebug() << "[applyPeriodicBC] [DEBUG] nodes total =" << nodes.size()
+             << " interior =" << nInterior
+             << " | corners: pinned+prescribed =" << nCorner << " missing =" << nCornerMissing
+             << " | edges: slave(CE) =" << nEdgeSlave << " free(ref) =" << nEdgeFree << " missing =" << nEdgeMissing
+             << " | faces: slave(CE) =" << nFaceSlave << " free(master) =" << nFaceFree << " missing =" << nFaceMissing
+             << " | CE equations written =" << eqn;
+
+    apdl << "/GOPR" << Qt::endl;
+    apdl << "!-----END periodic BC -------" << Qt::endl;
+    apdl << "NSEL,S, , ,all" << Qt::endl;
+    apdl << "LSWRITE," << Qt::endl;
 }
 
 
@@ -1427,6 +1641,46 @@ void ansysWrapper::load_loadstep(int num)
         this->loadstep_results_avg[j] /= total_weight;
     }
 
+    // The node-weighted average above uses ANSYS's *nodally extrapolated and
+    // averaged* S/EPTO, which is a biased proxy for the true RVE volume
+    // average (confirmed via direct displacement-jump verification: the BC
+    // is exact, but this metric read 23% low under periodic BC). Every
+    // element here has identical volume (uniform voxel grid), so a plain
+    // arithmetic mean of the *per-element* (ETABLE) S/EPTO values -- written
+    // by saveAll() alongside the nodal table -- is an exact volume average.
+    // Overwrite just the SX..EpsXZ macroscopic averages with that; leave the
+    // nodal table (loadstep_results / result_nodes) untouched since the
+    // per-vertex 3D visualization still needs it.
+    {
+        const int nElemCols = 12; // SX,SY,SZ,SXY,SYZ,SXZ,EpsX,EpsY,EpsZ,EpsXY,EpsYZ,EpsXZ
+        QString elemPath = tempDir.filePath(QString("lse_") + QString::number(num) + ".csv");
+        QFile elemFile(elemPath);
+        if (elemFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            std::vector<double> elemSum(nElemCols, 0.0);
+            int elemCount = 0;
+            int li = 0;
+            while (!elemFile.atEnd()) {
+                ++li;
+                QByteArray line = elemFile.readLine();
+                if (li == 1) continue; // header
+                if (line.trimmed().isEmpty()) continue;
+                for (int j = 0; j < nElemCols; ++j)
+                    elemSum[j] += line.sliced(j * 17, 16).trimmed().toDouble();
+                ++elemCount;
+            }
+            elemFile.close();
+            if (elemCount > 0) {
+                for (int j = 0; j < nElemCols; ++j)
+                    this->loadstep_results_avg[SX + j] = float(elemSum[j] / elemCount);
+                qDebug() << "[load_loadstep] [DEBUG] element-averaged SX..EpsXZ from" << elemCount
+                         << "elements (replaces node-weighted average for the macroscopic avg).";
+            } else {
+                qWarning() << "[load_loadstep] element results file was empty, keeping node-weighted average:" << elemPath;
+            }
+        } else {
+            qWarning() << "[load_loadstep] could not open element results file, keeping node-weighted average:" << elemPath;
+        }
+    }
 
     auto &avg = this->loadstep_results_avg;
     auto &max = this->loadstep_results_max;
@@ -1812,6 +2066,191 @@ ALLS
                 )";
 
     m_apdl += s;
+}
+
+void ansysWrapper::saveElementAverages()
+{
+    // Independent of saveAll()'s nodal extraction -- own result-set loop,
+    // own ETABLE columns, own output file (lse_<time>.csv). Every element in
+    // this mesh has identical volume (uniform voxel grid), so summing each
+    // element's own (unmixed) S/EPTO and dividing by element count gives an
+    // exact volume average, unlike saveAll()'s nodal table which is
+    // extrapolated-and-averaged across neighboring elements (biased near the
+    // RVE boundary, where nodes have fewer neighbors to average over).
+    auto s = R"(
+
+alls
+
+! PowerGraphics (the default) makes ETABLE pull already nodally-averaged
+! data back down to element level -- i.e. the SAME smoothed values as the
+! nodal table, defeating the point. FULL graphics makes ETABLE use each
+! element's own unaveraged Gauss-point data instead.
+/GRAPHICS,FULL
+
+set,first
+*GET,numb_sets_e,ACTIVE,0,SET,NSET
+
+*do,i_set_e,1,numb_sets_e,1
+    *GET,current_time,ACTIVE,0,SET,TIME
+
+    ESEL,S,,,ALL
+    *get,nummax_e,ELEM,,num,max
+    *get,numelem,ELEM,,count
+    *dim,mask_e,array,nummax_e
+    *vget,mask_e(1),ELEM,,ESEL
+
+    ETABLE,ERAS
+    ETABLE,SX_,S,X
+    ETABLE,SY_,S,Y
+    ETABLE,SZ_,S,Z
+    ETABLE,SXY_,S,XY
+    ETABLE,SYZ_,S,YZ
+    ETABLE,SXZ_,S,XZ
+    ETABLE,EPX_,EPTO,X
+    ETABLE,EPY_,EPTO,Y
+    ETABLE,EPZ_,EPTO,Z
+    ETABLE,EPXY_,EPTO,XY
+    ETABLE,EPYZ_,EPTO,YZ
+    ETABLE,EPXZ_,EPTO,XZ
+
+    *dim,elem_data_full,array,nummax_e,12
+    *dim,elem_data_comp,array,numelem,12
+
+    *vmask,mask_e(1)
+    *vget,elem_data_full(1,1),elem,,etab,SX_
+    *vmask,mask_e(1)
+    *vget,elem_data_full(1,2),elem,,etab,SY_
+    *vmask,mask_e(1)
+    *vget,elem_data_full(1,3),elem,,etab,SZ_
+    *vmask,mask_e(1)
+    *vget,elem_data_full(1,4),elem,,etab,SXY_
+    *vmask,mask_e(1)
+    *vget,elem_data_full(1,5),elem,,etab,SYZ_
+    *vmask,mask_e(1)
+    *vget,elem_data_full(1,6),elem,,etab,SXZ_
+    *vmask,mask_e(1)
+    *vget,elem_data_full(1,7),elem,,etab,EPX_
+    *vmask,mask_e(1)
+    *vget,elem_data_full(1,8),elem,,etab,EPY_
+    *vmask,mask_e(1)
+    *vget,elem_data_full(1,9),elem,,etab,EPZ_
+    *vmask,mask_e(1)
+    *vget,elem_data_full(1,10),elem,,etab,EPXY_
+    *vmask,mask_e(1)
+    *vget,elem_data_full(1,11),elem,,etab,EPYZ_
+    *vmask,mask_e(1)
+    *vget,elem_data_full(1,12),elem,,etab,EPXZ_
+
+    *vmask,mask_e(1)
+    *vfun,elem_data_comp(1,1),COMP,elem_data_full(1,1)
+    *vmask,mask_e(1)
+    *vfun,elem_data_comp(1,2),COMP,elem_data_full(1,2)
+    *vmask,mask_e(1)
+    *vfun,elem_data_comp(1,3),COMP,elem_data_full(1,3)
+    *vmask,mask_e(1)
+    *vfun,elem_data_comp(1,4),COMP,elem_data_full(1,4)
+    *vmask,mask_e(1)
+    *vfun,elem_data_comp(1,5),COMP,elem_data_full(1,5)
+    *vmask,mask_e(1)
+    *vfun,elem_data_comp(1,6),COMP,elem_data_full(1,6)
+    *vmask,mask_e(1)
+    *vfun,elem_data_comp(1,7),COMP,elem_data_full(1,7)
+    *vmask,mask_e(1)
+    *vfun,elem_data_comp(1,8),COMP,elem_data_full(1,8)
+    *vmask,mask_e(1)
+    *vfun,elem_data_comp(1,9),COMP,elem_data_full(1,9)
+    *vmask,mask_e(1)
+    *vfun,elem_data_comp(1,10),COMP,elem_data_full(1,10)
+    *vmask,mask_e(1)
+    *vfun,elem_data_comp(1,11),COMP,elem_data_full(1,11)
+    *vmask,mask_e(1)
+    *vfun,elem_data_comp(1,12),COMP,elem_data_full(1,12)
+
+*cfopen,lse_%current_time%,csv
+*vwrite,'SX','SY','SZ','SXY','SYZ','SXZ','EpsX','EpsY','EpsZ','EpsXY','EpsYZ','EpsXZ'
+%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C;%C
+
+*vwrite,elem_data_comp(1,1),elem_data_comp(1,2),elem_data_comp(1,3),elem_data_comp(1,4),elem_data_comp(1,5),elem_data_comp(1,6),elem_data_comp(1,7),elem_data_comp(1,8),elem_data_comp(1,9),elem_data_comp(1,10),elem_data_comp(1,11),elem_data_comp(1,12)
+(E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8";"E16.8)
+*cfclos
+
+*del,elem_data_full,nopr
+*del,elem_data_comp,nopr
+*del,mask_e,nopr
+*del,nummax_e,nopr
+*del,numelem,nopr
+
+set,next
+*ENDDO
+
+ALLS
+
+                )";
+
+    m_apdl += s;
+}
+
+void ansysWrapper::loadElementAveragedResults(int num)
+{
+    const int nElemCols = 12; // SX,SY,SZ,SXY,SYZ,SXZ,EpsX,EpsY,EpsZ,EpsXY,EpsYZ,EpsXZ
+    QString elemPath = tempDir.filePath(QString("lse_") + QString::number(num) + ".csv");
+    QFile elemFile(elemPath);
+    if (!elemFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        qWarning() << "[loadElementAveragedResults] could not open" << elemPath
+                   << "-- keeping load_loadstep()'s node-weighted average.";
+        return;
+    }
+
+    std::vector<double> elemSum(nElemCols, 0.0);
+    int elemCount = 0;
+    int li = 0;
+    while (!elemFile.atEnd()) {
+        ++li;
+        QByteArray line = elemFile.readLine();
+        if (li == 1) continue; // header
+        if (line.trimmed().isEmpty()) continue;
+        for (int j = 0; j < nElemCols; ++j)
+            elemSum[j] += line.sliced(j * 17, 16).trimmed().toDouble();
+        ++elemCount;
+    }
+    elemFile.close();
+
+    if (elemCount == 0) {
+        qWarning() << "[loadElementAveragedResults] empty results file, keeping node-weighted average:" << elemPath;
+        return;
+    }
+    if ((int)this->loadstep_results_avg.size() < SX + nElemCols) {
+        qWarning() << "[loadElementAveragedResults] loadstep_results_avg too small -- call load_loadstep() first.";
+        return;
+    }
+
+    // Keep the NODE-weighted values (already computed by load_loadstep())
+    // around so both averaging techniques can be printed side by side,
+    // before this overwrites loadstep_results_avg with the element average.
+    std::vector<float> nodeAvg(this->loadstep_results_avg.begin() + SX,
+                                this->loadstep_results_avg.begin() + SX + nElemCols);
+    // nodeAvg layout: 0=SX 1=SY 2=SZ 3=SXY 4=SYZ 5=SXZ 6=EpsX 7=EpsY 8=EpsZ 9=EpsXY 10=EpsYZ 11=EpsXZ
+
+    for (int j = 0; j < nElemCols; ++j)
+        this->loadstep_results_avg[SX + j] = float(elemSum[j] / elemCount);
+    const auto& elemAvg = this->loadstep_results_avg;
+
+    qDebug() << "[loadElementAveragedResults] [DEBUG] element-averaged SX..EpsXZ from" << elemCount
+             << "elements (replaces load_loadstep()'s node-weighted average).";
+
+    qDebug() << "[loadElementAveragedResults] ── NODE-weighted vs ELEMENT-averaged comparison ──";
+    qDebug() << "  S tensor   [NODE] (Pa): " << nodeAvg[0] << nodeAvg[3] << nodeAvg[5];
+    qDebug() << "                          " << nodeAvg[3] << nodeAvg[1] << nodeAvg[4];
+    qDebug() << "                          " << nodeAvg[5] << nodeAvg[4] << nodeAvg[2];
+    qDebug() << "  S tensor   [ELEM] (Pa): " << elemAvg[SX] << elemAvg[SXY] << elemAvg[SXZ];
+    qDebug() << "                          " << elemAvg[SXY] << elemAvg[SY] << elemAvg[SYZ];
+    qDebug() << "                          " << elemAvg[SXZ] << elemAvg[SYZ] << elemAvg[SZ];
+    qDebug() << "  EPS tensor [NODE]:      " << nodeAvg[6] << nodeAvg[9] << nodeAvg[11];
+    qDebug() << "                          " << nodeAvg[9] << nodeAvg[7] << nodeAvg[10];
+    qDebug() << "                          " << nodeAvg[11] << nodeAvg[10] << nodeAvg[8];
+    qDebug() << "  EPS tensor [ELEM]:      " << elemAvg[EpsX] << elemAvg[EpsXY] << elemAvg[EpsXZ];
+    qDebug() << "                          " << elemAvg[EpsXY] << elemAvg[EpsY] << elemAvg[EpsYZ];
+    qDebug() << "                          " << elemAvg[EpsXZ] << elemAvg[EpsYZ] << elemAvg[EpsZ];
 }
 
 void ansysWrapper::addStrainToBCMacro(double eps_xx, double eps_yy, double eps_zz,
