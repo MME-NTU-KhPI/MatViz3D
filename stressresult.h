@@ -7,7 +7,34 @@
 #include <vector>
 #include <array>
 #include <random>
+#include <memory>
 #include <QDebug>
+#include "ansyswrapper.h"   // tensor_components enum, ansysWrapper (kept alive for field visualization)
+
+// Per-voxel field data produced by a single-shot FFT solve, dense over the
+// full N^3 grid -- index (z*N+y)*N+x, matching
+// StressAnalysisFFT::buildGrainField()'s layout and
+// OpenGLWidgetQML::calculateScene()'s voxels[k][i][j] loop (k=x, i=y, j=z) --
+// so the renderer can look a voxel's field value up with the same indexing
+// it already uses for grain id.
+//
+// Indexed by tensor_components (ansyswrapper.h). The FFT solver has no nodal
+// displacement field, so only SX..SXZ, SEQV, EpsX..EpsXZ, EpsEQV are
+// populated; componentValid[component] is false for the unused UX/UY/UZ/USUM
+// slots (and for ID/X/Y/Z, which aren't results).
+struct FieldVisualizationData
+{
+    int numCubes = 0;
+
+    std::array<bool, EpsEQV + 1>               componentValid{};
+    std::array<std::vector<float>, EpsEQV + 1> perVoxel;      // [component][denseIdx], size numCubes^3 when valid
+    std::array<float, EpsEQV + 1>              componentMin{};
+    std::array<float, EpsEQV + 1>              componentMax{};
+
+    double macroStrain[6] = {0};   // pipeline tensor strain (exx,eyy,ezz,exy,eyz,exz) -- drives the affine deformed view
+
+    int denseIndex(int x, int y, int z) const { return (z * numCubes + y) * numCubes + x; }
+};
 
 // Result of a single load-case solve, shared by StressAnalysisFFT and
 // StressAnalysis (ANSYS) so the controller can treat both solvers the same way.
@@ -20,6 +47,12 @@ struct SingleShotResult
     double von_mises        = 0.0;
     int    iterations       = 0;    // FFT iteration count; 0 for ANSYS
     double error             = 0.0; // FFT equilibrium error; 0 for ANSYS
+
+    // Populated only by the matching solver, for 3D field visualization
+    // (OpenGLWidgetQML::showAnsysField()/showFFTField()). Null when that
+    // solver wasn't used or the solve failed.
+    std::shared_ptr<ansysWrapper>           ansysField;
+    std::shared_ptr<FieldVisualizationData> fftField;
 };
 
 // Von Mises stress from pipeline stress [sx,sy,sz,sxy,syz,sxz].
@@ -27,6 +60,17 @@ inline double vonMisesPipeline(const double s[6])
 {
     const double a = s[0] - s[1], b = s[1] - s[2], c = s[2] - s[0];
     return std::sqrt(0.5 * (a * a + b * b + c * c) + 3.0 * (s[3] * s[3] + s[4] * s[4] + s[5] * s[5]));
+}
+
+// Equivalent (von Mises) strain from engineering strain [ex,ey,ez,gxy,gyz,gxz]
+// (gamma = 2*eps shear convention -- matches both ANSYS's nodal EPTO output
+// and FFTSolverSession::solveLoadCaseFull()'s voxel_strain_eng output).
+// Shared by ansysWrapper::load_loadstep() and StressAnalysisFFT so both
+// solvers derive the same quantity the same way.
+inline double eqvStrainPipeline(const double e[6])
+{
+    const double a = e[0] - e[1], b = e[1] - e[2], c = e[2] - e[0];
+    return std::sqrt(2.0 / 9.0 * (a * a + b * b + c * c) + 1.0 / 3.0 * (e[3] * e[3] + e[4] * e[4] + e[5] * e[5]));
 }
 
 // Uniform-random SO(3) orientations as Bunge ZXZ Euler angles (radians), one

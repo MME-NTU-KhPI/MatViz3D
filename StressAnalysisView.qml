@@ -199,6 +199,13 @@ Window {
                         text: qsTr("iterations: %1   equilibrium error: %2").arg(ctrl.resultIterations).arg(fmt(ctrl.resultError))
                         color: "#969696"; font.pixelSize: 12; font.family: inter.name
                     }
+                    Label {
+                        visible: ctrl.hasResult
+                        text: qsTr("Component/deformed-shape controls for the 3D view are in the main window.")
+                        color: "#7a7a7a"; font.pixelSize: 11; font.family: inter.name
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                    }
                 }
             }
 

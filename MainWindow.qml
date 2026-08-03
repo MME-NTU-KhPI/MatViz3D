@@ -1069,6 +1069,197 @@ Window {
     }
 
     Item {
+        id: _itemFieldView
+        x: parent.width - (_itemFieldView.width + 30)
+        y: _itemAnimationWidget.y + _itemAnimationWidget.height + 20
+        width: mainWindow.width < 1250 ? "310" : "350"
+        height: 250
+        visible: stressAnalysisController.hasResult
+
+        function fieldFmt(v) {
+            if (v === undefined || v === null) return "0";
+            if (Math.abs(v) >= 10000 || (Math.abs(v) < 0.001 && v !== 0))
+                return v.toExponential(3);
+            return parseFloat(v.toPrecision(5)).toString();
+        }
+
+        Rectangle {
+            id: fieldView_rec
+            color: "#80282828"
+            radius: 13
+            anchors.fill: parent
+
+            Column {
+                anchors.fill: parent
+                anchors.margins: 15
+                spacing: 12
+
+                Text {
+                    color: "#d9d9d9"
+                    text: qsTr("Field view")
+                    font.pixelSize: 14
+                    font.family: montserrat.name
+                }
+
+                Row {
+                    width: parent.width
+                    spacing: 10
+                    Text {
+                        text: qsTr("Component:")
+                        color: "#c6c6c6"
+                        font.pixelSize: 14
+                        font.family: inter.name
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    ComboBox {
+                        id: fieldComboBox
+                        width: 190
+                        model: stressAnalysisController.fieldComponents
+                        currentIndex: stressAnalysisController.fieldComponentIndex
+                        onActivated: stressAnalysisController.fieldComponentIndex = currentIndex
+                    }
+                }
+
+                Row {
+                    width: parent.width
+                    spacing: 6
+                    Text {
+                        width: 40
+                        text: _itemFieldView.fieldFmt(stressAnalysisController.fieldMin)
+                        color: "#9e9e9e"
+                        font.pixelSize: 11
+                        font.family: inter.name
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    // Item, not Row: needs an anchors.fill'd MouseArea for the
+                    // right-click menu, which Row refuses to lay out.
+                    Item {
+                        id: legendRow
+                        width: parent.width - 96
+                        height: 14
+                        anchors.verticalCenter: parent.verticalCenter
+
+                        // Re-fetched whenever glWidget.colorMapPalette changes -- the
+                        // property read forces this binding to redo the getColorMap()
+                        // call (a plain Q_INVOKABLE call by itself isn't tracked).
+                        property var paletteColors: {
+                            glWidget.colorMapPalette;
+                            return glWidget.getColorMap(9);
+                        }
+
+                        Row {
+                            anchors.fill: parent
+                            spacing: 0
+                            Repeater {
+                                model: legendRow.paletteColors
+                                Rectangle {
+                                    width: legendRow.width / 9
+                                    height: 14
+                                    color: modelData
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            acceptedButtons: Qt.RightButton
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: colorMapMenu.popup()
+                        }
+
+                        Menu {
+                            id: colorMapMenu
+                            title: qsTr("Colormap")
+
+                            MenuItem { text: qsTr("Rainbow");                     onTriggered: glWidget.colorMapPalette = 0 }
+                            MenuItem { text: qsTr("Cool-Warm (blue-white-red)");  onTriggered: glWidget.colorMapPalette = 1 }
+                            MenuItem { text: qsTr("Red-Blue (red-white-blue)");   onTriggered: glWidget.colorMapPalette = 2 }
+                            MenuItem { text: qsTr("Viridis");                     onTriggered: glWidget.colorMapPalette = 3 }
+                            MenuItem { text: qsTr("Grayscale");                   onTriggered: glWidget.colorMapPalette = 4 }
+                        }
+                    }
+                    Text {
+                        width: 40
+                        text: _itemFieldView.fieldFmt(stressAnalysisController.fieldMax)
+                        color: "#9e9e9e"
+                        font.pixelSize: 11
+                        font.family: inter.name
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+
+                Text {
+                    text: qsTr("Right-click the legend to change colormap")
+                    color: "#7a7a7a"
+                    font.pixelSize: 10
+                    font.family: inter.name
+                }
+
+                Row {
+                    spacing: 10
+                    Switch {
+                        id: deformedSwitch
+                        width: 50
+                        height: 20
+                        scale: 0.7
+                        display: AbstractButton.IconOnly
+                        checked: stressAnalysisController.showDeformed
+                        onCheckedChanged: stressAnalysisController.showDeformed = checked
+                    }
+                    Text {
+                        text: qsTr("Deformed shape")
+                        color: "#c6c6c6"
+                        font.pixelSize: 14
+                        font.family: inter.name
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+
+                Row {
+                    width: parent.width
+                    visible: deformedSwitch.checked
+                    spacing: 8
+                    Slider {
+                        id: deformedScaleSlider
+                        width: parent.width - 60
+                        from: 0
+                        to: Math.max(stressAnalysisController.deformedScale * 4, 10)
+                        value: stressAnalysisController.deformedScale
+                        onMoved: stressAnalysisController.deformedScale = value
+                    }
+                    Text {
+                        text: _itemFieldView.fieldFmt(stressAnalysisController.deformedScale) + "x"
+                        color: "#9e9e9e"
+                        font.pixelSize: 12
+                        font.family: inter.name
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+
+                Row {
+                    spacing: 10
+                    Switch {
+                        id: showFieldSwitch
+                        width: 50
+                        height: 20
+                        scale: 0.7
+                        display: AbstractButton.IconOnly
+                        checked: stressAnalysisController.showField
+                        onCheckedChanged: stressAnalysisController.showField = checked
+                    }
+                    Text {
+                        text: showFieldSwitch.checked ? qsTr("Showing field (click to show grains)") : qsTr("Showing grains (click to show field)")
+                        color: "#c6c6c6"
+                        font.pixelSize: 12
+                        font.family: inter.name
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+            }
+        }
+    }
+
+    Item {
         id: _itemToolBar
         y: 97
         x: mainWindow.width - (mainWindow.width / 2) - (_itemToolBar.width / 2)

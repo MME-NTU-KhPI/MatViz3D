@@ -11,6 +11,9 @@
 #include <random>
 #include <cmath>
 #include <optional>
+#include <memory>
+#include <limits>
+#include <algorithm>
 
 using fftsa::FFTSolverSession;
 using fftsa::Vec6;
@@ -36,14 +39,10 @@ std::vector<int> StressAnalysisFFT::buildGrainField(int N, int32_t ***voxels, in
     return field;
 }
 
-// von Mises stress from pipeline stress [sx,sy,sz,sxy,syz,sxz] -- shared with
-// StressAnalysis (ANSYS) and the controller via stressresult.h.
+// von Mises stress / equivalent strain -- shared with StressAnalysis (ANSYS)
+// and the controller via stressresult.h.
 static inline double vonMises(const Vec6& s) { return vonMisesPipeline(s.data()); }
-// equivalent (von Mises) strain from engineering strain [ex,ey,ez,gxy,gyz,gxz]
-static inline double eqvStrain(const Vec6& e) {
-    const double a = e[0]-e[1], b = e[1]-e[2], c = e[2]-e[0];
-    return std::sqrt(2.0/9.0*(a*a + b*b + c*c) + 1.0/3.0*(e[3]*e[3] + e[4]*e[4] + e[5]*e[5]));
-}
+static inline double eqvStrain(const Vec6& e) { return eqvStrainPipeline(e.data()); }
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Main: three-phase stress estimation via the FFT solver
@@ -333,13 +332,58 @@ SingleShotResult StressAnalysisFFT::solveSingleLoadCase(short int numCubes, shor
              << " tol =" << fft_tol << " max_iter =" << fft_max_iter;
 
     Vec6 e{}; for (int i = 0; i < 6; ++i) e[i] = eps[i];
-    auto r = session.solveLoadCase(e);
+    std::vector<Vec6> voxel_strain_eng;
+    auto r = session.solveLoadCaseFull(e, voxel_strain_eng);
 
     for (int i = 0; i < 6; ++i) out.macro_stress[i] = r.macro_stress[i];
     out.von_mises  = vonMisesPipeline(out.macro_stress);
     out.iterations = r.iterations;
     out.error      = r.error;
     out.ok         = true;
+
+    // ── Per-voxel field, for 3D visualization ───────────────────────────────
+    // Dense N^3 arrays indexed the same way buildGrainField() laid out
+    // grain_field / voxel_idx: (iz*N+iy)*N+ix -- matches
+    // FieldVisualizationData::denseIndex() and OpenGLWidgetQML's
+    // voxels[k][i][j] loop (k=x, i=y, j=z).
+    {
+        static const int stressComp[6] = {SX, SY, SZ, SXY, SYZ, SXZ};
+        static const int strainComp[6] = {EpsX, EpsY, EpsZ, EpsXY, EpsYZ, EpsXZ};
+
+        auto field = std::make_shared<FieldVisualizationData>();
+        field->numCubes = N;
+        const size_t denseN = static_cast<size_t>(N) * N * N;
+
+        auto initComp = [&](int comp) {
+            field->componentValid[comp] = true;
+            field->perVoxel[comp].assign(denseN, 0.0f);
+            field->componentMin[comp] = std::numeric_limits<float>::max();
+            field->componentMax[comp] = -std::numeric_limits<float>::max();
+        };
+        for (int c : stressComp) initComp(c);
+        for (int c : strainComp) initComp(c);
+        initComp(SEQV);
+        initComp(EpsEQV);
+
+        auto setVal = [&](int comp, int denseIdx, float val) {
+            field->perVoxel[comp][denseIdx] = val;
+            field->componentMin[comp] = std::min(field->componentMin[comp], val);
+            field->componentMax[comp] = std::max(field->componentMax[comp], val);
+        };
+
+        for (size_t vi = 0; vi < r.voxel_idx.size(); ++vi) {
+            const int denseIdx = r.voxel_idx[vi];
+            const Vec6& s   = r.voxel_stress[vi];
+            const Vec6& eng = voxel_strain_eng[vi];
+            for (int c = 0; c < 6; ++c) setVal(stressComp[c], denseIdx, float(s[c]));
+            for (int c = 0; c < 6; ++c) setVal(strainComp[c], denseIdx, float(eng[c]));
+            setVal(SEQV,   denseIdx, float(vonMisesPipeline(s.data())));
+            setVal(EpsEQV, denseIdx, float(eqvStrainPipeline(eng.data())));
+        }
+        for (int i = 0; i < 6; ++i) field->macroStrain[i] = r.macro_strain[i];
+
+        out.fftField = field;
+    }
 
     qDebug() << "[StressAnalysisFFT]   [DEBUG] macro_stress (Pa) sx,sy,sz,sxy,syz,sxz ="
              << out.macro_stress[0] << out.macro_stress[1] << out.macro_stress[2]

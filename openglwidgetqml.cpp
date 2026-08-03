@@ -8,6 +8,7 @@
 #include <QTimer>
 #include <QImage>
 #include <QThread>
+#include <algorithm>
 
 RenderOpenGL* OpenGLWidgetQML::m_render = nullptr;
 OpenGLWidgetQML* OpenGLWidgetQML::instance = nullptr;
@@ -22,9 +23,7 @@ OpenGLWidgetQML::OpenGLWidgetQML(QQuickItem *parent) : QQuickFramebufferObject(p
     distance = 2.0f;
     numCubes = 1;
     voxels = nullptr;
-    wr = nullptr;
     timer = new QTimer(this);
-    plotComponent = 0;
     delayAnimation = 0;
     bgColor.setRgbF(0.21f, 0.21f, 0.21f);
     connect(this, &QQuickItem::widthChanged, this, &OpenGLWidgetQML::handleResize, Qt::QueuedConnection);
@@ -208,7 +207,9 @@ void OpenGLWidgetQML::setNumCubes(int numCubes)
 {
     distance = 2 * numCubes;
     this->numCubes = numCubes;
-    this->wr = nullptr;
+    this->fieldMode = FieldMode::None;
+    this->ansysField.reset();
+    this->fftField.reset();
     if (m_render) {
         m_render->setNumCubes(numCubes);
     }
@@ -226,7 +227,9 @@ void OpenGLWidgetQML::setNumColors(int numColors)
     for (int i = 0; i < numColors; i++) {
         directionFactors[i] = ((rand() % 2) == 0) ? 1.0f : -1.0f;
     }
-    this->wr = nullptr;
+    this->fieldMode = FieldMode::None;
+    this->ansysField.reset();
+    this->fftField.reset();
 }
 
 void OpenGLWidgetQML::setDelayAnimation(int delayAnimation)
@@ -369,29 +372,130 @@ void OpenGLWidgetQML::handleResize()
 
 
 
-std::vector<std::array<GLubyte, 4>> OpenGLWidgetQML::createColorMap(int numLevels)
+namespace {
+
+struct ColorStop { float t; GLubyte r, g, b; };
+
+// Sequential, matches the original hardcoded 9-band map (blue -> cyan ->
+// green -> yellow -> red) -- kept as the default so existing plots don't
+// change look.
+const std::vector<ColorStop>& rainbowStops()
 {
-    std::vector<std::array<GLubyte, 4>> colorMap(9);
+    static const std::vector<ColorStop> stops = {
+        {0.000f, 0,   0,   255},
+        {0.125f, 0,   178, 255},
+        {0.250f, 0,   255, 255},
+        {0.375f, 0,   255, 178},
+        {0.500f, 0,   255, 0  },
+        {0.625f, 178, 255, 0  },
+        {0.750f, 255, 255, 0  },
+        {0.875f, 255, 178, 0  },
+        {1.000f, 255, 0,   0  },
+    };
+    return stops;
+}
 
-    colorMap[8] = {255, 0,      0,   255};
-    colorMap[7] = {255, 178,    0,   255};
-    colorMap[6] = {255, 255,    0,   255};
-    colorMap[5] = {178, 255,    0,   255};
-    colorMap[4] = {0,   255,    0,   255};
-    colorMap[3] = {0,   255,    178, 255};
-    colorMap[2] = {0,   255,    255, 255};
-    colorMap[1] = {0,   178,    255, 255};
-    colorMap[0] = {0,   0,      255, 255};
+// Diverging, white at the middle of the current min/max range.
+const std::vector<ColorStop>& coolWarmStops()
+{
+    static const std::vector<ColorStop> stops = {
+        {0.0f, 0,   0,   255},
+        {0.5f, 255, 255, 255},
+        {1.0f, 255, 0,   0  },
+    };
+    return stops;
+}
 
+// Diverging, reversed from CoolWarm -- red = high (tension), blue = low
+// (compression), a common solid-mechanics convention.
+const std::vector<ColorStop>& rdBuStops()
+{
+    static const std::vector<ColorStop> stops = {
+        {0.0f, 255, 0,   0  },
+        {0.5f, 255, 255, 255},
+        {1.0f, 0,   0,   255},
+    };
+    return stops;
+}
+
+// Perceptually uniform sequential map (approximates matplotlib's viridis).
+const std::vector<ColorStop>& viridisStops()
+{
+    static const std::vector<ColorStop> stops = {
+        {0.00f, 68,  1,   84 },
+        {0.25f, 59,  82,  139},
+        {0.50f, 33,  145, 140},
+        {0.75f, 94,  201, 98 },
+        {1.00f, 253, 231, 37 },
+    };
+    return stops;
+}
+
+// Sequential, black (low) -> white (high).
+const std::vector<ColorStop>& grayscaleStops()
+{
+    static const std::vector<ColorStop> stops = {
+        {0.0f, 0,   0,   0  },
+        {1.0f, 255, 255, 255},
+    };
+    return stops;
+}
+
+const std::vector<ColorStop>& stopsForPalette(OpenGLWidgetQML::ColorMapPalette palette)
+{
+    switch (palette) {
+        case OpenGLWidgetQML::ColorMapPalette::CoolWarm:  return coolWarmStops();
+        case OpenGLWidgetQML::ColorMapPalette::RdBu:      return rdBuStops();
+        case OpenGLWidgetQML::ColorMapPalette::Viridis:   return viridisStops();
+        case OpenGLWidgetQML::ColorMapPalette::Grayscale: return grayscaleStops();
+        case OpenGLWidgetQML::ColorMapPalette::Rainbow:
+        default:                                          return rainbowStops();
+    }
+}
+
+// Piecewise-linear interpolation between a palette's color stops at t in [0,1].
+std::array<GLubyte, 4> interpolateStops(const std::vector<ColorStop>& stops, float t)
+{
+    t = std::min(1.0f, std::max(0.0f, t));
+    for (size_t i = 1; i < stops.size(); ++i) {
+        if (t <= stops[i].t || i == stops.size() - 1) {
+            const ColorStop& a = stops[i - 1];
+            const ColorStop& b = stops[i];
+            const float span = b.t - a.t;
+            const float f = span > 0.0f ? (t - a.t) / span : 0.0f;
+            return {
+                GLubyte(a.r + f * (int(b.r) - int(a.r))),
+                GLubyte(a.g + f * (int(b.g) - int(a.g))),
+                GLubyte(a.b + f * (int(b.b) - int(a.b))),
+                255
+            };
+        }
+    }
+    return {stops.back().r, stops.back().g, stops.back().b, 255};
+}
+
+} // namespace
+
+std::vector<std::array<GLubyte, 4>> OpenGLWidgetQML::createColorMap(int numLevels, ColorMapPalette palette)
+{
+    numLevels = std::max(2, numLevels);
+    const std::vector<ColorStop>& stops = stopsForPalette(palette);
+
+    std::vector<std::array<GLubyte, 4>> colorMap(numLevels);
+    for (int i = 0; i < numLevels; i++)
+    {
+        const float t = float(i) / float(numLevels - 1);
+        colorMap[i] = interpolateStops(stops, t);
+    }
     return colorMap;
 }
 
 QVector<QColor> OpenGLWidgetQML::getColorMap(int numLevels)
 {
-    std::vector<std::array<GLubyte, 4>> vcmap = OpenGLWidgetQML::createColorMap(numLevels);
-    QVector<QColor> cmap(numLevels);
+    std::vector<std::array<GLubyte, 4>> vcmap = createColorMap(numLevels, colorMapPalette);
+    QVector<QColor> cmap(vcmap.size());
 
-    for (int i = 0; i < numLevels; i++)
+    for (size_t i = 0; i < vcmap.size(); i++)
     {
         QColor c;
         c.setRed(vcmap[i][0]);
@@ -402,22 +506,85 @@ QVector<QColor> OpenGLWidgetQML::getColorMap(int numLevels)
     return cmap;
 }
 
+void OpenGLWidgetQML::setColorMapPalette(int palette)
+{
+    palette = std::min(int(ColorMapPalette::Grayscale), std::max(0, palette));
+    if (int(colorMapPalette) == palette) return;
+    colorMapPalette = static_cast<ColorMapPalette>(palette);
+    emit colorMapPaletteChanged();
+    if (fieldMode != FieldMode::None) {
+        calculateScene();
+        pushSceneToRenderer();
+    }
+}
+
 std::array<GLubyte, 4> OpenGLWidgetQML::scalarToColor(float value, const std::vector<std::array<GLubyte, 4>>& colorMap)
 {
     int index = static_cast<int>(value * (colorMap.size() - 1));
     return colorMap[index];
 }
 
-void OpenGLWidgetQML::setAnsysWrapper(ansysWrapper *wr)
+void OpenGLWidgetQML::pushSceneToRenderer()
 {
-    this->wr = wr;
-    this->calculateScene();
+    if (m_render) {
+        m_render->updateVoxelData(voxelScene);
+        m_render->updateOrientationData(orientationVerts, orientationColors);
+    }
+    update();
 }
 
-void OpenGLWidgetQML::setComponent(int index)
+void OpenGLWidgetQML::showAnsysField(std::shared_ptr<ansysWrapper> wr, int component)
 {
-    this->plotComponent = index;
+    this->ansysField    = wr;
+    this->fftField.reset();
+    this->fieldMode      = FieldMode::Ansys;
+    this->fieldComponent = component;
     this->calculateScene();
+    pushSceneToRenderer();
+}
+
+void OpenGLWidgetQML::showFFTField(std::shared_ptr<FieldVisualizationData> data, int component)
+{
+    this->fftField       = data;
+    this->ansysField.reset();
+    this->fieldMode       = FieldMode::FFT;
+    this->fieldComponent  = component;
+    this->calculateScene();
+    pushSceneToRenderer();
+}
+
+void OpenGLWidgetQML::setFieldComponent(int component)
+{
+    if (fieldMode == FieldMode::None) return;
+    this->fieldComponent = component;
+    this->calculateScene();
+    pushSceneToRenderer();
+}
+
+void OpenGLWidgetQML::clearFieldVisualization()
+{
+    this->fieldMode = FieldMode::None;
+    this->ansysField.reset();
+    this->fftField.reset();
+    this->showDeformed = false;
+    this->calculateScene();
+    pushSceneToRenderer();
+}
+
+void OpenGLWidgetQML::setShowDeformed(bool show)
+{
+    this->showDeformed = show;
+    this->calculateScene();
+    pushSceneToRenderer();
+}
+
+void OpenGLWidgetQML::setDeformedScale(float scale)
+{
+    this->deformedScale = scale;
+    if (showDeformed) {
+        this->calculateScene();
+        pushSceneToRenderer();
+    }
 }
 
 std::vector<std::array<GLubyte, 4>> OpenGLWidgetQML::generateDistinctColors()
@@ -500,6 +667,8 @@ void OpenGLWidgetQML::calculateScene()
 
     voxelScene.clear();
     float cubeSize = 1.0; // numCubes;
+    const auto fieldCmap = (fieldMode != FieldMode::None) ? createColorMap(9, colorMapPalette)
+                                                            : std::vector<std::array<GLubyte, 4>>{};
     for (int i = 0; i < numCubes; i++) { // y
         for (int j = 0; j < numCubes; j++) { // z
             for (int k = 0; k < numCubes; k++) { // x
@@ -616,9 +785,10 @@ void OpenGLWidgetQML::calculateScene()
                 v.a = color[3];
 
                 std::vector<std::array<GLubyte, 4>> node_colors(8);
-                if (wr)
+                std::array<std::array<float, 3>, 8> node_disp{};   // zero == undeformed
+
+                if (fieldMode == FieldMode::Ansys && ansysField)
                 {
-                    auto cmap = this->createColorMap(0);
                     for (int l = 0; l < 8; l++)
                     {
                         n3d::node3d key;
@@ -626,9 +796,48 @@ void OpenGLWidgetQML::calculateScene()
                         key.data[1] = node_coordinates[l][1] + i;
                         key.data[2] = node_coordinates[l][2] + j;
 
-                        float val = wr->getValByCoord(key, plotComponent);
-                        float val01 = wr->scaleValue01(val, plotComponent);
-                        node_colors[l] = this->scalarToColor(val01, cmap);
+                        float val = ansysField->getValByCoord(key, fieldComponent);
+                        float val01 = std::min(1.0f, std::max(0.0f, ansysField->scaleValue01(val, fieldComponent)));
+                        node_colors[l] = this->scalarToColor(val01, fieldCmap);
+
+                        if (showDeformed)
+                        {
+                            const float ux = ansysField->getValByCoord(key, UX);
+                            const float uy = ansysField->getValByCoord(key, UY);
+                            const float uz = ansysField->getValByCoord(key, UZ);
+                            node_disp[l] = {ux * deformedScale, uy * deformedScale, uz * deformedScale};
+                        }
+                    }
+                }
+                else if (fieldMode == FieldMode::FFT && fftField && fftField->componentValid[fieldComponent])
+                {
+                    // Flat-shaded: FFT only has one (element-averaged) value per voxel.
+                    const int denseIdx = fftField->denseIndex(k, i, j);
+                    const float val  = fftField->perVoxel[fieldComponent][denseIdx];
+                    const float minv = fftField->componentMin[fieldComponent];
+                    const float maxv = fftField->componentMax[fieldComponent];
+                    float val01 = (maxv > minv) ? (val - minv) / (maxv - minv) : 1.0f;
+                    val01 = std::min(1.0f, std::max(0.0f, val01));
+
+                    auto color = this->scalarToColor(val01, fieldCmap);
+                    std::fill(node_colors.begin(), node_colors.end(), color);
+
+                    if (showDeformed)
+                    {
+                        // FFT has no nodal displacement field: approximate the deformed
+                        // shape by applying the RVE macro (tensor) strain as a uniform
+                        // affine map u = eps.x to every corner's undeformed world position.
+                        const double* eps = fftField->macroStrain;
+                        for (int l = 0; l < 8; l++)
+                        {
+                            const float wx = v.x + node_coordinates[l][0] * cubeSize;
+                            const float wy = v.y + node_coordinates[l][1] * cubeSize;
+                            const float wz = v.z + node_coordinates[l][2] * cubeSize;
+                            const float dx = float(eps[0] * wx + eps[3] * wy + eps[5] * wz);
+                            const float dy = float(eps[3] * wx + eps[1] * wy + eps[4] * wz);
+                            const float dz = float(eps[5] * wx + eps[4] * wy + eps[2] * wz);
+                            node_disp[l] = {dx * deformedScale, dy * deformedScale, dz * deformedScale};
+                        }
                     }
                 }
                 else
@@ -636,7 +845,7 @@ void OpenGLWidgetQML::calculateScene()
                     std::fill(node_colors.begin(), node_colors.end(), colors[index]);
                 }
 
-                drawCube(cubeSize, v, neighbors, node_colors);
+                drawCube(cubeSize, v, neighbors, node_colors, node_disp);
             }
         }
     }
@@ -662,21 +871,9 @@ void OpenGLWidgetQML::setVoxels(int32_t*** voxels, short int numCubes)
     }
 }
 
-void OpenGLWidgetQML::updateVoxelColor(RenderOpenGL::Voxel &v1)
-{
-    if (wr)
-    {
-        float val = wr->getValByCoord(v1.x, v1.y, v1.z, SX);
-        float val01 = wr->scaleValue01(val, SX);
-        auto cmap = this->createColorMap(8);
-        auto color = this->scalarToColor(val01, cmap);
-        v1.r = color[0];
-        v1.g = color[1];
-        v1.b = color[2];
-    }
-}
-
-void OpenGLWidgetQML::drawCube(short cubeSize, RenderOpenGL::Voxel vox, bool* neighbors, std::vector<std::array<GLubyte, 4>> &node_colors)
+void OpenGLWidgetQML::drawCube(short cubeSize, RenderOpenGL::Voxel vox, bool* neighbors,
+                                std::vector<std::array<GLubyte, 4>> &node_colors,
+                                const std::array<std::array<float, 3>, 8> &node_disp)
 {
 
 /*    static const GLfloat n[6][3] =
@@ -739,9 +936,9 @@ void OpenGLWidgetQML::drawCube(short cubeSize, RenderOpenGL::Voxel vox, bool* ne
         for (int j = 0; j < 4; j++) // for each node
         {
             auto fij = faces[i][j];
-            v1.x = v[fij][0];
-            v1.y = v[fij][1];
-            v1.z = v[fij][2];
+            v1.x = v[fij][0] + node_disp[fij][0];
+            v1.y = v[fij][1] + node_disp[fij][1];
+            v1.z = v[fij][2] + node_disp[fij][2];
 
             v1.a = vox.a;
 

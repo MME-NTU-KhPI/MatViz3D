@@ -1571,7 +1571,12 @@ void ansysWrapper::generate_random_angles(double *angl, bool in_deg, double epsi
 
 void ansysWrapper::load_loadstep(int num)
 {
-    const int num_columns = 19; // ID;X;Y;Z;UX;UY;UZ;SX;SY;SZ;SXY;SYZ;SXZ;EpsX;EpsY;EpsZ;EpsXY;EpsYZ;EpsXZ
+    const int num_columns = 19;   // ID;X;Y;Z;UX;UY;UZ;SX;SY;SZ;SXY;SYZ;SXZ;EpsX;EpsY;EpsZ;EpsXY;EpsYZ;EpsXZ (raw CSV)
+    // SEQV/USUM/EpsEQV (tensor_components indices 19-21) aren't in the CSV --
+    // they're derived per node below and appended so getValByCoord()/
+    // scaleValue01() can address them like any other column instead of
+    // reading out of bounds.
+    const int total_columns = EpsEQV + 1; // 22
     QString path_to_file = tempDir.filePath(QString("ls_")+QString::number(num)+".csv");
     QFile file(path_to_file);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
@@ -1590,7 +1595,7 @@ void ansysWrapper::load_loadstep(int num)
         if (i == 1) //skip header line
             continue;
 
-        this->loadstep_results.push_back(std::vector<float>(num_columns));
+        this->loadstep_results.push_back(std::vector<float>(total_columns, 0.0f));
         for (int j = 0; j < num_columns; j++)
         {
             parts[j] = line.sliced(j*17, 16).trimmed();
@@ -1598,15 +1603,26 @@ void ansysWrapper::load_loadstep(int num)
         }
     }
     file.close();
+
+    // Derive SEQV/USUM/EpsEQV for every node from the columns just read.
+    for (auto& row : this->loadstep_results)
+    {
+        const double s[6] = {row[SX], row[SY], row[SZ], row[SXY], row[SYZ], row[SXZ]};
+        const double e[6] = {row[EpsX], row[EpsY], row[EpsZ], row[EpsXY], row[EpsYZ], row[EpsXZ]};
+        row[SEQV]   = float(vonMisesPipeline(s));
+        row[USUM]   = float(std::sqrt(double(row[UX])*row[UX] + double(row[UY])*row[UY] + double(row[UZ])*row[UZ]));
+        row[EpsEQV] = float(eqvStrainPipeline(e));
+    }
+
     this->loadstep_results_avg.clear();
-    this->loadstep_results_avg.resize(num_columns);
+    this->loadstep_results_avg.resize(total_columns);
 
     this->loadstep_results_max.clear();
-    this->loadstep_results_max.resize(num_columns);
+    this->loadstep_results_max.resize(total_columns);
     std::fill(this->loadstep_results_max.begin(), this->loadstep_results_max.end(), -FLT_MAX);
 
     this->loadstep_results_min.clear();
-    this->loadstep_results_min.resize(num_columns);
+    this->loadstep_results_min.resize(total_columns);
     std::fill(this->loadstep_results_min.begin(), this->loadstep_results_min.end(), FLT_MAX);
 
     this->result_nodes.clear();
@@ -1623,7 +1639,7 @@ void ansysWrapper::load_loadstep(int num)
         int weight = this->m_node_weights.value(node_id, 1);
 
         total_weight += weight;
-        for (int j = 0; j < num_columns; j++)
+        for (int j = 0; j < total_columns; j++)
         {
             // Weighted averaging
             this->loadstep_results_avg[j] += (this->loadstep_results[i][j] * weight);
@@ -1644,7 +1660,7 @@ void ansysWrapper::load_loadstep(int num)
         return;
     }
 
-    for (int j = 0; j < num_columns; j++)
+    for (int j = 0; j < total_columns; j++)
     {
         this->loadstep_results_avg[j] /= total_weight;
     }

@@ -5,6 +5,7 @@
 #include "loadstepmanager.h"
 #include <random>
 #include <cmath>
+#include <memory>
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Main method: three-phase stress estimation via ANSYS
@@ -428,20 +429,24 @@ SingleShotResult StressAnalysis::solveSingleLoadCase(short int numCubes, short i
     qDebug() << "[StressAnalysis::solveSingleLoadCase]   eps =" << eps[0] << eps[1] << eps[2]
              << eps[3] << eps[4] << eps[5];
 
-    ansysWrapper temp_wr(true);
+    // Held by shared_ptr (rather than a stack local) so that on success it can
+    // be handed to out.ansysField and stay alive for 3D field visualization
+    // after this function returns -- clear_temp_data() below only deletes the
+    // on-disk temp dir, the in-memory result table is unaffected.
+    auto temp_wr = std::make_shared<ansysWrapper>(true);
     QString base_dir = Parameters::working_directory.isEmpty() ? QDir::currentPath() : Parameters::working_directory;
     QString work_dir = base_dir + "/phase0_single_shot";
-    temp_wr.setWorkingDirectory(work_dir);
+    temp_wr->setWorkingDirectory(work_dir);
     QDir().mkpath(work_dir);
     qDebug() << "[StressAnalysis::solveSingleLoadCase]   ANSYS working directory:" << work_dir;
 
-    temp_wr.setSeed(Parameters::seed);
-    temp_wr.setNP(Parameters::num_threads);
+    temp_wr->setSeed(Parameters::seed);
+    temp_wr->setNP(Parameters::num_threads);
     double c11 = 168.40e9, c12 = 121.40e9, c44 = 75.40e9;
     qDebug() << "[StressAnalysis::solveSingleLoadCase]   [DEBUG] seed =" << Parameters::seed
              << " C11 =" << c11 << " C12 =" << c12 << " C44 =" << c44;
-    temp_wr.setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44);
-    temp_wr.setElemByNum(185);
+    temp_wr->setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44);
+    temp_wr->setElemByNum(185);
 
     // Same grain-count scan FFT's buildGrainField() does, so both solvers
     // index the exact same orientation array the exact same way.
@@ -466,55 +471,53 @@ SingleShotResult StressAnalysis::solveSingleLoadCase(short int numCubes, short i
                  << g1[0]*r2d << g1[1]*r2d << g1[2]*r2d;
     }
 
-    temp_wr.createFEfromArray8Node(voxels, numCubes, numPoints, true, sharedOrient);
+    temp_wr->createFEfromArray8Node(voxels, numCubes, numPoints, true, sharedOrient);
     qDebug() << "[StressAnalysis::solveSingleLoadCase]   [DEBUG] numCubes =" << numCubes
              << " numPoints(param) =" << numPoints
-             << " solid_fraction =" << temp_wr.m_solid_fraction
-             << " local_cs entries =" << (int)temp_wr.local_cs.size();
+             << " solid_fraction =" << temp_wr->m_solid_fraction
+             << " local_cs entries =" << (int)temp_wr->local_cs.size();
     // local_cs[0] is CS#11, the "no-grain/matrix" placeholder (voxel id 0);
     // local_cs[1] is grain id 1's orientation (CS#12), etc.
-    if (temp_wr.local_cs.size() > 1) {
-        const auto& g1 = temp_wr.local_cs[1]; // grain id 1, ANSYS ZXY (THXY,THYZ,THZX) degrees
+    if (temp_wr->local_cs.size() > 1) {
+        const auto& g1 = temp_wr->local_cs[1]; // grain id 1, ANSYS ZXY (THXY,THYZ,THZX) degrees
         qDebug() << "[StressAnalysis::solveSingleLoadCase]   [DEBUG] grain#1 orientation (ANSYS ZXY, deg) ="
                  << g1[0] << g1[1] << g1[2];
     }
 
     // applyComplexLoads() takes (eps_xy, eps_xz, eps_yz) in that param order,
     // but eps[] is [ex,ey,ez,exy,eyz,exz] -- swap the last two to match.
-    temp_wr.applyComplexLoads(0, 0, 0, numCubes, numCubes, numCubes,
+    temp_wr->applyComplexLoads(0, 0, 0, numCubes, numCubes, numCubes,
                             eps[0], eps[1], eps[2], eps[3], eps[5], eps[4]);
 
     qDebug() << "[StressAnalysis::solveSingleLoadCase]   Solving 1 load step in ANSYS...";
-    temp_wr.solveLS(1, 1);
-    temp_wr.saveAll();
-    temp_wr.saveElementAverages();
+    temp_wr->solveLS(1, 1);
+    temp_wr->saveAll();
+    temp_wr->saveElementAverages();
 
     qDebug() << "[StressAnalysis::solveSingleLoadCase]   Launching ANSYS...";
-    if (!temp_wr.run()) {
+    if (!temp_wr->run()) {
         out.errorMessage = QObject::tr("ANSYS run failed");
         qWarning() << "[StressAnalysis::solveSingleLoadCase] x" << out.errorMessage;
         return out;
     }
 
-    temp_wr.load_loadstep(1);
-    temp_wr.loadElementAveragedResults(1);
-    // Note: the ANSYS result-export script (ansyswrapper.cpp) only extracts
-    // ID..EpsXZ (19 columns, up to index SXZ) -- SEQV is never written to the
-    // CSV, so it must be derived from the averaged stress tensor here.
-    if ((int)temp_wr.loadstep_results_avg.size() <= SXZ) {
+    temp_wr->load_loadstep(1);
+    temp_wr->loadElementAveragedResults(1);
+    if ((int)temp_wr->loadstep_results_avg.size() <= SXZ) {
         out.errorMessage = QObject::tr("ANSYS returned no per-step results");
         qWarning() << "[StressAnalysis::solveSingleLoadCase] x" << out.errorMessage;
-        temp_wr.clear_temp_data();
+        temp_wr->clear_temp_data();
         return out;
     }
 
-    const auto& avg = temp_wr.loadstep_results_avg;
+    const auto& avg = temp_wr->loadstep_results_avg;
     out.macro_stress[0] = avg[SX];  out.macro_stress[1] = avg[SY];  out.macro_stress[2] = avg[SZ];
     out.macro_stress[3] = avg[SXY]; out.macro_stress[4] = avg[SYZ]; out.macro_stress[5] = avg[SXZ];
     out.von_mises = std::sqrt(0.5 * (
         std::pow(avg[SX] - avg[SY], 2) + std::pow(avg[SY] - avg[SZ], 2) + std::pow(avg[SZ] - avg[SX], 2) +
         6.0 * (std::pow(avg[SXY], 2) + std::pow(avg[SYZ], 2) + std::pow(avg[SXZ], 2))));
     out.ok        = true;
+    out.ansysField = temp_wr;   // keep the per-node result table alive for 3D field visualization
 
     // [DEBUG] Directly probe the SOLVED field at one CE-constrained face pair
     // and one D-prescribed corner pair, to see whether ANSYS actually honored
@@ -522,20 +525,20 @@ SingleShotResult StressAnalysis::solveSingleLoadCase(short int numCubes, short i
     // which is only a coarse proxy and may not be reliable on its own).
     {
         const float mid = numCubes / 2.0f;
-        float ux_x1 = temp_wr.getValByCoord(0.0f, mid, mid, UX);
-        float ux_x2 = temp_wr.getValByCoord((float)numCubes, mid, mid, UX);
+        float ux_x1 = temp_wr->getValByCoord(0.0f, mid, mid, UX);
+        float ux_x2 = temp_wr->getValByCoord((float)numCubes, mid, mid, UX);
         qDebug() << "[StressAnalysis::solveSingleLoadCase]   [DEBUG] CE face-pair (x=0 vs x=numCubes, mid y,z): UX ="
                  << ux_x1 << "/" << ux_x2 << " actual jump =" << (ux_x2 - ux_x1)
                  << " expected =" << eps[0] * numCubes;
 
-        float ux_c0 = temp_wr.getValByCoord(0.0f, 0.0f, 0.0f, UX);
-        float ux_c1 = temp_wr.getValByCoord((float)numCubes, 0.0f, 0.0f, UX);
+        float ux_c0 = temp_wr->getValByCoord(0.0f, 0.0f, 0.0f, UX);
+        float ux_c1 = temp_wr->getValByCoord((float)numCubes, 0.0f, 0.0f, UX);
         qDebug() << "[StressAnalysis::solveSingleLoadCase]   [DEBUG] D corner-pair (0,0,0) vs (numCubes,0,0): UX ="
                  << ux_c0 << "/" << ux_c1 << " actual jump =" << (ux_c1 - ux_c0)
                  << " expected =" << eps[0] * numCubes;
     }
 
-    temp_wr.clear_temp_data();
+    temp_wr->clear_temp_data();
 
     qDebug() << "[StressAnalysis::solveSingleLoadCase]   [DEBUG] macro_stress (Pa) sx,sy,sz,sxy,syz,sxz ="
              << out.macro_stress[0] << out.macro_stress[1] << out.macro_stress[2]

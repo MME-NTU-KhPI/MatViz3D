@@ -29,6 +29,18 @@ class StressAnalysisController : public QObject
     Q_PROPERTY(int    numCalib   READ numCalib   WRITE setNumCalib   NOTIFY numCalibChanged)
     Q_PROPERTY(double strainVal  READ strainVal  WRITE setStrainVal  NOTIFY strainValChanged)
 
+    // 3D field visualization (stress/strain/displacement coloring + deformed shape).
+    Q_PROPERTY(QStringList fieldComponents      READ fieldComponents                                 NOTIFY resultChanged)
+    Q_PROPERTY(int         fieldComponentIndex  READ fieldComponentIndex WRITE setFieldComponentIndex NOTIFY fieldComponentChanged)
+    Q_PROPERTY(double      fieldMin             READ fieldMin                                         NOTIFY fieldComponentChanged)
+    Q_PROPERTY(double      fieldMax             READ fieldMax                                         NOTIFY fieldComponentChanged)
+    Q_PROPERTY(bool        showDeformed         READ showDeformed        WRITE setShowDeformed        NOTIFY showDeformedChanged)
+    Q_PROPERTY(double      deformedScale        READ deformedScale       WRITE setDeformedScale        NOTIFY deformedScaleChanged)
+    // Toggles the 3D view between field coloring and plain grain coloring.
+    // Unlike showDeformed/fieldComponentIndex, flipping this back on re-applies
+    // the field from m_lastResult -- it doesn't require re-solving.
+    Q_PROPERTY(bool        showField            READ showField           WRITE setShowField           NOTIFY showFieldChanged)
+
 public:
     explicit StressAnalysisController(QObject* parent = nullptr);
 
@@ -56,6 +68,18 @@ public:
     Q_INVOKABLE void setNumCalib(int value);
     Q_INVOKABLE void setStrainVal(double value);
 
+    QStringList fieldComponents() const;
+    int         fieldComponentIndex() const { return m_fieldComponentIndex; }
+    Q_INVOKABLE void setFieldComponentIndex(int index);
+    double      fieldMin() const;
+    double      fieldMax() const;
+    bool        showDeformed() const { return m_showDeformed; }
+    Q_INVOKABLE void setShowDeformed(bool show);
+    double      deformedScale() const { return m_deformedScale; }
+    Q_INVOKABLE void setDeformedScale(double scale);
+    bool        showField() const { return m_showField; }
+    Q_INVOKABLE void setShowField(bool show);
+
 signals:
     void isRunningChanged();
     void resultChanged();
@@ -64,10 +88,20 @@ signals:
     void numCalibChanged();
     void strainValChanged();
     void savedToHDF5(const QString& filePath);
+    void fieldComponentChanged();
+    void showDeformedChanged();
+    void deformedScaleChanged();
+    void showFieldChanged();
 
 private:
     void setRunning(bool running);
     void setError(const QString& message);
+    // Maps m_fieldComponentIndex -> tensor_components enum value, using
+    // whichever solver produced m_lastResult (ANSYS/FFT component lists differ).
+    int  currentComponentEnum() const;
+    // Pushes m_lastResult's field into the 3D view and picks a default
+    // component/deformed-scale. Called after a successful runSingleShot().
+    void pushResultToView();
 
     bool   m_isRunning = false;
     bool   m_hasResult = false;
@@ -79,6 +113,11 @@ private:
     int    m_numSamples = 300;
     int    m_numCalib   = 150;
     double m_strainVal  = 1e-04;
+
+    int    m_fieldComponentIndex = 0;
+    bool   m_showDeformed        = false;
+    double m_deformedScale       = 1.0;
+    bool   m_showField           = false;
 };
 
 #endif // STRESSANALYSISCONTROLLER_H
