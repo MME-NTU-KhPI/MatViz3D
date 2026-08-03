@@ -127,40 +127,61 @@ inline void fft3d(std::vector<cd>& f, int nx, int ny, int nz, bool forward) {
         if (forward) detail::fft_forward(line);
         else         detail::fft_inverse(line);
     };
+    // Each pass transforms a set of mutually independent 1D lines, so the
+    // lines are split across threads; each thread gets its own scratch
+    // buffer (declared inside the parallel region, not shared).
     // along x (contiguous)
     {
-        std::vector<cd> line(nx);
-        for (int iz = 0; iz < nz; ++iz)
-            for (int iy = 0; iy < ny; ++iy) {
+        const std::size_t nlines = static_cast<std::size_t>(nz) * ny;
+        #pragma omp parallel
+        {
+            std::vector<cd> line(nx);
+            #pragma omp for schedule(static)
+            for (std::size_t li = 0; li < nlines; ++li) {
+                const int iz = static_cast<int>(li / ny);
+                const int iy = static_cast<int>(li % ny);
                 const std::size_t base = (static_cast<std::size_t>(iz) * ny + iy) * nx;
                 for (int ix = 0; ix < nx; ++ix) line[ix] = f[base + ix];
                 run(line);
                 for (int ix = 0; ix < nx; ++ix) f[base + ix] = line[ix];
             }
+        }
     }
     // along y
     {
-        std::vector<cd> line(ny);
-        for (int iz = 0; iz < nz; ++iz)
-            for (int ix = 0; ix < nx; ++ix) {
+        const std::size_t nlines = static_cast<std::size_t>(nz) * nx;
+        #pragma omp parallel
+        {
+            std::vector<cd> line(ny);
+            #pragma omp for schedule(static)
+            for (std::size_t li = 0; li < nlines; ++li) {
+                const int iz = static_cast<int>(li / nx);
+                const int ix = static_cast<int>(li % nx);
                 for (int iy = 0; iy < ny; ++iy)
                     line[iy] = f[(static_cast<std::size_t>(iz) * ny + iy) * nx + ix];
                 run(line);
                 for (int iy = 0; iy < ny; ++iy)
                     f[(static_cast<std::size_t>(iz) * ny + iy) * nx + ix] = line[iy];
             }
+        }
     }
     // along z
     {
-        std::vector<cd> line(nz);
-        for (int iy = 0; iy < ny; ++iy)
-            for (int ix = 0; ix < nx; ++ix) {
+        const std::size_t nlines = static_cast<std::size_t>(ny) * nx;
+        #pragma omp parallel
+        {
+            std::vector<cd> line(nz);
+            #pragma omp for schedule(static)
+            for (std::size_t li = 0; li < nlines; ++li) {
+                const int iy = static_cast<int>(li / nx);
+                const int ix = static_cast<int>(li % nx);
                 for (int iz = 0; iz < nz; ++iz)
                     line[iz] = f[(static_cast<std::size_t>(iz) * ny + iy) * nx + ix];
                 run(line);
                 for (int iz = 0; iz < nz; ++iz)
                     f[(static_cast<std::size_t>(iz) * ny + iy) * nx + ix] = line[iz];
             }
+        }
     }
 }
 
@@ -235,6 +256,7 @@ public:
         for (int c = 0; c < 6; ++c) { eps_[c].assign(N_, cd(0,0)); sig_[c].assign(N_, cd(0,0)); }
 
         // init: eps = E everywhere
+        #pragma omp parallel for schedule(static)
         for (std::size_t p = 0; p < N_; ++p)
             for (int c = 0; c < 6; ++c) eps_[c][p] = cd(E[c], 0.0);
 
@@ -266,6 +288,7 @@ public:
             const double invN = 1.0 / static_cast<double>(N_);
             for (int c = 0; c < 6; ++c) {
                 fft3d(eps_[c], nx_, ny_, nz_, false);
+                #pragma omp parallel for schedule(static)
                 for (std::size_t p = 0; p < N_; ++p) eps_[c][p] *= invN;
             }
         }
@@ -282,6 +305,7 @@ public:
         Vec6 avg{};
         for (int c = 0; c < 6; ++c) {
             double s = 0.0;
+            #pragma omp parallel for reduction(+:s) schedule(static)
             for (std::size_t p = 0; p < N_; ++p) s += sig_[c][p].real();
             avg[c] = s / static_cast<double>(N_);
         }
@@ -320,6 +344,7 @@ public:
 private:
     // sigma(x) = C(phase(x)) : eps(x)   (real part of eps used)
     void local_stress() {
+        #pragma omp parallel for schedule(static)
         for (std::size_t p = 0; p < N_; ++p) {
             const Mat6& C = C_[static_cast<std::size_t>(phase_[p])];
             Vec6 e;
@@ -385,6 +410,7 @@ private:
         const double b = (lam0_ + mu0_) / (mu0_ * (lam0_ + 2.0 * mu0_));
         const double half_mu_inv = 1.0 / (2.0 * mu0_);
 
+        #pragma omp parallel for collapse(3) schedule(static)
         for (int kz = 0; kz < nz_; ++kz)
         for (int ky = 0; ky < ny_; ++ky)
         for (int kx = 0; kx < nx_; ++kx) {
@@ -427,6 +453,7 @@ private:
     // Equilibrium error:  ||div sigma|| / ||<sigma>||  (evaluated in Fourier).
     double equilibrium_error() {
         double num = 0.0;
+        #pragma omp parallel for collapse(3) reduction(+:num) schedule(static)
         for (int kz = 0; kz < nz_; ++kz)
         for (int ky = 0; ky < ny_; ++ky)
         for (int kx = 0; kx < nx_; ++kx) {

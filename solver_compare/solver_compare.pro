@@ -25,6 +25,10 @@ macos { LIBS += -framework OpenGL }
 QMAKE_CXXFLAGS += -fopenmp
 LIBS += -fopenmp
 
+# solver_compare.pro/solver_compare_main.cpp live in this subdirectory, but
+# every other translation unit is shared with MatViz3D.pro one level up.
+INCLUDEPATH += ..
+
 # HDF5 (same detection as MatViz3D.pro)
 unix {
     HDF5_INCLUDEPATH = "/usr/include/hdf5/serial"
@@ -42,52 +46,54 @@ win32 {
     LIBS += -L$$HDF5_LIBPATH -lhdf5
 }
 
-# Same source set as MatViz3D.pro, with main.cpp -> solver_compare_main.cpp
+# Same source set as MatViz3D.pro, with main.cpp -> solver_compare_main.cpp.
+# solver_compare_main.cpp is local to this directory; everything else is
+# shared with MatViz3D.pro one level up.
 SOURCES += \
         solver_compare_main.cpp \
-        commandline_parser.cpp \
-        consolelogger.cpp \
-        dbmanager.cpp \
-        exportcontroller.cpp \
-        grain_analyzer.cpp \
-        hdf5wrapper.cpp \
-        hillcriterion.cpp \
-        algorithmfactory.cpp \
-        ansyswrapper.cpp \
-        composite.cpp \
-        dlca.cpp \
-        legendview.cpp \
-        loadstepmanager.cpp \
-        logo_printer.cpp \
-        mainwindowalgorithmhandler.cpp \
-        mainwindowwrapper.cpp \
-        materialdatabaseviewwrapper.cpp \
-        moore.cpp \
-        neumann.cpp \
-        openglwidgetqml.cpp \
-        parameters.cpp \
-        parent_algorithm.cpp \
-        probability_algorithm.cpp \
-        probability_circle.cpp \
-        probability_ellipse.cpp \
-        radial.cpp \
-        renderopengl.cpp \
-        schemacontroller.cpp \
-        statisticscontroller.cpp \
-        stressanalysis.cpp \
-        stressanalysis_fft.cpp \
-        stressanalysiscontroller.cpp
+        ../commandline_parser.cpp \
+        ../consolelogger.cpp \
+        ../dbmanager.cpp \
+        ../exportcontroller.cpp \
+        ../grain_analyzer.cpp \
+        ../hdf5wrapper.cpp \
+        ../hillcriterion.cpp \
+        ../algorithmfactory.cpp \
+        ../ansyswrapper.cpp \
+        ../composite.cpp \
+        ../dlca.cpp \
+        ../legendview.cpp \
+        ../loadstepmanager.cpp \
+        ../logo_printer.cpp \
+        ../mainwindowalgorithmhandler.cpp \
+        ../mainwindowwrapper.cpp \
+        ../materialdatabaseviewwrapper.cpp \
+        ../moore.cpp \
+        ../neumann.cpp \
+        ../openglwidgetqml.cpp \
+        ../parameters.cpp \
+        ../parent_algorithm.cpp \
+        ../probability_algorithm.cpp \
+        ../probability_circle.cpp \
+        ../probability_ellipse.cpp \
+        ../radial.cpp \
+        ../renderopengl.cpp \
+        ../schemacontroller.cpp \
+        ../statisticscontroller.cpp \
+        ../stressanalysis.cpp \
+        ../stressanalysis_fft.cpp \
+        ../stressanalysiscontroller.cpp
 
 HEADERS += \
-    commandline_parser.h consolelogger.h cpuinfo.hpp dbmanager.h exportcontroller.h \
-    fft_homog.hpp fft_solver_session.hpp grain_analyzer.h hdf5wrapper.h hillcriterion.h \
-    algorithmfactory.h ansyswrapper.h composite.h dlca.h legendview.h logo_printer.h \
-    loadstepmanager.h mainwindowalgorithmhandler.h mainwindowwrapper.h \
-    materialdatabaseviewwrapper.h matviz_homog.hpp moore.h neumann.h openglwidgetqml.h \
-    parameters.h paramfield.h parent_algorithm.h probability_algorithm.h \
-    probability_circle.h probability_ellipse.h radial.h renderopengl.h schemacontroller.h \
-    statisticscontroller.h stressanalysis.h stressanalysis_fft.h stressanalysiscontroller.h \
-    stressresult.h
+    ../commandline_parser.h ../consolelogger.h ../cpuinfo.hpp ../dbmanager.h ../exportcontroller.h \
+    ../fft_homog.hpp ../fft_solver_session.hpp ../grain_analyzer.h ../hdf5wrapper.h ../hillcriterion.h \
+    ../algorithmfactory.h ../ansyswrapper.h ../composite.h ../dlca.h ../legendview.h ../logo_printer.h \
+    ../loadstepmanager.h ../mainwindowalgorithmhandler.h ../mainwindowwrapper.h \
+    ../materialdatabaseviewwrapper.h ../matviz_homog.hpp ../moore.h ../neumann.h ../openglwidgetqml.h \
+    ../parameters.h ../paramfield.h ../parent_algorithm.h ../probability_algorithm.h \
+    ../probability_circle.h ../probability_ellipse.h ../radial.h ../renderopengl.h ../schemacontroller.h \
+    ../statisticscontroller.h ../stressanalysis.h ../stressanalysis_fft.h ../stressanalysiscontroller.h \
+    ../stressresult.h
 
 # qml.qrc is intentionally omitted: this is a console tool, no QML engine is
 # started. If your build complains about missing QML type registrations, add
