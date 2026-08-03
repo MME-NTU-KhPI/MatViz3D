@@ -428,7 +428,7 @@ SingleShotResult StressAnalysis::solveSingleLoadCase(short int numCubes, short i
     qDebug() << "[StressAnalysis::solveSingleLoadCase]   eps =" << eps[0] << eps[1] << eps[2]
              << eps[3] << eps[4] << eps[5];
 
-    static ansysWrapper temp_wr(true);
+    ansysWrapper temp_wr(true);
     QString base_dir = Parameters::working_directory.isEmpty() ? QDir::currentPath() : Parameters::working_directory;
     QString work_dir = base_dir + "/phase0_single_shot";
     temp_wr.setWorkingDirectory(work_dir);

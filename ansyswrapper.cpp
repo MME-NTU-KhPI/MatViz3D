@@ -689,8 +689,16 @@ int ansysWrapper::createLocalCS(double phi1_bunge, double Phi_bunge, double phi2
     QTextStream apdl(&m_apdl);
     int cs_id = this->m_lcs;
 
+    // ANSYS's LOCAL command ends up applying the TRANSPOSE (= inverse, for a
+    // rotation matrix) of the crystal orientation that bungeZXZtoAnsysZXY's
+    // angles were derived to reproduce -- confirmed by comparing FFT vs ANSYS
+    // effective stiffness under a forced single-crystal orientation (see
+    // solver_compare / MATVIZ_FORCE_ORIENT_DEG). Feeding the INVERSE Bunge
+    // ZXZ orientation here (reverse order, negate each angle: g(phi1,Phi,phi2)^-1
+    // = g(-phi2,-Phi,-phi1)) cancels that transpose so the FE material axes end
+    // up matching the FFT solver's g exactly.
     double thxy, thyz, thzx;
-    bungeZXZtoAnsysZXY(phi1_bunge, Phi_bunge, phi2_bunge, thxy, thyz, thzx);
+    bungeZXZtoAnsysZXY(-phi2_bunge, -Phi_bunge, -phi1_bunge, thxy, thyz, thzx);
     const double r2d = 180.0 / M_PI;
     double eu_angles[3] = { thxy * r2d, thyz * r2d, thzx * r2d };
 
