@@ -2,6 +2,7 @@ QT += quick quickcontrols2 sql printsupport
 QT += core gui opengl widgets
 QT += openglwidgets
 QT += quickwidgets
+QT += concurrent
 
 
 win32 {

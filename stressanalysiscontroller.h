@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QString>
 #include <QVariantList>
+#include <QFutureWatcher>
 #include "stressresult.h"
 
 // Backs the "Stress Analysis" window (StressAnalysisView.qml). Lets the user
@@ -103,10 +104,26 @@ private:
     // component/deformed-scale. Called after a successful runSingleShot().
     void pushResultToView();
 
+    // Runs on the main thread once the background solve finishes (queued via
+    // QFutureWatcher::finished -- Qt marshals this back automatically since
+    // both watchers live on the thread that constructed this controller).
+    void onSingleShotFinished();
+    void onDatasetFinished();
+
     bool   m_isRunning = false;
     bool   m_hasResult = false;
     SingleShotResult m_lastResult;
     double m_lastEps[6] = {0};
+
+    // solveSingleLoadCase()/estimateStressWith*() touch no GUI/QML state and
+    // are safe to run off the main thread (verified: no OpenGLWidgetQML or
+    // LoadStepManager access inside them). Only the *ANSYS/FFT dataset* path
+    // used to call LoadStepManager::getInstance().LoadFromHDF5() internally --
+    // that's been moved to onDatasetFinished() so the (unsynchronized)
+    // singleton is only ever touched from the main thread.
+    QFutureWatcher<SingleShotResult> m_singleShotWatcher;
+    QFutureWatcher<void>             m_datasetWatcher;
+    QString                          m_pendingDatasetFilename;
 
     QString m_lastErrorMessage;
 

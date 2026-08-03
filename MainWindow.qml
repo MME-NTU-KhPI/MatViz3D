@@ -783,6 +783,9 @@ Window {
                         font.family: inter.name
                         font.bold: true
                         anchors.centerIn: parent
+                        // Regenerating the structure reassigns Parameters::voxels, which a
+                        // background stress-analysis solve may still be reading.
+                        enabled: !stressAnalysisController.isRunning
 
                         background: Rectangle {
                             id: buttonBackground2

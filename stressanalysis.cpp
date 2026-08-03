@@ -2,7 +2,6 @@
 #include "ansyswrapper.h"
 #include "hdf5wrapper.h"
 #include "parameters.h"
-#include "loadstepmanager.h"
 #include <random>
 #include <cmath>
 #include <memory>
@@ -217,8 +216,10 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
         }
     }
 
-    qDebug() << "\n[StressAnalysis] Loading results into LoadStepManager from" << filename << "...";
-    LoadStepManager::getInstance().LoadFromHDF5(filename);
+    // NOTE: LoadStepManager is a plain, unsynchronized singleton -- reloading
+    // it here would race if this function ever runs off the main thread (it
+    // does, via StressAnalysisController::runDataset()'s background solve).
+    // The caller reloads it on the main thread once this function returns.
 
     wr->clear_temp_data();
     delete wr;

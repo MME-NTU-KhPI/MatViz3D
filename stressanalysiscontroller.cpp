@@ -8,6 +8,7 @@
 #include "openglwidgetqml.h"
 
 #include <QDebug>
+#include <QtConcurrent/QtConcurrent>
 #include <cmath>
 #include <algorithm>
 
@@ -34,6 +35,10 @@ constexpr int kDefaultComponentIndex = 6; // SEQV, in both lists
 StressAnalysisController::StressAnalysisController(QObject* parent)
     : QObject(parent)
 {
+    connect(&m_singleShotWatcher, &QFutureWatcher<SingleShotResult>::finished,
+            this, &StressAnalysisController::onSingleShotFinished);
+    connect(&m_datasetWatcher, &QFutureWatcher<void>::finished,
+            this, &StressAnalysisController::onDatasetFinished);
 }
 
 QVariantList StressAnalysisController::resultStress() const
@@ -225,10 +230,14 @@ void StressAnalysisController::pushResultToView()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Single known load case -- FFT or ANSYS, no HDF5 write.
+//  Single known load case -- FFT or ANSYS, no HDF5 write. Runs on a
+//  QtConcurrent worker thread: solveSingleLoadCase() touches no GUI/QML
+//  state, so only its inputs need to be snapshotted here on the main thread
+//  and its SingleShotResult (plain data) handed back via QFutureWatcher.
 // ─────────────────────────────────────────────────────────────────────────────
 void StressAnalysisController::runSingleShot(const QString& solver, const QVariantList& eps)
 {
+    if (m_isRunning) return;   // Run button is disabled while running; this is just a safety net.
     if (!Parameters::voxels) {
         setError(tr("No structure generated — press START first"));
         return;
@@ -238,18 +247,28 @@ void StressAnalysisController::runSingleShot(const QString& solver, const QVaria
         return;
     }
 
-    double e[6];
-    for (int i = 0; i < 6; ++i) e[i] = eps.at(i).toDouble();
+    for (int i = 0; i < 6; ++i) m_lastEps[i] = eps.at(i).toDouble();
 
+    const bool  ansys     = isAnsys(solver);
     const short numCubes  = (short) Parameters::instance()->getSize();
     const short numPoints = (short) Parameters::instance()->getPoints();
+    int32_t***  voxels    = Parameters::voxels;   // snapshot the pointer -- START is disabled while running
+    std::array<double, 6> e;
+    std::copy(std::begin(m_lastEps), std::end(m_lastEps), e.begin());
 
     setRunning(true);
 
-    SingleShotResult r = isAnsys(solver)
-        ? StressAnalysis().solveSingleLoadCase(numCubes, numPoints, Parameters::voxels, e)
-        : StressAnalysisFFT().solveSingleLoadCase(numCubes, numPoints, Parameters::voxels, e);
+    QFuture<SingleShotResult> future = QtConcurrent::run([ansys, numCubes, numPoints, voxels, e]() {
+        return ansys
+            ? StressAnalysis().solveSingleLoadCase(numCubes, numPoints, voxels, e.data())
+            : StressAnalysisFFT().solveSingleLoadCase(numCubes, numPoints, voxels, e.data());
+    });
+    m_singleShotWatcher.setFuture(future);
+}
 
+void StressAnalysisController::onSingleShotFinished()
+{
+    const SingleShotResult r = m_singleShotWatcher.result();
     setRunning(false);
 
     if (!r.ok) {
@@ -264,7 +283,6 @@ void StressAnalysisController::runSingleShot(const QString& solver, const QVaria
     }
 
     m_lastResult = r;
-    for (int i = 0; i < 6; ++i) m_lastEps[i] = e[i];
     m_hasResult = true;
     m_lastErrorMessage.clear();
     pushResultToView();
@@ -273,33 +291,50 @@ void StressAnalysisController::runSingleShot(const QString& solver, const QVaria
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Full dataset-build pipeline -- FFT or ANSYS, writes its own HDF5 dataset.
+//  Also runs on a worker thread; estimateStressWithANSYS/FFT() no longer
+//  touch LoadStepManager themselves (see stressanalysis.cpp/stressanalysis_
+//  fft.cpp) -- onDatasetFinished() reloads it here, back on the main thread.
 // ─────────────────────────────────────────────────────────────────────────────
 void StressAnalysisController::runDataset(const QString& solver)
 {
+    if (m_isRunning) return;
     if (!Parameters::voxels) {
         setError(tr("No structure generated — press START first"));
         return;
     }
 
-    const short numCubes  = (short) Parameters::instance()->getSize();
-    const short numPoints = (short) Parameters::instance()->getPoints();
+    const bool   ansys      = isAnsys(solver);
+    const short  numCubes   = (short) Parameters::instance()->getSize();
+    const short  numPoints  = (short) Parameters::instance()->getPoints();
+    int32_t***   voxels     = Parameters::voxels;   // snapshot the pointer -- START is disabled while running
+    const int    numSamples = m_numSamples;
+    const int    numCalib   = m_numCalib;
+    const double strainVal  = m_strainVal;
+
+    m_pendingDatasetFilename = Parameters::filename.length() ? Parameters::filename : "current_ls.hdf5";
 
     setRunning(true);
 
-    if (isAnsys(solver)) {
-        StressAnalysis sa;
-        sa.num_samples = m_numSamples;
-        sa.num_calib   = m_numCalib;
-        sa.strain_val  = m_strainVal;
-        sa.estimateStressWithANSYS(numCubes, numPoints, Parameters::voxels);
-    } else {
-        StressAnalysisFFT sa;
-        sa.num_samples = m_numSamples;
-        sa.num_calib   = m_numCalib;
-        sa.strain_val  = m_strainVal;
-        sa.estimateStressWithFFT(numCubes, numPoints, Parameters::voxels);
-    }
+    QFuture<void> future = QtConcurrent::run([ansys, numCubes, numPoints, voxels, numSamples, numCalib, strainVal]() {
+        if (ansys) {
+            StressAnalysis sa;
+            sa.num_samples = numSamples;
+            sa.num_calib   = numCalib;
+            sa.strain_val  = strainVal;
+            sa.estimateStressWithANSYS(numCubes, numPoints, voxels);
+        } else {
+            StressAnalysisFFT sa;
+            sa.num_samples = numSamples;
+            sa.num_calib   = numCalib;
+            sa.strain_val  = strainVal;
+            sa.estimateStressWithFFT(numCubes, numPoints, voxels);
+        }
+    });
+    m_datasetWatcher.setFuture(future);
+}
 
+void StressAnalysisController::onDatasetFinished()
+{
     setRunning(false);
 
     // Dataset mode doesn't populate the single-shot result panel or the 3D
@@ -310,6 +345,10 @@ void StressAnalysisController::runDataset(const QString& solver)
         ogl->clearFieldVisualization();
     if (m_showField) { m_showField = false; emit showFieldChanged(); }
     m_lastErrorMessage.clear();
+
+    // Now back on the main thread: safe to touch the LoadStepManager singleton.
+    LoadStepManager::getInstance().LoadFromHDF5(m_pendingDatasetFilename);
+
     emit resultChanged();
 }
 

@@ -2,7 +2,6 @@
 #include "fft_solver_session.hpp"
 #include "hdf5wrapper.h"
 #include "parameters.h"
-#include "loadstepmanager.h"
 
 #include <QDebug>
 #include <QString>
@@ -276,8 +275,10 @@ void StressAnalysisFFT::estimateStressWithFFT(short int numCubes, short int numP
         }
     }
 
-    qDebug() << "[StressAnalysisFFT] Loading results into LoadStepManager...";
-    LoadStepManager::getInstance().LoadFromHDF5(filename);
+    // NOTE: LoadStepManager is a plain, unsynchronized singleton -- reloading
+    // it here would race if this function ever runs off the main thread (it
+    // does, via StressAnalysisController::runDataset()'s background solve).
+    // The caller reloads it on the main thread once this function returns.
 
     qDebug() << "[StressAnalysisFFT] ████████████████████████████████████████████████";
     qDebug() << "[StressAnalysisFFT] estimateStressWithFFT FINISHED";
