@@ -4,8 +4,10 @@
 
 #include <QQuickFramebufferObject>
 #include <QOpenGLFunctions>
+#include <memory>
 #include "ansyswrapper.h"
 #include "renderopengl.h"
+#include "stressresult.h"
 
 
 class RenderOpenGL;
@@ -44,10 +46,37 @@ public:
     std::vector<std::array<GLubyte, 4>> generateDistinctColors();
 
     Q_INVOKABLE void setPlotWireFrame(bool status);
-    QVector<QColor> getColorMap(int numLevels);
-    void setComponent(int index);
+    /** Colors of the currently selected palette (see colorMapPalette), low value -> high value. */
+    Q_INVOKABLE QVector<QColor> getColorMap(int numLevels);
 
     const int cubeSize = 1;
+
+    // ── Stress/strain/displacement field visualization ─────────────────────
+    enum class FieldMode { None, Ansys, FFT };
+
+    // Palette used to color the field. Rainbow is sequential (matches the
+    // original hardcoded 9-band map); CoolWarm/RdBu are diverging with white
+    // at the middle of the current min/max range; Viridis is a perceptually
+    // uniform sequential map; Grayscale is black (low) -> white (high).
+    enum class ColorMapPalette { Rainbow, CoolWarm, RdBu, Viridis, Grayscale };
+
+    Q_PROPERTY(int colorMapPalette READ colorMapPaletteIndex WRITE setColorMapPalette NOTIFY colorMapPaletteChanged)
+    int colorMapPaletteIndex() const { return int(colorMapPalette); }
+    Q_INVOKABLE void setColorMapPalette(int palette);
+
+    // Show a field from an ANSYS single-shot solve. wr is kept alive (its
+    // per-node result table is what getValByCoord()/scaleValue01() read) for
+    // as long as the field stays displayed.
+    void showAnsysField(std::shared_ptr<ansysWrapper> wr, int component);
+    // Show a field from an FFT single-shot solve (dense per-voxel arrays).
+    void showFFTField(std::shared_ptr<FieldVisualizationData> data, int component);
+
+    /** Switch which component of the currently-shown field is plotted, without re-solving. */
+    Q_INVOKABLE void setFieldComponent(int component);
+    /** Revert the 3D view to plain per-grain coloring. */
+    Q_INVOKABLE void clearFieldVisualization();
+    Q_INVOKABLE void setShowDeformed(bool show);
+    Q_INVOKABLE void setDeformedScale(float scale);
 
     /**
      * Supply Euler angles (Bunge ZXZ, degrees) for every grain.
@@ -67,7 +96,9 @@ protected:
     void paintGL();
     void drawAxis();
     void initLights();
-    void drawCube(short cubeSize, RenderOpenGL::Voxel vox, bool* neighbors, std::vector<std::array<GLubyte, 4>> &node_colors);
+    void drawCube(short cubeSize, RenderOpenGL::Voxel vox, bool* neighbors,
+                  std::vector<std::array<GLubyte, 4>> &node_colors,
+                  const std::array<std::array<float, 3>, 8> &node_disp);
     QSize minimumSizeHint() const;
     QSize sizeHint() const;
     void mousePressEvent(QMouseEvent *event) override;
@@ -77,12 +108,25 @@ protected:
     void qNormalizeAngle(int &angle);
 
     void calculateScene();
+    // calculateScene() only rebuilds the CPU-side voxelScene vector -- every
+    // caller must also push it to the renderer (RenderOpenGL keeps its own
+    // copy) or nothing visibly changes. Mirrors the push done inline by
+    // setVoxels()/explodedValueChanged()/setGrainOrientations().
+    void pushSceneToRenderer();
 
-    std::vector<std::array<GLubyte, 4>> createColorMap(int numLevels);
+    std::vector<std::array<GLubyte, 4>> createColorMap(int numLevels, ColorMapPalette palette);
 
     std::array<GLubyte, 4> scalarToColor(float value, const std::vector<std::array<GLubyte, 4>>& colorMap);
-    ansysWrapper *wr;
-    int plotComponent;
+
+    ColorMapPalette colorMapPalette = ColorMapPalette::Rainbow;
+
+    // ── Field visualization state ───────────────────────────────────────
+    FieldMode fieldMode = FieldMode::None;
+    std::shared_ptr<ansysWrapper>           ansysField;
+    std::shared_ptr<FieldVisualizationData> fftField;
+    int   fieldComponent = 0;
+    bool  showDeformed   = false;
+    float deformedScale  = 1.0f;
 
     // Euler angles per grain: [phi1_deg, Phi_deg, phi2_deg], indexed by (grainID - 1)
     std::vector<std::array<float,3>> grainOrientations;
@@ -134,6 +178,7 @@ signals:
     void xRotationChanged(int angle);
     void yRotationChanged(int angle);
     void zRotationChanged(int angle);
+    void colorMapPaletteChanged();
 
 private:
     QTimer* timer;
@@ -162,8 +207,6 @@ protected:
 
     std::vector<std::array<GLubyte, 4>> colors;
     std::vector<float> directionFactors;
-
-    void updateVoxelColor(RenderOpenGL::Voxel &v1);
 
     bool isVBOupdateRequired = false;
 

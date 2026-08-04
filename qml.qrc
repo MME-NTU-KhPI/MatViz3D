@@ -55,5 +55,6 @@
         <file>img/fileMenu/save_hdf5.svg</file>
         <file>img/fileMenu/save_png.svg</file>
         <file>img/fileMenu/save_svg.svg</file>
+        <file>StressAnalysisView.qml</file>
     </qresource>
 </RCC>

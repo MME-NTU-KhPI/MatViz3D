@@ -1,6 +1,6 @@
 #ifndef HILLCRITERION_H
 #define HILLCRITERION_H
-
+#include <optional>
 #include <vector>
 #include <array>
 #include "hdf5wrapper.h"
@@ -30,6 +30,12 @@ public:
     bool loadFromHDF5(HDF5Wrapper& hdf5, const std::string& prefix);
 
     bool isValid() const { return m_isValid; }
+
+    std::optional<std::array<double,6>> computeYieldPointForStep(
+        const std::vector<std::array<double,6>>& voxel_stress,
+        const std::vector<int>&                  voxel_grain,
+        const std::array<double,6>&              macro_stress,
+        const std::vector<std::vector<float>>&   local_cs);
 
 private:
     double m_P_Hill[6][6]    = {0}; // 6x6 matrix for HDF5 export

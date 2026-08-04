@@ -2,6 +2,7 @@ QT += quick quickcontrols2 sql printsupport
 QT += core gui opengl widgets
 QT += openglwidgets
 QT += quickwidgets
+QT += concurrent
 
 
 win32 {
@@ -82,7 +83,9 @@ SOURCES += \
         renderopengl.cpp \
         schemacontroller.cpp \
         statisticscontroller.cpp \
-        stressanalysis.cpp
+        stressanalysis.cpp \
+        stressanalysis_fft.cpp \
+        stressanalysiscontroller.cpp
 
 RESOURCES += qml.qrc
 
@@ -91,6 +94,8 @@ QML_IMPORT_PATH =
 
 # Additional import path used to resolve QML modules just for Qt Quick Designer
 QML_DESIGNER_IMPORT_PATH =
+
+MATVIZ_FORCE_ORIENT_DEG="30,0,0"
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin
@@ -103,6 +108,8 @@ HEADERS += \
     cpuinfo.hpp \
     dbmanager.h \
     exportcontroller.h \
+    fft_homog.hpp \
+    fft_solver_session.hpp \
     grain_analyzer.h \
     hdf5wrapper.h \
     hillcriterion.h \
@@ -116,6 +123,7 @@ HEADERS += \
     mainwindowalgorithmhandler.h \
     mainwindowwrapper.h \
     materialdatabaseviewwrapper.h \
+    matviz_homog.hpp \
     moore.h \
     neumann.h \
     openglwidgetqml.h \
@@ -129,4 +137,7 @@ HEADERS += \
     renderopengl.h \
     schemacontroller.h \
     statisticscontroller.h \
-    stressanalysis.h
+    stressanalysis.h \
+    stressanalysis_fft.h \
+    stressanalysiscontroller.h \
+    stressresult.h

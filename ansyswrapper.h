@@ -5,6 +5,7 @@
 #include <QTemporaryDir>
 #include <QHash>
 #include <vector>
+#include <array>
 
 enum tensor_components{ID,X,Y,Z,UX,UY,UZ,SX,SY,SZ,SXY,SYZ,SXZ,EpsX,EpsY,EpsZ,EpsXY,EpsYZ,EpsXZ, USUM, SEQV, EpsEQV};
 
@@ -126,9 +127,19 @@ public:
     void setNP(int np);
 
     void createFEfromArray(int32_t*** voxels, short int numCubes,int numSeeds, bool is_random_orientation = true);
-    void createFEfromArray8Node(int32_t*** voxels, short int numCubes, int numSeeds, bool is_random_orientation=true);
+    // sharedOrientations (Bunge ZXZ radians, index == grain id, size ==
+    // nGrains+1), if non-empty, is used verbatim instead of generating a
+    // random orientation per grain -- lets ANSYS and the FFT solver see the
+    // exact same microstructure realization for a given seed. Falls back to
+    // the old per-grain random generation when left empty.
+    void createFEfromArray8Node(int32_t*** voxels, short int numCubes, int numSeeds, bool is_random_orientation=true,
+                                const std::vector<std::array<double,3>>& sharedOrientations = {});
 
     int createLocalCS(bool is_random_orientation = true, double x = 0.0, double y = 0.0, double z = 0.0);
+    // Prescribed-orientation overload: (phi1,Phi,phi2) Bunge ZXZ radians,
+    // converted to ANSYS's THXY/THYZ/THZX convention (see bungeZXZtoAnsysZXY
+    // in stressresult.h) instead of drawing a random rotation.
+    int createLocalCS(double phi1_bunge, double Phi_bunge, double phi2_bunge, double x, double y, double z);
     void generate_random_angles(double *angl, bool in_deg=false, double epsilon=1e-6);
 
     void addStrainToBCMacroBlob();
@@ -150,6 +161,17 @@ public:
                            double x2, double y2, double z2,
                            double eps_x, double eps_y, double eps_z,
                            double eps_xy, double eps_xz, double eps_yz);
+    // Periodic (RVE) boundary conditions: opposite-face node pairs are
+    // coupled with CE constraint equations enforcing u(master) - u(slave) =
+    // eps . (lattice vector), instead of prescribing a fixed displacement on
+    // every boundary node. The reference corner (x1,y1,z1) is pinned to
+    // remove rigid-body translation; the other seven corners get their exact
+    // displacement prescribed directly since their position relative to the
+    // reference is known exactly.
+    void applyPeriodicBC(double x1, double y1, double z1,
+                         double x2, double y2, double z2,
+                         double eps_x, double eps_y, double eps_z,
+                         double eps_xy, double eps_xz, double eps_yz);
     bool IsFaceNode(const n3d::node3d& node,
                     double x1, double y1, double z1,
                     double x2, double y2, double z2);
@@ -158,6 +180,18 @@ public:
     void clearBC();
     void saveAll();
     void load_loadstep(int num);
+
+    // Element-averaged S/EPTO, as a fix for the bias in load_loadstep()'s
+    // node-weighted average (nodal S/EPTO is extrapolated-and-smoothed
+    // across neighboring elements, which under-samples boundary regions).
+    // Every element here has identical volume (uniform voxel grid), so a
+    // plain per-element mean -- unmixed with neighbors -- is an exact volume
+    // average. Independent of saveAll()/load_loadstep(): call
+    // saveElementAverages() once before run() (alongside saveAll()), then
+    // loadElementAveragedResults(num) after load_loadstep(num) to overwrite
+    // loadstep_results_avg[SX..EpsXZ] with the corrected values.
+    void saveElementAverages();
+    void loadElementAveragedResults(int num);
 
     float scaleValue01(float val, int component);
     float getValByCoord(float x, float y, float z, int component);

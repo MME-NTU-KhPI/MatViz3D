@@ -236,6 +236,86 @@ std::vector<std::array<double,6>> HillCriterion::computeYieldPoints(
     return yield_points;
 }
 
+
+std::optional<std::array<double,6>> HillCriterion::computeYieldPointForStep(
+    const std::vector<std::array<double,6>>& voxel_stress,
+    const std::vector<int>&                  voxel_grain,
+    const std::array<double,6>&              macro_stress,
+    const std::vector<std::vector<float>>&   local_cs)
+{
+    const int nv = static_cast<int>(voxel_stress.size());
+    if (nv == 0 || local_cs.empty()) return std::nullopt;
+
+    struct ElemTau { int idx; double tau; };
+    std::vector<ElemTau> tau_list;
+    tau_list.reserve(nv);
+
+    for (int e = 0; e < nv; ++e) {
+        const int grain_id = voxel_grain[e];
+        if (grain_id < 0 || grain_id >= (int)local_cs.size()) continue;  // guard
+
+        const double phi1 = local_cs[grain_id][0];
+        const double Phi  = local_cs[grain_id][1];
+        const double phi2 = local_cs[grain_id][2];
+        double R[3][3];
+        eulerToBungeMatrix(phi1, Phi, phi2, R);
+
+        // pipeline stress [sx,sy,sz,sxy,syz,sxz] -> 3x3 (global/sample frame)
+        const auto& s = voxel_stress[e];
+        const double sigma_g[3][3] = {
+            { s[0], s[3], s[5] },   // sx  sxy sxz
+            { s[3], s[1], s[4] },   // sxy sy  syz
+            { s[5], s[4], s[2] }    // sxz syz sz
+        };
+
+        // rotate into the crystal frame: sigma_l = R * sigma_g * R^T
+        double sigma_l[3][3] = {0};
+        for (int i = 0; i < 3; ++i)
+            for (int j = 0; j < 3; ++j)
+                for (int k = 0; k < 3; ++k)
+                    for (int l = 0; l < 3; ++l)
+                        sigma_l[i][j] += R[i][k] * sigma_g[k][l] * R[j][l];
+
+        double elem_max_tau = 0.0;
+        for (int sys = 0; sys < NUM_SLIP_SYSTEMS; ++sys) {
+            const double tau = std::abs(
+                resolvedShearStress(sigma_l, SLIP_NORMALS[sys], SLIP_DIRECTIONS[sys]));
+            if (tau > elem_max_tau) elem_max_tau = tau;
+        }
+        tau_list.push_back({ e, elem_max_tau });
+    }
+
+    if (tau_list.empty()) return std::nullopt;
+
+    // 98th-percentile element (robust against a single outlier voxel)
+    std::sort(tau_list.begin(), tau_list.end(),
+              [](const ElemTau& a, const ElemTau& b){ return a.tau < b.tau; });
+    const double percentile = 0.98;
+    int p_index = static_cast<int>(tau_list.size() * percentile);
+    if (p_index >= (int)tau_list.size()) p_index = (int)tau_list.size() - 1;
+    const double max_tau = tau_list[p_index].tau;
+
+    if (max_tau < 10.0) {
+        qWarning() << "[computeYieldPointForStep] max tau too small (" << max_tau
+                   << "), skipping step to avoid math explosion";
+        return std::nullopt;
+    }
+
+    // scale the macro stress so the critical grain is exactly at CRSS
+    const double k = CRSS / max_tau;
+    std::array<double,6> sigma_yield = {
+        macro_stress[0]*k, macro_stress[1]*k, macro_stress[2]*k,
+        macro_stress[3]*k, macro_stress[4]*k, macro_stress[5]*k
+    };
+
+    // remove hydrostatic part -> pure deviator
+    const double hydro = (sigma_yield[0] + sigma_yield[1] + sigma_yield[2]) / 3.0;
+    sigma_yield[0] -= hydro; sigma_yield[1] -= hydro; sigma_yield[2] -= hydro;
+
+    return sigma_yield;
+}
+
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  6D Voigt (deviatoric) -> 5D Lequeu/Deviatoric
 //  Orthonormal representation of the deviatoric subspace
