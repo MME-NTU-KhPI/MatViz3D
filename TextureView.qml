@@ -3,10 +3,6 @@ import QtQuick.Controls
 import QtQuick.Controls.Material
 import QtQuick.Layouts
 
-/**
- * Texture Editor — подключён к textureController.
- * Три колонки: типы текстур | Euler space | экспорт + конвертер.
- */
 Window {
     id: root
     width: 1280
@@ -38,7 +34,6 @@ Window {
         anchors.fill: parent
         spacing: 0
 
-        // ───────────────── ВЕРХНЯЯ СТРОКА ─────────────────
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 56
@@ -51,14 +46,13 @@ Window {
                 anchors.rightMargin: 16
                 spacing: 14
 
-                // Число зёрен
                 Row {
                     Layout.alignment: Qt.AlignVCenter
                     spacing: 6
                     Label {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: "N ="; color: colSub
-                        font.pixelSize: 13; font.family: montserrat.name
+                        text: qsTr("Method:") + " " + processList[ctrl.process].name
+                        color: colSub
+                        font.pixelSize: 12; font.family: montserrat.name
                     }
                     RoundButton {
                         text: "\u2212"; implicitWidth: 34; implicitHeight: 34
@@ -102,11 +96,19 @@ Window {
                 Layout.fillHeight: true
                 spacing: 0
 
-                // ========== ЛЕВАЯ ПАНЕЛЬ: Texture Type ==========
                 Rectangle {
+                    id: leftPanel
                     Layout.preferredWidth: 320
                     Layout.fillHeight: true
                     color: colPanel
+
+                    readonly property var processList: [
+                        { name: "Random", desc: "Isotropic background", icon: "🎲" },
+                        { name: "Extrusion", desc: "Fiber textures (<111>+<100> / <110>)", icon: "⭱" },
+                        { name: "Rolling", desc: "Copper, Brass, S / Alpha, Gamma", icon: "⇌" },
+                        { name: "Recrystallization", desc: "Cube & Goss components", icon: "❄" },
+                        { name: "Shear", desc: "Torsion/Shear components", icon: "⇋" }
+                    ]
 
                     ColumnLayout {
                         anchors.fill: parent
@@ -119,18 +121,17 @@ Window {
                             font.pixelSize: 15; font.bold: true; font.family: inter.name
                         }
 
-                        // Список методов изготовления материала — данные из контроллера,
-                        // выбор реально меняет набор компонент текстуры и точки в Эйлеровом пространстве.
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: 0
 
                             Repeater {
-                                model: ctrl.processNames
+                                model: leftPanel.processList
                                 delegate: Rectangle {
                                     id: procDelegate
                                     Layout.fillWidth: true
                                     Layout.preferredHeight: 64
+
                                     property bool active: index === ctrl.process
                                     color: active ? colSel : "transparent"
 
@@ -162,7 +163,6 @@ Window {
                                         }
                                     }
 
-                                    // Синяя полоска слева для активного элемента
                                     Rectangle {
                                         width: 3; height: parent.height
                                         anchors.left: parent.left
@@ -180,28 +180,33 @@ Window {
 
                         Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: colBorder; Layout.topMargin: 16 }
 
-                        // Выбор кристалла
                         RowLayout {
                             Layout.fillWidth: true
                             Layout.margins: 16
                             spacing: 12
 
-                            Label { text: "Crystal:"; color: colSub; font.pixelSize: 12; font.family: montserrat.name }
+                            Label { text: "Lattice:"; color: colSub; font.pixelSize: 12; font.family: montserrat.name }
 
-                            // Кнопки кристаллов
                             RowLayout {
                                 spacing: 8
                                 Repeater {
-                                    model: ["Cu...", "H...", "Tet..."]
+                                    model: ["FCC (Cu, Al)", "BCC (Fe, W)"]
                                     delegate: Rectangle {
-                                        width: 48; height: 32; radius: 16
-                                        color: index === 0 ? colBorder : "transparent"
+                                        width: 100; height: 32; radius: 16
+                                        color: index === ctrl.lattice ? colSel : "transparent"
                                         border.color: colBorder
+
                                         Label {
                                             anchors.centerIn: parent
                                             text: modelData
-                                            color: colText
+                                            color: index === ctrl.lattice ? colAccent : colText
                                             font.pixelSize: 12; font.family: montserrat.name
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: ctrl.lattice = index
                                         }
                                     }
                                 }
@@ -210,7 +215,6 @@ Window {
 
                         Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: colBorder }
 
-                        // Глобальный scatter
                         ColumnLayout {
                             Layout.fillWidth: true
                             Layout.margins: 16
@@ -237,47 +241,15 @@ Window {
                         }
 
                         Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: colBorder }
-
-                        // Специфичные настройки процесса (DEEP DRAWING)
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            Layout.margins: 16
-                            spacing: 16
-
-                            Label {
-                                text: ctrl.processNames.length ? ctrl.processNames[ctrl.process].name.toUpperCase() : ""
-                                color: colAccent; font.pixelSize: 11; font.bold: true; font.family: montserrat.name
-                            }
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                Label { text: qsTr("Earing angle:"); color: colSub; font.pixelSize: 12; font.family: montserrat.name }
-                                Item { Layout.fillWidth: true }
-
-                                Rectangle {
-                                    width: 70; height: 32; radius: 16
-                                    color: colBorder
-                                    Label { anchors.centerIn: parent; text: "0° / 90°"; color: colText; font.pixelSize: 11 }
-                                }
-                                Rectangle {
-                                    width: 48; height: 32; radius: 16
-                                    color: "transparent"; border.color: colBorder
-                                    Label { anchors.centerIn: parent; text: "45°"; color: colSub; font.pixelSize: 11 }
-                                }
-                            }
-                        }
-
                         Item { Layout.fillHeight: true }
                     }
                 }
 
-                // ========== ЦЕНТР: ГРАФИК И ВКЛАДКИ ==========
                 ColumnLayout {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     spacing: 0
 
-                    // Верхние вкладки графика
                     Rectangle {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 48
@@ -290,7 +262,6 @@ Window {
                             anchors.rightMargin: 24
                             spacing: 16
 
-                            // Единственный рабочий график — сечение Эйлерова пространства
                             Label {
                                 text: qsTr("Euler space")
                                 color: colText
@@ -305,7 +276,7 @@ Window {
                                 font.pixelSize: 12; font.family: montserrat.name
                             }
 
-                            Item { Layout.fillWidth: true } // Распорка
+                            Item { Layout.fillWidth: true }
 
                             Label {
                                 text: "φ₂ = " + ctrl.sectionPhi2.toFixed(0) + "°"
@@ -322,7 +293,6 @@ Window {
                         }
                     }
 
-                    // Поле графика ODF-сечения[cite: 5]
                     Item {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
@@ -335,16 +305,14 @@ Window {
                             anchors.topMargin: 20
                             anchors.bottomMargin: 24
 
-                            // Темный фон графика
                             Rectangle {
                                 anchors.fill: parent
-                                color: "#181a20" // Темно-синий/серый цвет, как на скриншоте
+                                color: "#181a20"
                                 border.color: colBorder
                             }
 
                             property real phi2Tol: 8.0
 
-                            // Сетка + подписи Φ (0..90)[cite: 5]
                             Repeater {
                                 model: 7   // 0, 15, ..., 90
                                 Item {
@@ -355,7 +323,7 @@ Window {
 
                                     Rectangle {
                                         width: plot.width; height: 1
-                                        color: "#1affffff" // Полупрозрачная сетка
+                                        color: "#1affffff"
                                     }
                                     Label {
                                         x: -40
@@ -368,7 +336,6 @@ Window {
                                 }
                             }
 
-                            // Облако сэмплов текущего сечения[cite: 5]
                             Canvas {
                                 id: eulerCanvas
                                 anchors.fill: parent
@@ -380,20 +347,18 @@ Window {
 
                                 onPaint: {
                                     var g = getContext("2d"); g.reset()
-                                    g.fillStyle = "rgba(200,200,200,0.4)" // Светло-серые точки
-                                    var w = width, h = height
+                                    g.fillStyle = "rgba(200,200,200,0.4)"
                                     for (var i=0;i<pts.length;++i){
                                         var dp = Math.abs(pts[i].phi2 - sect)
                                         if (dp > 180) dp = 360 - dp
                                         if (dp > tol) continue
                                         g.beginPath()
-                                        g.arc(pts[i].x*w, pts[i].y*h, 3.5, 0, 2*Math.PI) // Размер точек увеличен для схожести
+                                        g.arc(pts[i].x*w, pts[i].y*h, 3.5, 0, 2*Math.PI)
                                         g.fill()
                                     }
                                 }
                             }
 
-                            // Ярлыки идеальных компонент[cite: 5]
                             Repeater {
                                 model: ctrl.componentLabels
                                 delegate: Item {
@@ -407,7 +372,7 @@ Window {
 
                                     Rectangle {
                                         width: 8; height: 8; radius: 4
-                                        color: "#e8b835" // Желтый цвет как на скриншоте
+                                        color: "#e8b835"
                                         anchors.verticalCenter: parent.verticalCenter
                                     }
                                     Label {

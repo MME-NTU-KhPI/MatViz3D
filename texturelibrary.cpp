@@ -42,6 +42,7 @@ TextureLibrary::Matrix3 TextureLibrary::matmul(const Matrix3& A, const Matrix3& 
     return C;
 }
 
+// {hkl}<uvw> -> active
 TextureLibrary::Matrix3 TextureLibrary::orientationFromMiller(const int hkl[3], const int uvw[3])
 {
     auto norm3 = [](double v[3]) {
@@ -56,6 +57,7 @@ TextureLibrary::Matrix3 TextureLibrary::orientationFromMiller(const int hkl[3], 
                      nd[2]*rd[0]-nd[0]*rd[2],
                      nd[0]*rd[1]-nd[1]*rd[0] };
     norm3(td);
+    //RD: rd = td x nd
     rd[0] = td[1]*nd[2]-td[2]*nd[1];
     rd[1] = td[2]*nd[0]-td[0]*nd[2];
     rd[2] = td[0]*nd[1]-td[1]*nd[0];
@@ -66,6 +68,7 @@ TextureLibrary::Matrix3 TextureLibrary::orientationFromMiller(const int hkl[3], 
 }
 
 
+// {hkl}<uvw> -> ACTIVE
 TextureLibrary::Matrix3 TextureLibrary::orientationFromMillerActive(const int hkl[3], const int uvw[3])
 {
     Matrix3 g = orientationFromMiller(hkl, uvw);   // rows = RD,TD,ND
@@ -74,42 +77,7 @@ TextureLibrary::Matrix3 TextureLibrary::orientationFromMillerActive(const int hk
     return a;
 }
 
-TextureLibrary::Matrix3 TextureLibrary::orientationFromFiberAxis(const int axis[3], double azimuth)
-{
-    auto norm3 = [](double v[3]) {
-        double n = std::sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]);
-        if (n > EPS) { v[0]/=n; v[1]/=n; v[2]/=n; }
-    };
-    auto cross3 = [](const double a[3], const double b[3], double out[3]) {
-        out[0]=a[1]*b[2]-a[2]*b[1];
-        out[1]=a[2]*b[0]-a[0]*b[2];
-        out[2]=a[0]*b[1]-a[1]*b[0];
-    };
-
-    double rd[3] = { (double)axis[0], (double)axis[1], (double)axis[2] };
-    norm3(rd);
-
-    double ref[3] = { std::fabs(rd[0]) < 0.9 ? 1.0 : 0.0,
-                       std::fabs(rd[0]) < 0.9 ? 0.0 : 1.0,
-                       0.0 };
-    double dot = ref[0]*rd[0] + ref[1]*rd[1] + ref[2]*rd[2];
-    double u1[3] = { ref[0]-dot*rd[0], ref[1]-dot*rd[1], ref[2]-dot*rd[2] };
-    norm3(u1);
-    double u2[3]; cross3(rd, u1, u2); norm3(u2);
-
-    double ca = std::cos(azimuth), sa = std::sin(azimuth);
-    double td[3] = { ca*u1[0]+sa*u2[0], ca*u1[1]+sa*u2[1], ca*u1[2]+sa*u2[2] };
-    norm3(td);
-    double nd[3]; cross3(rd, td, nd); norm3(nd);
-
-    Matrix3 g{{ {rd[0],rd[1],rd[2]},
-                {td[0],td[1],td[2]},
-                {nd[0],nd[1],nd[2]} }};
-    Matrix3 a{};
-    for (int i=0;i<3;++i) for (int j=0;j<3;++j) a[i][j]=g[j][i];
-    return a;
-}
-
+// Bunge (phi1,Phi,phi2) passive -> ACTIVE
 TextureLibrary::Matrix3 TextureLibrary::bungeToMatrix(double phi1, double Phi, double phi2)
 {
     double p1 = phi1*DEG, P = Phi*DEG, p2 = phi2*DEG;
@@ -129,6 +97,7 @@ TextureLibrary::Matrix3 TextureLibrary::bungeToMatrix(double phi1, double Phi, d
     return a;
 }
 
+// matrix -> ANSYS Z-X-Y (generate_random_angles)
 void TextureLibrary::matrixToAnsys(const Matrix3& R,
                                    double& thxy, double& thyz, double& thzx,
                                    bool in_deg)
@@ -165,6 +134,35 @@ TextureLibrary::Matrix3 TextureLibrary::randomMatrix(std::mt19937& rng)
         { 2*(x*y + w*z),  1-2*(x*x+z*z),  2*(y*z - w*x) },
         { 2*(x*z - w*y),  2*(y*z + w*x),  1-2*(x*x+y*y) }
     }};
+}
+
+TextureLibrary::Matrix3 TextureLibrary::fiberMatrix(const int uvw[3], std::mt19937& rng)
+{
+    double ax[3] = {(double)uvw[0],(double)uvw[1],(double)uvw[2]};
+    double n = std::sqrt(ax[0]*ax[0]+ax[1]*ax[1]+ax[2]*ax[2]);
+    if (n < EPS) return Matrix3{{ {1,0,0},{0,1,0},{0,0,1} }};
+    ax[0]/=n; ax[1]/=n; ax[2]/=n;
+
+    double t[3] = {1,0,0};
+    if (std::fabs(ax[0]) > 0.9) { t[0]=0; t[1]=1; }
+    double d = t[0]*ax[0]+t[1]*ax[1]+t[2]*ax[2];
+    double e1[3] = { t[0]-d*ax[0], t[1]-d*ax[1], t[2]-d*ax[2] };
+    double e1n = std::sqrt(e1[0]*e1[0]+e1[1]*e1[1]+e1[2]*e1[2]);
+    e1[0]/=e1n; e1[1]/=e1n; e1[2]/=e1n;
+    // e2 = ax x e1
+    double e2[3] = { ax[1]*e1[2]-ax[2]*e1[1],
+                     ax[2]*e1[0]-ax[0]*e1[2],
+                     ax[0]*e1[1]-ax[1]*e1[0] };
+
+    std::uniform_real_distribution<double> uni(0.0, 2.0*M_PI);
+    double th = uni(rng);
+    double ct = std::cos(th), st = std::sin(th);
+    double rd[3] = { ct*e1[0]+st*e2[0], ct*e1[1]+st*e2[1], ct*e1[2]+st*e2[2] };
+    double td[3] = {-st*e1[0]+ct*e2[0],-st*e1[1]+ct*e2[1],-st*e1[2]+ct*e2[2] };
+
+    return Matrix3{{ {rd[0],rd[1],rd[2]},
+                     {td[0],td[1],td[2]},
+                     {ax[0],ax[1],ax[2]} }};
 }
 
 TextureLibrary::Matrix3 TextureLibrary::applyScatter(const Matrix3& ideal,
@@ -215,13 +213,15 @@ void TextureLibrary::sampleNext(double angl[3], bool in_deg)
         case Mode::Textured: {
             if (m_components.empty()) { angl[0]=angl[1]=angl[2]=0.0; return; }
             const Component& c = pickComponent();
+
             if (c.is_random) {
                 R = randomMatrix(m_rng);
-            } else if (c.is_fiber) {
-                std::uniform_real_distribution<double> azi(0.0, 2.0*M_PI);
-                Matrix3 ideal = orientationFromFiberAxis(c.uvw, azi(m_rng));
-                R = applyScatter(ideal, c.scatter_deg, m_rng);
-            } else {
+            }
+            else if (c.is_fiber) {
+                R = fiberMatrix(c.uvw, m_rng);
+                R = applyScatter(R, c.scatter_deg, m_rng);
+            }
+            else {
                 Matrix3 ideal = orientationFromMillerActive(c.hkl, c.uvw);
                 R = applyScatter(ideal, c.scatter_deg, m_rng);
             }
@@ -271,65 +271,58 @@ std::vector<TextureLibrary::Component> TextureLibrary::presetCatalog()
     };
 }
 
-std::vector<TextureLibrary::Component> TextureLibrary::processComponents(Process p)
+std::vector<TextureLibrary::Component>
+TextureLibrary::componentsForProcess(Process p, Lattice lat, double scatter_deg)
 {
+    std::vector<Component> out;
+    auto add = [&](int h,int k,int l,int u,int v,int w,double wt,const char* nm,
+                   bool fiber=false){
+        Component c;
+        c.hkl[0]=h;c.hkl[1]=k;c.hkl[2]=l;
+        c.uvw[0]=u;c.uvw[1]=v;c.uvw[2]=w;
+        c.scatter_deg=scatter_deg; c.weight=wt; c.name=nm;
+        c.is_fiber=fiber; c.is_random=false;
+        out.push_back(c);
+    };
+
     switch (p) {
+    case Process::Random: {
+        Component c; c.is_random=true; c.weight=1.0; c.scatter_deg=scatter_deg;
+        c.name="Random"; out.push_back(c);
+        break;
+    }
     case Process::Extrusion:
-        return {
-            { {0,0,0}, {1,1,0}, 6.0, 1.0, "Fiber <110>||ED", false, true },
-        };
+        if (lat == Lattice::FCC) {
+            add(0,0,0, 1,1,1, 0.6, "<111> fiber", true);
+            add(0,0,0, 1,0,0, 0.4, "<100> fiber", true);
+        } else {
+            add(0,0,0, 1,1,0, 1.0, "<110> fiber", true);
+        }
+        break;
 
     case Process::Rolling:
-        return {
-            { {1,1,2}, {1,1,-1}, 8.0, 1.0, "Copper {112}<11-1>" },
-            { {1,2,3}, {6,3,-4}, 8.0, 1.0, "S {123}<634>"       },
-            { {1,1,0}, {-1,1,2}, 8.0, 0.8, "Brass {110}<112>"   },
-            { {0,0,1}, {1,0,0},  8.0, 0.3, "Cube {001}<100>"    },
-        };
+        if (lat == Lattice::FCC) {
+            add(1,1,2, 1,1,-1, 0.4, "Copper");
+            add(1,2,3, 6,3,-4, 0.35,"S");
+            add(1,1,0, -1,1,2, 0.25,"Brass");
+        } else {
+            // BCC: alpha-fiber <110>||RD + gamma-fiber <111>||ND
+            add(0,0,1, 1,1,0, 0.5, "alpha <110>||RD", true);
+            add(1,1,1, 1,1,0, 0.5, "gamma <111>||ND");
+        }
+        break;
 
     case Process::Recrystallization:
-        return {
-            { {0,0,1}, {1,0,0}, 6.0, 1.0, "Cube {001}<100>" },
-            { {1,1,0}, {0,0,1}, 6.0, 0.4, "Goss {110}<001>" },
-        };
+        add(0,0,1, 1,0,0, 0.6, "Cube");
+        add(1,1,0, 0,0,1, 0.4, "Goss");
+        break;
 
     case Process::Shear:
-        return {
-            { {1,1,1}, {1,-1,0}, 8.0, 1.0, "A {111}<1-10>" },
-            { {1,1,2}, {1,-1,0}, 8.0, 0.8, "B {112}<1-10>" },
-            { {0,0,1}, {1,1,0},  8.0, 0.8, "C {001}<110>"  },
-        };
-
-    case Process::Random:
-        return {
-            { {0,0,0}, {0,0,0}, 0.0, 1.0, "Random", true },
-        };
+        add(0,0,1, 1,1,0, 0.5, "Shear A");
+        add(1,1,1, 1,1,-2,0.5, "Shear C");
+        break;
     }
-    return {};
-}
-
-std::string TextureLibrary::processName(Process p)
-{
-    switch (p) {
-    case Process::Extrusion:         return "Extrusion";
-    case Process::Rolling:           return "Rolling";
-    case Process::Recrystallization: return "Recrystallization";
-    case Process::Shear:             return "Torsion / Shear";
-    case Process::Random:            return "Random";
-    }
-    return "";
-}
-
-std::string TextureLibrary::processDesc(Process p)
-{
-    switch (p) {
-    case Process::Extrusion:         return "<110>||ED fiber";
-    case Process::Rolling:           return "Sheet forming, earing";
-    case Process::Recrystallization: return "Annealing, Cube / Goss";
-    case Process::Shear:             return "A, B, C shear components";
-    case Process::Random:            return "Uniform random grain orientations";
-    }
-    return "";
+    return out;
 }
 
 bool TextureLibrary::runSelfTest()

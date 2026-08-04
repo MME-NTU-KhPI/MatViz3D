@@ -1,6 +1,5 @@
 #include "texturecontroller.h"
 #include <QtMath>
-#include <QStringList>
 #include <cmath>
 
 static void eulerFromMatrix(const double R[3][3], double& phi1, double& Phi, double& phi2);
@@ -8,7 +7,45 @@ static void eulerFromMatrix(const double R[3][3], double& phi1, double& Phi, dou
 TextureController::TextureController(QObject* parent)
     : QObject(parent), m_lib(42)
 {
-    setProcess(static_cast<int>(TextureLibrary::Process::Rolling));
+    rebuildFromProcess();   // Rolling FCC
+}
+
+void TextureController::rebuildFromProcess()
+{
+    auto proc = static_cast<TextureLibrary::Process>(m_process);
+    auto lat  = static_cast<TextureLibrary::Lattice>(m_lattice);
+    m_components = TextureLibrary::componentsForProcess(proc, lat, m_scatterDeg);
+    emit componentsChanged();
+    regenerate();
+}
+
+void TextureController::setProcess(int p)
+{
+    if (m_process == p) return;
+    m_process = p;
+    emit processChanged();
+    rebuildFromProcess();
+}
+
+void TextureController::setLattice(int l)
+{
+    if (m_lattice == l) return;
+    m_lattice = l;
+    emit processChanged();
+    rebuildFromProcess();
+}
+
+QVariantList TextureController::presets() const
+{
+    QVariantList out;
+    for (const auto& c : TextureLibrary::presetCatalog()) {
+        QVariantMap m;
+        m["name"] = QString::fromStdString(c.name);
+        m["hkl"]  = QString("{%1%2%3}").arg(c.hkl[0]).arg(c.hkl[1]).arg(c.hkl[2]);
+        m["uvw"]  = QString("<%1%2%3>").arg(c.uvw[0]).arg(c.uvw[1]).arg(c.uvw[2]);
+        out.append(m);
+    }
+    return out;
 }
 
 QVariantList TextureController::components() const
@@ -72,35 +109,6 @@ void TextureController::clearComponents()
     regenerate();
 }
 
-void TextureController::setProcess(int processIndex)
-{
-    if (processIndex < 0 || processIndex >= TextureLibrary::processCount()) return;
-    if (m_process == processIndex) return;
-    m_process = processIndex;
-
-    m_components = TextureLibrary::processComponents(static_cast<TextureLibrary::Process>(processIndex));
-    for (auto& c : m_components) c.scatter_deg = m_scatterDeg;
-
-    emit processChanged();
-    emit componentsChanged();
-    regenerate();
-}
-
-QVariantList TextureController::processNames() const
-{
-    static const QStringList icons = { "➡", "🧊", "✨", "🔄", "🎲" }; // Extrusion, Rolling, Recrystallization, Shear, Random
-    QVariantList out;
-    for (int i = 0; i < TextureLibrary::processCount(); ++i) {
-        auto p = static_cast<TextureLibrary::Process>(i);
-        QVariantMap m;
-        m["name"] = QString::fromStdString(TextureLibrary::processName(p));
-        m["desc"] = QString::fromStdString(TextureLibrary::processDesc(p));
-        m["icon"] = (i < icons.size()) ? icons[i] : QString("•");
-        out.append(m);
-    }
-    return out;
-}
-
 void TextureController::setGrainCount(int n)
 {
     if (m_grainCount == n) return;
@@ -113,7 +121,7 @@ void TextureController::setScatterDeg(double s)
 {
     if (qFuzzyCompare(m_scatterDeg, s)) return;
     m_scatterDeg = s;
-    for (auto& c : m_components) c.scatter_deg = s;
+    for (auto& comp : m_components) comp.scatter_deg = s;
     emit paramsChanged();
     emit componentsChanged();
     regenerate();
@@ -121,12 +129,12 @@ void TextureController::setScatterDeg(double s)
 
 void TextureController::regenerate()
 {
-    if (m_components.empty()) {
-        m_eulerPoints.clear();
-        emit previewChanged();
-        return;
-    }
-    m_lib.setComponents(m_components);
+    m_lib.setSeed(42);
+    if (m_components.empty())
+        m_lib.setMode(TextureLibrary::Mode::Random);
+    else
+        m_lib.setComponents(m_components);
+
     rebuildPolePoints();
     emit previewChanged();
 }
@@ -137,9 +145,8 @@ void TextureController::rebuildPolePoints()
 
     for (int g = 0; g < m_grainCount; ++g) {
         double ang[3];
-        m_lib.sampleNext(ang, false);   // THXY(Z),THYZ(X),THZX(Y)
+        m_lib.sampleNext(ang, false);
 
-        // Z-X-Y
         double z=ang[0], x=ang[1], y=ang[2];
         double cz=std::cos(z),sz=std::sin(z);
         double cx=std::cos(x),sx=std::sin(x);
@@ -157,6 +164,7 @@ void TextureController::rebuildPolePoints()
         {
             double phi1, Phi, phi2;
             eulerFromMatrix(R, phi1, Phi, phi2);
+            // phi1 [0..360]->x, Phi [0..90]->y
             double px = phi1 / 360.0;
             double py = Phi  / 90.0;
             if (py > 1.0) py = 1.0;
@@ -195,7 +203,6 @@ QVariantList TextureController::componentLabels() const
 {
     QVariantList out;
     for (const auto& comp : TextureLibrary::presetCatalog()) {
-        if (comp.is_random) continue;
         double p1,P,p2;
         TextureLibrary::millerToBunge(comp.hkl, comp.uvw, p1,P,p2);
         if (p1 < 0) p1 += 360.0;
@@ -229,5 +236,5 @@ void TextureController::convertAngles(double phi1, double Phi, double phi2)
 
 void TextureController::applyToStress()
 {
-    emit textureReady(m_components);
+    emit textureReady(m_components);   // ansysWrapper
 }

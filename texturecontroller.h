@@ -11,16 +11,18 @@ class TextureController : public QObject
 {
     Q_OBJECT
 
+    Q_PROPERTY(QVariantList presets READ presets CONSTANT)
+
     Q_PROPERTY(QVariantList components READ components NOTIFY componentsChanged)
 
     Q_PROPERTY(QVariantList eulerPoints READ eulerPoints NOTIFY previewChanged)
 
     Q_PROPERTY(QVariantList componentLabels READ componentLabels CONSTANT)
 
-    Q_PROPERTY(int process READ process WRITE setProcess NOTIFY processChanged)
-    Q_PROPERTY(QVariantList processNames READ processNames CONSTANT)
-
     Q_PROPERTY(double sectionPhi2 READ sectionPhi2 WRITE setSectionPhi2 NOTIFY sectionChanged)
+
+    Q_PROPERTY(int process READ process WRITE setProcess NOTIFY processChanged)
+    Q_PROPERTY(int lattice READ lattice WRITE setLattice NOTIFY processChanged)
 
     Q_PROPERTY(int    grainCount READ grainCount WRITE setGrainCount NOTIFY paramsChanged)
     Q_PROPERTY(double scatterDeg READ scatterDeg WRITE setScatterDeg NOTIFY paramsChanged)
@@ -31,14 +33,11 @@ class TextureController : public QObject
 
 public:
     explicit TextureController(QObject* parent = nullptr);
-
     Q_INVOKABLE void addCustom(int h,int k,int l, int u,int v,int w);
     Q_INVOKABLE void removeComponent(int index);
     Q_INVOKABLE void setWeight(int index, double weight);
     Q_INVOKABLE void setComponentScatter(int index, double scatter);
     Q_INVOKABLE void clearComponents();
-
-    Q_INVOKABLE void setProcess(int processIndex);
 
     Q_INVOKABLE void regenerate();
 
@@ -46,12 +45,15 @@ public:
 
     Q_INVOKABLE void applyToStress();
 
+    QVariantList presets()     const;
     QVariantList components()   const;
     QVariantList eulerPoints()  const { return m_eulerPoints; }
     QVariantList componentLabels() const;
-    int          process()      const { return m_process; }
-    QVariantList processNames() const;
     double       sectionPhi2()  const { return m_sectionPhi2; }
+    int          process()      const { return m_process; }
+    int          lattice()      const { return m_lattice; }
+    void         setProcess(int p);
+    void         setLattice(int l);
     void         setSectionPhi2(double v);
     int          grainCount()   const { return m_grainCount; }
     double       scatterDeg()   const { return m_scatterDeg; }
@@ -61,6 +63,7 @@ public:
 
     void setGrainCount(int n);
     void setScatterDeg(double s);
+
 signals:
     void componentsChanged();
     void previewChanged();
@@ -73,15 +76,17 @@ signals:
 
 private:
     void rebuildPolePoints();
+    void rebuildFromProcess();
 
     TextureLibrary                          m_lib;
     std::vector<TextureLibrary::Component>  m_components;
     QVariantList                            m_eulerPoints;
 
-    int    m_process = -1;   // метод изготовления материала (TextureLibrary::Process)
     int    m_grainCount = 1000;
     double m_scatterDeg = 11.0;
     double m_sectionPhi2 = 45.0;
+    int    m_process = 2;   // Rolling
+    int    m_lattice = 0;   // FCC
     QString m_thxy = "—", m_thyz = "—", m_thzx = "—";
 };
 
