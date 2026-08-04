@@ -321,19 +321,32 @@ void OpenGLWidgetQML::wheelEvent(QWheelEvent *event)
     int numDegrees = event->angleDelta().y() / 8;
     int numSteps = numDegrees / 10;
 
+    zoomStep(numSteps);
+}
+
+void OpenGLWidgetQML::zoomIn()
+{
+    zoomStep(1);
+}
+
+void OpenGLWidgetQML::zoomOut()
+{
+    zoomStep(-1);
+}
+
+void OpenGLWidgetQML::zoomStep(int numSteps)
+{
     if (numSteps > 0) {
-        // zoom in
-       zoomFactor *= 1.1f;
-       distance -= numSteps * numCubes * 0.1f; // adjust the distance based on the number of steps
+        zoomFactor *= 1.1f;
+        distance -= numSteps * numCubes * 0.1f;
     } else if (numSteps < 0) {
-        // zoom out
         zoomFactor /= 1.1f;
-        distance += -numSteps * numCubes * 0.1f; // adjust the distance based on the number of steps (use the absolute value)
+        distance += -numSteps * numCubes * 0.1f;
     }
     if (m_render) {
         m_render->setDistZoomFactor(distance, zoomFactor);
     }
-    update(); // redraw the cube with the new camera position
+    update();
 }
 
 void OpenGLWidgetQML::mousePressEvent(QMouseEvent *event)

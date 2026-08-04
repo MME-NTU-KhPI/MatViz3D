@@ -83,8 +83,6 @@ void MainWindowAlgorithmHandler::executeAlgorithm(Parent_Algorithm& algorithm, c
         QApplication::processEvents();
     };
 
-    updateScene();
-
     // Assign random Bunge ZXZ orientations to each grain and send to renderer
     {
         OpenGLWidgetQML *ogl = OpenGLWidgetQML::getInstance();
@@ -110,6 +108,7 @@ void MainWindowAlgorithmHandler::executeAlgorithm(Parent_Algorithm& algorithm, c
 
     if( params.getIsAnimation() )
     {
+        updateScene();
         while(!algorithm.getDone())
         {
             algorithm.Next_Iteration();

@@ -27,6 +27,7 @@ float Parameters::orientation_angle_c = 0.0f;
 
 QString Parameters::points_mode = "count";
 bool Parameters::isAnimation = false;
+bool Parameters::isGifRecording = false;
 
 bool   Parameters::hasProbParameters = false;
 double Parameters::ellipse_order     = 2.0; // 2.0 = standard ellipsoid
@@ -182,6 +183,12 @@ void Parameters::setIsAnimation(bool value) {
     }
 }
 
+void Parameters::setIsGifRecording(bool value)
+{
+    if (isGifRecording == value) return;
+    isGifRecording = value;
+    emit isGifRecordingChanged();
+}
 
 void Parameters::setHasProbParameters(bool value) {
     if (hasProbParameters != value) {

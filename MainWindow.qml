@@ -1,14 +1,15 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Controls.Material 2.15
+import QtQuick.Layouts 1.15
 import parameters 1.0
 
 import OpenGLUnderQML 1.0
 
 Window {
     id: mainWindow
-    width: 1024
-    height: 768
+    width: 1280
+    height: 640
     color: "#363636"
     minimumHeight: 768
     minimumWidth: 1024
@@ -45,31 +46,29 @@ Window {
         active: false
     }
 
-    Grid {
-        id: grid
+    ColumnLayout {
+        id: mainLayout
         anchors.fill: parent
-        rows: 3
-        columns: 1
+        spacing: 0
 
         Rectangle {
             id: menuBar_rec
-            width: mb_row.width
-            height: mb_row.height
+            Layout.fillWidth: true
+            Layout.preferredHeight: 67
             color: "#282828"
 
-            Row {
+            RowLayout {
                 id: mb_row
-                width: grid.width
-                height: 67
-                bottomPadding: 9
-                topPadding: 9
-                rightPadding: 40
-                leftPadding: 40
+                anchors.fill: parent
+                anchors.leftMargin: 40
+                anchors.rightMargin: 40
+                spacing: 15
 
                 Item {
                     id: _item1_menuBar
-                    width: 88
-                    height: 49
+                    Layout.preferredWidth: 88
+                    Layout.preferredHeight: 49
+                    Layout.alignment: Qt.AlignVCenter
 
                     Image {
                         id: iconMenu_img
@@ -77,13 +76,15 @@ Window {
                         height: 48
                         source: "qrc:/img/iconMenu.png"
                         fillMode: Image.PreserveAspectFit
+                        anchors.centerIn: parent
                     }
                 }
 
                 Item {
                     id: _item2_menuBar
-                    width: 83
-                    height: 49
+                    Layout.preferredWidth: 83
+                    Layout.preferredHeight: 49
+                    Layout.alignment: Qt.AlignVCenter
 
                     MenuBar {
                         id: fileMenuBar
@@ -111,66 +112,62 @@ Window {
                         Menu {
                             id: fileMenu
                             title: qsTr("   ")
-                            font.pixelSize: 16
+                            font.pixelSize: 14
                             font.family: inter.name
 
-                            Action {
-                                text: qsTr("Save as PNG")
-                                onTriggered: {
-                                    console.log("Save as PNG");
-                                    exportController.saveAsImage(glWidget);
-                                }
+                            Action
+                            {
+                                text: qsTr("Save as PNG");
+                                icon.source: "qrc:/img/fileMenu/save_png.svg"
+                                onTriggered: exportController.saveAsImage(glWidget)
                             }
-                            Action {
-                                text: qsTr("Save as SVG")
-                                onTriggered: {
-                                    console.log("Save as SVG");
-                                    exportController.saveAsSVG(glWidget);
-                                }
+                            Action
+                            {
+                                text: qsTr("Save as SVG");
+                                icon.source: "qrc:/img/fileMenu/save_svg.svg"
+                                onTriggered: exportController.saveAsSVG(glWidget)
                             }
-                            Action {
-                                text: qsTr("Make screenshot")
-                                onTriggered: {
-                                    console.log("Make screenshot");
-                                    exportController.copyToClipboard(glWidget);
-                                }
+                            Action
+                            {
+                                text: qsTr("Make screenshot");
+                                icon.source: "qrc:/img/fileMenu/make_screenshot.svg"
+                                onTriggered: exportController.copyToClipboard(glWidget)
                             }
                             MenuSeparator { }
-                            Action {
-                                text: qsTr("Export to wrl")
-                                onTriggered: {
-                                    console.log("Export to wrl");
-                                    exportController.exportToVRML();
-                                }
+                            Action
+                            {
+                                text: qsTr("Export to wrl");
+                                icon.source: "qrc:/img/fileMenu/export_wrl.svg"
+                                onTriggered: exportController.exportToVRML()
                             }
-                            Action {
-                                text: qsTr("Export to csv")
-                                onTriggered: {
-                                    console.log("Export to csv");
-                                    exportController.exportToCSV();
-                                }
+                            Action
+                            {
+                                text: qsTr("Export to csv");
+                                icon.source: "qrc:/img/fileMenu/export_csv.svg"
+                                onTriggered: exportController.exportToCSV()
                             }
-                            Action {
-                                text: qsTr("Save project as HDF5")
-                                onTriggered: {
-                                    console.log("Save project as HDF5");
-                                    exportController.exportToHDF5();
-                                }
+                            Action
+                            {
+                                text: qsTr("Save as HDF5");
+                                icon.source: "qrc:/img/fileMenu/save_hdf5.svg"
+                                onTriggered: exportController.exportToHDF5()
                             }
-                            Action {
-                                text: qsTr("Open project")
-                                onTriggered: {
-                                    console.log("Save project as HDF5");
-                                    exportController.openHDF5();
-                                }
+                            Action
+                            {
+                                text: qsTr("Open project");
+                                icon.source: "qrc:/img/fileMenu/open_project.svg"
+                                onTriggered: exportController.openHDF5()
                             }
                             MenuSeparator { }
-                            Action {
-                                text: qsTr("Estimate stresses")
+                            Action
+                            {
+                                text: qsTr("Estimate stresses");
+                                icon.source: "qrc:/img/fileMenu/estimate_stresses.svg"
                                 onTriggered: console.log("Estimate stresses")
                             }
                             Action {
                                 text: qsTr("Edit material data")
+                                icon.source: "qrc:/img/fileMenu/edit_material_data.svg"
                                 onTriggered: {
                                     materialdataLoader.active = true;
                                     materialdataLoader.item.visible = true;
@@ -195,8 +192,9 @@ Window {
 
                 Item {
                     id: _item3_menuBar
-                    width: 140
-                    height: 49
+                    Layout.preferredWidth: 140
+                    Layout.preferredHeight: 49
+                    Layout.alignment: Qt.AlignVCenter
 
                     MenuBar {
                         id: windowMenuBar
@@ -227,78 +225,10 @@ Window {
                             font.pixelSize: 16
                             font.family: montserrat.name
 
-                            MenuItem {
-                                id: checkAll
-                                text: qsTr("All")
-                                checkable: true
-                                checked: true
-                                onTriggered: {
-                                    checkAnimation.checked = checked;
-                                    checkConsole.checked = checked;
-                                    checkData.checked = checked;
-
-                                    checkAnimation.triggered();
-                                    checkConsole.triggered();
-                                    checkData.triggered();
-                                }
-                            }
-                            MenuItem {
-                                id: checkAnimation
-                                text: qsTr("Animation")
-                                checkable: true
-                                checked: true
-
-                                onTriggered: {
-                                    _itemAnimationWidget.visible = checked;
-
-                                    if (!checked) {
-                                        checkAll.checked = false;
-                                    }
-                                }
-                            }
-                            MenuItem {
-                                id: checkConsole
-                                text: qsTr("Console")
-                                checkable: true
-                                checked: true
-
-                                onTriggered: {
-                                    _itemConsole.visible = checked;
-
-                                    if (!checked) {
-                                        checkAll.checked = false;
-                                    }
-                                }
-                            }
-                            MenuItem {
-                                id: checkData
-                                text: qsTr("Data")
-                                checkable: true
-                                checked: true
-
-                                onTriggered: {
-                                    _itemData.visible = checked;
-
-                                    if (!checked) {
-                                        checkAll.checked = false;
-                                    }
-                                }
-                            }
-
-                            MenuItem {
-                                id: checkToolBar
-                                text: qsTr("Tool Bar")
-                                checkable: true
-                                checked: true
-
-                                onTriggered: {
-                                    _itemToolBar.visible = checked;
-
-                                    if (!checked) {
-                                        checkAll.checked = false;
-                                    }
-                                }
-                            }
+                            MenuItem { id: checkAll; text: qsTr("All"); checkable: true; checked: true; onTriggered: { checkConsole.checked = checked; checkData.checked = checked; checkToolBar.checked = checked; checkConsole.triggered(); checkData.triggered(); checkToolBar.triggered(); } }
+                            MenuItem { id: checkConsole; text: qsTr("Console"); checkable: true; checked: true; onTriggered: { _itemConsole.visible = checked; if (!checked) checkAll.checked = false; } }
+                            MenuItem { id: checkData; text: qsTr("Data"); checkable: true; checked: true; onTriggered: { _itemData.visible = checked; if (!checked) checkAll.checked = false; } }
+                            MenuItem { id: checkToolBar; text: qsTr("Tool Bar"); checkable: true; checked: true; onTriggered: { _itemToolBar.visible = checked; if (!checked) checkAll.checked = false; } }
                         }
                     }
 
@@ -318,15 +248,16 @@ Window {
 
                 Item {
                     id: _item4_menuBar
-                    width: 146
-                    height: 49
+                    Layout.preferredWidth: 146
+                    Layout.preferredHeight: 49
+                    Layout.alignment: Qt.AlignVCenter
 
                     Button {
                         id: buttonStatistics
                         x: 0
                         y: 0
                         width: 95
-                        height: _item4_menuBar.height
+                        height: parent.height
                         text: qsTr("Statistics")
 
                         background: Rectangle {
@@ -372,15 +303,16 @@ Window {
 
                 Item {
                     id: _item5_menuBar
-                    width: 115
-                    height: 49
+                    Layout.preferredWidth: 115
+                    Layout.preferredHeight: 49
+                    Layout.alignment: Qt.AlignVCenter
 
                     Button {
                         id: buttonAbout
                         x: 0
                         y: 0
                         width: 75
-                        height: _item5_menuBar.height
+                        height: parent.height
                         text: qsTr("About")
 
                         background: Rectangle {
@@ -424,83 +356,76 @@ Window {
                 }
 
                 Item {
-                    id: _item6_menuBar
-                    height: 49
-                    width: parent.width - (_item1_menuBar.width + _item2_menuBar.width + _item3_menuBar.width + _item4_menuBar.width + _item5_menuBar.width) - 80
+                    Layout.fillWidth: true
+                }
 
-                    Text {
-                        id: _text_menuBar
-                        color: "#00897b"
-                        textFormat: Text.RichText
-                        text: qsTr("MatViz<span style='color: #00564D;'>3D</span>")
-                        anchors.fill: parent
-                        font.pixelSize: 36
-                        horizontalAlignment: Text.AlignRight
-                        verticalAlignment: Text.AlignVCenter
-                        font.styleName: "Bold"
-                        font.family: inter.name
-                    }
+                Text {
+                    id: _text_menuBar
+                    Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
+                    color: "#00897b"
+                    textFormat: Text.RichText
+                    text: qsTr("MatViz<span style='color: #00564D;'>3D</span>")
+                    font.pixelSize: 36
+                    font.styleName: "Bold"
+                    font.family: inter.name
                 }
             }
         }
 
         Item {
-            id: _item_GLWidget
-            width: mainWindow.width
-            height: mainWindow.height - menuBar_rec.height - (_itemConsole.visible ? _itemConsole.height : 0)
-            focus: true
+            id: workspaceArea
+            Layout.fillWidth: true
+            Layout.fillHeight: true
 
             OpenGLWidgetQML {
                 id: glWidget
-                width: _item_GLWidget.width
-                height: _item_GLWidget.height
+                anchors.fill: parent
 
-                //start coord axis preview
+                // Отрисовка осей
                 Item {
                     id: axisLabelOverlay
                     anchors.fill: parent
-                    anchors.leftMargin: 10
-                    anchors.bottomMargin: 10
-
-                    // Labels are positioned to match the corner gizmo at ~(10, bottom-10)
-                    // Offsets match L=0.8 axis length projected to ~80px viewport
+                    anchors.margins: 10
 
                     Text {
                         text: "X"
                         color: "#FF4444"
                         font.pixelSize: 14
                         font.bold: true
-                        x: parent.width - 20   // right edge
-                        y: parent.height - 50
+                        anchors.right: parent.right
+                        anchors.rightMargin: 10
+                        anchors.bottom: parent.bottom
+                        anchors.bottomMargin: 40
                     }
                     Text {
                         text: "Y"
                         color: "#44FF44"
                         font.pixelSize: 14
                         font.bold: true
-                        x: parent.width - 60
-                        y: parent.height - 95
+                        anchors.right: parent.right
+                        anchors.rightMargin: 50
+                        anchors.bottom: parent.bottom
+                        anchors.bottomMargin: 85
                     }
                     Text {
                         text: "Z"
                         color: "#4488FF"
                         font.pixelSize: 14
                         font.bold: true
-                        x: parent.width - 95
-                        y: parent.height - 50
+                        anchors.right: parent.right
+                        anchors.rightMargin: 85
+                        anchors.bottom: parent.bottom
+                        anchors.bottomMargin: 40
                     }
                 }
-
             }
 
-            MouseArea
-            {
+            MouseArea {
                 preventStealing: false
                 propagateComposedEvents: true
                 anchors.fill: parent
-                enabled: true
                 hoverEnabled: true
-                onPressed: (mouse)=> {
+                onPressed: (mouse) => {
                     glWidget.forceActiveFocus()
                     console.log("Force Active focus")
                     mouse.accepted = false
@@ -510,851 +435,616 @@ Window {
             Keys.onPressed: (event) => {
                 console.log("Key pressed:", event.key, "Text:", event.text)
                 if (event.key === Qt.Key_D && (event.modifiers & Qt.AltModifier)) {
-                    console.log("Alt + D key detected, calling toggleDebugMode")
-                    glWidget.toggleDebugMode();
+                    glWidget.toggleDebugMode()
                 }
                 if (event.key === Qt.Key_D && (event.modifiers & Qt.ControlModifier)) {
-                    console.log("Ctrl + D key detected, calling toggleDebugMode")
-                    glWidget.toggleFaceCulling();
+                    glWidget.toggleFaceCulling()
                 }
+            }
 
+            Item {
+                id: _itemData
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.margins: 20
+                width: mainWindow.width < 1250 ? 310 : 350
+                height: mainWindow.height < 780 ? 440 : 455
+                visible: true
 
+                Rectangle {
+                    color: "#80282828"
+                    radius: 13
+                    anchors.fill: parent
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        spacing: 0
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 32
+                            Layout.leftMargin: 29
+                            Layout.rightMargin: 29
+                            Layout.topMargin: 10
+
+                            Text {
+                                Layout.fillWidth: true
+                                color: "#d9d9d9"
+                                text: qsTr("Data")
+                                font.pixelSize: 14
+                                font.family: montserrat.name
+                            }
+
+                            Image {
+                                source: "qrc:/img/closeData.png"
+                                Layout.preferredWidth: 10
+                                Layout.preferredHeight: 10
+                                fillMode: Image.PreserveAspectFit
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        _itemData.visible = false
+                                        checkData.checked = false
+                                        checkAll.checked = false
+                                    }
+                                }
+                            }
+                        }
+
+                        Item {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 70
+
+                            Column {
+                                anchors.centerIn: parent
+                                spacing: 10
+
+                                Text {
+                                    color: "#c6c6c6"
+                                    text: qsTr("Algorithm:")
+                                    font.pixelSize: 20
+                                    font.styleName: "Bold"
+                                    font.family: inter.name
+                                }
+
+                                ComboBox {
+                                    id: comboBox
+                                    width: 224
+                                    height: 28
+                                    leftPadding: 10
+                                    font.pointSize: 10
+                                    font.family: montserrat.name
+                                    editable: true
+                                    currentIndex: -1
+                                    displayText: currentIndex === -1 ? "---" : currentText
+                                    background: Rectangle {
+                                        color: "#282828"
+                                        radius: 11
+                                        border.color: "#969696"
+                                    }
+                                    model: ListModel {
+                                        id: model
+                                        ListElement { text: "Neumann" }
+                                        ListElement { text: "Moore" }
+                                        ListElement { text: "Probability Ellipse" }
+                                        ListElement { text: "Probability Circle" }
+                                        ListElement { text: "Probability Algorithm" }
+                                        ListElement { text: "Composite" }
+                                        ListElement { text: "DLCA" }
+                                    }
+                                    Connections {
+                                        target: Parameters
+                                        function onAlgorithmChanged() {
+                                            var idx = comboBox.find(Parameters.algorithm)
+                                            if (idx !== -1) comboBox.currentIndex = idx
+                                        }
+                                    }
+                                    function applySelection(index) {
+                                        if (index !== -1) {
+                                            Qt.callLater(() => {
+                                                Parameters.setAlgorithm(currentText)
+                                                schemaController.onAlgorithmSelected(currentText)
+                                            })
+                                        }
+                                    }
+                                    onActivated: applySelection(currentIndex)
+                                    onAccepted: {
+                                        if (find(editText) === -1) model.append({text: editText})
+                                    }
+                                }
+                            }
+                        }
+
+                        ScrollView {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            Layout.leftMargin: 20
+                            Layout.rightMargin: 20
+                            clip: true
+                            contentWidth: availableWidth
+                            ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+
+                            DynamicParamBlock {
+                                id: dataParamsBlock
+                                width: parent.width
+                            }
+                        }
+
+                        Item {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 80
+
+                            Button {
+                                id: start_button
+                                width: 105
+                                height: 50
+                                anchors.centerIn: parent
+                                text: qsTr("START")
+
+                                background: Rectangle {
+                                    id: buttonBackground2
+                                    radius: 12
+                                    color: "#282828"
+                                    border.color: "#969696"
+                                    border.width: 1
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onEntered: buttonBackground2.color = "#3a3a3a"
+                                        onExited: buttonBackground2.color = "#282828"
+
+                                    }
+                                }
+                                contentItem: Text {
+                                    text: start_button.text
+                                    font.pixelSize: 20
+                                    font.family: inter.name
+                                    font.bold: true
+                                    color: "#CFCECE"
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+
+                                onClicked: {
+                                    if (comboBox.currentIndex === -1) return
+                                    mainWindowWrapper.onStartButton()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Item {
+                id: _itemToolBar
+                anchors.top: parent.top
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.margins: 20
+                width: 434
+                height: 26
+                visible: true
+
+                RowLayout {
+                    anchors.fill: parent
+                    spacing: 15
+
+                    Image {
+                        Layout.preferredWidth: 26
+                        Layout.preferredHeight: 26
+                        property bool widgetsHidden: false
+                        source: widgetsHidden ? "qrc:/img/toolBar/viewIconHidden.svg" : "qrc:/img/toolBar/viewIcon.svg"
+                        fillMode: Image.PreserveAspectFit
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                parent.widgetsHidden = !parent.widgetsHidden
+                                _itemData.visible = !parent.widgetsHidden
+                                _itemConsole.visible = !parent.widgetsHidden
+                                checkData.checked = !parent.widgetsHidden
+                                checkConsole.checked = !parent.widgetsHidden
+                                checkAll.checked = !parent.widgetsHidden
+                            }
+                        }
+                    }
+
+                    Image {
+                        Layout.preferredWidth: 26
+                        Layout.preferredHeight: 26
+                        source: "qrc:/img/toolBar/saveIcon.svg"
+                        fillMode: Image.PreserveAspectFit
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor }
+                    }
+
+                    Image {
+                        id: gifToggle
+                        Layout.preferredWidth: 26
+                        Layout.preferredHeight: 26
+
+                        property bool isActive: false
+
+                        source: isActive ? "qrc:/img/toolBar/gifIcon_on.svg" : "qrc:/img/toolBar/gifIcon_off.svg"
+                        fillMode: Image.PreserveAspectFit
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                gifToggle.isActive = !gifToggle.isActive;
+                                Parameters.setIsGifRecording(gifToggle.isActive);
+                            }
+                        }
+                    }
+
+                    Image {
+                        Layout.preferredWidth: 26
+                        Layout.preferredHeight: 26
+                        source: "qrc:/img/toolBar/screenIcon.svg"
+                        fillMode: Image.PreserveAspectFit
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: exportController.saveAsImage(glWidget) }
+                    }
+
+                    Image {
+                        Layout.preferredWidth: 26
+                        Layout.preferredHeight: 26
+                        source: "qrc:/img/toolBar/zoom-inIcon.svg"
+                        fillMode: Image.PreserveAspectFit
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: glWidget.zoomIn(); }
+                    }
+
+                    Image {
+                        Layout.preferredWidth: 26
+                        Layout.preferredHeight: 26
+                        source: "qrc:/img/toolBar/zoom-outIcon.svg"
+                        fillMode: Image.PreserveAspectFit
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: glWidget.zoomOut(); }
+                    }
+
+                    Item {
+                        Layout.preferredWidth: 26
+                        Layout.preferredHeight: 26
+
+                        Image {
+                            anchors.fill: parent
+                            source: "qrc:/img/toolBar/cubeIcon.svg"
+                            fillMode: Image.PreserveAspectFit
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: cubeMenu.popup()
+                            }
+                        }
+
+                        Menu {
+                            id: cubeMenu
+                            width: 70
+
+                            MenuItem {
+                                contentItem: Image {
+                                    source: "qrc:/img/toolBar/views3d/isometric_cube.svg"
+                                    fillMode: Image.PreserveAspectFit
+                                }
+                                onClicked: mainWindowWrapper.isometricViewButton()
+                            }
+                            MenuItem {
+                                contentItem: Image {
+                                    source: "qrc:/img/toolBar/views3d/dimetric_cube.svg"
+                                    fillMode: Image.PreserveAspectFit
+                                }
+                                onClicked: mainWindowWrapper.dimetricViewButton()
+                            }
+                            MenuItem {
+                                contentItem: Image {
+                                    source: "qrc:/img/toolBar/views3d/front_Cube.svg"
+                                    fillMode: Image.PreserveAspectFit
+                                }
+                                onClicked: mainWindowWrapper.frontViewButton()
+                            }
+                            MenuItem {
+                                contentItem: Image {
+                                    source: "qrc:/img/toolBar/views3d/back_cube.svg"
+                                    fillMode: Image.PreserveAspectFit
+                                }
+                                onClicked: mainWindowWrapper.backViewButton()
+                            }
+                            MenuItem {
+                                contentItem: Image {
+                                    source: "qrc:/img/toolBar/views3d/top_cube.svg"
+                                    fillMode: Image.PreserveAspectFit
+                                }
+                                onClicked: mainWindowWrapper.topViewButton()
+                            }
+                            MenuItem {
+                                contentItem: Image {
+                                    source: "qrc:/img/toolBar/views3d/bottom_cube.svg"
+                                    fillMode: Image.PreserveAspectFit
+                                }
+                                onClicked: mainWindowWrapper.bottomViewButton()
+                            }
+                            MenuItem {
+                                contentItem: Image {
+                                    source: "qrc:/img/toolBar/views3d/left_cube.svg"
+                                    fillMode: Image.PreserveAspectFit
+                                }
+                                onClicked: mainWindowWrapper.leftViewButton()
+                            }
+                            MenuItem {
+                                contentItem: Image {
+                                    source: "qrc:/img/toolBar/views3d/rigft_cube.svg"
+                                    fillMode: Image.PreserveAspectFit
+                                }
+                                onClicked: mainWindowWrapper.rightViewButton()
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        Layout.preferredWidth: 1
+                        Layout.preferredHeight: 26
+                        color: "#5A5A5A"
+                    }
+
+                    RowLayout {
+                        spacing: 15
+
+                        Image {
+                            id: animToggle
+                            Layout.alignment: Qt.AlignVCenter
+                            Layout.preferredWidth: 26
+                            Layout.preferredHeight: 26
+
+                            property bool isActive: false
+
+                            source: isActive ? "qrc:/img/toolBar/animation_on.svg" : "qrc:/img/toolBar/animation_off.svg"
+                            fillMode: Image.PreserveAspectFit
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    animToggle.isActive = !animToggle.isActive;
+                                    Parameters.setIsAnimation(animToggle.isActive);
+
+                                    if (!animToggle.isActive) {
+                                        speedPopup.close();
+                                    }
+                                }
+                            }
+                        }
+
+                        Item {
+                            id: speedToggle
+                            Layout.alignment: Qt.AlignVCenter
+                            Layout.preferredWidth: 34
+                            Layout.preferredHeight: 26
+                            visible: animToggle.isActive
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: (animationSpeedSlider.value / 250).toFixed(1) + "x"
+                                font.family: montserrat.name
+                                font.pixelSize: 13
+                                font.bold: true
+                                color: speedPopup.visible ? "#00897b" : "#CFCECE"
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: speedPopup.visible ? speedPopup.close() : speedPopup.open()
+                            }
+
+                            Popup {
+                                id: speedPopup
+                                x: (speedToggle.width - width) / 2
+                                y: speedToggle.height + 10
+                                width: 200
+                                padding: 14
+                                modal: false
+                                focus: false
+                                closePolicy: Popup.CloseOnPressOutside | Popup.CloseOnEscape
+
+                                background: Rectangle {
+                                    color: "#80282828"
+                                    radius: 13
+                                    border.color: "#5A5A5A"
+                                    border.width: 1
+                                }
+
+                                contentItem: Column {
+                                    spacing: 8
+
+                                    Text {
+                                        text: qsTr("Animation speed")
+                                        color: "#d9d9d9"
+                                        font.pixelSize: 13
+                                        font.family: montserrat.name
+                                    }
+
+                                    Slider {
+                                        id: animationSpeedSlider
+                                        width: 172
+                                        height: 18
+                                        from: 0
+                                        to: 500
+                                        value: 250
+                                        onValueChanged: {
+                                            var delay = Math.round(to - value)
+                                            glWidget.setDelayAnimation(delay)
+                                        }
+                                        Component.onCompleted: glWidget.setDelayAnimation(Math.round(to - value))
+                                    }
+                                }
+                            }
+                        }
+
+                        Image {
+                            id: wireframeToggle
+                            Layout.alignment: Qt.AlignVCenter
+                            Layout.preferredWidth: 26
+                            Layout.preferredHeight: 26
+
+                            property bool isActive: false
+
+                            source: isActive ? "qrc:/img/toolBar/wireframe_on.svg" : "qrc:/img/toolBar/wireframe_off.svg"
+                            fillMode: Image.PreserveAspectFit
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    wireframeToggle.isActive = !wireframeToggle.isActive;
+                                    glWidget.setPlotWireFrame(wireframeToggle.isActive);
+                                }
+                            }
+                        }
+
+                        Image {
+                            id: orientationToggle
+                            Layout.alignment: Qt.AlignVCenter
+
+                            Layout.preferredWidth: 36
+                            Layout.preferredHeight: 36
+
+                            property bool isActive: false
+
+                            source: isActive ? "qrc:/img/toolBar/orientation_on.svg" : "qrc:/img/toolBar/orientation_off.svg"
+                            fillMode: Image.PreserveAspectFit
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    orientationToggle.isActive = !orientationToggle.isActive;
+                                    glWidget.setShowOrientations(orientationToggle.isActive);
+                                }
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        Layout.preferredWidth: 1
+                        Layout.preferredHeight: 26
+                        color: "#5A5A5A"
+                    }
+
+                    Item {
+                        id: explodedToggle
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.preferredWidth: 26
+                        Layout.preferredHeight: 26
+
+                        Image {
+                            anchors.fill: parent
+                            source: "qrc:/img/toolBar/exploded_view.svg"
+                            fillMode: Image.PreserveAspectFit
+                        }
+
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: 6
+                            color: "transparent"
+                            border.width: 1
+                            border.color: explodedPopup.visible ? "#00897b" : "transparent"
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: explodedPopup.visible ? explodedPopup.close() : explodedPopup.open()
+                        }
+
+                        Popup {
+                            id: explodedPopup
+                            x: (explodedToggle.width - width) / 2
+                            y: explodedToggle.height + 10
+                            width: 200
+                            padding: 14
+                            modal: false
+                            focus: false
+                            closePolicy: Popup.CloseOnPressOutside | Popup.CloseOnEscape
+
+                            background: Rectangle {
+                                color: "#80282828"
+                                radius: 13
+                                border.color: "#5A5A5A"
+                                border.width: 1
+                            }
+
+                            contentItem: Column {
+                                spacing: 8
+
+                                Text {
+                                    text: qsTr("Exploded view")
+                                    color: "#d9d9d9"
+                                    font.pixelSize: 13
+                                    font.family: montserrat.name
+                                }
+
+                                Slider {
+                                    id: explodedSlider
+                                    width: 172
+                                    height: 18
+                                    from: 0
+                                    to: 20
+                                    value: 0
+                                    onValueChanged: glWidget.explodedValueChanged(value)
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
         }
 
         Item {
             id: _itemConsole
-            width: mainWindow.width
-            height: mainWindow.height < 780 ? "170" : "220"
+            Layout.fillWidth: true
+            Layout.preferredHeight: mainWindow.height < 780 ? 170 : 220
             visible: true
 
             Rectangle {
-                id: recConsole
                 anchors.fill: parent
                 color: "#282828"
-                border.color: "#00000000"
 
-                Column {
-                    id: columnConsole
+                ColumnLayout {
                     anchors.fill: parent
-                    bottomPadding: 15
-                    topPadding: 15
-                    rightPadding: 20
-                    leftPadding: 20
+                    anchors.margins: 15
+                    spacing: 10
 
-                    Item {
-                        id: _item8
-                        height: 10
-                        width: columnConsole.width - 40
+                    Image {
+                        Layout.alignment: Qt.AlignRight
+                        Layout.preferredWidth: 10
+                        Layout.preferredHeight: 10
+                        source: "qrc:/img/closeData.png"
+                        fillMode: Image.PreserveAspectFit
 
-                        Image {
-                            id: image6
-                            x: _item8.width - 10
-                            width: 10
-                            height: 10
-                            source: "qrc:/img/closeData.png"
-                            fillMode: Image.PreserveAspectFit
-
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-
-                                onClicked: {
-                                    _itemConsole.visible = false;
-                                    checkConsole.checked = false;
-                                    checkAll.checked = false;
-                                }
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                _itemConsole.visible = false
+                                checkConsole.checked = false
+                                checkAll.checked = false
                             }
                         }
                     }
 
                     Item {
-                        id: _item24
-                        width: columnConsole.width - 40
-                        height: columnConsole.height - _item8.height - 30
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
 
                         ConsoleOutput {
-                                id: consoleOutput_
-                                anchors.fill: parent
-                            }
-                    }
-                }
-            }
-        }
-    }
-
-    Item {
-        id: _itemData
-        x: 30
-        y: 97
-        width: mainWindow.width < 1250 ? "310" : "350"
-        height: mainWindow.height < 780 ? "440" : "455"
-        visible: true
-
-        Rectangle {
-            id: data_rec
-            color: "#80282828"
-            radius: 13
-            anchors.fill: parent
-
-            Column {
-                id: data_column
-                anchors.fill: parent
-
-                Row {
-                    id: headerData_row
-                    width: data_column.width
-                    height: 32
-                    rightPadding: 29
-                    leftPadding: 29
-                    bottomPadding: 5
-                    topPadding: 10
-
-                    Item {
-                        id: _item1
-                        width: headerData_row.width * 0.5 - 29
-                        height: 17
-
-                        Text {
-                            id: _text
-                            color: "#d9d9d9"
-                            text: qsTr("Data")
-                            font.pixelSize: 14
-                            font.family: montserrat.name
-                        }
-                    }
-
-                    Item {
-                        id: _item2
-                        width: headerData_row.width * 0.5 - 29
-                        height: 17
-
-                        Image {
-                            id: image
-                            width: 10
-                            height: 10
-                            source: "qrc:/img/closeData.png"
-                            fillMode: Image.PreserveAspectFit
-
-                            anchors.verticalCenter: parent.verticalCenter
-                            anchors.right: parent.right
-
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-
-                                onClicked: {
-                                    _itemData.visible = false;
-                                    checkData.checked = false;
-                                    checkAll.checked = false;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Item {
-                    id: _item_column_alg
-                    width: data_column.width
-                    height: 70
-
-                    Column {
-                        id: column
-                        x: 0
-                        y: 0
-                        width: column.childrenRect.width
-                        height: column.childrenRect.height
-                        spacing: 10
-                        anchors.centerIn: parent
-
-                        Text {
-                            id: _text1
-                            width: 224
-                            height: 24
-                            color: "#c6c6c6"
-                            text: qsTr("Algorithm:")
-                            font.pixelSize: 20
-                            font.styleName: "Bold"
-                            font.family: inter.name
-                        }
-
-                        ComboBox {
-                            id: comboBox
-                            width: 224
-                            height: 28
-                            leftPadding: 10
-                            font.pointSize: 10
-                            font.family: montserrat.name
-                            editable: true
-                            currentIndex: -1
-                            displayText: currentIndex === -1 ? "---" : currentText
-                            background: Rectangle {
-                                color: "#282828"
-                                radius: 11
-                                border.color: "#969696"
-                            }
-
-                            model: ListModel {
-                                id: model
-                                ListElement { text: "Neumann" }
-                                ListElement { text: "Moore" }
-                                ListElement { text: "Probability Ellipse" }
-                                ListElement { text: "Probability Circle" }
-                                ListElement { text: "Probability Algorithm" }
-                                ListElement { text: "Composite" }
-                                ListElement { text: "DLCA" }
-                            }
-
-                            Connections {
-                                    target: Parameters
-                                    function onAlgorithmChanged() {
-                                        var idx = comboBox.find(Parameters.algorithm)
-                                        if (idx !== -1) comboBox.currentIndex = idx
-                                    }
-                                }
-
-                            //Component.onCompleted: applySelection(currentIndex)
-
-                            // Extract logic into reusable function
-                            function applySelection(index) {
-                                if (index !== -1) {
-                                    Qt.callLater(() => {
-                                        console.log("Algorithm selected:", currentText)
-                                        Parameters.setAlgorithm(currentText)
-                                        schemaController.onAlgorithmSelected(currentText)
-                                    })
-                                }
-                            }
-
-                            onActivated:applySelection(currentIndex)
-
-                            onAccepted: {
-                                if (find(editText) === -1)
-                                    model.append({text: editText})
-                            }
-                        }
-                    }
-                }
-
-                Item {
-                        id: _item3
-                        width: data_column.width
-                        height: parent.height - (headerData_row.height + _item_column_alg.height + _item_start.height)
-
-                        ScrollView {
-                            id: paramsScroll
+                            id: consoleOutput_
                             anchors.fill: parent
-                            anchors.leftMargin: 20
-                            anchors.rightMargin: 20
-                            clip: true
-                            contentWidth: availableWidth
-
-                            ScrollBar.vertical.policy: ScrollBar.AsNeeded
-                            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-
-                            DynamicParamBlock {
-                                id: dataParamsBlock
-                                width: paramsScroll.availableWidth
-                            }
                         }
-                    }
-
-                Item {
-                    id: _item_start
-                    width: data_column.width
-                    height: 80
-
-                    Button {
-                        id: start_button
-                        width: 105
-                        height: 50
-                        text: qsTr("START")
-                        font.pixelSize: 20
-                        font.family: inter.name
-                        font.bold: true
-                        anchors.centerIn: parent
-
-                        background: Rectangle {
-                            id: buttonBackground2
-                            width: 105
-                            height: 50
-                            radius: 12
-                            color: "#282828"
-                            border.color: "#969696"
-                            border.width: 1
-
-                            MouseArea {
-                                id: hoverArea2
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onEntered: buttonBackground2.color = "#3a3a3a"
-                                onExited: buttonBackground2.color = "#282828"
-                            }
-                        }
-                        contentItem: Text {
-                            text: start_button.text
-                            font.pixelSize: 20
-                            font.family: inter.name
-                            color: "#CFCECE"
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                            anchors.centerIn: parent
-                        }
-
-                        onClicked: {
-                            if (comboBox.currentIndex === -1) {
-                                console.log("Algorithm not selected")
-                                return
-                            }
-                            mainWindowWrapper.onStartButton()
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    Item {
-        id: _itemAnimationWidget
-        x: parent.width - (_itemAnimationWidget.width + 30)
-        y: 97
-        width: mainWindow.width < 1250 ? "310" : "350"
-        height: 275
-
-        Rectangle {
-            id: aniWidget_rec
-            color: "#80282828"
-            radius: 13
-            anchors.fill: parent
-
-            Column {
-                id: column6
-                anchors.fill: parent
-
-                Row {
-                    id: headerAnimWidget_row
-                    width: data_column.width
-                    height: 32
-                    topPadding: 10
-                    rightPadding: 29
-                    leftPadding: 29
-                    Item {
-                        id: _item12
-                        width: headerAnimWidget_row.width * 0.5 - 29
-                        height: 17
-                        Text {
-                            id: _text4
-                            color: "#d9d9d9"
-                            text: "Animation controller"
-                            font.pixelSize: 14
-                            font.family: montserrat.name
-                        }
-                    }
-
-                    Item {
-                        id: _item13
-                        width: headerAnimWidget_row.width * 0.5 - 29
-                        height: 17
-                        Image {
-                            id: image1
-                            width: 10
-                            height: 10
-                            anchors.verticalCenter: parent.verticalCenter
-                            anchors.right: parent.right
-                            source: "qrc:/img/closeData.png"
-                            fillMode: Image.PreserveAspectFit
-                            MouseArea {
-                                anchors.fill: parent
-                                onClicked: {
-                                    _itemAnimationWidget.visible = false;
-                                    checkAnimation.checked = false;
-                                    checkAll.checked = false;
-                                }
-                                cursorShape: Qt.PointingHandCursor
-                            }
-                        }
-                    }
-                    bottomPadding: 5
-                }
-
-                Item {
-                    id: _item14
-                    width: parent.width
-                    height: (parent.height - headerAnimWidget_row.height) * 2 / 7
-
-                    Column {
-                        id: column7
-                        width: 228
-                        height: parent.height
-                        topPadding: 5
-                        spacing: 15
-                        anchors.centerIn: parent
-
-                        Text {
-                            id: exploded_text
-                            width: 224
-                            height: 24
-                            color: "#c6c6c6"
-                            text: "Exploded view"
-                            font.pixelSize: 20
-                            leftPadding: 12
-                            font.styleName: "Bold"
-                            font.family: inter.name
-                        }
-
-                        Slider {
-                            id: slider
-                            value: 0
-                            width: 228
-                            height: 18
-                            from: 0
-                            to: 20
-                            onValueChanged:
-                            {
-                                console.log("Exploded value = ", value)
-                                glWidget.explodedValueChanged(value)
-                            }
-                        }
-                    }
-                }
-
-                Item {
-                    id: _item15
-                    width: parent.width
-                    height: (parent.height - headerAnimWidget_row.height) * 2 / 7
-                    Column {
-                        id: column8
-                        width: 228
-                        height: parent.height
-                        topPadding: 15
-                        spacing: 15
-                        Text {
-                            id: exploded_text1
-                            width: 224
-                            height: 24
-                            color: "#c6c6c6"
-                            text: qsTr("Animation speed")
-                            font.pixelSize: 20
-                            leftPadding: 12
-                            font.styleName: "Bold"
-                            font.family: inter.name
-                        }
-
-                        Slider {
-                            id: slider1
-                            width: 228
-                            height: 18
-                            value: 0
-                        }
-                        anchors.centerIn: parent
-                    }
-                }
-
-                Item {
-                    id: _item16
-                    width: parent.width
-                    height: (parent.height - headerAnimWidget_row.height) * 1 / 7
-
-                    Row {
-                        id: row2
-                        width: 235
-                        height: parent.height
-                        anchors.centerIn: parent
-                       // anchors.verticalCenterOffset: 15
-
-
-                        Text {
-                            id: exploded_text2
-                            width: parent.width * 0.8
-                            height: parent.height
-                            color: "#c6c6c6"
-                            text: qsTr("Animation on/off")
-                            font.pixelSize: 20
-                            verticalAlignment: Text.AlignVCenter
-                            leftPadding: 12
-                            font.styleName: "Bold"
-                            font.family: inter.name
-                        }
-
-                        Switch {
-                            id: _switch_animation
-                            display: AbstractButton.IconOnly
-                            width: 50
-                            height: 20
-                            scale: 0.7
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-                    }
-                }
-
-                Item {
-                    id: _item17
-                    width: parent.width
-                    height: (parent.height - headerAnimWidget_row.height) * 1 / 7
-                    Row {
-                        id: row3
-                        width: 235
-                        height: parent.height
-                        Text {
-                            id: exploded_text3
-                            width: parent.width * 0.8
-                            height: parent.height
-                            color: "#c6c6c6"
-                            text: "Wireframe on/off"
-                            font.pixelSize: 20
-                            verticalAlignment: Text.AlignVCenter
-                            leftPadding: 12
-                            font.styleName: "Bold"
-                            font.family: inter.name
-                        }
-
-                        Switch {
-                            id: _switch_animation1
-                            width: 50
-                            height: 20
-                            anchors.verticalCenter: parent.verticalCenter
-                            scale: 0.7
-                            display: AbstractButton.IconOnly
-                            onCheckedChanged: glWidget.setPlotWireFrame(checked)
-                        }
-                        anchors.centerIn: parent
-                    }
-                }
-
-                Item {
-                    id: _item18_orientations
-                    width: parent.width
-                    height: (parent.height - headerAnimWidget_row.height) * 1 / 7
-                    Row {
-                        id: row_orientations
-                        width: 235
-                        height: parent.height
-                        anchors.centerIn: parent
-                        Text {
-                            width: parent.width * 0.8
-                            height: parent.height
-                            color: "#c6c6c6"
-                            text: qsTr("Show orientations")
-                            font.pixelSize: 20
-                            verticalAlignment: Text.AlignVCenter
-                            leftPadding: 12
-                            font.styleName: "Bold"
-                            font.family: inter.name
-                        }
-                        Switch {
-                            id: _switch_orientations
-                            width: 50
-                            height: 20
-                            anchors.verticalCenter: parent.verticalCenter
-                            scale: 0.7
-                            display: AbstractButton.IconOnly
-                            onCheckedChanged: glWidget.setShowOrientations(checked)
-                        }
-                    }
-                }
-
-            }
-        }
-    }
-
-    Item {
-        id: _itemToolBar
-        y: 97
-        x: mainWindow.width - (mainWindow.width / 2) - (_itemToolBar.width / 2)
-        width: 284
-        height: 26
-
-        Row {
-            id: row4
-            anchors.fill: parent
-
-            Item {
-                id: _item18
-                width: parent.height + 17
-                height: parent.height
-
-                Image {
-                    id: image2
-                    width: 26
-                    height: 26
-                    property bool widgetsHidden: false
-                    source: widgetsHidden ? "qrc:/img/toolBar/viewIconHidden.svg" : "qrc:/img/toolBar/viewIcon.svg"
-                    fillMode: Image.PreserveAspectFit
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: {
-                            image2.widgetsHidden = !image2.widgetsHidden;
-
-                            _itemAnimationWidget.visible = !image2.widgetsHidden;
-                            _itemData.visible = !image2.widgetsHidden;
-                            _itemConsole.visible = !image2.widgetsHidden;
-                            checkData.checked = !image2.widgetsHidden;
-                            checkAnimation.checked = !image2.widgetsHidden;
-                            checkConsole.checked = !image2.widgetsHidden;
-                            checkAll.checked = !image2.widgetsHidden;
-                        }
-                        cursorShape: Qt.PointingHandCursor
-                    }
-                }
-            }
-
-            Item {
-                id: _item19
-                width: parent.height + 17
-                height: parent.height
-
-                Image {
-                    id: image3
-                    x: 0
-                    y: 0
-                    width: 26
-                    height: 26
-                    source: "qrc:/img/toolBar/saveIcon.svg"
-                    fillMode: Image.PreserveAspectFit
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: {
-
-                        }
-                        cursorShape: Qt.PointingHandCursor
-                    }
-                }
-            }
-
-            Item {
-                id: _itemGif
-                width: parent.height + 17
-                height: parent.height
-
-                Image {
-                    id: imagegif
-                    x: 0
-                    y: 0
-                    width: 26
-                    height: 26
-                    source: "qrc:/img/toolBar/gifIcon.svg"
-                    fillMode: Image.PreserveAspectFit
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: {
-
-                        }
-                        cursorShape: Qt.PointingHandCursor
-                    }
-                }
-            }
-
-            Item {
-                id: _itemScreen
-                width: parent.height + 17
-                height: parent.height
-
-                Image {
-                    id: imagescreen
-                    x: 0
-                    y: 0
-                    width: 26
-                    height: 26
-                    source: "qrc:/img/toolBar/screenIcon.svg"
-                    fillMode: Image.PreserveAspectFit
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: {
-
-                        }
-                        cursorShape: Qt.PointingHandCursor
-                    }
-                }
-            }
-
-            Item {
-                id: _item20
-                width: parent.height + 17
-                height: parent.height
-
-                Image {
-                    id: image4
-                    x: 0
-                    y: 0
-                    width: 26
-                    height: 26
-                    source: "qrc:/img/toolBar/zoom-inIcon.svg"
-                    fillMode: Image.PreserveAspectFit
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: {
-
-                        }
-                        cursorShape: Qt.PointingHandCursor
-                    }
-                }
-            }
-
-            Item {
-                id: _item21
-                width: parent.height + 17
-                height: parent.height
-
-                Image {
-                    id: image5
-                    x: 0
-                    y: 0
-                    width: 26
-                    height: 26
-                    source: "qrc:/img/toolBar/zoom-outIcon.svg"
-                    fillMode: Image.PreserveAspectFit
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: {
-
-                        }
-                        cursorShape: Qt.PointingHandCursor
-                    }
-                }
-            }
-
-            Item {
-                id: _item22
-                width: parent.height
-                height: parent.height
-
-                Image {
-                    id: cubeIcon
-                    width: 26
-                    height: 26
-                    source: "qrc:/img/toolBar/cubeIcon.svg"
-                    fillMode: Image.PreserveAspectFit
-
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: cubeMenu.popup()
-                    }
-                }
-
-                Menu {
-                    id: cubeMenu
-                    title: ""
-                    width: 70
-
-                    MenuItem {
-                        contentItem: Item {
-                            width: 26
-                            height: 26
-                            Image {
-                                source: "qrc:/img/toolBar/views3d/isometric_cube.svg"
-                                width: parent.width
-                                height: parent.height
-                                fillMode: Image.PreserveAspectFit
-                            }
-                        }
-                        onClicked: mainWindowWrapper.isometricViewButton()
-                    }
-
-                    MenuItem {
-                        contentItem: Item {
-                            width: 26
-                            height: 26
-                            Image {
-                                source: "qrc:/img/toolBar/views3d/dimetric_cube.svg"
-                                width: parent.width
-                                height: parent.height
-                                fillMode: Image.PreserveAspectFit
-                            }
-                        }
-                        onClicked: mainWindowWrapper.dimetricViewButton()
-                    }
-
-                    MenuItem {
-                        contentItem: Item {
-                            width: 26
-                            height: 26
-                            Image {
-                                source: "qrc:/img/toolBar/views3d/front_Cube.svg"
-                                width: parent.width
-                                height: parent.height
-                                fillMode: Image.PreserveAspectFit
-                            }
-                        }
-                        onClicked: mainWindowWrapper.frontViewButton()
-                    }
-
-                    MenuItem {
-                        contentItem: Item {
-                            width: 26
-                            height: 26
-                            Image {
-                                source: "qrc:/img/toolBar/views3d/back_cube.svg"
-                                width: parent.width
-                                height: parent.height
-                                fillMode: Image.PreserveAspectFit
-                            }
-                        }
-                        onClicked: mainWindowWrapper.backViewButton()
-                    }
-
-                    MenuItem {
-                        contentItem: Item {
-                            width: 26
-                            height: 26
-                            Image {
-                                source: "qrc:/img/toolBar/views3d/top_cube.svg"
-                                width: parent.width
-                                height: parent.height
-                                fillMode: Image.PreserveAspectFit
-                            }
-                        }
-                        onClicked: mainWindowWrapper.topViewButton()
-                    }
-
-                    MenuItem {
-                        contentItem: Item {
-                            width: 26
-                            height: 26
-                            Image {
-                                source: "qrc:/img/toolBar/views3d/bottom_cube.svg"
-                                width: parent.width
-                                height: parent.height
-                                fillMode: Image.PreserveAspectFit
-                            }
-                        }
-                        onClicked: mainWindowWrapper.bottomViewButton()
-                    }
-
-                    MenuItem {
-                        contentItem: Item {
-                            width: 26
-                            height: 26
-                            Image {
-                                source: "qrc:/img/toolBar/views3d/left_cube.svg"
-                                width: parent.width
-                                height: parent.height
-                                fillMode: Image.PreserveAspectFit
-                            }
-                        }
-                        onClicked: mainWindowWrapper.leftViewButton()
-                    }
-
-                    MenuItem {
-                        contentItem: Item {
-                            width: 26
-                            height: 26
-                            Image {
-                                source: "qrc:/img/toolBar/views3d/rigft_cube.svg"
-                                width: parent.width
-                                height: parent.height
-                                fillMode: Image.PreserveAspectFit
-                            }
-                        }
-                        onClicked: mainWindowWrapper.rightViewButton()
                     }
                 }
             }

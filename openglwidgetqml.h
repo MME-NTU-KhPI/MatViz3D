@@ -115,17 +115,20 @@ public:
     void setNumCubes(int numCubes);
     void setNumColors(int numColors);
     void setDistanceFactor(int factor);
-    void setDelayAnimation(int delayAnimation);
     void setAnsysWrapper(ansysWrapper *wr);
     void DelayFrameUpdate();
 
     void setSceneParent(QQuickItem *parentItem);
     void setParentWidget(QWidget *parent);
 
+    Q_INVOKABLE void setDelayAnimation(int delayAnimation);
     Q_INVOKABLE void toggleDebugMode();
     Q_INVOKABLE void toggleFaceCulling();
     Q_INVOKABLE void toggleDepthTest();
     Q_INVOKABLE void explodedValueChanged(double value);
+
+    Q_INVOKABLE void zoomIn();
+    Q_INVOKABLE void zoomOut();
 signals:
     // signaling rotation from mouse movement
     void xRotationChanged(int angle);
@@ -146,6 +149,7 @@ protected:
 
     float distance;
     float zoomFactor = 1.0f;
+    void zoomStep(int numSteps);
 
     QColor bgColor;
 

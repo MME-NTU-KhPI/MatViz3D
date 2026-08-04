@@ -25,7 +25,8 @@ class Parameters : public QObject
     Q_PROPERTY(float orientation_angle_c READ getOrientationAngleC WRITE setOrientationAngleC NOTIFY orientationAngleCChanged)
 
     Q_PROPERTY(QString pointsMode READ getPointsMode WRITE setPointsMode NOTIFY pointsModeChanged)
-    Q_PROPERTY(bool isAnimation READ getIsAnimation() WRITE setIsAnimation() NOTIFY isAnimationChanged)
+    Q_PROPERTY(bool isAnimation READ getIsAnimation WRITE setIsAnimation NOTIFY isAnimationChanged)
+    Q_PROPERTY(bool isGifRecording READ getIsGifRecording WRITE setIsGifRecording NOTIFY isGifRecordingChanged)
 
     Q_PROPERTY(bool hasProbParameters READ getHasProbParameters WRITE setHasProbParameters NOTIFY hasProbParametersChanged)
     Q_PROPERTY(double ellipse_order READ getEllipseOrder WRITE setEllipseOrder NOTIFY ellipseOrderChanged)
@@ -96,6 +97,9 @@ public:
     bool getIsAnimation() const { return isAnimation; }
     Q_INVOKABLE void setIsAnimation(bool value);
 
+    bool getIsGifRecording() const { return isGifRecording; }
+    Q_INVOKABLE void setIsGifRecording(bool value);
+
     bool getHasProbParameters() const { return hasProbParameters; }
     Q_INVOKABLE void setHasProbParameters(bool value);
 
@@ -161,6 +165,7 @@ signals:
 
     void pointsModeChanged();
     void isAnimationChanged();
+    void isGifRecordingChanged();
     void initialConditionSelectionChanged();
 
     void hasProbParametersChanged();
@@ -194,6 +199,7 @@ private:
 
     static QString points_mode; // "count" / "density"
     static bool isAnimation;
+    static bool isGifRecording;
     static bool nogui;
     static bool hasProbParameters;
     static double ellipse_order;

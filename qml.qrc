@@ -33,10 +33,27 @@
         <file>img/toolBar/zoom-inIcon.svg</file>
         <file>img/toolBar/zoom-outIcon.svg</file>
         <file>MaterialDatabaseView.qml</file>
-        <file>img/toolBar/gifIcon.svg</file>
         <file>PlaceholderInput.qml</file>
         <file>ConsoleOutput.qml</file>
         <file>DynamicParamBlock.qml</file>
         <file>ChartTheme.qml</file>
+        <file>img/toolBar/animation_off.svg</file>
+        <file>img/toolBar/animation_on.svg</file>
+        <file>img/toolBar/orientation_off.svg</file>
+        <file>img/toolBar/orientation_on.svg</file>
+        <file>img/toolBar/wireframe_off.svg</file>
+        <file>img/toolBar/wireframe_on.svg</file>
+        <file>img/toolBar/exploded_view.svg</file>
+        <file>img/toolBar/gifIcon_off.svg</file>
+        <file>img/toolBar/gifIcon_on.svg</file>
+        <file>img/fileMenu/edit_material_data.svg</file>
+        <file>img/fileMenu/estimate_stresses.svg</file>
+        <file>img/fileMenu/export_csv.svg</file>
+        <file>img/fileMenu/export_wrl.svg</file>
+        <file>img/fileMenu/make_screenshot.svg</file>
+        <file>img/fileMenu/open_project.svg</file>
+        <file>img/fileMenu/save_hdf5.svg</file>
+        <file>img/fileMenu/save_png.svg</file>
+        <file>img/fileMenu/save_svg.svg</file>
     </qresource>
 </RCC>
