@@ -52,10 +52,18 @@ Window {
             active: false
         }
 
+    Loader
+    {
+            id: textureLoader
+            source: "TextureView.qml"
+            active: false
+            onLoaded: item.visible = true
+    }
+
     ColumnLayout {
-        id: mainLayout
-        anchors.fill: parent
-        spacing: 0
+            id: mainLayout
+            anchors.fill: parent
+            spacing: 0
 
         Rectangle {
             id: menuBar_rec
@@ -173,6 +181,17 @@ Window {
                                     stressAnalysisLoader.item.visible = true;
                                 }
                             }
+
+                            Action {
+                                text: qsTr("Texture Editor")
+                                icon.source: "qrc:/img/fileMenu/grain_generator.svg"
+                                onTriggered: {
+                                    textureLoader.active = true
+                                    if (textureLoader.item)
+                                        textureLoader.item.visible = true
+                                }
+                            }
+
                             Action {
                                 text: qsTr("Edit material data")
                                 icon.source: "qrc:/img/fileMenu/edit_material_data.svg"

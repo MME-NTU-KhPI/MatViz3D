@@ -85,7 +85,9 @@ SOURCES += \
         statisticscontroller.cpp \
         stressanalysis.cpp \
         stressanalysis_fft.cpp \
-        stressanalysiscontroller.cpp
+        stressanalysiscontroller.cpp \
+        texturelibrary.cpp \
+        texturecontroller.cpp
 
 RESOURCES += qml.qrc
 
@@ -140,4 +142,6 @@ HEADERS += \
     stressanalysis.h \
     stressanalysis_fft.h \
     stressanalysiscontroller.h \
-    stressresult.h
+    stressresult.h \
+    texturelibrary.h \
+    texturecontroller.h

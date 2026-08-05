@@ -6,6 +6,7 @@
 #include <QHash>
 #include <vector>
 #include <array>
+#include "texturelibrary.h"
 
 enum tensor_components{ID,X,Y,Z,UX,UY,UZ,SX,SY,SZ,SXY,SYZ,SXZ,EpsX,EpsY,EpsZ,EpsXY,EpsYZ,EpsXZ, USUM, SEQV, EpsEQV};
 
@@ -73,6 +74,8 @@ protected:
     QHash<int, int> m_node_weights;
 
     QHash <n3d::node3d, int> nodes;
+    TextureLibrary m_texture;
+    bool m_useCustomTexture = false;
 
     QHash <n3d::node3d, int> result_nodes;
 
@@ -196,6 +199,9 @@ public:
     float scaleValue01(float val, int component);
     float getValByCoord(float x, float y, float z, int component);
     float getValByCoord(n3d::node3d &key, int component);
+
+    void setTextureMode(TextureLibrary::Mode m) { m_texture.setMode(m); m_useCustomTexture = false; }
+    void setTextureComponents(const std::vector<TextureLibrary::Component>& c) { m_texture.setComponents(c); m_useCustomTexture = true; }
 
     struct ElasticProperties {
         double S[6][6]; // Compliance

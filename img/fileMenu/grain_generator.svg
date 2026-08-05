@@ -1,0 +1,8 @@
+<svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M4.09 16.48L16.48 16.48L16.48 5.38L13.14 0.75L0.75 0.75L0.75 11.85ZM4.09 5.38L16.48 5.38M4.09 5.38L4.09 16.48M4.09 5.38L0.75 0.75" stroke="#969696" stroke-opacity="0.9" stroke-width="1.5" stroke-linejoin="round"/>
+<ellipse cx="7.9" cy="9.1" rx="2.9" ry="1.35" transform="rotate(-38 7.9 9.1)" stroke="#969696" stroke-opacity="0.9" stroke-width="1.2"/>
+<ellipse cx="12.3" cy="11.6" rx="2.9" ry="1.35" transform="rotate(-38 12.3 11.6)" stroke="#969696" stroke-opacity="0.9" stroke-width="1.2"/>
+<ellipse cx="8.7" cy="14.3" rx="2.9" ry="1.35" transform="rotate(-38 8.7 14.3)" stroke="#969696" stroke-opacity="0.9" stroke-width="1.2"/>
+<path d="M24.97 20.64L26.49 19.75L26.49 23.05L24.97 22.16L23.84 24.11L25.38 24.98L22.51 26.63L22.53 24.87L20.27 24.87L20.29 26.63L17.42 24.98L18.96 24.11L17.83 22.16L16.31 23.05L16.31 19.75L17.83 20.64L18.96 18.69L17.42 17.82L20.29 16.17L20.27 17.93L22.53 17.93L22.51 16.17L25.38 17.82L23.84 18.69Z" stroke="#969696" stroke-opacity="0.9" stroke-width="1.2" stroke-linejoin="round"/>
+<circle cx="21.4" cy="21.4" r="1.7" stroke="#969696" stroke-opacity="0.9" stroke-width="1.2"/>
+</svg>

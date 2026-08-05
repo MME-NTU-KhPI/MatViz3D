@@ -16,6 +16,7 @@
 #include "statisticscontroller.h"
 #include "exportcontroller.h"
 #include "stressanalysiscontroller.h"
+#include "texturecontroller.h"
 
 #ifdef _WIN32
     #include <windows.h>
@@ -99,6 +100,7 @@ int main(int argc, char *argv[])
     StatisticsController statisticsController;
     ExportController exportController;
     StressAnalysisController stressAnalysisController;
+    TextureController textureController;
     registerSchemas();
 
     QQmlApplicationEngine engine;
@@ -117,6 +119,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("statisticsController", &statisticsController);
     engine.rootContext()->setContextProperty("exportController", &exportController);
     engine.rootContext()->setContextProperty("stressAnalysisController", &stressAnalysisController);
+    engine.rootContext()->setContextProperty("textureController", &textureController);
 
     const QUrl url(QStringLiteral("qrc:/main.qml"));
     QObject::connect(
@@ -129,6 +132,12 @@ int main(int argc, char *argv[])
         },
         Qt::QueuedConnection);
     engine.load(url);
+
+    QObject::connect(&textureController, &TextureController::textureReady,
+                     &textureController,
+                     [](const std::vector<TextureLibrary::Component>& comps) {
+                         Parameters::textureComponents = comps;
+                     });
 
     QTimer::singleShot(0, [&mainWindowWrapper, &parser, &schemaController]() {
         Commandline_Parser::processOptions(parser);

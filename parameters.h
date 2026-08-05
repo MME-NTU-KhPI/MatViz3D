@@ -3,6 +3,8 @@
 
 #include <QObject>
 #include <QString>
+#include <vector>
+#include "texturelibrary.h"
 
 class Parameters : public QObject
 {
@@ -144,6 +146,8 @@ public:
     static float orientation_angle_b;
     static float orientation_angle_c;
     static float stefan_number;
+
+    static std::vector<TextureLibrary::Component> textureComponents;
 
 signals:
     void sizeChanged();

@@ -7,6 +7,7 @@
 #include <array>
 #include "ansyswrapper.h"
 #include "stressresult.h"
+#include "parameters.h"
 
 #ifndef ANSYSWRAPPER_CPP_INCLUDED
 #define ANSYSWRAPPER_CPP_INCLUDED
@@ -49,8 +50,12 @@ ansysWrapper::ansysWrapper(bool isBatch)
     findNp();
     findPathVersion();
     defaultArgs();
-    std::random_device myRandomDevice;
-    this->seed = myRandomDevice();
+    this->seed = Parameters::instance()->getSeed();
+    if (!Parameters::textureComponents.empty()) {
+        setTextureComponents(Parameters::textureComponents);
+        qDebug() << "ansysWrapper: texture applied,"
+                 << Parameters::textureComponents.size() << "component(s)";
+    }
 }
 
 void ansysWrapper::setWorkingDirectory(QString path)
@@ -255,6 +260,13 @@ void ansysWrapper::defaultArgs()
 void ansysWrapper::createFEfromArray(int32_t*** voxels, short int numCubes, int numSeeds, bool is_random_orientation)
 {
     this->m_numCubes = numCubes;
+
+    m_texture.setSeed(this->seed);
+    if (!m_useCustomTexture) {
+        m_texture.setMode(is_random_orientation ? TextureLibrary::Mode::Random
+                                                : TextureLibrary::Mode::Cube);
+    }
+
     for (int i = 0; i < numSeeds + 1; i++)
         this->createLocalCS(is_random_orientation);
 
@@ -487,6 +499,12 @@ void ansysWrapper::createFEfromArray8Node(int32_t*** voxels, short int numCubes,
 
     int actualSeedsCount = seedsData.size();
 
+    m_texture.setSeed(this->seed);
+    if (!m_useCustomTexture) {
+        m_texture.setMode(is_random_orientation ? TextureLibrary::Mode::Random
+                                                : TextureLibrary::Mode::Cube);
+    }
+
     for (int i = 0; i < actualSeedsCount + 1; ++i)
     {
         double x = 0, y = 0, z = 0;
@@ -663,8 +681,10 @@ int ansysWrapper::createLocalCS(bool is_random_orientation, double x, double y, 
     QTextStream apdl(&m_apdl);
     int cs_id = this->m_lcs;
     double eu_angles[3] = {0};
-    if (is_random_orientation)
-        this->generate_random_angles(eu_angles, true);
+    // if (is_random_orientation)
+    //     this->generate_random_angles(eu_angles, true);
+
+    m_texture.sampleNext(eu_angles, true);
 
     this->local_cs.push_back(std::vector<float>(eu_angles, eu_angles + 3));
 

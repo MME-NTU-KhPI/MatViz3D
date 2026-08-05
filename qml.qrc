@@ -56,5 +56,7 @@
         <file>img/fileMenu/save_png.svg</file>
         <file>img/fileMenu/save_svg.svg</file>
         <file>StressAnalysisView.qml</file>
+        <file>TextureView.qml</file>
+        <file>img/fileMenu/grain_generator.svg</file>
     </qresource>
 </RCC>

@@ -37,6 +37,8 @@ QString Parameters::m_material  = "bcc";
 QString Parameters::m_material1  = "fcc";
 QString Parameters::m_material2  = "bcc";
 
+std::vector<TextureLibrary::Component> Parameters::textureComponents;
+
 Parameters::Parameters(QObject* parent) : QObject(parent) {}
 
 void Parameters::processPointInput(const QString &text)
