@@ -1,8 +1,8 @@
 #include "texturecontroller.h"
+#include <QRandomGenerator>
+#include "parameters.h"
 #include <QtMath>
 #include <cmath>
-
-static void eulerFromMatrix(const double R[3][3], double& phi1, double& Phi, double& phi2);
 
 TextureController::TextureController(QObject* parent)
     : QObject(parent), m_lib(42)
@@ -129,7 +129,7 @@ void TextureController::setScatterDeg(double s)
 
 void TextureController::regenerate()
 {
-    m_lib.setSeed(42);
+    m_lib.setSeed(Parameters::instance()->getSeed());
     if (m_components.empty())
         m_lib.setMode(TextureLibrary::Mode::Random);
     else
@@ -142,77 +142,38 @@ void TextureController::regenerate()
 void TextureController::rebuildPolePoints()
 {
     m_eulerPoints.clear();
+    m_eulerPoints.reserve(m_grainCount * 3);
 
     for (int g = 0; g < m_grainCount; ++g) {
-        double ang[3];
-        m_lib.sampleNext(ang, false);
+        double b[3];
+        m_lib.sampleNextBunge(b);
 
-        double z=ang[0], x=ang[1], y=ang[2];
-        double cz=std::cos(z),sz=std::sin(z);
-        double cx=std::cos(x),sx=std::sin(x);
-        double cy=std::cos(y),sy=std::sin(y);
-        // Rz*Rx*Ry (intrinsic Z-X-Y)
-        double R[3][3];
-        // Rz
-        double Rz[3][3]={{cz,-sz,0},{sz,cz,0},{0,0,1}};
-        double Rx[3][3]={{1,0,0},{0,cx,-sx},{0,sx,cx}};
-        double Ry[3][3]={{cy,0,sy},{0,1,0},{-sy,0,cy}};
-        double RzRx[3][3];
-        for(int i=0;i<3;++i)for(int j=0;j<3;++j){double s=0;for(int k=0;k<3;++k)s+=Rz[i][k]*Rx[k][j];RzRx[i][j]=s;}
-        for(int i=0;i<3;++i)for(int j=0;j<3;++j){double s=0;for(int k=0;k<3;++k)s+=RzRx[i][k]*Ry[k][j];R[i][j]=s;}
-
-        {
-            double phi1, Phi, phi2;
-            eulerFromMatrix(R, phi1, Phi, phi2);
-            // phi1 [0..360]->x, Phi [0..90]->y
-            double px = phi1 / 360.0;
-            double py = Phi  / 90.0;
-            if (py > 1.0) py = 1.0;
+        for (const auto& r : TextureLibrary::fundamentalZoneBunge(b[0], b[1], b[2])) {
             QVariantMap ep;
-            ep["x"] = px; ep["y"] = py; ep["phi2"] = phi2;
+            ep["x"]    = r[0] / 90.0;
+            ep["y"]    = r[1] / 90.0;
+            ep["phi2"] = r[2];
             m_eulerPoints.append(ep);
         }
-
     }
-}
-
-static void eulerFromMatrix(const double R[3][3], double& phi1, double& Phi, double& phi2)
-{
-    const double RAD = 180.0/M_PI;
-    // passive g = R^T
-    double g[3][3];
-    for (int i=0;i<3;++i) for (int j=0;j<3;++j) g[i][j]=R[j][i];
-
-    double c = std::max(-1.0, std::min(1.0, g[2][2]));
-    Phi = std::acos(c);
-    double s = std::sin(Phi);
-    double p1, p2;
-    if (s < 1e-6) {
-        p1 = std::atan2(g[0][1], g[0][0]);
-        p2 = 0.0;
-    } else {
-        p1 = std::atan2(g[2][0], -g[2][1]);
-        p2 = std::atan2(g[0][2],  g[1][2]);
-    }
-    phi1 = p1*RAD; if (phi1 < 0) phi1 += 360.0;
-    Phi  = Phi*RAD;
-    phi2 = p2*RAD; if (phi2 < 0) phi2 += 360.0;
 }
 
 QVariantList TextureController::componentLabels() const
 {
     QVariantList out;
     for (const auto& comp : TextureLibrary::presetCatalog()) {
-        double p1,P,p2;
-        TextureLibrary::millerToBunge(comp.hkl, comp.uvw, p1,P,p2);
-        if (p1 < 0) p1 += 360.0;
-        if (p2 < 0) p2 += 360.0;
-        QVariantMap m;
-        m["name"] = QString::fromStdString(comp.name).section(' ',0,0);
-        m["x"]    = p1 / 360.0;
-        m["y"]    = P  / 90.0;
-        m["phi2"] = p2;
-        out.append(m);
+        double p1, P, p2;
+        TextureLibrary::millerToBunge(comp.hkl, comp.uvw, p1, P, p2);
+
+        const QString nm = QString::fromStdString(comp.name).section(' ', 0, 0);
+        for (const auto& r : TextureLibrary::fundamentalZoneBunge(p1, P, p2)) {
+            QVariantMap m;
+            m["name"] = nm;
+            m["x"]    = r[0] / 90.0;
+            m["y"]    = r[1] / 90.0;
+            m["phi2"] = r[2];
+            out.append(m);
+        }
     }
     return out;
 }
@@ -237,4 +198,11 @@ void TextureController::convertAngles(double phi1, double Phi, double phi2)
 void TextureController::applyToStress()
 {
     emit textureReady(m_components);   // ansysWrapper
+}
+
+void TextureController::reseed()
+{
+    Parameters::instance()->setSeed(QRandomGenerator::global()->bounded(1, 1000000));
+    emit paramsChanged();
+    regenerate();
 }

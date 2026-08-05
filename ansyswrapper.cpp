@@ -5,6 +5,7 @@
 #include <cfloat>
 #include <random>
 #include "ansyswrapper.h"
+#include "parameters.h"
 
 #ifndef ANSYSWRAPPER_CPP_INCLUDED
 #define ANSYSWRAPPER_CPP_INCLUDED
@@ -47,8 +48,12 @@ ansysWrapper::ansysWrapper(bool isBatch)
     findNp();
     findPathVersion();
     defaultArgs();
-    std::random_device myRandomDevice;
-    this->seed = myRandomDevice();
+    this->seed = Parameters::instance()->getSeed();
+    if (!Parameters::textureComponents.empty()) {
+        setTextureComponents(Parameters::textureComponents);
+        qDebug() << "ansysWrapper: texture applied,"
+                 << Parameters::textureComponents.size() << "component(s)";
+    }
 }
 
 void ansysWrapper::setWorkingDirectory(QString path)

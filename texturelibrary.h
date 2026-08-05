@@ -9,10 +9,11 @@
 /**
  * @brief Generation of crystallographic textures for export to ANSYS.
  *
- *   Cube  {001}<100>  -> ANSYS (0,   0,     0)
- *   Goss  {110}<001>  -> ANSYS (0,   45,    0)
- *   Copper{112}<11-1> -> ANSYS (45,  0,     35.26)
- *   Brass {110}<112>  -> ANSYS (35,  45,    0)
+ *   Cube  {001}<100>  -> ANSYS (   0.00,  0.00,   0.00)
+ *   Goss  {110}<001>  -> ANSYS (-180.00, 45.00, -90.00)
+ *   Copper{112}<11-1> -> ANSYS ( -39.23, 24.09, -26.57)
+ *   Brass {110}<112>  -> ANSYS (-144.74, 45.00, -90.00)
+ *   S     {123}<634>  -> ANSYS ( -27.03, 32.31, -18.43)
  */
 class TextureLibrary
 {
@@ -48,6 +49,8 @@ public:
 
     void sampleNext(double angl[3], bool in_deg = true);
 
+    static void bungeFromPassive(const Matrix3& g,
+                                double& phi1, double& Phi, double& phi2);
     static void bungeToAnsys(double phi1, double Phi, double phi2,
                              double& thxy, double& thyz, double& thzx);
 
@@ -61,9 +64,16 @@ public:
 
     static bool runSelfTest();
 
+    // Все различные представители ориентации в приведённом пространстве
+    // (кубическая решётка + орторомбическая симметрия образца), phi1,Phi,phi2 в [0,90].
+    static std::vector<std::array<double,3>> fundamentalZoneBunge(double phi1, double Phi, double phi2);
+
+    // Bunge-углы очередного зерна напрямую, без круга через ANSYS-углы
+    void sampleNextBunge(double bunge[3]);
+
 private:
     static Matrix3 orientationFromMiller(const int hkl[3], const int uvw[3]);
-    static Matrix3 orientationFromMillerActive(const int hkl[3], const int uvw[3]);
+    static Matrix3 orientationFromMillerPassive(const int hkl[3], const int uvw[3]);
     static Matrix3 bungeToMatrix(double phi1, double Phi, double phi2);   // active
     static void    matrixToAnsys(const Matrix3& R,
                                  double& thxy, double& thyz, double& thzx,

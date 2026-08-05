@@ -2,7 +2,8 @@
 #include "algorithmfactory.h"
 #include "openglwidgetqml.h"
 #include "parameters.h"
-
+#include "texturelibrary.h"
+#include <array>
 #include <QApplication>
 #include <QMessageBox>
 #include <QDebug>
@@ -52,9 +53,7 @@ void MainWindowAlgorithmHandler::runAlgorithm(const QString& algorithmName, bool
 
     setAlgorithmFlags(*algorithm);
 
-    // if (isAnimation) startGifRecording();
     executeAlgorithm(*algorithm, algorithmName);
-    // if (isAnimation) stopGifRecording();
 
     logExecutionTime(start_time);
     emit algorithmFinished();
@@ -85,18 +84,24 @@ void MainWindowAlgorithmHandler::executeAlgorithm(Parent_Algorithm& algorithm, c
 
     updateScene();
 
-    // Assign random Bunge ZXZ orientations to each grain and send to renderer
+    // Assign orientations to each grain and send to renderer.
+    // Mirrors ansysWrapper::createFEfromArray: same library, same seed, same
+    // sampling order, so orientation index == voxel value == CS id minus 11.
     {
-        OpenGLWidgetQML *ogl = OpenGLWidgetQML::getInstance();
-        const int nGrains = pow(params.getSize(), 3);
+        const int nSeeds = params.getPoints();
 
-        ansysWrapper tmpWrapper(/*isBatch=*/false);  // reuse random-angle generator
+        TextureLibrary lib(Parameters::instance()->getSeed());
+        if (!Parameters::textureComponents.empty())
+            lib.setComponents(Parameters::textureComponents);
+        else
+            lib.setMode(TextureLibrary::Mode::Random);
+
         std::vector<std::array<float,3>> orientations;
-        orientations.reserve(static_cast<size_t>(nGrains));
+        orientations.reserve(static_cast<size_t>(nSeeds) + 1);
 
-        for (int i = 0; i < nGrains; ++i) {
+        for (int i = 0; i <= nSeeds; ++i) {   // index 0 == background CS, as in createLocalCS
             double eu[3] = {0.0, 0.0, 0.0};
-            tmpWrapper.generate_random_angles(eu, /*in_deg=*/true);
+            lib.sampleNext(eu, /*in_deg=*/true);
             orientations.push_back({
                 static_cast<float>(eu[0]),
                 static_cast<float>(eu[1]),
@@ -135,33 +140,3 @@ void MainWindowAlgorithmHandler::setAlgorithmFlags(Parent_Algorithm& algorithm)
     algorithm.setWaveGeneration(false);
     algorithm.setPeriodicStructure(false);
 }
-
-// void MainWindowAlgorithmHandler::startGifRecording()
-// {
-//     if (isRecording) return;
-
-//     isRecording = true;
-
-//     if (gif) delete gif;
-//     gif = new QGifImage(QSize(ui->myGLWidget->width(), ui->myGLWidget->height()));
-
-//     gif->setDefaultDelay(100); // 10 FPS (100 мс)
-
-//     connect(ui->myGLWidget, &QOpenGLWidget::frameSwapped, this, &MainWindow::captureFrame);
-
-//     qDebug() << "GIF recording started!";
-// }
-
-// void MainWindowAlgorithmHandler::stopGifRecording()
-// {
-//     isRecording = false;
-
-//     disconnect(ui->myGLWidget, &QOpenGLWidget::frameSwapped, this, &MainWindow::captureFrame);
-
-//     if (gif) {
-//         gif->save("animation.gif");
-//         qDebug() << "Animation has been saved!";
-//         delete gif;
-//         gif = nullptr;
-//     }
-// }

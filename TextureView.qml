@@ -50,7 +50,7 @@ Window {
                     Layout.alignment: Qt.AlignVCenter
                     spacing: 6
                     Label {
-                        text: qsTr("Method:") + " " + processList[ctrl.process].name
+                        text: qsTr("Method:") + " " + leftPanel.processList[ctrl.process].name
                         color: colSub
                         font.pixelSize: 12; font.family: montserrat.name
                     }
@@ -271,7 +271,7 @@ Window {
                                 width: 1; height: 20; color: colBorder
                             }
                             Label {
-                                text: qsTr("Method:") + " " + (ctrl.processNames.length ? ctrl.processNames[ctrl.process].name : "")
+                                text: qsTr("Method:") + " " + leftPanel.processList[ctrl.process].name
                                 color: colSub
                                 font.pixelSize: 12; font.family: montserrat.name
                             }
@@ -344,16 +344,19 @@ Window {
                                 property real tol: plot.phi2Tol
                                 onPtsChanged: requestPaint()
                                 onSectChanged: requestPaint()
+                                onWidthChanged: requestPaint()
+                                onHeightChanged: requestPaint()
 
                                 onPaint: {
                                     var g = getContext("2d"); g.reset()
+                                    if (!pts) return
                                     g.fillStyle = "rgba(200,200,200,0.4)"
-                                    for (var i=0;i<pts.length;++i){
+                                    for (var i = 0; i < pts.length; ++i) {
                                         var dp = Math.abs(pts[i].phi2 - sect)
                                         if (dp > 180) dp = 360 - dp
                                         if (dp > tol) continue
                                         g.beginPath()
-                                        g.arc(pts[i].x*w, pts[i].y*h, 3.5, 0, 2*Math.PI)
+                                        g.arc(pts[i].x * width, pts[i].y * height, 3.5, 0, 2 * Math.PI)
                                         g.fill()
                                     }
                                 }

@@ -1,6 +1,5 @@
 #include "texturelibrary.h"
 #include <cmath>
-#include <numeric>
 #include <cstdio>
 
 #ifndef M_PI
@@ -69,7 +68,7 @@ TextureLibrary::Matrix3 TextureLibrary::orientationFromMiller(const int hkl[3], 
 
 
 // {hkl}<uvw> -> ACTIVE
-TextureLibrary::Matrix3 TextureLibrary::orientationFromMillerActive(const int hkl[3], const int uvw[3])
+TextureLibrary::Matrix3 TextureLibrary::orientationFromMillerPassive(const int hkl[3], const int uvw[3])
 {
     Matrix3 g = orientationFromMiller(hkl, uvw);   // rows = RD,TD,ND
     Matrix3 a{};
@@ -222,7 +221,7 @@ void TextureLibrary::sampleNext(double angl[3], bool in_deg)
                 R = applyScatter(R, c.scatter_deg, m_rng);
             }
             else {
-                Matrix3 ideal = orientationFromMillerActive(c.hkl, c.uvw);
+                Matrix3 ideal = orientationFromMiller(c.hkl, c.uvw);
                 R = applyScatter(ideal, c.scatter_deg, m_rng);
             }
             break;
@@ -231,26 +230,33 @@ void TextureLibrary::sampleNext(double angl[3], bool in_deg)
     matrixToAnsys(R, angl[0], angl[1], angl[2], in_deg);
 }
 
+void TextureLibrary::bungeFromPassive(const Matrix3& g,
+                                      double& phi1, double& Phi, double& phi2)
+{
+    const double GIMBAL = 1e-7;
+
+    double c = std::max(-1.0, std::min(1.0, g[2][2]));
+    double P = std::acos(c);
+    double p1, p2;
+    if (std::sin(P) < GIMBAL) {
+        p1 = std::atan2(g[0][1], g[0][0]);
+        p2 = 0.0;
+    } else {
+        p1 = std::atan2(g[2][0], -g[2][1]);
+        p2 = std::atan2(g[0][2],  g[1][2]);
+    }
+    phi1 = p1 * RAD; if (phi1 < 0.0) phi1 += 360.0;
+    Phi  = P  * RAD;
+    phi2 = p2 * RAD; if (phi2 < 0.0) phi2 += 360.0;
+}
+
 // ═══════════════════════════════════════════════════════════════════
 //  {hkl}<uvw> -> Bunge
 // ═══════════════════════════════════════════════════════════════════
 void TextureLibrary::millerToBunge(const int hkl[3], const int uvw[3],
                                    double& phi1, double& Phi, double& phi2)
 {
-    Matrix3 g = orientationFromMiller(hkl, uvw);   // active (rows = RD,TD,ND)
-    double gp[3][3];
-    for (int i=0;i<3;++i) for (int j=0;j<3;++j) gp[i][j]=g[j][i];
-
-    double P = std::acos(std::max(-1.0,std::min(1.0,gp[2][2])));
-    double p1,p2;
-    if (std::sin(P) < EPS) {
-        p1 = std::atan2(gp[0][1], gp[0][0]);
-        p2 = 0.0;
-    } else {
-        p1 = std::atan2(gp[2][0], -gp[2][1]);
-        p2 = std::atan2(gp[0][2],  gp[1][2]);
-    }
-    phi1 = p1*RAD; Phi = P*RAD; phi2 = p2*RAD;
+    bungeFromPassive(orientationFromMillerPassive(hkl, uvw), phi1, Phi, phi2);
 }
 
 void TextureLibrary::bungeToAnsys(double phi1, double Phi, double phi2,
@@ -337,7 +343,7 @@ bool TextureLibrary::runSelfTest()
     };
     bool ok = true;
     for (auto& c : cases) {
-        Matrix3 R = orientationFromMillerActive(c.hkl, c.uvw);
+        Matrix3 R = orientationFromMiller(c.hkl, c.uvw);
         double tx,ty,tz;
         matrixToAnsys(R, tx,ty,tz, true);
 
@@ -359,12 +365,84 @@ bool TextureLibrary::runSelfTest()
 
     {
         int hkl[3]={1,1,2}, uvw[3]={1,1,-1};
-        Matrix3 R=orientationFromMillerActive(hkl,uvw);
+        Matrix3 R=orientationFromMiller(hkl,uvw);
         double tx,ty,tz; matrixToAnsys(R,tx,ty,tz,true);
-        bool cu = std::fabs(tx-45)<0.2 && std::fabs(ty-0)<0.2 && std::fabs(tz-35.26)<0.2;
-        std::printf("[TextureTest] Copper canonical (%.2f,%.2f,%.2f) expect (45,0,35.26) %s\n",
+        bool cu = std::fabs(tx+39.23)<0.2 && std::fabs(ty-24.09)<0.2 && std::fabs(tz+26.57)<0.2;
+        std::printf("[TextureTest] Copper canonical (%.2f,%.2f,%.2f) expect (-39.23,24.09,-26.57) %s\n",
                     tx,ty,tz, cu?"OK":"FAIL");
         ok = ok && cu;
     }
     return ok;
+}
+
+static const std::vector<TextureLibrary::Matrix3>& cubicOps()
+{
+    using Matrix3 = TextureLibrary::Matrix3;
+    static std::vector<Matrix3> ops = []{
+        std::vector<Matrix3> v;
+        const int perm[6][3] = {{0,1,2},{0,2,1},{1,0,2},{1,2,0},{2,0,1},{2,1,0}};
+        for (int p = 0; p < 6; ++p)
+            for (int s = 0; s < 8; ++s) {
+                double sg[3] = { (s&1)?-1.0:1.0, (s&2)?-1.0:1.0, (s&4)?-1.0:1.0 };
+                Matrix3 m{};
+                for (int i = 0; i < 3; ++i) m[i][perm[p][i]] = sg[i];
+                double det = m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1])
+                             - m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0])
+                             + m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0]);
+                if (std::fabs(det - 1.0) < 1e-9) v.push_back(m);
+            }
+        return v;
+    }();
+    return ops;
+}
+
+std::vector<std::array<double,3>>
+TextureLibrary::fundamentalZoneBunge(double phi1, double Phi, double phi2)
+{
+    static const Matrix3 sampleOps[4] = {
+        {{{ 1,0,0},{0, 1,0},{0,0, 1}}}, {{{ 1,0,0},{0,-1,0},{0,0,-1}}},
+        {{{-1,0,0},{0, 1,0},{0,0,-1}}}, {{{-1,0,0},{0,-1,0},{0,0, 1}}}
+    };
+    Matrix3 a = bungeToMatrix(phi1, Phi, phi2), g{};
+    for (int i = 0; i < 3; ++i) for (int j = 0; j < 3; ++j) g[i][j] = a[j][i];
+
+    std::vector<std::array<double,3>> out;
+    const double T = 1e-6;
+    for (const auto& c : cubicOps())
+        for (const auto& s : sampleOps) {
+            Matrix3 gg = matmul(matmul(c, g), s);
+            double p1, P, p2;
+            bungeFromPassive(gg, p1, P, p2);
+            if (p1 > 90+T || P > 90+T || p2 > 90+T) continue;
+            bool dup = false;
+            for (const auto& e : out)
+                if (std::fabs(e[0]-p1) < 0.1 && std::fabs(e[1]-P) < 0.1 && std::fabs(e[2]-p2) < 0.1)
+                { dup = true; break; }
+            if (!dup) out.push_back({p1, P, p2});
+        }
+    return out;
+}
+
+void TextureLibrary::sampleNextBunge(double bunge[3])
+{
+    Matrix3 R;
+    switch (m_mode) {
+    case Mode::Cube:
+        bunge[0] = bunge[1] = bunge[2] = 0.0;
+        return;
+    case Mode::Random:
+        R = randomMatrix(m_rng);
+        break;
+    case Mode::Textured: {
+        if (m_components.empty()) { bunge[0]=bunge[1]=bunge[2]=0.0; return; }
+        const Component& c = pickComponent();
+        if (c.is_random)      R = randomMatrix(m_rng);
+        else if (c.is_fiber)  R = applyScatter(fiberMatrix(c.uvw, m_rng), c.scatter_deg, m_rng);
+        else                  R = applyScatter(orientationFromMiller(c.hkl, c.uvw), c.scatter_deg, m_rng);
+        break;
+    }
+    }
+    Matrix3 g{};
+    for (int i=0;i<3;++i) for (int j=0;j<3;++j) g[i][j] = R[j][i];
+    bungeFromPassive(g, bunge[0], bunge[1], bunge[2]);
 }

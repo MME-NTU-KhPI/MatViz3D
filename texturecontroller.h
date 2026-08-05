@@ -63,6 +63,7 @@ public:
 
     void setGrainCount(int n);
     void setScatterDeg(double s);
+    void reseed();
 
 signals:
     void componentsChanged();
