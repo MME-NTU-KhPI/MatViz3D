@@ -37,6 +37,10 @@ QString Parameters::m_material  = "bcc";
 QString Parameters::m_material1  = "fcc";
 QString Parameters::m_material2  = "bcc";
 
+QString Parameters::stressSolver = "ansys";
+QString Parameters::stressMode   = "dataset";
+double  Parameters::stressEps[6] = {0, 0, 0, 0, 0, 0};
+
 std::vector<TextureLibrary::Component> Parameters::textureComponents;
 
 Parameters::Parameters(QObject* parent) : QObject(parent) {}
@@ -254,10 +258,32 @@ void Parameters::setInitialNucleiCount(int value)
     }
 }
 
-void Parameters::setNumRndLoads(int value)
+void Parameters::setNumRndLoads(unsigned int value)
 {
     if (num_rnd_loads != value) {
         num_rnd_loads = value;
         emit numRndLoadsChanged();
     }
+}
+
+void Parameters::setStressSolver(const QString& value) {
+    if (stressSolver != value) {
+        stressSolver = value;
+        emit stressSolverChanged();
+    }
+}
+
+void Parameters::setStressMode(const QString& value) {
+    if (stressMode != value) {
+        stressMode = value;
+        emit stressModeChanged();
+    }
+}
+
+void Parameters::setStressEps(const double value[6]) {
+    bool changed = false;
+    for (int i = 0; i < 6; ++i)
+        if (stressEps[i] != value[i]) { stressEps[i] = value[i]; changed = true; }
+    if (changed)
+        emit stressEpsChanged();
 }

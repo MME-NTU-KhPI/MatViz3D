@@ -61,6 +61,14 @@ int main(int argc, char *argv[])
     // ── Optional: skip QML entirely in headless mode ──────────────────────
     if (parser.isSet("nogui")) {
         Commandline_Parser::processOptions(parser);
+        if (!parser.isSet("autostart")) return 0;
+
+        MainWindowAlgorithmHandler handler;
+        handler.runAlgorithm(Parameters::instance()->getAlgorithm(), false);
+
+        if (parser.isSet("run_stress_calc"))
+            handler.runStressCalculation();
+
         return 0;
     }
 
@@ -139,7 +147,7 @@ int main(int argc, char *argv[])
                          Parameters::textureComponents = comps;
                      });
 
-    QTimer::singleShot(0, [&mainWindowWrapper, &parser, &schemaController]() {
+    QTimer::singleShot(0, [&mainWindowWrapper, &parser, &schemaController, &stressAnalysisController]() {
         Commandline_Parser::processOptions(parser);
 
         QString algo = Parameters::instance()->getAlgorithm();
@@ -155,6 +163,19 @@ int main(int argc, char *argv[])
 
         if (parser.isSet("autostart"))           // or however you track this flag
             mainWindowWrapper.onStartButton();
+
+        if (parser.isSet("run_stress_calc")) {
+            Parameters* p = Parameters::instance();
+            if (p->getStressMode().compare("single", Qt::CaseInsensitive) == 0) {
+                const double* e = p->getStressEps();
+                QVariantList eps;
+                eps.reserve(6);
+                for (int i = 0; i < 6; ++i) eps.append(e[i]);
+                stressAnalysisController.runSingleShot(p->getStressSolver(), eps);
+            } else {
+                stressAnalysisController.runDataset(p->getStressSolver());
+            }
+        }
     });
 
 

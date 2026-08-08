@@ -40,7 +40,7 @@ class Parameters : public QObject
     Q_PROPERTY(float wave_spread          READ getWaveSpread         WRITE setWaveSpread         NOTIFY waveSpreadChanged)
     Q_PROPERTY(float stefan_number        READ getStefanNumber       WRITE setStefanNumber       NOTIFY stefanNumberChanged)
     Q_PROPERTY(int   initial_nuclei_count READ getInitialNucleiCount WRITE setInitialNucleiCount NOTIFY initialNucleiCountChanged)
-    Q_PROPERTY(int   num_rnd_loads        READ getNumRndLoads        WRITE setNumRndLoads        NOTIFY numRndLoadsChanged)
+    Q_PROPERTY(unsigned int num_rnd_loads READ getNumRndLoads        WRITE setNumRndLoads        NOTIFY numRndLoadsChanged)
 
 public:
     explicit Parameters(QObject* parent = nullptr);
@@ -108,6 +108,15 @@ public:
     double getEllipseOrder() const { return ellipse_order; }
     Q_INVOKABLE void setEllipseOrder(double value);
 
+    QString getStressSolver() const { return stressSolver; }
+    Q_INVOKABLE void setStressSolver(const QString& value);
+
+    QString getStressMode() const { return stressMode; }
+    Q_INVOKABLE void setStressMode(const QString& value);
+
+    const double* getStressEps() const { return stressEps; }
+    void setStressEps(const double value[6]);
+
     QString getMaterial()  const { return m_material; }
     QString getMaterial1() const { return m_material1; }
     QString getMaterial2() const { return m_material2; }
@@ -121,12 +130,12 @@ public:
     float getWaveSpread()         const { return wave_spread; }
     float getStefanNumber()       const { return stefan_number; }
     int   getInitialNucleiCount() const { return initial_nuclei_count; }
-    int   getNumRndLoads()        const { return num_rnd_loads; }
+    unsigned int getNumRndLoads() const { return num_rnd_loads; }
 
     Q_INVOKABLE void setWaveSpread(float value);
     Q_INVOKABLE void setStefanNumber(float value);
     Q_INVOKABLE void setInitialNucleiCount(int value);
-    Q_INVOKABLE void setNumRndLoads(int value);
+    Q_INVOKABLE void setNumRndLoads(unsigned int value);
 
     static Parameters* m_instance;
 
@@ -182,7 +191,11 @@ signals:
     void waveSpreadChanged();
     void stefanNumberChanged();
     void initialNucleiCountChanged();
+
     void numRndLoadsChanged();
+    void stressSolverChanged();
+    void stressModeChanged();
+    void stressEpsChanged();
 
 private:
     static int size;
@@ -204,10 +217,13 @@ private:
     static QString points_mode; // "count" / "density"
     static bool isAnimation;
     static bool isGifRecording;
-    static bool nogui;
     static bool hasProbParameters;
     static double ellipse_order;
     static unsigned int num_rnd_loads;
+
+    static QString stressSolver;      // "ansys" | "fft"
+    static QString stressMode;        // "single" | "dataset"
+    static double  stressEps[6];      // exx,eyy,ezz,exy,eyz,exz
 
     static QString m_material;
     static QString m_material1;

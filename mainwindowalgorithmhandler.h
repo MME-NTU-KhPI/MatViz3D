@@ -17,6 +17,7 @@ public:
     void runAlgorithm(const QString& algorithmName, bool isAnimation);
     void logExecutionTime(clock_t start_time);
     void setAlgorithmFlags(Parent_Algorithm& algorithm);
+    void runStressCalculation();
 
 signals:
     void algorithmFinished();  // Сигнал для інформування UI

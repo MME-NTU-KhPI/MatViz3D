@@ -1,10 +1,12 @@
 #include <QDebug>
 #include <omp.h>
 
+#include <cmath>
+#include <ctime>
 #include "cpuinfo.hpp"
 #include "commandline_parser.h"
-//#include "stressanalysis.h"
 #include "parameters.h"
+#include "texturelibrary.h"
 
 Commandline_Parser::Commandline_Parser()
 {
@@ -31,11 +33,51 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
     parser.addOption(QCommandLineOption("ellipse_order", "The degree of the superellipse equation", "value"));
     parser.addOption(QCommandLineOption("autostart","Running a program with auto-generation of a cube"));
     parser.addOption(QCommandLineOption("nogui","Running a program with no GUI"));
+    parser.addOption(QCommandLineOption("solver","Solver for --run_stress_calc: ansys | fft (default ansys)", "solver"));
+    parser.addOption(QCommandLineOption("stress_mode",
+                                        "Stress calculation mode: single | dataset (default dataset)", "mode"));
+    parser.addOption(QCommandLineOption("eps",
+                                        "Strain tensor for --stress_mode single: exx,eyy,ezz,exy,eyz,exz", "values"));
     parser.addOption(QCommandLineOption("output", "Specify output file for generated cube", "directory"));
     parser.addOption(QCommandLineOption("num_rnd_loads", "Set number of random loads (as eps) for stress analis", "num_rnd_loads"));
     parser.addOption(QCommandLineOption("run_stress_calc", "Run FEM to estimate stresses and strains"));
     parser.addOption(QCommandLineOption("working_directory", "Set path where ansys working directory will be stored","working_directory"));
+
+    // ── Crystallographic texture ──────────────────────────────────────────
+    parser.addOption(QCommandLineOption("texture",
+                                        "Texture preset: random | extrusion | rolling | recrystallization | shear", "preset"));
+    parser.addOption(QCommandLineOption("lattice",
+                                        "Crystal lattice for the texture preset: fcc | bcc (default fcc)", "lattice"));
+    parser.addOption(QCommandLineOption("scatter",
+                                        "Texture scatter (spread) in degrees, default 11", "degrees"));
 }
+
+namespace {
+
+// Maps --texture to TextureLibrary::Process. Returns false on an unknown name.
+bool parseProcess(const QString& name, TextureLibrary::Process& out)
+{
+    const QString n = name.trimmed().toLower();
+    if (n == "random")                                     out = TextureLibrary::Process::Random;
+    else if (n == "extrusion")                             out = TextureLibrary::Process::Extrusion;
+    else if (n == "rolling")                               out = TextureLibrary::Process::Rolling;
+    else if (n == "recrystallization" || n == "recryst")   out = TextureLibrary::Process::Recrystallization;
+    else if (n == "shear")                                 out = TextureLibrary::Process::Shear;
+    else return false;
+    return true;
+}
+
+bool parseLattice(const QString& name, TextureLibrary::Lattice& out)
+{
+    const QString n = name.trimmed().toLower();
+    if (n == "fcc")      out = TextureLibrary::Lattice::FCC;
+    else if (n == "bcc") out = TextureLibrary::Lattice::BCC;
+    else return false;
+    return true;
+}
+
+} // namespace
+
 void Commandline_Parser::processOptions(const QCommandLineParser& parser)
 {
     Parameters* params = Parameters::instance();
@@ -93,11 +135,23 @@ void Commandline_Parser::processOptions(const QCommandLineParser& parser)
         return true;
     };
 
+    // Positive-value guard: catches --size -5 and --np 0, which used to pass
+    // parsing and blow up much later.
+    auto requirePositive = [&](const QString& opt, double value) {
+        if (value <= 0.0)
+            qFatal("Option --%s expects a positive value; got %s",
+                   qPrintable(opt), qPrintable(QString::number(value)));
+    };
+
     // ── Cube geometry ─────────────────────────────────────────────────────
-    parseInt("size",   [&](int v) { params->setSize(v); });
-    parseInt("points", [&](int v) { params->setPoints(v); });
+    parseInt("size",   [&](int v) { requirePositive("size", v);   params->setSize(v); });
+    parseInt("points", [&](int v) { requirePositive("points", v); params->setPoints(v); });
 
     if (parser.isSet("concentration")) {
+        if (parser.isSet("points")) {
+            qWarning() << "Both --points and --concentration were given;"
+                       << "--concentration wins and --points is ignored";
+        }
         const QString str = parser.value("concentration");
         bool ok = false;
         const float pct = str.toFloat(&ok);
@@ -105,10 +159,24 @@ void Commandline_Parser::processOptions(const QCommandLineParser& parser)
             qFatal("Option --concentration expects a float; got \"%s\"",
                    qPrintable(str));
         }
+        if (pct <= 0.0f || pct > 100.0f)
+            qFatal("Option --concentration expects a value in (0, 100]; got %s",
+                   qPrintable(str));
+
         const int derived = static_cast<int>(
             (pct / 100.0f) * std::pow(params->getSize(), 3));
+        if (derived <= 0)
+            qFatal("Option --concentration resolved to %d points; raise --size or --concentration",
+                   derived);
+
         params->setPoints(derived);
         qInfo() << "concentration:" << pct << "% -> points:" << derived;
+    }
+
+    // points must fit inside the cube, otherwise generation misbehaves silently
+    if (params->getSize() > 0 && params->getPoints() > std::pow(params->getSize(), 3)) {
+        qFatal("Initial points (%d) exceed the cube volume (%.0f); lower --points or raise --size",
+               params->getPoints(), std::pow(params->getSize(), 3));
     }
 
     // ── Ellipsoid half-axes ───────────────────────────────────────────────
@@ -139,12 +207,13 @@ void Commandline_Parser::processOptions(const QCommandLineParser& parser)
     parseString("algorithm", [&](const QString& v) { params->setAlgorithm(v); });
 
     // ── RNG seed ──────────────────────────────────────────────────────────
+    // toUInt, not toInt: the seed is unsigned and values above 2^31-1 are legal.
     if (parser.isSet("seed")) {
         bool ok = false;
-        const unsigned int seed =
-            static_cast<unsigned int>(parser.value("seed").toInt(&ok));
+        const unsigned int seed = parser.value("seed").toUInt(&ok);
         if (!ok)
-            qFatal("Option --seed expects an integer");
+            qFatal("Option --seed expects a non-negative integer; got \"%s\"",
+                   qPrintable(parser.value("seed")));
         params->setSeed(seed);
     } else {
         params->setSeed(static_cast<unsigned int>(std::time(nullptr)));
@@ -156,6 +225,7 @@ void Commandline_Parser::processOptions(const QCommandLineParser& parser)
         bool ok = false;
         const int np = parser.value("np").toInt(&ok);
         if (!ok) qFatal("Option --np expects an integer");
+        requirePositive("np", np);
         params->setNumThreads(np);
     } else {
         int cores = CpuInfo::getPhysicalCores();
@@ -164,11 +234,87 @@ void Commandline_Parser::processOptions(const QCommandLineParser& parser)
     }
     qInfo() << "Number of threads:" << params->getNumThreads();
 
-    // ── Output / paths ────────────────────────────────────────────────────
-    // TODO fix rnd_loads
-    //    parseInt("num_rnd_loads", [&](int v) {
-    //       params->setNumRndLoads(std::max(0, v));
-    //    });
+    // ── Crystallographic texture ──────────────────────────────────────────
+    // Fills the same Parameters::textureComponents that the Texture Editor writes,
+    // so ansysWrapper and the viewport pick it up through the usual path.
+    if (parser.isSet("texture")) {
+        TextureLibrary::Process proc;
+        if (!parseProcess(parser.value("texture"), proc)) {
+            qFatal("Option --texture expects one of: random, extrusion, rolling, "
+                   "recrystallization, shear; got \"%s\"",
+                   qPrintable(parser.value("texture")));
+        }
+
+        TextureLibrary::Lattice lat = TextureLibrary::Lattice::FCC;
+        if (parser.isSet("lattice") && !parseLattice(parser.value("lattice"), lat)) {
+            qFatal("Option --lattice expects fcc or bcc; got \"%s\"",
+                   qPrintable(parser.value("lattice")));
+        }
+
+        double scatter = 11.0;
+        if (parser.isSet("scatter")) {
+            bool ok = false;
+            scatter = parser.value("scatter").toDouble(&ok);
+            if (!ok || scatter < 0.0)
+                qFatal("Option --scatter expects a non-negative number of degrees; got \"%s\"",
+                       qPrintable(parser.value("scatter")));
+        }
+
+        Parameters::textureComponents =
+            TextureLibrary::componentsForProcess(proc, lat, scatter);
+
+        qInfo() << "texture:" << parser.value("texture")
+                << " lattice:" << (lat == TextureLibrary::Lattice::FCC ? "fcc" : "bcc")
+                << " scatter:" << scatter << "deg"
+                << " components:" << Parameters::textureComponents.size();
+    } else {
+        if (parser.isSet("lattice") || parser.isSet("scatter"))
+            qWarning() << "--lattice and --scatter have no effect without --texture";
+        Parameters::textureComponents.clear();
+    }
+
+    if (parser.isSet("num_rnd_loads")) {
+        bool ok = false;
+        const unsigned int n = parser.value("num_rnd_loads").toUInt(&ok);
+        if (!ok)
+            qFatal("Option --num_rnd_loads expects a non-negative integer; got \"%s\"",
+                   qPrintable(parser.value("num_rnd_loads")));
+        params->setNumRndLoads(n);
+        qInfo() << "num_rnd_loads :" << n;
+    }
+
+    if (parser.isSet("solver")) {
+        const QString s = parser.value("solver").trimmed().toLower();
+        if (s != "ansys" && s != "fft")
+            qFatal("Option --solver expects ansys or fft; got \"%s\"",
+                   qPrintable(parser.value("solver")));
+        params->setStressSolver(s);
+        qInfo() << "solver :" << s;
+    }
+
+    if (parser.isSet("stress_mode")) {
+        const QString m = parser.value("stress_mode").trimmed().toLower();
+        if (m != "single" && m != "dataset")
+            qFatal("Option --stress_mode expects single or dataset; got \"%s\"",
+                   qPrintable(parser.value("stress_mode")));
+        params->setStressMode(m);
+        qInfo() << "stress_mode :" << m;
+    }
+
+    if (parser.isSet("eps")) {
+        const QStringList parts = parser.value("eps").split(',');
+        if (parts.size() != 6)
+            qFatal("Option --eps expects 6 comma-separated values, got %d", parts.size());
+        double e[6];
+        for (int i = 0; i < 6; ++i) {
+            bool ok = false;
+            e[i] = parts[i].trimmed().toDouble(&ok);
+            if (!ok)
+                qFatal("Option --eps: component %d is not a number: \"%s\"",
+                       i + 1, qPrintable(parts[i]));
+        }
+        params->setStressEps(e);
+    }
 
     parseString("output", [&](const QString& v) {
         params->setFilename(v);
