@@ -48,6 +48,7 @@ public:
     void clear();
 
     void sampleNext(double angl[3], bool in_deg = true);
+    void sampleNextBunge(double bunge[3], bool in_deg = true);
 
     static void bungeFromPassive(const Matrix3& g,
                                 double& phi1, double& Phi, double& phi2);
@@ -64,12 +65,7 @@ public:
 
     static bool runSelfTest();
 
-    // Все различные представители ориентации в приведённом пространстве
-    // (кубическая решётка + орторомбическая симметрия образца), phi1,Phi,phi2 в [0,90].
     static std::vector<std::array<double,3>> fundamentalZoneBunge(double phi1, double Phi, double phi2);
-
-    // Bunge-углы очередного зерна напрямую, без круга через ANSYS-углы
-    void sampleNextBunge(double bunge[3]);
 
 private:
     static Matrix3 orientationFromMiller(const int hkl[3], const int uvw[3]);

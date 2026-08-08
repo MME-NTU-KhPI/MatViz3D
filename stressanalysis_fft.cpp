@@ -65,7 +65,8 @@ void StressAnalysisFFT::estimateStressWithFFT(short int numCubes, short int numP
     // buildGrainOrientations() is shared with StressAnalysis (ANSYS) -- for a
     // given Parameters::seed both solvers see the exact same per-grain Bunge
     // ZXZ orientations, not two independent random draws.
-    std::vector<std::array<double,3>> orient = buildGrainOrientations(nGrains, Parameters::seed);
+    std::vector<std::array<double,3>> orient = buildGrainOrientations(
+        nGrains, Parameters::seed, nullptr, Parameters::textureComponents);
 
     FFTSolverSession session(N, N, N, grain_field, orient, C11, C12, C44);
     session.set_tolerance(fft_tol);
@@ -309,7 +310,9 @@ SingleShotResult StressAnalysisFFT::solveSingleLoadCase(short int numCubes, shor
 
     std::array<double,3> forcedOrient;
     const bool useForced = getForcedOrientationDebugOverride(forcedOrient);
-    std::vector<std::array<double,3>> orient = buildGrainOrientations(nGrains, Parameters::seed, useForced ? &forcedOrient : nullptr);
+    std::vector<std::array<double,3>> orient = buildGrainOrientations(
+        nGrains, Parameters::seed, useForced ? &forcedOrient : nullptr,
+        Parameters::textureComponents);
     if (useForced) {
         const double r2d = 180.0 / M_PI;
         qDebug() << "[StressAnalysisFFT]   [DEBUG] MATVIZ_FORCE_ORIENT_DEG active: every grain forced to"

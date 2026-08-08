@@ -467,7 +467,9 @@ SingleShotResult StressAnalysis::solveSingleLoadCase(short int numCubes, short i
                 if (voxels[i][j][k] > nGrains) nGrains = voxels[i][j][k];
     std::array<double,3> forcedOrient;
     const bool useForced = getForcedOrientationDebugOverride(forcedOrient);
-    auto sharedOrient = buildGrainOrientations(nGrains, Parameters::seed, useForced ? &forcedOrient : nullptr);
+    auto sharedOrient = buildGrainOrientations(nGrains, Parameters::seed,
+                                               useForced ? &forcedOrient : nullptr,
+                                               Parameters::textureComponents);
     if (useForced) {
         const double r2d = 180.0 / M_PI;
         qDebug() << "[StressAnalysis::solveSingleLoadCase]   [DEBUG] MATVIZ_FORCE_ORIENT_DEG active: every grain forced to"

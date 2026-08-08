@@ -423,18 +423,18 @@ TextureLibrary::fundamentalZoneBunge(double phi1, double Phi, double phi2)
     return out;
 }
 
-void TextureLibrary::sampleNextBunge(double bunge[3])
+void TextureLibrary::sampleNextBunge(double bunge[3], bool in_deg)
 {
     Matrix3 R;
     switch (m_mode) {
     case Mode::Cube:
         bunge[0] = bunge[1] = bunge[2] = 0.0;
-        return;
+        return;                                  // zero in either unit
     case Mode::Random:
         R = randomMatrix(m_rng);
         break;
     case Mode::Textured: {
-        if (m_components.empty()) { bunge[0]=bunge[1]=bunge[2]=0.0; return; }
+        if (m_components.empty()) { bunge[0] = bunge[1] = bunge[2] = 0.0; return; }
         const Component& c = pickComponent();
         if (c.is_random)      R = randomMatrix(m_rng);
         else if (c.is_fiber)  R = applyScatter(fiberMatrix(c.uvw, m_rng), c.scatter_deg, m_rng);
@@ -442,7 +442,14 @@ void TextureLibrary::sampleNextBunge(double bunge[3])
         break;
     }
     }
-    Matrix3 g{};
-    for (int i=0;i<3;++i) for (int j=0;j<3;++j) g[i][j] = R[j][i];
-    bungeFromPassive(g, bunge[0], bunge[1], bunge[2]);
+
+    Matrix3 g{};                                     // passive = active^T
+    for (int i = 0; i < 3; ++i)
+        for (int j = 0; j < 3; ++j) g[i][j] = R[j][i];
+
+    bungeFromPassive(g, bunge[0], bunge[1], bunge[2]);   // returns degrees
+
+    if (!in_deg) {
+        bunge[0] *= DEG; bunge[1] *= DEG; bunge[2] *= DEG;
+    }
 }

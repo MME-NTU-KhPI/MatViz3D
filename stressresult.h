@@ -87,22 +87,26 @@ inline double eqvStrainPipeline(const double e[6])
 // useful as a controlled A/B test: with orientation-ensemble noise removed,
 // ANSYS and FFT should agree closely if the ANSYS-side Bunge->LOCAL angle
 // conversion is convention-correct.
-inline std::vector<std::array<double,3>> buildGrainOrientations(int nGrains, unsigned int seed,
-                                                                  const std::array<double,3>* forceOrientation = nullptr)
+inline std::vector<std::array<double,3>> buildGrainOrientations(
+    int nGrains, unsigned int seed,
+    const std::array<double,3>* forceOrientation = nullptr,
+    const std::vector<TextureLibrary::Component>& texture = {})
 {
     std::vector<std::array<double,3>> orient(static_cast<size_t>(nGrains) + 1, std::array<double,3>{0.0, 0.0, 0.0});
     if (forceOrientation) {
         for (int g = 1; g <= nGrains; ++g) orient[g] = *forceOrientation;
         return orient;
     }
-    std::mt19937 gen(seed);
-    std::uniform_real_distribution<double> u01(0.0, 1.0);
-    const double TWO_PI = 2.0 * M_PI;
+    // Texture components set from the Texture Editor or --texture; falls back
+    // to the uniform-random SO(3) sampling this function used to do inline.
+    TextureLibrary lib(seed);
+    if (!texture.empty()) lib.setComponents(texture);
+    else                  lib.setMode(TextureLibrary::Mode::Random);
+
     for (int g = 1; g <= nGrains; ++g) {
-        const double phi1 = TWO_PI * u01(gen);
-        const double Phi  = std::acos(2.0 * u01(gen) - 1.0);
-        const double phi2 = TWO_PI * u01(gen);
-        orient[g] = { phi1, Phi, phi2 };   // radians, Bunge ZXZ
+        double b[3];
+        lib.sampleNextBunge(b, /*in_deg=*/false);          // radians, Bunge ZXZ
+        orient[g] = { b[0], b[1], b[2] };
     }
     return orient;
 }
