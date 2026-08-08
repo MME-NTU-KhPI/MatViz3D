@@ -555,6 +555,7 @@ Window {
                                         id: model
                                         ListElement { text: "Neumann" }
                                         ListElement { text: "Moore" }
+                                        ListElement { text: "Radial" }
                                         ListElement { text: "Probability Ellipse" }
                                         ListElement { text: "Probability Circle" }
                                         ListElement { text: "Probability Algorithm" }
