@@ -1084,8 +1084,8 @@ Window {
     Item {
         id: _itemFieldView
         x: parent.width - (_itemFieldView.width + 30)
-        y: _itemAnimationWidget.y + _itemAnimationWidget.height + 20
-        width: mainWindow.width < 1250 ? "310" : "350"
+        y: menuBar_rec.height + 20
+        width: mainWindow.width < 1250 ? 310 : 350
         height: 250
         visible: stressAnalysisController.hasResult
 
