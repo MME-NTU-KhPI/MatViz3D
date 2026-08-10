@@ -38,6 +38,7 @@
 #include <memory>
 #include <complex>
 #include <stdexcept>
+#include <functional>
 
 namespace fftsa {
 
@@ -184,12 +185,13 @@ public:
     //  solid_fraction * <sigma>_solid, i.e. the RVE-level macro stress.  So we
     //  do NOT multiply by solid_fraction again (unlike the ANSYS path which
     //  averages solid-only and then scales).
-    StepResult solveLoadCase(const Vec6& macro_strain_pipeline) {
+    StepResult solveLoadCase(const Vec6& macro_strain_pipeline,
+                             const std::function<void(int, double)>& onIter = nullptr) {
         ensure_solver_built();
 
         const ffth::Vec6 E = strain_pipeline_to_mandel(macro_strain_pipeline);
         int it = 0;
-        const ffth::Vec6 avg_m = H_->solve(E, &it);
+        const ffth::Vec6 avg_m = H_->solve(E, &it, onIter);
 
         StepResult r;
         r.macro_strain = macro_strain_pipeline;
@@ -220,8 +222,9 @@ public:
     // Same as solveLoadCase but also returns per-voxel strain (engineering) so
     // the caller can fill full 22-column HDF5 rows.  Used only in phase 2.0.
     StepResult solveLoadCaseFull(const Vec6& macro_strain_pipeline,
-                                 std::vector<Vec6>& voxel_strain_eng /*out*/) {
-        StepResult r = solveLoadCase(macro_strain_pipeline);
+                                 std::vector<Vec6>& voxel_strain_eng /*out*/,
+                                 const std::function<void(int, double)>& onIter = nullptr) {
+        StepResult r = solveLoadCase(macro_strain_pipeline, onIter);
         voxel_strain_eng.clear();
         voxel_strain_eng.reserve(r.voxel_idx.size());
         const std::vector<std::complex<double>>* ec[6];

@@ -6,6 +6,7 @@
 #include "stressresult.h"
 #include "stressanalysis.h"
 #include "stressanalysis_fft.h"
+#include "hdf5wrapper.h"
 #include <array>
 #include <QApplication>
 #include <QMessageBox>
@@ -118,7 +119,11 @@ void MainWindowAlgorithmHandler::executeAlgorithm(Parent_Algorithm& algorithm, c
 
         for (int i = 0; i <= nSeeds; ++i) {   // index 0 == background CS, as in createLocalCS
             double eu[3] = {0.0, 0.0, 0.0};
-            lib.sampleNext(eu, /*in_deg=*/true);
+            // Bunge ZXZ (phi1,Phi,phi2), matching buildOrientationGlyphs()'s
+            // bungeZXZ() reconstruction -- NOT the ANSYS Z-X-Y angles that
+            // sampleNext() returns (those two conventions only agree at the
+            // identity, which is why this only showed up on non-Cube textures).
+            lib.sampleNextBunge(eu, /*in_deg=*/true);
             orientations.push_back({
                 static_cast<float>(eu[0]),
                 static_cast<float>(eu[1]),
@@ -190,6 +195,55 @@ void MainWindowAlgorithmHandler::runStressCalculation()
                 << " syz" << r.macro_stress[4] << " sxz" << r.macro_stress[5];
         qInfo() << "von Mises:" << r.von_mises;
         if (fft) qInfo() << "iterations:" << r.iterations << " error:" << r.error;
+        return;
+    }
+
+    if (p->getStressMode().compare("stiffness", Qt::CaseInsensitive) == 0) {
+        // Quick-test S/C/P: 6 canonical unit-strain solves, no Hill calibration,
+        // no 300-sample main run -- seconds instead of minutes for FFT, one
+        // ANSYS batch instead of ~450 for ANSYS. Written into the same HDF5
+        // schema (S_matrix/C_matrix/P_matrix/Effective_Moduli under an
+        // auto-incrementing /<last_set>/ group) as dataset mode, so any
+        // existing reader (e.g. h5py) doesn't need special-casing.
+        StiffnessMatrixResult r = fft
+            ? StressAnalysisFFT().computeStiffnessMatrix(numCubes, numPoints, Parameters::voxels)
+            : StressAnalysis().computeStiffnessMatrix(numCubes, numPoints, Parameters::voxels);
+        if (!r.ok) {
+            qCritical() << "Stiffness matrix computation failed:" << r.errorMessage;
+            return;
+        }
+
+        const QString filename = Parameters::filename.length() ? Parameters::filename : "current_ls.hdf5";
+        HDF5Wrapper hdf5(filename.toStdString());
+
+        int last_set = hdf5.readInt("/", "last_set");
+        if (last_set == -1) { last_set = 1; hdf5.write("/", "last_set", last_set); }
+        else                { last_set += 1; hdf5.update("/", "last_set", last_set); }
+        const std::string prefix = ("/" + QString::number(last_set)).toStdString();
+
+        std::vector<std::vector<float>> mat_S(6, std::vector<float>(6));
+        std::vector<std::vector<float>> mat_C(6, std::vector<float>(6));
+        std::vector<std::vector<float>> mat_P(6, std::vector<float>(6));
+        for (int i = 0; i < 6; ++i)
+            for (int j = 0; j < 6; ++j) {
+                mat_S[i][j] = float(r.S[i][j]);
+                mat_C[i][j] = float(r.C[i][j]);
+                mat_P[i][j] = float(r.P[i][j]);
+            }
+        std::vector<float> moduli(r.moduli, r.moduli + 6);
+
+        hdf5.write(prefix, "S_matrix", mat_S);
+        hdf5.write(prefix, "C_matrix", mat_C);
+        hdf5.write(prefix, "P_matrix", mat_P);
+        hdf5.write(prefix, "Effective_Moduli", moduli);
+        hdf5.write(prefix, "seed", (int)Parameters::seed);
+        hdf5.write(prefix, "solver", solver);
+        if (fft) hdf5.write(prefix, "iterations_total", r.totalIterations);
+
+        qInfo() << "Stiffness matrix ->" << filename << prefix.c_str();
+        qInfo() << QString("Effective moduli (1/Sii) [Pa]: Ex=%1 Ey=%2 Ez=%3 Gxy=%4 Gyz=%5 Gxz=%6")
+                        .arg(r.moduli[0], 0, 'e', 3).arg(r.moduli[1], 0, 'e', 3).arg(r.moduli[2], 0, 'e', 3)
+                        .arg(r.moduli[3], 0, 'e', 3).arg(r.moduli[4], 0, 'e', 3).arg(r.moduli[5], 0, 'e', 3);
         return;
     }
 

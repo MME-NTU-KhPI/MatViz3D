@@ -291,7 +291,8 @@ void StressAnalysisFFT::estimateStressWithFFT(short int numCubes, short int numP
 //  single-shot / verification UI.
 // ─────────────────────────────────────────────────────────────────────────────
 SingleShotResult StressAnalysisFFT::solveSingleLoadCase(short int numCubes, short int numPoints,
-                                                         int32_t ***voxels, const double eps[6])
+                                                         int32_t ***voxels, const double eps[6],
+                                                         const std::function<void(int, double)>& onIter)
 {
     Q_UNUSED(numPoints);
     SingleShotResult out;
@@ -337,7 +338,7 @@ SingleShotResult StressAnalysisFFT::solveSingleLoadCase(short int numCubes, shor
 
     Vec6 e{}; for (int i = 0; i < 6; ++i) e[i] = eps[i];
     std::vector<Vec6> voxel_strain_eng;
-    auto r = session.solveLoadCaseFull(e, voxel_strain_eng);
+    auto r = session.solveLoadCaseFull(e, voxel_strain_eng, onIter);
 
     for (int i = 0; i < 6; ++i) out.macro_stress[i] = r.macro_stress[i];
     out.von_mises  = vonMisesPipeline(out.macro_stress);
@@ -406,4 +407,118 @@ SingleShotResult StressAnalysisFFT::solveSingleLoadCase(short int numCubes, shor
     qDebug() << "[StressAnalysisFFT] v solveSingleLoadCase done: iters =" << r.iterations
              << " err =" << r.error << " von_mises =" << out.von_mises;
     return out;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Quick-test stiffness: 6 canonical unit-strain solves -> C, S = C^-1, P.
+//  Same math as Phase 1.0 of estimateStressWithFFT() / FFTSolverSession::
+//  computeCompliance(), but done directly here (rather than via
+//  computeCompliance()) so each of the 6 solves can be tagged with its load
+//  index for the caller's onIter callback, and so every step can be logged.
+// ─────────────────────────────────────────────────────────────────────────────
+StiffnessMatrixResult StressAnalysisFFT::computeStiffnessMatrix(short int numCubes, short int numPoints,
+                                                                 int32_t ***voxels,
+                                                                 const std::function<void(int, int, double)>& onIter)
+{
+    Q_UNUSED(numPoints);
+    StiffnessMatrixResult r;
+    r.isFFT = true;
+
+    qDebug() << "\n[StressAnalysisFFT::computeStiffnessMatrix] ────────────────────────────────";
+    qDebug() << "[StressAnalysisFFT::computeStiffnessMatrix] 6 canonical unit-strain solves -> C, S, P";
+
+    const int N = numCubes;
+    int nGrains = 0;
+    std::vector<int> grain_field = buildGrainField(N, voxels, nGrains);
+    if (nGrains < 1) {
+        r.errorMessage = QObject::tr("No grains in voxel field");
+        qCritical() << "[StressAnalysisFFT::computeStiffnessMatrix] x" << r.errorMessage;
+        return r;
+    }
+
+    std::vector<std::array<double,3>> orient = buildGrainOrientations(
+        nGrains, Parameters::seed, nullptr, Parameters::textureComponents);
+
+    FFTSolverSession session(N, N, N, grain_field, orient, C11, C12, C44);
+    session.set_tolerance(fft_tol);
+    session.set_max_iters(fft_max_iter);
+    qDebug() << "[StressAnalysisFFT::computeStiffnessMatrix]   grains =" << nGrains
+             << " solid fraction =" << session.solid_fraction()
+             << " tol =" << fft_tol << " max_iter =" << fft_max_iter
+             << " textureComponents =" << (int)Parameters::textureComponents.size();
+
+    static const char* comp_names[6] = {"exx", "eyy", "ezz", "exy(tensor)", "eyz(tensor)", "exz(tensor)"};
+    double C[6][6] = {{0}};
+    int totalIters = 0;
+
+    for (int j = 0; j < 6; ++j) {
+        Vec6 e{}; e.fill(0.0); e[j] = 1.0;
+        qDebug() << QString("[StressAnalysisFFT::computeStiffnessMatrix]   Load #%1: %2 = 1.0 (unit tensor strain)")
+                        .arg(j + 1).arg(comp_names[j]);
+
+        auto cb = onIter;
+        std::function<void(int, double)> perLoadCb = cb
+            ? std::function<void(int, double)>([cb, j](int it, double err) { cb(j, it, err); })
+            : std::function<void(int, double)>();
+
+        auto step = session.solveLoadCase(e, perLoadCb);
+        totalIters += step.iterations;
+        for (int i = 0; i < 6; ++i) C[i][j] = step.macro_stress[i];
+
+        r.loads[j].iterations = step.iterations;
+        r.loads[j].error      = step.error;
+        for (int i = 0; i < 6; ++i) r.loads[j].macroStress[i] = step.macro_stress[i];
+
+        qDebug() << QString("      -> iterations=%1  error=%2  stress=[%3, %4, %5, %6, %7, %8] Pa")
+                        .arg(step.iterations).arg(step.error, 0, 'e', 3)
+                        .arg(step.macro_stress[0], 0, 'e', 3).arg(step.macro_stress[1], 0, 'e', 3)
+                        .arg(step.macro_stress[2], 0, 'e', 3).arg(step.macro_stress[3], 0, 'e', 3)
+                        .arg(step.macro_stress[4], 0, 'e', 3).arg(step.macro_stress[5], 0, 'e', 3);
+        if (step.error >= fft_tol)
+            qWarning() << "      ! load" << (j + 1) << "did NOT converge (err" << step.error
+                       << ">= tol" << fft_tol << ") -- C/S may be inaccurate for this column";
+    }
+
+    // symmetrize small numerical asymmetry (same as computeCompliance())
+    for (int i = 0; i < 6; ++i)
+        for (int j = i + 1; j < 6; ++j) {
+            const double m = 0.5 * (C[i][j] + C[j][i]);
+            C[i][j] = C[j][i] = m;
+        }
+
+    if (!invert6x6(C, r.S)) {
+        r.errorMessage = QObject::tr("Stiffness matrix C is singular; cannot invert to S");
+        qCritical() << "[StressAnalysisFFT::computeStiffnessMatrix] x" << r.errorMessage;
+        return r;
+    }
+    for (int i = 0; i < 6; ++i) for (int j = 0; j < 6; ++j) r.C[i][j] = C[i][j];
+
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 6; ++j)
+            r.P[i][j] = (std::abs(r.S[j][j]) > 1e-30) ? -r.S[i][j] / r.S[j][j] : 0.0;
+    for (int i = 0; i < 6; ++i)
+        r.moduli[i] = (std::abs(r.S[i][i]) > 1e-20) ? 1.0 / r.S[i][i] : 0.0;
+
+    r.totalIterations = totalIters;
+    r.ok = true;
+
+    qDebug() << "[StressAnalysisFFT::computeStiffnessMatrix] v DONE (" << totalIters << "total iters).";
+    qDebug() << "  C matrix (6x6) [Pa]:";
+    for (int i = 0; i < 6; ++i) {
+        QString row;
+        for (int j = 0; j < 6; ++j) row += QString("%1 ").arg(r.C[i][j], 12, 'e', 3);
+        qDebug().noquote() << QString("    Row[%1]: [ ").arg(i) + row + "]";
+    }
+    qDebug() << "  S matrix (6x6) [1/Pa]:";
+    for (int i = 0; i < 6; ++i) {
+        QString row;
+        for (int j = 0; j < 6; ++j) row += QString("%1 ").arg(r.S[i][j], 12, 'e', 3);
+        qDebug().noquote() << QString("    Row[%1]: [ ").arg(i) + row + "]";
+    }
+    qDebug() << QString("  Effective moduli (1/Sii) [Pa]: Ex=%1 Ey=%2 Ez=%3 Gxy=%4 Gyz=%5 Gxz=%6")
+                    .arg(r.moduli[0], 0, 'e', 3).arg(r.moduli[1], 0, 'e', 3).arg(r.moduli[2], 0, 'e', 3)
+                    .arg(r.moduli[3], 0, 'e', 3).arg(r.moduli[4], 0, 'e', 3).arg(r.moduli[5], 0, 'e', 3);
+    qDebug() << "[StressAnalysisFFT::computeStiffnessMatrix] ────────────────────────────────\n";
+
+    return r;
 }

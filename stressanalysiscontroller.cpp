@@ -39,6 +39,52 @@ StressAnalysisController::StressAnalysisController(QObject* parent)
             this, &StressAnalysisController::onSingleShotFinished);
     connect(&m_datasetWatcher, &QFutureWatcher<void>::finished,
             this, &StressAnalysisController::onDatasetFinished);
+    connect(&m_stiffnessWatcher, &QFutureWatcher<StiffnessMatrixResult>::finished,
+            this, &StressAnalysisController::onStiffnessFinished);
+}
+
+QVariantList StressAnalysisController::matrixToVariant(const double m[6][6])
+{
+    QVariantList rows;
+    for (int i = 0; i < 6; ++i) {
+        QVariantList row;
+        for (int j = 0; j < 6; ++j) row.append(m[i][j]);
+        rows.append(QVariant(row));
+    }
+    return rows;
+}
+
+QVariantList StressAnalysisController::stiffnessModuli() const
+{
+    QVariantList out;
+    for (double v : m_lastStiffness.moduli) out.append(v);
+    return out;
+}
+
+QVariantList StressAnalysisController::convergencePoints() const
+{
+    QVariantList out;
+    for (const auto& p : m_convergence) {
+        QVariantList pt;
+        pt << p.loadIndex << p.iteration << p.error;
+        out.append(QVariant(pt));
+    }
+    return out;
+}
+
+void StressAnalysisController::resetConvergence(bool isFFT, int loadCount)
+{
+    m_convergence.clear();
+    m_convergenceIsFFT     = isFFT;
+    m_convergenceLoadCount = loadCount;
+    m_convergenceTol       = isFFT ? StressAnalysisFFT().fft_tol : 0.0;
+    emit convergenceChanged();
+}
+
+void StressAnalysisController::appendConvergencePoint(int loadIndex, int iteration, double error)
+{
+    m_convergence.push_back({loadIndex, iteration, error});
+    emit convergenceChanged();
 }
 
 QVariantList StressAnalysisController::resultStress() const
@@ -234,6 +280,12 @@ void StressAnalysisController::pushResultToView()
 //  QtConcurrent worker thread: solveSingleLoadCase() touches no GUI/QML
 //  state, so only its inputs need to be snapshotted here on the main thread
 //  and its SingleShotResult (plain data) handed back via QFutureWatcher.
+//
+//  For FFT, the worker also gets a per-iteration callback so the convergence
+//  plot can update live. The lambda captures `this` only to hand it to
+//  QMetaObject::invokeMethod(this, ..., Qt::QueuedConnection) -- it never
+//  touches controller state directly off the main thread, and Qt safely
+//  drops the queued call if this controller is destroyed first.
 // ─────────────────────────────────────────────────────────────────────────────
 void StressAnalysisController::runSingleShot(const QString& solver, const QVariantList& eps)
 {
@@ -256,12 +308,19 @@ void StressAnalysisController::runSingleShot(const QString& solver, const QVaria
     std::array<double, 6> e;
     std::copy(std::begin(m_lastEps), std::end(m_lastEps), e.begin());
 
+    resetConvergence(!ansys, 1);
     setRunning(true);
 
-    QFuture<SingleShotResult> future = QtConcurrent::run([ansys, numCubes, numPoints, voxels, e]() {
-        return ansys
-            ? StressAnalysis().solveSingleLoadCase(numCubes, numPoints, voxels, e.data())
-            : StressAnalysisFFT().solveSingleLoadCase(numCubes, numPoints, voxels, e.data());
+    QFuture<SingleShotResult> future = QtConcurrent::run([this, ansys, numCubes, numPoints, voxels, e]() {
+        if (ansys)
+            return StressAnalysis().solveSingleLoadCase(numCubes, numPoints, voxels, e.data());
+
+        auto onIter = [this](int iter, double err) {
+            QMetaObject::invokeMethod(this, [this, iter, err]() {
+                appendConvergencePoint(0, iter, err);
+            }, Qt::QueuedConnection);
+        };
+        return StressAnalysisFFT().solveSingleLoadCase(numCubes, numPoints, voxels, e.data(), onIter);
     });
     m_singleShotWatcher.setFuture(future);
 }
@@ -350,6 +409,58 @@ void StressAnalysisController::onDatasetFinished()
     LoadStepManager::getInstance().LoadFromHDF5(m_pendingDatasetFilename);
 
     emit resultChanged();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  "Stiffness matrix" mode -- FFT or ANSYS, 6 canonical unit-strain solves,
+//  no Hill calibration, no dataset build, no HDF5 write. Same threading
+//  pattern as runSingleShot(): FFT gets a per-(load,iteration) callback for
+//  the live convergence plot, marshalled back to the main thread.
+// ─────────────────────────────────────────────────────────────────────────────
+void StressAnalysisController::runStiffnessMatrix(const QString& solver)
+{
+    if (m_isRunning) return;
+    if (!Parameters::voxels) {
+        setError(tr("No structure generated — press START first"));
+        return;
+    }
+
+    const bool   ansys     = isAnsys(solver);
+    const short  numCubes  = (short) Parameters::instance()->getSize();
+    const short  numPoints = (short) Parameters::instance()->getPoints();
+    int32_t***   voxels    = Parameters::voxels;   // snapshot the pointer -- START is disabled while running
+    const double strainVal = m_strainVal;
+
+    resetConvergence(!ansys, 6);
+    setRunning(true);
+
+    QFuture<StiffnessMatrixResult> future = QtConcurrent::run([this, ansys, numCubes, numPoints, voxels, strainVal]() {
+        if (ansys)
+            return StressAnalysis().computeStiffnessMatrix(numCubes, numPoints, voxels, strainVal);
+
+        auto onIter = [this](int loadIdx, int iter, double err) {
+            QMetaObject::invokeMethod(this, [this, loadIdx, iter, err]() {
+                appendConvergencePoint(loadIdx, iter, err);
+            }, Qt::QueuedConnection);
+        };
+        return StressAnalysisFFT().computeStiffnessMatrix(numCubes, numPoints, voxels, onIter);
+    });
+    m_stiffnessWatcher.setFuture(future);
+}
+
+void StressAnalysisController::onStiffnessFinished()
+{
+    const StiffnessMatrixResult r = m_stiffnessWatcher.result();
+    setRunning(false);
+
+    m_lastStiffness = r;
+    m_hasStiffness  = r.ok;
+    if (!r.ok) {
+        setError(r.errorMessage.isEmpty() ? tr("Stiffness matrix computation failed") : r.errorMessage);
+    } else {
+        m_lastErrorMessage.clear();
+    }
+    emit stiffnessChanged();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

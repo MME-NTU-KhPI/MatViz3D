@@ -5,9 +5,9 @@ import QtQuick.Layouts 1.15
 
 Window {
     id: stressAnalysisView
-    width: 560
-    height: 700
-    minimumWidth: 480
+    width: 620
+    height: 760
+    minimumWidth: 520
     minimumHeight: 600
     color: "#282828"
     title: qsTr("Stress Analysis")
@@ -60,6 +60,17 @@ Window {
 
     function currentSolver() { return ansysRadio.checked ? "ansys" : "fft"; }
 
+    // Reads cell [i][j] from whichever of S/C/P the matrixTab currently selects.
+    function currentMatrixCell(i, j) {
+        var m = matrixTab.currentIndex === 0 ? ctrl.stiffnessC
+              : matrixTab.currentIndex === 1 ? ctrl.stiffnessS
+              : ctrl.stiffnessP;
+        return (m && m[i]) ? m[i][j] : 0;
+    }
+
+    readonly property var seriesColors: ["#4fc3f7", "#81c784", "#ffb74d", "#ba68c8", "#f06292", "#a1887f"]
+    readonly property var loadLabels: ["exx", "eyy", "ezz", "exy", "eyz", "exz"]
+
     FontLoader { id: inter;      source: "qrc:/fonts/Inter-VariableFont_opsz,wght.ttf" }
     FontLoader { id: montserrat; source: "qrc:/fonts/Montserrat-VariableFont_wght.ttf" }
 
@@ -68,9 +79,18 @@ Window {
         applyPreset(1);
     }
 
-    ColumnLayout {
+    Flickable {
         anchors.fill: parent
-        anchors.margins: 20
+        contentWidth: width
+        contentHeight: mainColumn.implicitHeight + 40
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+
+    ColumnLayout {
+        id: mainColumn
+        x: 20
+        y: 20
+        width: parent.width - 40
         spacing: 18
 
             // ── Analysis type ────────────────────────────────────────────
@@ -101,6 +121,7 @@ Window {
                 spacing: 16
                 Label { text: qsTr("Mode:"); color: "#CFCECE"; font.family: montserrat.name; font.pixelSize: 15 }
                 RadioButton { id: singleShotRadio; text: qsTr("Single load case"); checked: true; font.family: inter.name }
+                RadioButton { id: matrixRadio;     text: qsTr("Stiffness matrix (S/C/P)"); font.family: inter.name }
                 RadioButton { id: datasetRadio;    text: qsTr("Build dataset");    font.family: inter.name }
             }
 
@@ -209,6 +230,91 @@ Window {
                 }
             }
 
+            // ── Stiffness matrix panel ──────────────────────────────────
+            ColumnLayout {
+                id: matrixPanel
+                visible: matrixRadio.checked
+                Layout.fillWidth: true
+                spacing: 12
+
+                RowLayout {
+                    spacing: 10
+                    Button {
+                        text: qsTr("Compute")
+                        enabled: !ctrl.isRunning
+                        onClicked: ctrl.runStiffnessMatrix(currentSolver())
+                    }
+                    BusyIndicator {
+                        running: ctrl.isRunning
+                        visible: ctrl.isRunning
+                        implicitWidth: 24
+                        implicitHeight: 24
+                    }
+                    Label {
+                        text: qsTr("6 canonical unit-strain solves → C, S = C⁻¹, P[i][j] = -S[i][j]/S[j][j]")
+                        color: "#969696"; font.pixelSize: 12; font.family: inter.name
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                    }
+                }
+
+                ColumnLayout {
+                    visible: ctrl.hasStiffness
+                    spacing: 8
+                    Layout.topMargin: 4
+
+                    RowLayout {
+                        spacing: 6
+                        Label { text: qsTr("Matrix:"); color: "#CFCECE"; font.family: inter.name }
+                        TabBar {
+                            id: matrixTab
+                            TabButton { text: "C [Pa]" }
+                            TabButton { text: "S [1/Pa]" }
+                            TabButton { text: "P" }
+                        }
+                    }
+
+                    GridLayout {
+                        columns: 6
+                        columnSpacing: 8
+                        rowSpacing: 4
+                        Layout.fillWidth: true
+
+                        Repeater {
+                            model: 36
+                            delegate: Text {
+                                text: fmt(currentMatrixCell(Math.floor(index / 6), index % 6))
+                                color: (index % 6) === Math.floor(index / 6) ? "#4fc3f7" : "#CFCECE"
+                                font.family: "monospace"
+                                font.pixelSize: 11
+                                horizontalAlignment: Text.AlignRight
+                                Layout.preferredWidth: 84
+                            }
+                        }
+                    }
+
+                    RowLayout {
+                        spacing: 14
+                        Layout.topMargin: 6
+                        Label { text: qsTr("Ex=%1").arg(fmt(ctrl.stiffnessModuli[0]));  color: "#4fc3f7"; font.pixelSize: 12; font.family: inter.name }
+                        Label { text: qsTr("Ey=%1").arg(fmt(ctrl.stiffnessModuli[1]));  color: "#4fc3f7"; font.pixelSize: 12; font.family: inter.name }
+                        Label { text: qsTr("Ez=%1").arg(fmt(ctrl.stiffnessModuli[2]));  color: "#4fc3f7"; font.pixelSize: 12; font.family: inter.name }
+                        Label { text: qsTr("Gxy=%1").arg(fmt(ctrl.stiffnessModuli[3])); color: "#4fc3f7"; font.pixelSize: 12; font.family: inter.name }
+                        Label { text: qsTr("Gyz=%1").arg(fmt(ctrl.stiffnessModuli[4])); color: "#4fc3f7"; font.pixelSize: 12; font.family: inter.name }
+                        Label { text: qsTr("Gxz=%1").arg(fmt(ctrl.stiffnessModuli[5])); color: "#4fc3f7"; font.pixelSize: 12; font.family: inter.name }
+                    }
+
+                    Label {
+                        visible: ctrl.stiffnessIsFFT
+                        text: qsTr("FFT: %1 total iterations across the 6 loads. Per-load iterations/error/stress are logged to the Console panel. Live convergence below.")
+                              .arg(ctrl.stiffnessTotalIterations)
+                        color: "#7a7a7a"; font.pixelSize: 11; font.family: inter.name
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                    }
+                }
+            }
+
             // ── Dataset build panel ──────────────────────────────────────
             ColumnLayout {
                 id: datasetPanel
@@ -276,6 +382,131 @@ Window {
                 font.family: inter.name
             }
 
+            // ── Live FFT convergence ────────────────────────────────────
+            // Shared by the single-shot solve (1 series) and the stiffness-
+            // matrix solve (up to 6 series, one per canonical load) -- both
+            // feed ctrl.convergencePoints via the same live callback. Hidden
+            // for ANSYS: it's a direct FE solve, no per-iteration error.
+            ColumnLayout {
+                visible: ctrl.convergenceIsFFT && ctrl.convergencePoints.length > 0
+                Layout.fillWidth: true
+                spacing: 4
+                Layout.topMargin: 6
+
+                RowLayout {
+                    spacing: 12
+                    Label {
+                        text: qsTr("FFT convergence (log scale)")
+                        font.bold: true; color: "#CFCECE"; font.family: montserrat.name
+                    }
+                    Label {
+                        visible: ctrl.convergenceLoadCount > 1
+                        text: {
+                            var labels = [];
+                            for (var k = 0; k < Math.min(ctrl.convergenceLoadCount, loadLabels.length); ++k)
+                                labels.push("<font color='" + seriesColors[k % seriesColors.length] + "'>■</font> " + loadLabels[k]);
+                            return labels.join("  ");
+                        }
+                        textFormat: Text.RichText
+                        font.pixelSize: 11; font.family: inter.name
+                    }
+                }
+
+                Canvas {
+                    id: convCanvas
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 220
+
+                    Connections {
+                        target: ctrl
+                        function onConvergenceChanged() { convCanvas.requestPaint(); }
+                    }
+
+                    onPaint: {
+                        var ctx = getContext("2d");
+                        ctx.reset();
+                        ctx.fillStyle = "#1e1e1e";
+                        ctx.fillRect(0, 0, width, height);
+
+                        var pts = ctrl.convergencePoints;
+                        if (!pts || pts.length === 0) return;
+
+                        var margin = { l: 60, r: 10, t: 10, b: 24 };
+                        var plotW = Math.max(1, width - margin.l - margin.r);
+                        var plotH = Math.max(1, height - margin.t - margin.b);
+
+                        var maxIter = 1;
+                        var minLog = 1e300, maxLog = -1e300;
+                        var k;
+                        for (k = 0; k < pts.length; ++k) {
+                            var it = pts[k][1], err = pts[k][2];
+                            if (it > maxIter) maxIter = it;
+                            var lg = err > 0 ? Math.log(err) / Math.LN10 : -300;
+                            if (lg < minLog) minLog = lg;
+                            if (lg > maxLog) maxLog = lg;
+                        }
+                        var tolLog = ctrl.convergenceTol > 0 ? Math.log(ctrl.convergenceTol) / Math.LN10 : minLog;
+                        minLog = Math.min(minLog, tolLog) - 0.5;
+                        maxLog = Math.max(maxLog, tolLog) + 0.5;
+                        if (maxLog <= minLog) maxLog = minLog + 1;
+
+                        function xPix(it) { return margin.l + (maxIter > 0 ? it / maxIter : 0) * plotW; }
+                        function yPix(lg)  { return margin.t + (1 - (lg - minLog) / (maxLog - minLog)) * plotH; }
+
+                        ctx.strokeStyle = "#555";
+                        ctx.lineWidth = 1;
+                        ctx.strokeRect(margin.l, margin.t, plotW, plotH);
+
+                        // horizontal gridlines + log-scale y labels
+                        ctx.fillStyle = "#9e9e9e";
+                        ctx.font = "10px sans-serif";
+                        var ticks = 5, t;
+                        for (t = 0; t <= ticks; ++t) {
+                            var lgv = minLog + (maxLog - minLog) * t / ticks;
+                            var yy = yPix(lgv);
+                            ctx.strokeStyle = "#333";
+                            ctx.beginPath(); ctx.moveTo(margin.l, yy); ctx.lineTo(margin.l + plotW, yy); ctx.stroke();
+                            ctx.fillText("1e" + lgv.toFixed(0), 2, yy + 3);
+                        }
+                        ctx.fillText(qsTr("iteration"), margin.l + plotW / 2 - 20, height - 6);
+
+                        // tolerance line
+                        if (ctrl.convergenceTol > 0) {
+                            ctx.strokeStyle = "#ef5350";
+                            ctx.setLineDash([4, 3]);
+                            var ty = yPix(tolLog);
+                            ctx.beginPath();
+                            ctx.moveTo(margin.l, ty);
+                            ctx.lineTo(margin.l + plotW, ty);
+                            ctx.stroke();
+                            ctx.setLineDash([]);
+                        }
+
+                        // one polyline per load index
+                        var series = {};
+                        for (k = 0; k < pts.length; ++k) {
+                            var li = pts[k][0];
+                            if (!series[li]) series[li] = [];
+                            series[li].push(pts[k]);
+                        }
+                        for (var key in series) {
+                            var s = series[key];
+                            ctx.strokeStyle = seriesColors[key % seriesColors.length];
+                            ctx.lineWidth = 2;
+                            ctx.beginPath();
+                            for (var p = 0; p < s.length; ++p) {
+                                var errv = s[p][2];
+                                var lgv2 = errv > 0 ? Math.log(errv) / Math.LN10 : minLog;
+                                var px = xPix(s[p][1]), py = yPix(lgv2);
+                                if (p === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+                            }
+                            ctx.stroke();
+                        }
+                    }
+                }
+            }
+
             Item { Layout.preferredHeight: 20 }
+    }
     }
 }

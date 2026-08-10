@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <vector>
 #include <array>
+#include <functional>
 #include "hillcriterion.h"
 #include "stressresult.h"
 
@@ -23,8 +24,22 @@ public:
     // Solve a single known load case (macro strain, pipeline order
     // [exx,eyy,ezz,exy,eyz,exz], tensor shear) and return the macro stress --
     // no HDF5 output, no Hill calibration.  Used by the single-shot UI.
+    // onIter, if set, is called with (iteration, equilibrium_error) after every
+    // FFT iteration -- lets the UI stream a live convergence plot.
     SingleShotResult solveSingleLoadCase(short int numCubes, short int numPoints,
-                                         int32_t ***voxels, const double eps[6]);
+                                         int32_t ***voxels, const double eps[6],
+                                         const std::function<void(int, double)>& onIter = nullptr);
+
+    // Quick-test elastic stiffness: the same 6 canonical unit-strain solves as
+    // Phase 1.0 of estimateStressWithFFT(), but standalone -- no Hill
+    // calibration, no 300-sample main run, no HDF5 output. Used by the
+    // "Stiffness matrix" UI mode so S/C/P can be inspected after a few
+    // seconds instead of a full dataset build.
+    // onIter, if set, is called with (loadIndex 0..5, iteration, error) for
+    // every iteration of every one of the 6 solves.
+    StiffnessMatrixResult computeStiffnessMatrix(short int numCubes, short int numPoints,
+                                                 int32_t ***voxels,
+                                                 const std::function<void(int, int, double)>& onIter = nullptr);
 
     // Single-crystal constants (Pa) and grid controls (optional overrides).
     double C11 = 168.4e9, C12 = 121.4e9, C44 = 75.4e9;

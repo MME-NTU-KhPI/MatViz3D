@@ -35,7 +35,9 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
     parser.addOption(QCommandLineOption("nogui","Running a program with no GUI"));
     parser.addOption(QCommandLineOption("solver","Solver for --run_stress_calc: ansys | fft (default ansys)", "solver"));
     parser.addOption(QCommandLineOption("stress_mode",
-                                        "Stress calculation mode: single | dataset (default dataset)", "mode"));
+                                        "Stress calculation mode: single | dataset | stiffness (default dataset). "
+                                        "stiffness computes S/C/P/moduli only (6 solves, no Hill calibration or "
+                                        "300-sample run) and writes them to HDF5, same schema as dataset mode.", "mode"));
     parser.addOption(QCommandLineOption("eps",
                                         "Strain tensor for --stress_mode single: exx,eyy,ezz,exy,eyz,exz", "values"));
     parser.addOption(QCommandLineOption("output", "Specify output file for generated cube", "directory"));
@@ -294,8 +296,8 @@ void Commandline_Parser::processOptions(const QCommandLineParser& parser)
 
     if (parser.isSet("stress_mode")) {
         const QString m = parser.value("stress_mode").trimmed().toLower();
-        if (m != "single" && m != "dataset")
-            qFatal("Option --stress_mode expects single or dataset; got \"%s\"",
+        if (m != "single" && m != "dataset" && m != "stiffness")
+            qFatal("Option --stress_mode expects single, dataset or stiffness; got \"%s\"",
                    qPrintable(parser.value("stress_mode")));
         params->setStressMode(m);
         qInfo() << "stress_mode :" << m;

@@ -30,6 +30,7 @@
 #include <cstddef>
 #include <cstdio>
 #include <stdexcept>
+#include <functional>
 
 namespace ffth {
 
@@ -248,7 +249,11 @@ public:
     // Solve for one macroscopic strain E (Mandel 6-vector).
     // Fills eps_ / sig_ (per-voxel, Mandel) and returns the volume-average
     // stress <sigma> (Mandel).  Number of iterations returned via *iters.
-    Vec6 solve(const Vec6& E, int* iters = nullptr) {
+    // onIter, if set, is invoked with (iteration, equilibrium_error) after
+    // every iteration -- lets a caller stream live convergence data (e.g. to
+    // a GUI) without waiting for the whole solve to finish.
+    Vec6 solve(const Vec6& E, int* iters = nullptr,
+               const std::function<void(int, double)>& onIter = nullptr) {
         if (C_.empty()) throw std::runtime_error("no materials set");
         pick_reference();
 
@@ -271,6 +276,8 @@ public:
 
             // (3) equilibrium error from the transformed stress
             err = equilibrium_error();
+
+            if (onIter) onIter(it, err);
 
             // Progress: printed straight to stdout (no Qt dependency here, see
             // file header) so a slow solve is visibly making progress rather

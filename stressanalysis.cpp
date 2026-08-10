@@ -239,18 +239,19 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
 //  Each load applies a unit strain along one component (ex, ey, ez, gxy, ...)
 //  Result: S[6][6] via calculateElasticProperties
 // ─────────────────────────────────────────────────────────────────────────────
-bool StressAnalysis::computeSMatrix(short int numCubes, short int numPoints, int32_t ***voxels, double strain_val, double S_out[6][6])
+bool StressAnalysis::computeElasticProperties(short int numCubes, short int numPoints, int32_t ***voxels,
+                                              double strain_val, ansysWrapper::ElasticProperties& out)
 {
-    qDebug() << "\n[StressAnalysis::computeSMatrix] ────────────────────────────────";
-    qDebug() << "[StressAnalysis::computeSMatrix] Computing elastic compliance matrix S";
-    qDebug() << "[StressAnalysis::computeSMatrix]   6 canonical loads, strain_val =" << strain_val;
+    qDebug() << "\n[StressAnalysis::computeElasticProperties] ────────────────────────────────";
+    qDebug() << "[StressAnalysis::computeElasticProperties] Computing elastic S/C/P via 6 canonical loads";
+    qDebug() << "[StressAnalysis::computeElasticProperties]   strain_val =" << strain_val;
 
     ansysWrapper temp_wr(true);
     QString base_dir = Parameters::working_directory.isEmpty() ? QDir::currentPath() : Parameters::working_directory;
     QString work_dir = base_dir + "/phase1_s_matrix";
     temp_wr.setWorkingDirectory(work_dir);
     QDir().mkpath(work_dir);
-    qDebug() << "[StressAnalysis::computeSMatrix]   ANSYS working directory:" << work_dir;
+    qDebug() << "[StressAnalysis::computeElasticProperties]   ANSYS working directory:" << work_dir;
 
     temp_wr.setSeed(Parameters::seed);
     temp_wr.setNP(Parameters::num_threads);
@@ -269,7 +270,7 @@ bool StressAnalysis::computeSMatrix(short int numCubes, short int numPoints, int
     };
 
     for (int k = 0; k < 6; ++k) {
-        qDebug() << QString("[StressAnalysis::computeSMatrix]   Load #%1: %2 = %3")
+        qDebug() << QString("[StressAnalysis::computeElasticProperties]   Load #%1: %2 = %3")
                         .arg(k+1).arg(comp_names[k]).arg(strain_val, 0, 'e', 2);
         const auto& load = canonical[k];
         // applyComplexLoads() takes (eps_xy, eps_xz, eps_yz) in that param order,
@@ -278,34 +279,80 @@ bool StressAnalysis::computeSMatrix(short int numCubes, short int numPoints, int
                                   load[0],load[1],load[2],load[3],load[5],load[4]);
     }
 
-    qDebug() << "[StressAnalysis::computeSMatrix]   Solving 6 load steps in ANSYS...";
+    qDebug() << "[StressAnalysis::computeElasticProperties]   Solving 6 load steps in ANSYS...";
     temp_wr.solveLS(1, (int)canonical.size());
     temp_wr.saveAll();
 
-    qDebug() << "[StressAnalysis::computeSMatrix]   Launching ANSYS...";
+    qDebug() << "[StressAnalysis::computeElasticProperties]   Launching ANSYS...";
     if (!temp_wr.run()) {
-        qWarning() << "[StressAnalysis::computeSMatrix] x ANSYS run failed";
+        qWarning() << "[StressAnalysis::computeElasticProperties] x ANSYS run failed";
         return false;
     }
-    qDebug() << "[StressAnalysis::computeSMatrix] v ANSYS finished. Computing elastic properties...";
+    qDebug() << "[StressAnalysis::computeElasticProperties] v ANSYS finished. Computing elastic properties...";
 
-    auto props = temp_wr.calculateElasticProperties();
-    if (!props.isValid) {
-        qWarning() << "[StressAnalysis::computeSMatrix] x calculateElasticProperties: invalid result";
+    out = temp_wr.calculateElasticProperties();
+    if (!out.isValid) {
+        qWarning() << "[StressAnalysis::computeElasticProperties] x calculateElasticProperties: invalid result";
         return false;
     }
 
+    qDebug() << "[StressAnalysis::computeElasticProperties] v S/C/P obtained. Diagonal S[i][i] [1/Pa]:";
+    for (int i = 0; i < 6; ++i)
+        qDebug() << QString("    S[%1][%1] = %2").arg(i).arg(out.S[i][i], 0, 'e', 4);
+
+    temp_wr.clear_temp_data();
+    qDebug() << "[StressAnalysis::computeElasticProperties] ────────────────────────────────\n";
+    return true;
+}
+
+bool StressAnalysis::computeSMatrix(short int numCubes, short int numPoints, int32_t ***voxels, double strain_val, double S_out[6][6])
+{
+    ansysWrapper::ElasticProperties props;
+    if (!computeElasticProperties(numCubes, numPoints, voxels, strain_val, props)) return false;
     for (int i = 0; i < 6; ++i)
         for (int j = 0; j < 6; ++j)
             S_out[i][j] = props.S[i][j];
-
-    qDebug() << "[StressAnalysis::computeSMatrix] v S matrix obtained. Diagonal S[i][i] [1/Pa]:";
-    for (int i = 0; i < 6; ++i)
-        qDebug() << QString("    S[%1][%1] = %2").arg(i).arg(S_out[i][i], 0, 'e', 4);
-
-    temp_wr.clear_temp_data();
-    qDebug() << "[StressAnalysis::computeSMatrix] ────────────────────────────────\n";
     return true;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Quick-test stiffness for the UI's "Stiffness matrix" mode: same 6 ANSYS
+//  runs as computeSMatrix(), but keeps the full C/P (calculateElasticProperties
+//  already computes them) instead of discarding everything but S.
+// ─────────────────────────────────────────────────────────────────────────────
+StiffnessMatrixResult StressAnalysis::computeStiffnessMatrix(short int numCubes, short int numPoints,
+                                                              int32_t ***voxels, double strain_val)
+{
+    StiffnessMatrixResult r;
+    r.isFFT = false;
+
+    ansysWrapper::ElasticProperties props;
+    if (!computeElasticProperties(numCubes, numPoints, voxels, strain_val, props)) {
+        r.errorMessage = QObject::tr("ANSYS elastic-property computation failed (see log)");
+        return r;
+    }
+
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 6; ++j) {
+            r.S[i][j] = props.S[i][j];
+            r.C[i][j] = props.C[i][j];
+            r.P[i][j] = props.P[i][j];
+        }
+    for (int i = 0; i < 6; ++i)
+        r.moduli[i] = (std::abs(r.S[i][i]) > 1e-20) ? 1.0 / r.S[i][i] : 0.0;
+    r.ok = true;
+
+    qDebug() << "[StressAnalysis::computeStiffnessMatrix] v DONE. C matrix (6x6) [Pa]:";
+    for (int i = 0; i < 6; ++i) {
+        QString row;
+        for (int j = 0; j < 6; ++j) row += QString("%1 ").arg(r.C[i][j], 12, 'e', 3);
+        qDebug().noquote() << QString("    Row[%1]: [ ").arg(i) + row + "]";
+    }
+    qDebug() << QString("  Effective moduli (1/Sii) [Pa]: Ex=%1 Ey=%2 Ez=%3 Gxy=%4 Gyz=%5 Gxz=%6")
+                    .arg(r.moduli[0], 0, 'e', 3).arg(r.moduli[1], 0, 'e', 3).arg(r.moduli[2], 0, 'e', 3)
+                    .arg(r.moduli[3], 0, 'e', 3).arg(r.moduli[4], 0, 'e', 3).arg(r.moduli[5], 0, 'e', 3);
+
+    return r;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
