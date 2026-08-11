@@ -164,15 +164,10 @@ Window {
                     text: checked ? qsTr("Dark") : qsTr("Light")
                     font.pixelSize: 13
                     font.family: montserrat.name
+                    // Style-laid-out indicator + label (a custom contentItem
+                    // does not report the label width and gets clipped).
+                    Material.foreground: root.colText
                     onCheckedChanged: chartTheme.dark = checked
-
-                    contentItem: Text {
-                        text: themeSwitch.text
-                        color: root.colText
-                        font: themeSwitch.font
-                        verticalAlignment: Text.AlignVCenter
-                        leftPadding: themeSwitch.indicator.width + themeSwitch.spacing
-                    }
                 }
 
                 Button {

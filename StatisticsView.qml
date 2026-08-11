@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Material
-import QtQuick.Shapes
+import QtQuick.Dialogs
 import QtQuick.Layouts
 
 Window {
@@ -10,9 +10,11 @@ Window {
     Material.theme: chartTheme.dark ? Material.Dark : Material.Light
     Material.accent: Material.Teal
 
-    width: 900
-    height: 620
-    minimumWidth: 700
+    // Wide enough for the whole control bar: at 900 the STATS button and the
+    // theme switch fell off the right edge.
+    width: 1120
+    height: 640
+    minimumWidth: 1040
     minimumHeight: 500
     color: chartTheme.windowBackground
     title: qsTr("Statistics")
@@ -34,6 +36,48 @@ Window {
         return parseFloat(v.toPrecision(4)).toString()
     }
 
+    // Land on a populated chart instead of the "select a property" placeholder:
+    // pick the first entry of the property list whenever the window is shown or
+    // the 2D/3D mode changes the list underneath it.
+    function selectFirstProperty() {
+        if (!ctrl.availableProperties || ctrl.availableProperties.length === 0)
+            return
+        propertyBox.currentIndex = 0
+        ctrl.selectProperty(propertyBox.textAt(0))
+    }
+
+    function exportBaseName() {
+        var prop = ctrl.axisXLabel.length > 0 ? ctrl.axisXLabel : "histogram"
+        return (ctrl.mode + "_" + prop).replace(/\s+/g, "_").toLowerCase()
+    }
+
+    Component.onCompleted: selectFirstProperty()
+    onVisibleChanged: if (visible) selectFirstProperty()
+
+    FileDialog {
+        id: pngDialog
+        title: qsTr("Save histogram as PNG")
+        fileMode: FileDialog.SaveFile
+        nameFilters: [qsTr("PNG image (*.png)")]
+        defaultSuffix: "png"
+        onAccepted: {
+            var path = ctrl.toLocalFile(selectedFile)
+            chartArea.grabToImage(function(result) {
+                if (!result.saveToFile(path))
+                    console.warn("StatisticsView: failed to save PNG to", path)
+            }, Qt.size(chartArea.width * 2, chartArea.height * 2))
+        }
+    }
+
+    FileDialog {
+        id: svgDialog
+        title: qsTr("Save histogram as SVG")
+        fileMode: FileDialog.SaveFile
+        nameFilters: [qsTr("SVG image (*.svg)")]
+        defaultSuffix: "svg"
+        onAccepted: ctrl.exportSvg(selectedFile, chartTheme.dark, statisticsView.showSummary)
+    }
+
     Rectangle {
         id: controlBar
         anchors { top: parent.top; left: parent.left; right: parent.right }
@@ -44,7 +88,9 @@ Window {
             anchors.fill: parent
             anchors.leftMargin: 25
             anchors.rightMargin: 25
-            spacing: 16
+            // Tight: the bar's items cannot shrink below their implicit width,
+            // so any excess overflows off the right edge instead of compressing.
+            spacing: 10
 
             RadioButton {
                 id: radio3D
@@ -53,7 +99,7 @@ Window {
                 Layout.alignment: Qt.AlignVCenter
                 font.pixelSize: 15
                 font.family: montserrat.name
-                onClicked: { ctrl.setMode("3D"); propertyBox.currentIndex = -1 }
+                onClicked: { ctrl.setMode("3D"); statisticsView.selectFirstProperty() }
             }
 
             RadioButton {
@@ -62,15 +108,15 @@ Window {
                 Layout.alignment: Qt.AlignVCenter
                 font.pixelSize: 15
                 font.family: montserrat.name
-                onClicked: { ctrl.setMode("2D"); propertyBox.currentIndex = -1 }
+                onClicked: { ctrl.setMode("2D"); statisticsView.selectFirstProperty() }
             }
 
             ComboBox {
                 id: propertyBox
-                Layout.preferredWidth: 200
+                Layout.preferredWidth: 175
                 Layout.alignment: Qt.AlignVCenter
                 model: ctrl.availableProperties
-                currentIndex: -1
+                currentIndex: 0
                 displayText: currentIndex === -1 ? "-----" : currentText
                 font.pointSize: 10
                 font.family: montserrat.name
@@ -124,11 +170,13 @@ Window {
 
             Button {
                 id: saveBtn
-                Layout.preferredWidth: 120
+                Layout.preferredWidth: 74
                 Layout.preferredHeight: 32
                 Layout.alignment: Qt.AlignVCenter
-                text: qsTr("SAVE IMAGE")
+                text: qsTr("PNG")
                 enabled: ctrl.hasData
+                ToolTip.visible: hovered
+                ToolTip.text: qsTr("Save the chart as a raster image (2× resolution)")
 
                 background: Rectangle {
                     radius: 10
@@ -145,17 +193,53 @@ Window {
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
-                onClicked: chartArea.grabToImage(function(r) {
-                    r.saveToFile("histogram.png")
-                })
+                onClicked: {
+                    pngDialog.selectedFile = pngDialog.currentFolder + "/"
+                                             + statisticsView.exportBaseName() + ".png"
+                    pngDialog.open()
+                }
+            }
+
+            Button {
+                id: svgBtn
+                Layout.preferredWidth: 74
+                Layout.preferredHeight: 32
+                Layout.alignment: Qt.AlignVCenter
+                text: qsTr("SVG")
+                enabled: ctrl.hasData
+                ToolTip.visible: hovered
+                ToolTip.text: qsTr("Save the chart as vector art, written from the bin data")
+
+                background: Rectangle {
+                    radius: 10
+                    border.color: chartTheme.controlBorder
+                    border.width: 1
+                    color: svgBtn.hovered
+                           ? Qt.lighter(chartTheme.controlBackground, 1.4)
+                           : chartTheme.controlBackground
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                }
+                contentItem: Text {
+                    text: svgBtn.text; color: chartTheme.controlText
+                    font.pixelSize: 12; font.family: inter.name
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+                onClicked: {
+                    svgDialog.selectedFile = svgDialog.currentFolder + "/"
+                                             + statisticsView.exportBaseName() + ".svg"
+                    svgDialog.open()
+                }
             }
 
             Button {
                 id: csvBtn
-                Layout.preferredWidth: 120
+                Layout.preferredWidth: 74
                 Layout.preferredHeight: 32
                 Layout.alignment: Qt.AlignVCenter
-                text: qsTr("EXPORT CSV")
+                text: qsTr("CSV")
+                ToolTip.visible: hovered
+                ToolTip.text: qsTr("Export all grain statistics to grain_statistics.csv")
 
                 background: Rectangle {
                     radius: 10
@@ -208,15 +292,11 @@ Window {
                 text: checked ? qsTr("Dark") : qsTr("Light")
                 font.pixelSize: 13
                 font.family: montserrat.name
+                // Let the style lay out indicator + label: the custom
+                // contentItem this used to carry did not report the label's
+                // width, so the text ran past the window edge.
+                Material.foreground: chartTheme.controlText
                 onCheckedChanged: chartTheme.dark = checked
-
-                contentItem: Text {
-                    text: themeSwitch.text
-                    color: chartTheme.controlText
-                    font: themeSwitch.font
-                    verticalAlignment: Text.AlignVCenter
-                    leftPadding: themeSwitch.indicator.width + themeSwitch.spacing
-                }
             }
         }
     }
@@ -353,81 +433,36 @@ Window {
                 }
             }
 
-            Shape {
-                id: histShape
-                anchors.fill: parent
-                antialiasing: true
-                visible: ctrl.hasData
+            // Bars, one per bin. Each bin contributes two points to
+            // histogramPoints (left and right edge at the same count), so bin i
+            // is points[2i] .. points[2i+1]. Fill opacity is proportional to the
+            // bin's height relative to the tallest bin, so the mode of the
+            // distribution reads at a glance.
+            Repeater {
+                model: ctrl.hasData ? Math.floor(ctrl.histogramPoints.length / 2) : 0
 
-                function buildPath(pts, w, h, xMin, xMax, yMax) {
-                    var out = []
-                    if (!pts || pts.length === 0) return out
+                delegate: Rectangle {
+                    readonly property var  binL: ctrl.histogramPoints[2 * index]
+                    readonly property var  binR: ctrl.histogramPoints[2 * index + 1]
+                    readonly property real xRange: ctrl.axisXMax - ctrl.axisXMin
+                    readonly property real frac: ctrl.histogramPeak > 0
+                                                 ? binL.y / ctrl.histogramPeak : 0
 
-                    var rx = xMax - xMin
-                    if (rx <= 0 || yMax <= 0 || w <= 0 || h <= 0) return out
+                    visible: xRange > 0 && ctrl.axisYMax > 0
+                    x: xRange > 0 ? (binL.x - ctrl.axisXMin) / xRange * plotArea.width : 0
+                    width: xRange > 0
+                           ? Math.max(1, (binR.x - binL.x) / xRange * plotArea.width) : 0
+                    height: ctrl.axisYMax > 0
+                            ? (binL.y / ctrl.axisYMax) * plotArea.height : 0
+                    y: plotArea.height - height
 
-                    var x0 = (pts[0].x - xMin) / rx * w
-                    out.push(Qt.point(x0, h))
-
-                    for (var i = 0; i < pts.length; ++i) {
-                        var px = (pts[i].x - xMin) / rx * w
-                        var py = h - (pts[i].y / yMax) * h
-                        out.push(Qt.point(px, py))
-                    }
-
-                    var xN = (pts[pts.length - 1].x - xMin) / rx * w
-                    out.push(Qt.point(xN, h))
-
-                    return out
-                }
-
-                property var pathPoints: buildPath(ctrl.histogramPoints,
-                                                   plotArea.width,
-                                                   plotArea.height,
-                                                   ctrl.axisXMin,
-                                                   ctrl.axisXMax,
-                                                   ctrl.axisYMax)
-
-                ShapePath {
-                    strokeColor: chartTheme.seriesStroke
-                    strokeWidth: 2
-                    fillColor:   chartTheme.seriesFill
-                    joinStyle:   ShapePath.RoundJoin
-
-                    PathPolyline { path: histShape.pathPoints }
-                }
-            }
-
-            Shape {
-                anchors.fill: parent
-                visible: ctrl.hasData
-                antialiasing: true
-
-                ShapePath {
-                    strokeColor: chartTheme.seriesStroke
-                    strokeWidth: 1
-                    strokeStyle: ShapePath.DashLine
-                    dashPattern: [3, 3]
-                    fillColor: "transparent"
-
-                    PathMultiline {
-                        paths: {
-                            var pts = ctrl.histogramPoints
-                            var rx = ctrl.axisXMax - ctrl.axisXMin
-                            if (!pts || pts.length === 0 || rx <= 0) return []
-
-                            var w = plotArea.width
-                            var h = plotArea.height
-                            var lines = []
-
-                            for (var i = 0; i < pts.length; i += 2) {
-                                var px = (pts[i].x - ctrl.axisXMin) / rx * w
-                                var py = h - (pts[i].y / ctrl.axisYMax) * h
-                                lines.push([ Qt.point(px, py), Qt.point(px, h) ])
-                            }
-                            return lines
-                        }
-                    }
+                    color: Qt.rgba(chartTheme.seriesStroke.r,
+                                   chartTheme.seriesStroke.g,
+                                   chartTheme.seriesStroke.b,
+                                   0.22 + 0.78 * frac)
+                    border.color: chartTheme.seriesStroke
+                    border.width: 1
+                    antialiasing: true
                 }
             }
 

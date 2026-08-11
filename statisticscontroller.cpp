@@ -1,6 +1,8 @@
 #include "statisticscontroller.h"
 #include "parameters.h"
 #include <QDebug>
+#include <QFile>
+#include <QTextStream>
 #include <algorithm>
 #include <cmath>
 
@@ -127,6 +129,7 @@ void StatisticsController::selectProperty(const QString& propertyName)
 void StatisticsController::buildHistogram(const QVector<float>& values)
 {
     m_points.clear();
+    m_histPeak = 0;
 
     if (values.isEmpty()) {
         m_axisXMin = 0.0;
@@ -152,6 +155,7 @@ void StatisticsController::buildHistogram(const QVector<float>& values)
         m_axisXMin = minV - 1.0;
         m_axisXMax = maxV + 1.0;
         m_axisYMax = values.size();
+        m_histPeak = values.size();
         return;
     }
 
@@ -177,6 +181,7 @@ void StatisticsController::buildHistogram(const QVector<float>& values)
     m_axisXMin = std::max(0.0, (double)minV - binWidth);
     m_axisXMax = (double)maxV + binWidth;
     m_axisYMax = (maxCount / 10 + 1) * 10 + 10;
+    m_histPeak = maxCount;
 }
 
 namespace {
@@ -244,6 +249,198 @@ void StatisticsController::computeDescriptiveStats(const QVector<float>& values)
     add(QStringLiteral("Max"),      fmtNum(sorted.last()));
     add(QStringLiteral("Skewness"), QString::number(skew, 'f', 3));
     add(QStringLiteral("Kurtosis"), QString::number(kurt, 'f', 3));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  SVG export
+//
+//  The chart is drawn with QML Shapes, which can only be grabbed as pixels, so
+//  vector output is written from the same bin data. Layout and colours mirror
+//  StatisticsView.qml / ChartTheme.qml -- keep them in step if either changes.
+//
+//  NB: colours are plain #rrggbb with separate *-opacity attributes. rgba() is
+//  CSS/SVG2 and is silently dropped by SVG 1.1 renderers such as QSvgRenderer
+//  and Inkscape.
+// ─────────────────────────────────────────────────────────────────────────────
+namespace {
+
+struct ChartSvgPalette {
+    QString window, plot, plotBorder, grid, tick, title, axisTitle, axisLabel, series;
+    double  gridAlpha;
+};
+
+ChartSvgPalette chartSvgPalette(bool dark)
+{
+    if (dark)
+        return { "#282828", "#1e1e1e", "#4a4a4a", "#ffffff", "#969696",
+                 "#d9d9d9", "#c6c6c6", "#969696", "#00897b", 0.20 };
+    return     { "#f2f2f2", "#ffffff", "#b0b0b0", "#000000", "#555555",
+                 "#1a1a1a", "#333333", "#555555", "#00564d", 0.13 };
+}
+
+QString n2(double v, int prec = 2) { return QString::number(v, 'f', prec); }
+
+// Same rule as StatisticsView.qml's fmt().
+QString fmtAxis(double v)
+{
+    if (std::abs(v) >= 10000.0 || (std::abs(v) < 0.001 && v != 0.0))
+        return QString::number(v, 'e', 2);
+    return QString::number(QString::number(v, 'g', 4).toDouble());
+}
+
+QString svgTxt(double x, double y, const QString& s, const QString& fill,
+               int size = 12, bool bold = false, const QString& anchor = "start")
+{
+    return QString("<text x=\"%1\" y=\"%2\" fill=\"%3\" font-family=\"Segoe UI, Arial, sans-serif\" "
+                   "font-size=\"%4\" %5text-anchor=\"%6\">%7</text>\n")
+        .arg(n2(x), n2(y), fill).arg(size)
+        .arg(bold ? "font-weight=\"bold\" " : "", anchor, s.toHtmlEscaped());
+}
+
+} // anonymous namespace
+
+QString StatisticsController::svgHistogram(bool dark, bool withStats) const
+{
+    const ChartSvgPalette p = chartSvgPalette(dark);
+    const bool stats = withStats && !m_descStats.isEmpty();
+
+    const double left = 90.0, top = 62.0, plotW = 780.0, plotH = 430.0;
+    const double statsW = stats ? 230.0 : 0.0;
+    const double W = left + plotW + 40.0 + statsW;
+    const double H = top + plotH + 78.0;
+    const int    xTicks = 8, yTicks = 6;
+
+    QString out = QString("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                          "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"%1\" height=\"%2\" "
+                          "viewBox=\"0 0 %1 %2\">\n"
+                          "<rect width=\"%1\" height=\"%2\" fill=\"%3\"/>\n")
+                      .arg(n2(W, 0), n2(H, 0), p.window);
+
+    out += svgTxt(left + plotW / 2.0, 34.0, m_title, p.title, 18, true, "middle");
+
+    out += QString("<rect x=\"%1\" y=\"%2\" width=\"%3\" height=\"%4\" fill=\"%5\" "
+                   "stroke=\"%6\" stroke-width=\"1\"/>\n")
+               .arg(n2(left), n2(top), n2(plotW), n2(plotH), p.plot, p.plotBorder);
+
+    // grid
+    out += QString("<g stroke=\"%1\" stroke-opacity=\"%2\" stroke-width=\"1\">\n")
+               .arg(p.grid, n2(p.gridAlpha));
+    for (int i = 0; i <= xTicks; ++i) {
+        const double x = left + plotW * i / xTicks;
+        out += QString("<line x1=\"%1\" y1=\"%2\" x2=\"%1\" y2=\"%3\"/>\n")
+                   .arg(n2(x), n2(top), n2(top + plotH));
+    }
+    for (int i = 0; i <= yTicks; ++i) {
+        const double y = top + plotH - plotH * i / yTicks;
+        out += QString("<line x1=\"%1\" y1=\"%2\" x2=\"%3\" y2=\"%2\"/>\n")
+                   .arg(n2(left), n2(y), n2(left + plotW));
+    }
+    out += "</g>\n";
+
+    // ticks + labels
+    out += QString("<g stroke=\"%1\" stroke-width=\"1\">\n").arg(p.tick);
+    for (int i = 0; i <= xTicks; ++i) {
+        const double x = left + plotW * i / xTicks;
+        out += QString("<line x1=\"%1\" y1=\"%2\" x2=\"%1\" y2=\"%3\"/>\n")
+                   .arg(n2(x), n2(top + plotH), n2(top + plotH + 6.0));
+    }
+    for (int i = 0; i <= yTicks; ++i) {
+        const double y = top + plotH - plotH * i / yTicks;
+        out += QString("<line x1=\"%1\" y1=\"%2\" x2=\"%3\" y2=\"%2\"/>\n")
+                   .arg(n2(left - 6.0), n2(y), n2(left));
+    }
+    out += "</g>\n";
+
+    for (int i = 0; i <= xTicks; ++i) {
+        const double x   = left + plotW * i / xTicks;
+        const double val = m_axisXMin + (double(i) / xTicks) * (m_axisXMax - m_axisXMin);
+        out += svgTxt(x, top + plotH + 22.0, fmtAxis(val), p.axisLabel, 11, false, "middle");
+    }
+    for (int i = 0; i <= yTicks; ++i) {
+        const double y   = top + plotH - plotH * i / yTicks;
+        const double val = (double(i) / yTicks) * m_axisYMax;
+        out += svgTxt(left - 12.0, y + 4.0, QString::number(std::lround(val)),
+                      p.axisLabel, 11, false, "end");
+    }
+
+    // bars, shaded by height (see histogramPeak)
+    const double rx = m_axisXMax - m_axisXMin;
+    if (rx > 0.0 && m_axisYMax > 0) {
+        out += QString("<g stroke=\"%1\" stroke-width=\"1\" fill=\"%1\">\n").arg(p.series);
+        for (int i = 0; i + 1 < m_points.size(); i += 2) {
+            const QVariantMap a = m_points[i].toMap();
+            const QVariantMap b = m_points[i + 1].toMap();
+            const double c  = a["y"].toDouble();
+            const double x0 = left + (a["x"].toDouble() - m_axisXMin) / rx * plotW;
+            const double x1 = left + (b["x"].toDouble() - m_axisXMin) / rx * plotW;
+            const double hh = c / m_axisYMax * plotH;
+            const double frac = (m_histPeak > 0) ? c / m_histPeak : 0.0;
+            out += QString("<rect x=\"%1\" y=\"%2\" width=\"%3\" height=\"%4\" "
+                           "fill-opacity=\"%5\"/>\n")
+                       .arg(n2(x0), n2(top + plotH - hh),
+                            n2(std::max(1.0, x1 - x0)), n2(hh),
+                            n2(0.22 + 0.78 * frac));
+        }
+        out += "</g>\n";
+    }
+
+    // axis titles
+    out += svgTxt(left + plotW / 2.0, H - 24.0,
+                  m_axisXLabel.isEmpty() ? QStringLiteral("Value") : m_axisXLabel,
+                  p.axisTitle, 14, false, "middle");
+    out += QString("<text x=\"%1\" y=\"%2\" fill=\"%3\" font-family=\"Segoe UI, Arial, sans-serif\" "
+                   "font-size=\"14\" text-anchor=\"middle\" transform=\"rotate(-90 %1 %2)\">"
+                   "Frequency</text>\n")
+               .arg(n2(left - 52.0), n2(top + plotH / 2.0), p.axisTitle);
+
+    // descriptive statistics panel
+    if (stats) {
+        const double sx = left + plotW + 30.0, sy = top;
+        const double sh = 30.0 + m_descStats.size() * 19.0;
+        out += QString("<rect x=\"%1\" y=\"%2\" width=\"%3\" height=\"%4\" rx=\"8\" fill=\"%5\" "
+                       "stroke=\"%6\" stroke-width=\"1\"/>\n")
+                   .arg(n2(sx), n2(sy), n2(statsW - 30.0), n2(sh), p.plot, p.plotBorder);
+        out += svgTxt(sx + 14.0, sy + 20.0, QObject::tr("Statistics"), p.title, 13, true);
+        double ry = sy + 40.0;
+        for (const QVariant& v : m_descStats) {
+            const QVariantMap m = v.toMap();
+            out += svgTxt(sx + 14.0, ry, m["label"].toString(), p.axisLabel, 12);
+            out += svgTxt(sx + statsW - 44.0, ry, m["value"].toString(), p.axisTitle, 12, true, "end");
+            ry += 19.0;
+        }
+    }
+
+    out += "</svg>\n";
+    return out;
+}
+
+QString StatisticsController::toLocalFile(const QUrl& fileUrl) const
+{
+    return fileUrl.isLocalFile() ? fileUrl.toLocalFile() : fileUrl.toString();
+}
+
+bool StatisticsController::exportSvg(const QUrl& fileUrl, bool dark, bool withStats)
+{
+    if (!hasData()) {
+        qWarning() << "StatisticsController::exportSvg: no histogram to export";
+        return false;
+    }
+
+    const QString path = toLocalFile(fileUrl);
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        qWarning() << "StatisticsController::exportSvg: cannot write" << path << ":" << f.errorString();
+        return false;
+    }
+    const QString svg = svgHistogram(dark, withStats);
+    QTextStream ts(&f);
+    ts.setEncoding(QStringConverter::Utf8);
+    ts << svg;
+    f.close();
+
+    qDebug() << "StatisticsController: wrote SVG" << path << "(" << svg.size() << "chars,"
+             << (dark ? "dark" : "light") << ")";
+    return true;
 }
 
 void StatisticsController::exportCSV(const QString& filePath)
