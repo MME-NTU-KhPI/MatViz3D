@@ -47,7 +47,7 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
 
     // ── Crystallographic texture ──────────────────────────────────────────
     parser.addOption(QCommandLineOption("texture",
-                                        "Texture preset: random | extrusion | rolling | recrystallization | shear", "preset"));
+                                        "Texture preset: random | extrusion | rolling | recrystallization | shear | scattered_cube", "preset"));
     parser.addOption(QCommandLineOption("lattice",
                                         "Crystal lattice for the texture preset: fcc | bcc (default fcc)", "lattice"));
     parser.addOption(QCommandLineOption("scatter",
@@ -65,6 +65,8 @@ bool parseProcess(const QString& name, TextureLibrary::Process& out)
     else if (n == "rolling")                               out = TextureLibrary::Process::Rolling;
     else if (n == "recrystallization" || n == "recryst")   out = TextureLibrary::Process::Recrystallization;
     else if (n == "shear")                                 out = TextureLibrary::Process::Shear;
+    else if (n == "scattered_cube" || n == "scatteredcube" ||
+             n == "scattered-cube")                        out = TextureLibrary::Process::ScatteredCube;
     else return false;
     return true;
 }
@@ -243,7 +245,7 @@ void Commandline_Parser::processOptions(const QCommandLineParser& parser)
         TextureLibrary::Process proc;
         if (!parseProcess(parser.value("texture"), proc)) {
             qFatal("Option --texture expects one of: random, extrusion, rolling, "
-                   "recrystallization, shear; got \"%s\"",
+                   "recrystallization, shear, scattered_cube; got \"%s\"",
                    qPrintable(parser.value("texture")));
         }
 

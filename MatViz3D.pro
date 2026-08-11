@@ -150,4 +150,5 @@ HEADERS += \
     stressanalysiscontroller.h \
     stressresult.h \
     texturelibrary.h \
+    texturemath.hpp \
     texturecontroller.h
