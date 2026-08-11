@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Material
+import QtQuick.Dialogs
 import QtQuick.Layouts
 
 Window {
@@ -10,10 +11,10 @@ Window {
     minimumWidth: 1100
     minimumHeight: 600
     visible: true
-    color: "#1f1f1f"
+    color: chartTheme.appBackground
     title: qsTr("MatViz3D — Texture Editor")
 
-    Material.theme: Material.Dark
+    Material.theme: chartTheme.dark ? Material.Dark : Material.Light
     Material.accent: Material.Teal
 
     property var ctrl: textureController
@@ -24,14 +25,37 @@ Window {
     FontLoader { id: inter;      source: "qrc:/fonts/Inter-VariableFont_opsz,wght.ttf" }
     FontLoader { id: montserrat; source: "qrc:/fonts/Montserrat-VariableFont_wght.ttf" }
 
-    readonly property color colBg:     "#1f1f1f"
-    readonly property color colPanel:  "#282828"
-    readonly property color colPanel2: "#2f2f2f"
-    readonly property color colSel:    "#31404a"
-    readonly property color colBorder: "#3c3c3c"
-    readonly property color colText:   "#d9d9d9"
-    readonly property color colSub:    "#8a8a8a"
-    readonly property color colAccent: "#22c3a6"
+    // Shared with StatisticsView -- one palette definition, one Dark/Light switch.
+    ChartTheme { id: chartTheme }
+
+    readonly property color colBg:     chartTheme.appBackground
+    readonly property color colPanel:  chartTheme.panelBackground
+    readonly property color colPanel2: chartTheme.panelAlt
+    readonly property color colSel:    chartTheme.selection
+    readonly property color colBorder: chartTheme.borderColor
+    readonly property color colText:   chartTheme.textColor
+    readonly property color colSub:    chartTheme.subTextColor
+    readonly property color colAccent: chartTheme.accentColor
+
+    // Plot-surface roles (used from the Canvases, which repaint on dark change).
+    readonly property color colPlot:   chartTheme.plotBackground
+    readonly property color colGrid:   chartTheme.gridLine
+    readonly property color colMarker: chartTheme.markerColor
+    readonly property color colPoint:  chartTheme.pointColor
+    readonly property real  pointAlpha: chartTheme.pointAlpha
+    readonly property color colDisc:   chartTheme.dark ? "#5a5a5a" : "#8a8a8a"
+
+    // The item the raster/vector export should capture for the active view.
+    function currentPage() {
+        if (currentView === 0) return poleFigurePage
+        if (currentView === 1) return odfPage
+        return eulerPage
+    }
+    function defaultBaseName() {
+        if (currentView === 0) return "pole_figure_" + ctrl.poleFamilyName.replace(/[{}]/g, "")
+        if (currentView === 1) return "odf_sections"
+        return "euler_section"
+    }
 
     // Contour colour ramp for the ODF sections, in "× random" units.
     // 1× is the random baseline, so it is drawn dim; everything from 2× up is
@@ -110,12 +134,80 @@ Window {
                 Item { Layout.fillWidth: true }
 
                 Button {
+                    text: qsTr("Save PNG")
+                    Layout.preferredHeight: 38
+                    Layout.alignment: Qt.AlignVCenter
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Raster capture of the current plot (2× resolution)")
+                    onClicked: {
+                        pngDialog.selectedFile = pngDialog.currentFolder + "/" + root.defaultBaseName() + ".png"
+                        pngDialog.open()
+                    }
+                }
+
+                Button {
+                    text: qsTr("Save SVG")
+                    Layout.preferredHeight: 38
+                    Layout.alignment: Qt.AlignVCenter
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Vector export, written from the plot data")
+                    onClicked: {
+                        svgDialog.selectedFile = svgDialog.currentFolder + "/" + root.defaultBaseName() + ".svg"
+                        svgDialog.open()
+                    }
+                }
+
+                Switch {
+                    id: themeSwitch
+                    Layout.alignment: Qt.AlignVCenter
+                    checked: true
+                    text: checked ? qsTr("Dark") : qsTr("Light")
+                    font.pixelSize: 13
+                    font.family: montserrat.name
+                    onCheckedChanged: chartTheme.dark = checked
+
+                    contentItem: Text {
+                        text: themeSwitch.text
+                        color: root.colText
+                        font: themeSwitch.font
+                        verticalAlignment: Text.AlignVCenter
+                        leftPadding: themeSwitch.indicator.width + themeSwitch.spacing
+                    }
+                }
+
+                Button {
                     text: qsTr("Apply to stress")
                     Layout.preferredHeight: 38
                     Layout.alignment: Qt.AlignVCenter
                     onClicked: ctrl.applyToStress()
                 }
             }
+        }
+
+        FileDialog {
+            id: pngDialog
+            title: qsTr("Save plot as PNG")
+            fileMode: FileDialog.SaveFile
+            nameFilters: [qsTr("PNG image (*.png)")]
+            defaultSuffix: "png"
+            onAccepted: {
+                // Grab at 2x so the raster is usable in a document.
+                var item = root.currentPage()
+                var path = ctrl.toLocalFile(selectedFile)
+                item.grabToImage(function(result) {
+                    if (!result.saveToFile(path))
+                        console.warn("TextureView: failed to save PNG to", path)
+                }, Qt.size(item.width * 2, item.height * 2))
+            }
+        }
+
+        FileDialog {
+            id: svgDialog
+            title: qsTr("Save plot as SVG")
+            fileMode: FileDialog.SaveFile
+            nameFilters: [qsTr("SVG image (*.svg)")]
+            defaultSuffix: "svg"
+            onAccepted: ctrl.exportSvg(root.currentView, selectedFile, chartTheme.dark)
         }
 
         RowLayout {
@@ -419,6 +511,7 @@ Window {
 
                         // ═══ 0. Pole figures ════════════════════════════════
                         Item {
+                            id: poleFigurePage
                             Item {
                                 id: pfBox
                                 anchors.fill: parent
@@ -432,7 +525,9 @@ Window {
                                     id: poleCanvas
                                     anchors.fill: parent
                                     property var pts: ctrl.polePoints
+                                    property bool darkMode: chartTheme.dark
                                     onPtsChanged: requestPaint()
+                                    onDarkModeChanged: requestPaint()
                                     onWidthChanged: requestPaint()
                                     onHeightChanged: requestPaint()
 
@@ -442,12 +537,12 @@ Window {
                                         if (R <= 0) return
 
                                         // projection disc
-                                        g.fillStyle = "#181a20"
+                                        g.fillStyle = root.colPlot
                                         g.beginPath(); g.arc(cx, cy, R, 0, 2 * Math.PI); g.fill()
-                                        g.strokeStyle = "#5a5a5a"; g.lineWidth = 1.5; g.stroke()
+                                        g.strokeStyle = root.colDisc; g.lineWidth = 1.5; g.stroke()
 
                                         // RD / TD crosshair + 45° ring
-                                        g.strokeStyle = "#26313a"; g.lineWidth = 1
+                                        g.strokeStyle = root.colBorder; g.lineWidth = 1
                                         g.beginPath()
                                         g.moveTo(cx - R, cy); g.lineTo(cx + R, cy)
                                         g.moveTo(cx, cy - R); g.lineTo(cx, cy + R)
@@ -458,7 +553,8 @@ Window {
                                         g.stroke()
 
                                         if (!pts) return
-                                        g.fillStyle = "rgba(232,232,232,0.38)"
+                                        g.fillStyle = Qt.rgba(root.colPoint.r, root.colPoint.g,
+                                                              root.colPoint.b, root.pointAlpha)
                                         for (var i = 0; i + 1 < pts.length; i += 2) {
                                             g.beginPath()
                                             g.arc(cx + pts[i] * R, cy + pts[i + 1] * R, 2.0, 0, 2 * Math.PI)
@@ -499,6 +595,7 @@ Window {
 
                         // ═══ 1. ODF sections ════════════════════════════════
                         Item {
+                            id: odfPage
                             ColumnLayout {
                                 anchors.fill: parent
                                 anchors.margins: 20
@@ -528,14 +625,16 @@ Window {
                                             Rectangle {
                                                 Layout.fillWidth: true
                                                 Layout.fillHeight: true
-                                                color: "#181a20"
+                                                color: root.colPlot
                                                 border.color: colBorder
 
                                                 Canvas {
                                                     anchors.fill: parent
                                                     anchors.margins: 1
                                                     property var contours: modelData.contours
+                                                    property bool darkMode: chartTheme.dark
                                                     onContoursChanged: requestPaint()
+                                                    onDarkModeChanged: requestPaint()
                                                     onWidthChanged: requestPaint()
                                                     onHeightChanged: requestPaint()
 
@@ -543,7 +642,7 @@ Window {
                                                         var g = getContext("2d"); g.reset()
 
                                                         // 15° grid
-                                                        g.strokeStyle = "#16ffffff"; g.lineWidth = 1
+                                                        g.strokeStyle = root.colGrid; g.lineWidth = 1
                                                         g.beginPath()
                                                         for (var t = 1; t < 6; ++t) {
                                                             var f = t / 6
@@ -616,6 +715,7 @@ Window {
 
                         // ═══ 2. Euler section (kept as reference view) ══════
                         Item {
+                            id: eulerPage
                             Item {
                             id: plot
                             anchors.fill: parent
@@ -628,11 +728,13 @@ Window {
 
                             Rectangle {
                                 anchors.fill: parent
-                                color: "#181a20"
+                                color: root.colPlot
                                 border.color: colBorder
                             }
 
-                            property real phi2Tol: 8.0
+                            // Owned by the controller so the plot and the SVG
+                            // export cannot disagree about the slab thickness.
+                            readonly property real phi2Tol: ctrl.sectionTol
 
                             // ── Φ (vertical) axis: gridlines + ticks, 0..90° downwards ──
                             Repeater {
@@ -645,7 +747,7 @@ Window {
 
                                     Rectangle {
                                         width: plot.width; height: 1
-                                        color: "#1affffff"
+                                        color: root.colGrid
                                     }
                                     Label {
                                         x: -40
@@ -669,7 +771,7 @@ Window {
 
                                     Rectangle {
                                         width: 1; height: plot.height
-                                        color: "#1affffff"
+                                        color: root.colGrid
                                     }
                                     Label {
                                         x: -width / 2
@@ -708,15 +810,18 @@ Window {
                                 property var pts: ctrl.eulerPoints
                                 property real sect: ctrl.sectionPhi2
                                 property real tol: plot.phi2Tol
+                                property bool darkMode: chartTheme.dark
                                 onPtsChanged: requestPaint()
                                 onSectChanged: requestPaint()
+                                onDarkModeChanged: requestPaint()
                                 onWidthChanged: requestPaint()
                                 onHeightChanged: requestPaint()
 
                                 onPaint: {
                                     var g = getContext("2d"); g.reset()
                                     if (!pts) return
-                                    g.fillStyle = "rgba(200,200,200,0.4)"
+                                    g.fillStyle = Qt.rgba(root.colPoint.r, root.colPoint.g,
+                                                          root.colPoint.b, root.pointAlpha)
                                     for (var i = 0; i < pts.length; ++i) {
                                         var dp = Math.abs(pts[i].phi2 - sect)
                                         if (dp > 180) dp = 360 - dp
@@ -741,13 +846,13 @@ Window {
 
                                     Rectangle {
                                         width: 8; height: 8; radius: 4
-                                        color: "#e8b835"
+                                        color: root.colMarker
                                         anchors.verticalCenter: parent.verticalCenter
                                     }
                                     Label {
                                         x: 12; anchors.verticalCenter: parent.verticalCenter
                                         text: modelData.name
-                                        color: "#e8b835"
+                                        color: root.colMarker
                                         font.pixelSize: 11
                                         font.bold: true
                                         font.family: montserrat.name

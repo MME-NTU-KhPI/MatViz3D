@@ -1,7 +1,9 @@
 #include "texturecontroller.h"
 #include <QRandomGenerator>
 #include <QDebug>
+#include <QFile>
 #include <QLoggingCategory>
+#include <QTextStream>
 #include <QElapsedTimer>
 #include "parameters.h"
 #include "texturemath.hpp"
@@ -515,6 +517,290 @@ void TextureController::applyToStress()
                        << " (seed =" << Parameters::instance()->getSeed() << ")";
     dumpComponents(m_components, "applyToStress");
     emit textureReady(m_components);   // ansysWrapper
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  SVG export
+//
+//  The plots are QML Canvases, which can only be grabbed as pixels, so vector
+//  output is written straight from the same arrays the Canvas paints. Keep the
+//  geometry here in sync with TextureView.qml if the drawing changes.
+// ─────────────────────────────────────────────────────────────────────────────
+namespace {
+
+struct SvgPalette {
+    QString app, plot, border, grid, text, sub, disc, point, marker;
+    double  pointAlpha;
+    double  gridAlpha;
+};
+
+// NB: colours must be plain #rrggbb with a separate *-opacity attribute --
+// rgba() is CSS/SVG2 and is silently dropped by SVG 1.1 renderers (Qt's own
+// QSvgRenderer and Inkscape among them), which loses the gridlines entirely.
+SvgPalette svgPalette(bool dark)
+{
+    if (dark)
+        return { "#1f1f1f", "#181a20", "#3c3c3c", "#ffffff",
+                 "#d9d9d9", "#8a8a8a", "#5a5a5a", "#e8e8e8", "#e8b835", 0.38, 0.10 };
+    return     { "#fafafa", "#ffffff", "#c6c6c6", "#000000",
+                 "#1a1a1a", "#5f5f5f", "#8a8a8a", "#2b2b2b", "#a37400", 0.45, 0.14 };
+}
+
+// Same ramp as TextureView.qml's levelColor().
+QString levelColor(double lv)
+{
+    if (lv >= 32) return "#ff5252";
+    if (lv >= 16) return "#ff9f45";
+    if (lv >= 8)  return "#e8b835";
+    if (lv >= 4)  return "#6fd66f";
+    if (lv >= 2)  return "#22c3a6";
+    return "#4a6b7a";
+}
+
+QString num(double v, int prec = 2) { return QString::number(v, 'f', prec); }
+
+QString svgHeader(double w, double h, const QString& bg)
+{
+    return QString("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                   "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"%1\" height=\"%2\" "
+                   "viewBox=\"0 0 %1 %2\">\n"
+                   "<rect width=\"%1\" height=\"%2\" fill=\"%3\"/>\n")
+        .arg(num(w, 0), num(h, 0), bg);
+}
+
+QString svgText(double x, double y, const QString& s, const QString& fill,
+                int size = 12, bool bold = false, const QString& anchor = "start")
+{
+    return QString("<text x=\"%1\" y=\"%2\" fill=\"%3\" font-family=\"Segoe UI, Arial, sans-serif\" "
+                   "font-size=\"%4\" %5text-anchor=\"%6\">%7</text>\n")
+        .arg(num(x), num(y), fill).arg(size)
+        .arg(bold ? "font-weight=\"bold\" " : "", anchor, s.toHtmlEscaped());
+}
+
+} // namespace
+
+QString TextureController::svgPoleFigure(bool dark) const
+{
+    const SvgPalette p = svgPalette(dark);
+    const double W = 640.0, H = 690.0;
+    const double cx = W / 2.0, cy = 330.0, R = 280.0;
+
+    QString out = svgHeader(W, H, p.app);
+
+    out += QString("<circle cx=\"%1\" cy=\"%2\" r=\"%3\" fill=\"%4\" stroke=\"%5\" stroke-width=\"1.5\"/>\n")
+               .arg(num(cx), num(cy), num(R), p.plot, p.disc);
+
+    // RD/TD crosshair and the 45° ring (45° from ND projects to tan(22.5°) R)
+    out += QString("<g stroke=\"%1\" stroke-width=\"1\" fill=\"none\">\n").arg(p.border);
+    out += QString("<line x1=\"%1\" y1=\"%2\" x2=\"%3\" y2=\"%2\"/>\n")
+               .arg(num(cx - R), num(cy), num(cx + R));
+    out += QString("<line x1=\"%1\" y1=\"%2\" x2=\"%1\" y2=\"%3\"/>\n")
+               .arg(num(cx), num(cy - R), num(cy + R));
+    out += QString("<circle cx=\"%1\" cy=\"%2\" r=\"%3\"/>\n")
+               .arg(num(cx), num(cy), num(R * 0.41421));
+    out += "</g>\n";
+
+    out += QString("<g fill=\"%1\" fill-opacity=\"%2\">\n").arg(p.point, num(p.pointAlpha));
+    for (int i = 0; i + 1 < m_polePoints.size(); i += 2) {
+        const double x = cx + m_polePoints[i].toDouble()   * R;
+        const double y = cy + m_polePoints[i+1].toDouble() * R;
+        out += QString("<circle cx=\"%1\" cy=\"%2\" r=\"2\"/>\n").arg(num(x), num(y));
+    }
+    out += "</g>\n";
+
+    out += svgText(cx, cy - R - 12, "RD", p.text, 13, true, "middle");
+    out += svgText(cx + R + 10, cy + 4, "TD", p.text, 13, true);
+    out += svgText(cx + 7, cy + 14, "ND", p.sub, 11);
+    out += svgText(24, H - 42, poleFamilyName() + " stereographic projection", p.text, 13, true);
+    out += svgText(24, H - 22,
+                   QString("%1 poles from %2 grains · seed %3")
+                       .arg(m_polePoints.size() / 2).arg(m_grainCount).arg(seed()),
+                   p.sub, 11);
+    out += "</svg>\n";
+    return out;
+}
+
+QString TextureController::svgOdfSections(bool dark) const
+{
+    const SvgPalette p = svgPalette(dark);
+    const double side = 300.0, gap = 26.0, margin = 26.0, titleH = 34.0;
+    const int    nsec = m_odfSections.size();
+    const double W = 2 * margin + nsec * side + (nsec > 1 ? (nsec - 1) * gap : 0.0);
+    const double H = margin + titleH + side + 96.0;
+
+    QString out = svgHeader(W, H, p.app);
+
+    for (int s = 0; s < nsec; ++s) {
+        const QVariantMap sec = m_odfSections[s].toMap();
+        const double x0 = margin + s * (side + gap);
+        const double y0 = margin + titleH;
+
+        out += svgText(x0 + side / 2.0,
+                       margin + 20.0,
+                       QString("φ₂ = %1°   (%2×)")
+                           .arg(num(sec["phi2"].toDouble(), 0), num(sec["max"].toDouble(), 1)),
+                       p.text, 13, true, "middle");
+
+        out += QString("<rect x=\"%1\" y=\"%2\" width=\"%3\" height=\"%3\" fill=\"%4\" "
+                       "stroke=\"%5\" stroke-width=\"1\"/>\n")
+                   .arg(num(x0), num(y0), num(side), p.plot, p.border);
+
+        // 15° grid
+        out += QString("<g stroke=\"%1\" stroke-opacity=\"%2\" stroke-width=\"1\">\n")
+                   .arg(p.grid, num(p.gridAlpha));
+        for (int t = 1; t < 6; ++t) {
+            const double f = side * t / 6.0;
+            out += QString("<line x1=\"%1\" y1=\"%2\" x2=\"%1\" y2=\"%3\"/>\n")
+                       .arg(num(x0 + f), num(y0), num(y0 + side));
+            out += QString("<line x1=\"%1\" y1=\"%2\" x2=\"%3\" y2=\"%2\"/>\n")
+                       .arg(num(x0), num(y0 + f), num(x0 + side));
+        }
+        out += "</g>\n";
+
+        for (const QVariant& cv : sec["contours"].toList()) {
+            const QVariantMap c = cv.toMap();
+            const double lv = c["level"].toDouble();
+            const QVariantList segs = c["segs"].toList();
+            out += QString("<g stroke=\"%1\" stroke-width=\"%2\" fill=\"none\" "
+                           "stroke-linecap=\"round\">\n")
+                       .arg(levelColor(lv), num(lv >= 4.0 ? 1.8 : 1.0, 1));
+            for (int i = 0; i + 3 < segs.size(); i += 4)
+                out += QString("<line x1=\"%1\" y1=\"%2\" x2=\"%3\" y2=\"%4\"/>\n")
+                           .arg(num(x0 + segs[i].toDouble()   * side),
+                                num(y0 + segs[i+1].toDouble() * side),
+                                num(x0 + segs[i+2].toDouble() * side),
+                                num(y0 + segs[i+3].toDouble() * side));
+            out += "</g>\n";
+        }
+
+        out += svgText(x0 + side / 2.0, y0 + side + 18.0, "φ₁ →   ↓ Φ   (0–90°)",
+                       p.sub, 11, false, "middle");
+    }
+
+    // legend
+    const double ly = margin + titleH + side + 46.0;
+    out += svgText(margin, ly + 4, "Contours (× random):", p.sub, 11);
+    double lx = margin + 130.0;
+    for (double lv : texmath::defaultLevels()) {
+        out += QString("<line x1=\"%1\" y1=\"%2\" x2=\"%3\" y2=\"%2\" stroke=\"%4\" stroke-width=\"3\"/>\n")
+                   .arg(num(lx), num(ly), num(lx + 18.0), levelColor(lv));
+        out += svgText(lx + 24.0, ly + 4, QString("%1×").arg(lv, 0, 'g', 3), p.sub, 11);
+        lx += 62.0;
+    }
+    out += svgText(margin, ly + 26.0,
+                   QString("histogram estimate · %1° bins · peak %2× random · seed %3")
+                       .arg(num(m_odfBins > 0 ? 90.0 / m_odfBins : 0.0, 1),
+                            num(m_odfMax, 2))
+                       .arg(seed()),
+                   p.sub, 10);
+    out += "</svg>\n";
+    return out;
+}
+
+QString TextureController::svgEulerSection(bool dark) const
+{
+    const SvgPalette p = svgPalette(dark);
+    // Right margin has to clear the component labels, which are drawn to the
+    // right of markers that can sit on the plot's right edge.
+    const double left = 78.0, top = 30.0, side = 520.0;
+    const double W = left + side + 110.0, H = top + side + 78.0;
+
+    QString out = svgHeader(W, H, p.app);
+    out += QString("<rect x=\"%1\" y=\"%2\" width=\"%3\" height=\"%3\" fill=\"%4\" "
+                   "stroke=\"%5\" stroke-width=\"1\"/>\n")
+               .arg(num(left), num(top), num(side), p.plot, p.border);
+
+    // gridlines + ticks every 15°
+    out += QString("<g stroke=\"%1\" stroke-opacity=\"%2\" stroke-width=\"1\">\n")
+               .arg(p.grid, num(p.gridAlpha));
+    for (int t = 0; t <= 6; ++t) {
+        const double f = side * t / 6.0;
+        out += QString("<line x1=\"%1\" y1=\"%2\" x2=\"%3\" y2=\"%2\"/>\n")
+                   .arg(num(left), num(top + f), num(left + side));
+        out += QString("<line x1=\"%1\" y1=\"%2\" x2=\"%1\" y2=\"%3\"/>\n")
+                   .arg(num(left + f), num(top), num(top + side));
+    }
+    out += "</g>\n";
+    for (int t = 0; t <= 6; ++t) {
+        const double f = side * t / 6.0;
+        out += svgText(left - 10.0, top + f + 4.0, QString("%1°").arg(t * 15), p.sub, 11, false, "end");
+        out += svgText(left + f, top + side + 18.0, QString("%1°").arg(t * 15), p.sub, 11, false, "middle");
+    }
+    out += svgText(left + side / 2.0, top + side + 40.0, "φ₁  (°)", p.text, 12, true, "middle");
+    out += QString("<text x=\"%1\" y=\"%2\" fill=\"%3\" font-family=\"Segoe UI, Arial, sans-serif\" "
+                   "font-size=\"12\" font-weight=\"bold\" text-anchor=\"middle\" "
+                   "transform=\"rotate(-90 %1 %2)\">Φ  (°)</text>\n")
+               .arg(num(left - 48.0), num(top + side / 2.0), p.text);
+
+    // grains inside the current φ2 slab -- same filter as the QML canvas
+    out += QString("<g fill=\"%1\" fill-opacity=\"%2\">\n").arg(p.point, num(p.pointAlpha));
+    int drawn = 0;
+    for (const QVariant& v : m_eulerPoints) {
+        const QVariantMap e = v.toMap();
+        double dp = std::fabs(e["phi2"].toDouble() - m_sectionPhi2);
+        if (dp > 180.0) dp = 360.0 - dp;
+        if (dp > kSectionTolDeg) continue;
+        out += QString("<circle cx=\"%1\" cy=\"%2\" r=\"3\"/>\n")
+                   .arg(num(left + e["x"].toDouble() * side),
+                        num(top  + e["y"].toDouble() * side));
+        ++drawn;
+    }
+    out += "</g>\n";
+
+    // ideal component markers
+    for (const QVariant& v : componentLabels()) {
+        const QVariantMap m = v.toMap();
+        double dp = std::fabs(m["phi2"].toDouble() - m_sectionPhi2);
+        if (dp > 180.0) dp = 360.0 - dp;
+        if (dp > kSectionTolDeg + 5.0) continue;
+        const double x = left + m["x"].toDouble() * side;
+        const double y = top  + m["y"].toDouble() * side;
+        out += QString("<circle cx=\"%1\" cy=\"%2\" r=\"4\" fill=\"%3\"/>\n")
+                   .arg(num(x), num(y), p.marker);
+        out += svgText(x + 8.0, y + 4.0, m["name"].toString(), p.marker, 11, true);
+    }
+
+    out += svgText(left, top - 10.0,
+                   QString("Euler φ₁–Φ section at φ₂ = %1° ±%2°  ·  %3 points  ·  seed %4")
+                       .arg(num(m_sectionPhi2, 0), num(kSectionTolDeg, 0))
+                       .arg(drawn).arg(seed()),
+                   p.sub, 11);
+    out += "</svg>\n";
+    return out;
+}
+
+QString TextureController::toLocalFile(const QUrl& fileUrl) const
+{
+    return fileUrl.isLocalFile() ? fileUrl.toLocalFile() : fileUrl.toString();
+}
+
+bool TextureController::exportSvg(int view, const QUrl& fileUrl, bool dark)
+{
+    const QString path = toLocalFile(fileUrl);
+    QString svg;
+    const char* what = "";
+    switch (view) {
+    case 0: svg = svgPoleFigure(dark);   what = "pole figure";   break;
+    case 1: svg = svgOdfSections(dark);  what = "ODF sections";  break;
+    case 2: svg = svgEulerSection(dark); what = "Euler section"; break;
+    default:
+        qWarning() << "TextureController::exportSvg: unknown view index" << view;
+        return false;
+    }
+
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        qWarning() << "TextureController::exportSvg: cannot write" << path << ":" << f.errorString();
+        return false;
+    }
+    QTextStream ts(&f);
+    ts.setEncoding(QStringConverter::Utf8);
+    ts << svg;
+    f.close();
+
+    qCDebug(lcTexture) << "[TextureController] exportSvg:" << what << "->" << path
+                       << "(" << svg.size() << "chars," << (dark ? "dark" : "light") << ")";
+    return true;
 }
 
 void TextureController::reseed()

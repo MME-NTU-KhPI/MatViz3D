@@ -2,6 +2,7 @@
 #define TEXTURECONTROLLER_H
 
 #include <QObject>
+#include <QUrl>
 #include <QVariantList>
 #include <QVariantMap>
 #include <array>
@@ -32,6 +33,10 @@ class TextureController : public QObject
     Q_PROPERTY(QVariantList componentLabels READ componentLabels CONSTANT)
 
     Q_PROPERTY(double sectionPhi2 READ sectionPhi2 WRITE setSectionPhi2 NOTIFY sectionChanged)
+
+    // Half-thickness of the φ2 slab the Euler view draws. Owned here so the
+    // QML plot and the SVG export cannot disagree about it.
+    Q_PROPERTY(double sectionTol READ sectionTol CONSTANT)
 
     Q_PROPERTY(int process READ process WRITE setProcess NOTIFY processChanged)
     Q_PROPERTY(int lattice READ lattice WRITE setLattice NOTIFY processChanged)
@@ -66,6 +71,16 @@ public:
 
     Q_INVOKABLE void applyToStress();
 
+    // Vector export of the current plot. view: 0 = pole figure, 1 = ODF
+    // sections, 2 = Euler section. Writes real SVG geometry (circles, lines,
+    // text) built from the same arrays QML draws, so the output is scalable
+    // rather than a screenshot. Returns false and logs on failure.
+    Q_INVOKABLE bool exportSvg(int view, const QUrl& fileUrl, bool dark);
+
+    // QUrl (what FileDialog hands back) -> native path, for Item.grabToImage's
+    // saveToFile(), which wants a plain filesystem path.
+    Q_INVOKABLE QString toLocalFile(const QUrl& fileUrl) const;
+
     QVariantList presets()     const;
     QVariantList components()   const;
     QVariantList eulerPoints()  const { return m_eulerPoints; }
@@ -78,6 +93,7 @@ public:
     void         setPoleFamily(int f);
     QVariantList componentLabels() const;
     double       sectionPhi2()  const { return m_sectionPhi2; }
+    double       sectionTol()   const { return kSectionTolDeg; }
     int          process()      const { return m_process; }
     int          lattice()      const { return m_lattice; }
     void         setProcess(int p);
@@ -126,6 +142,13 @@ private:
     double                                  m_odfMax  = 0.0;
     int                                     m_odfBins = 0;
     int                                     m_poleFamily = 2;   // {111}
+
+    // SVG writers for the three views (see exportSvg).
+    QString svgPoleFigure(bool dark) const;
+    QString svgOdfSections(bool dark) const;
+    QString svgEulerSection(bool dark) const;
+
+    static constexpr double kSectionTolDeg = 8.0;
 
     int    m_grainCount = 1000;
     double m_scatterDeg = 11.0;
