@@ -120,6 +120,18 @@ TextureController::TextureController(QObject* parent)
                        << " lattice =" << latticeName(m_lattice)
                        << " grains =" << m_grainCount
                        << " scatter =" << m_scatterDeg << "deg";
+
+    // This controller is constructed before the command line is parsed, so the
+    // first preview is built with whatever seed Parameters starts at. Follow
+    // the seed instead of sampling it once, or --seed (and any other writer)
+    // leaves the editor showing a preview that contradicts the seed it prints.
+    connect(Parameters::instance(), &Parameters::seedChanged, this, [this] {
+        qCDebug(lcTexture) << "[TextureController] seed changed externally ->"
+                           << Parameters::instance()->getSeed() << ": regenerating preview";
+        emit paramsChanged();
+        regenerate();
+    });
+
     rebuildFromProcess();   // Rolling FCC
 }
 
@@ -806,9 +818,10 @@ bool TextureController::exportSvg(int view, const QUrl& fileUrl, bool dark)
 void TextureController::reseed()
 {
     const unsigned int old = Parameters::instance()->getSeed();
+    // setSeed emits seedChanged, and the connection made in the constructor
+    // does the paramsChanged + regenerate -- doing it here as well would
+    // resample the whole preview twice per press.
     Parameters::instance()->setSeed(QRandomGenerator::global()->bounded(1, 1000000));
     qCDebug(lcTexture) << "[TextureController] reseed:" << old << "->"
                        << Parameters::instance()->getSeed();
-    emit paramsChanged();
-    regenerate();
 }
