@@ -40,7 +40,8 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
                                         "300-sample run) and writes them to HDF5, same schema as dataset mode.", "mode"));
     parser.addOption(QCommandLineOption("eps",
                                         "Strain tensor for --stress_mode single: exx,eyy,ezz,exy,eyz,exz", "values"));
-    parser.addOption(QCommandLineOption("output", "Specify output file for generated cube", "directory"));
+    parser.addOption(QCommandLineOption("output",
+                                        "HDF5 file results are written to (default current_ls.hdf5)", "file"));
     parser.addOption(QCommandLineOption("num_rnd_loads", "Set number of random loads (as eps) for stress analis", "num_rnd_loads"));
     parser.addOption(QCommandLineOption("run_stress_calc", "Run FEM to estimate stresses and strains"));
     parser.addOption(QCommandLineOption("working_directory", "Set path where ansys working directory will be stored","working_directory"));

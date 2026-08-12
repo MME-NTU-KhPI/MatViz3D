@@ -214,33 +214,13 @@ void MainWindowAlgorithmHandler::runStressCalculation()
         }
 
         const QString filename = Parameters::filename.length() ? Parameters::filename : "current_ls.hdf5";
-        HDF5Wrapper hdf5(filename.toStdString());
+        const QString group = saveStiffnessMatrixToHDF5(filename, r, solver, Parameters::seed);
+        if (group.isEmpty()) {
+            qCritical() << "Failed to write the stiffness matrix to" << filename;
+            return;
+        }
 
-        int last_set = hdf5.readInt("/", "last_set");
-        if (last_set == -1) { last_set = 1; hdf5.write("/", "last_set", last_set); }
-        else                { last_set += 1; hdf5.update("/", "last_set", last_set); }
-        const std::string prefix = ("/" + QString::number(last_set)).toStdString();
-
-        std::vector<std::vector<float>> mat_S(6, std::vector<float>(6));
-        std::vector<std::vector<float>> mat_C(6, std::vector<float>(6));
-        std::vector<std::vector<float>> mat_P(6, std::vector<float>(6));
-        for (int i = 0; i < 6; ++i)
-            for (int j = 0; j < 6; ++j) {
-                mat_S[i][j] = float(r.S[i][j]);
-                mat_C[i][j] = float(r.C[i][j]);
-                mat_P[i][j] = float(r.P[i][j]);
-            }
-        std::vector<float> moduli(r.moduli, r.moduli + 6);
-
-        hdf5.write(prefix, "S_matrix", mat_S);
-        hdf5.write(prefix, "C_matrix", mat_C);
-        hdf5.write(prefix, "P_matrix", mat_P);
-        hdf5.write(prefix, "Effective_Moduli", moduli);
-        hdf5.write(prefix, "seed", (int)Parameters::seed);
-        hdf5.write(prefix, "solver", solver);
-        if (fft) hdf5.write(prefix, "iterations_total", r.totalIterations);
-
-        qInfo() << "Stiffness matrix ->" << filename << prefix.c_str();
+        // (saveStiffnessMatrixToHDF5 already logs the file and group.)
         qInfo() << QString("Effective moduli (1/Sii) [Pa]: Ex=%1 Ey=%2 Ez=%3 Gxy=%4 Gyz=%5 Gxz=%6")
                         .arg(r.moduli[0], 0, 'e', 3).arg(r.moduli[1], 0, 'e', 3).arg(r.moduli[2], 0, 'e', 3)
                         .arg(r.moduli[3], 0, 'e', 3).arg(r.moduli[4], 0, 'e', 3).arg(r.moduli[5], 0, 'e', 3);

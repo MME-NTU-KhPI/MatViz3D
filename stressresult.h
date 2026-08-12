@@ -94,6 +94,20 @@ struct StiffnessMatrixResult
     std::array<LoadDebug, 6> loads;   // one per canonical unit-strain direction
 };
 
+// Persist a stiffness-matrix result into a fresh auto-incremented /<n>/ group
+// -- S_matrix / C_matrix / P_matrix / Effective_Moduli / seed / solver (plus
+// iterations_total for FFT) -- the same schema and group convention dataset
+// mode writes, so existing readers need no special case.
+//
+// Defined in hdf5wrapper.cpp (all HDF5 I/O lives there). Shared by the
+// headless CLI path (MainWindowAlgorithmHandler::runStressCalculation) and the
+// GUI/controller path (StressAnalysisController::saveStiffnessResult) so the
+// two cannot drift apart. Returns the group name ("/3"), empty on refusal.
+QString saveStiffnessMatrixToHDF5(const QString& filename,
+                                  const StiffnessMatrixResult& r,
+                                  const QString& solver,
+                                  unsigned int seed);
+
 // Result of a single load-case solve, shared by StressAnalysisFFT and
 // StressAnalysis (ANSYS) so the controller can treat both solvers the same way.
 struct SingleShotResult

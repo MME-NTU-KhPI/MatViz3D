@@ -72,6 +72,11 @@ public:
     Q_INVOKABLE void runStiffnessMatrix(const QString& solver);
     Q_INVOKABLE void saveSingleShotResult();
 
+    // Stiffness-matrix counterpart of saveSingleShotResult(). Without it the
+    // matrix mode only ever existed on screen -- the headless CLI path wrote
+    // HDF5 but the GUI (and GUI-mode --stress_mode stiffness) did not.
+    Q_INVOKABLE void saveStiffnessResult();
+
     bool   isRunning()  const { return m_isRunning; }
     bool   hasResult()  const { return m_hasResult; }
     bool   canSave()    const { return m_hasResult && m_lastResult.ok; }

@@ -467,6 +467,27 @@ void StressAnalysisController::onStiffnessFinished()
 //  Persist the last single-shot result as a one-load-step HDF5 dataset,
 //  following the same schema estimateStressWithFFT/ANSYS already write.
 // ─────────────────────────────────────────────────────────────────────────────
+void StressAnalysisController::saveStiffnessResult()
+{
+    if (!m_hasStiffness || !m_lastStiffness.ok) {
+        setError(tr("No stiffness matrix to save"));
+        return;
+    }
+
+    const QString filename = Parameters::filename.length() ? Parameters::filename : "current_ls.hdf5";
+    const QString solver   = m_lastStiffness.isFFT ? QStringLiteral("fft") : QStringLiteral("ansys");
+
+    const QString group = saveStiffnessMatrixToHDF5(filename, m_lastStiffness, solver, Parameters::seed);
+    if (group.isEmpty()) {
+        setError(tr("Failed to write the stiffness matrix to %1").arg(filename));
+        return;
+    }
+
+    qDebug() << "[StressAnalysisController] Saved stiffness matrix to" << filename << group;
+    m_lastErrorMessage.clear();
+    emit savedToHDF5(filename);
+}
+
 void StressAnalysisController::saveSingleShotResult()
 {
     if (!canSave()) {

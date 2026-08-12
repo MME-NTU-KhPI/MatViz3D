@@ -244,6 +244,11 @@ Window {
                         enabled: !ctrl.isRunning
                         onClicked: ctrl.runStiffnessMatrix(currentSolver())
                     }
+                    Button {
+                        text: qsTr("Save to HDF5")
+                        enabled: ctrl.hasStiffness && !ctrl.isRunning
+                        onClicked: ctrl.saveStiffnessResult()
+                    }
                     BusyIndicator {
                         running: ctrl.isRunning
                         visible: ctrl.isRunning

@@ -13,6 +13,9 @@
 #include <memory>
 #include <limits>
 #include <algorithm>
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 using fftsa::FFTSolverSession;
 using fftsa::Vec6;
@@ -43,6 +46,25 @@ std::vector<int> StressAnalysisFFT::buildGrainField(int N, int32_t ***voxels, in
 static inline double vonMises(const Vec6& s) { return vonMisesPipeline(s.data()); }
 static inline double eqvStrain(const Vec6& e) { return eqvStrainPipeline(e.data()); }
 
+// --np reached only ANSYS (ansysWrapper::setNP); the OpenMP loops in
+// fft_homog.hpp used the runtime default and ignored it. Parameters::num_threads
+// is always set -- to the physical core count when --np is absent -- so
+// applying it here honours the option without quietly serialising the solver.
+// Called from every FFT entry point because each may run on its own worker
+// thread, and omp_set_num_threads() is per-thread state.
+static void applyThreadLimit(const char* where)
+{
+#ifdef _OPENMP
+    const int np = Parameters::num_threads;
+    if (np > 0) {
+        omp_set_num_threads(np);
+        qDebug() << "[StressAnalysisFFT::" << where << "] OpenMP threads =" << np;
+    }
+#else
+    Q_UNUSED(where);
+#endif
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  Main: three-phase stress estimation via the FFT solver
 // ─────────────────────────────────────────────────────────────────────────────
@@ -53,6 +75,8 @@ void StressAnalysisFFT::estimateStressWithFFT(short int numCubes, short int numP
     qDebug() << "[StressAnalysisFFT]   numCubes  =" << numCubes;
     qDebug() << "[StressAnalysisFFT]   numPoints =" << numPoints;
     qDebug() << "[StressAnalysisFFT] ████████████████████████████████████████████████\n";
+
+    applyThreadLimit("estimateStressWithFFT");
 
     const int N = numCubes;
     // strain_val / num_samples / num_calib are member fields (editable from the UI).
@@ -300,6 +324,8 @@ SingleShotResult StressAnalysisFFT::solveSingleLoadCase(short int numCubes, shor
     qDebug() << "[StressAnalysisFFT] solveSingleLoadCase: numCubes =" << numCubes
              << " eps =" << eps[0] << eps[1] << eps[2] << eps[3] << eps[4] << eps[5];
 
+    applyThreadLimit("solveSingleLoadCase");
+
     const int N = numCubes;
     int nGrains = 0;
     std::vector<int> grain_field = buildGrainField(N, voxels, nGrains);
@@ -426,6 +452,8 @@ StiffnessMatrixResult StressAnalysisFFT::computeStiffnessMatrix(short int numCub
 
     qDebug() << "\n[StressAnalysisFFT::computeStiffnessMatrix] ────────────────────────────────";
     qDebug() << "[StressAnalysisFFT::computeStiffnessMatrix] 6 canonical unit-strain solves -> C, S, P";
+
+    applyThreadLimit("computeStiffnessMatrix");
 
     const int N = numCubes;
     int nGrains = 0;
