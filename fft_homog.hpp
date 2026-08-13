@@ -27,6 +27,7 @@
 #include <array>
 #include <complex>
 #include <cmath>
+#include <chrono>
 #include <cstddef>
 #include <cstdio>
 #include <stdexcept>
@@ -74,6 +75,33 @@ inline std::size_t next_pow2(std::size_t n) {
     while (m < n) m <<= 1;
     return m;
 }
+
+// Real-flop count of one 1D complex transform of length n, matching the two
+// code paths used below.  Radix-2 is the textbook 5*n*log2(n); Bluestein pays
+// three radix-2 transforms of the padded length m plus the chirp multiplies
+// (~6 flops per complex multiply-ish element), which is why an awkward grid
+// size is several times more expensive per line than a power-of-two one.
+inline double fft1d_flops(std::size_t n) {
+    if (n < 2) return 0.0;
+    const double dn = static_cast<double>(n);
+    if ((n & (n - 1)) == 0) return 5.0 * dn * std::log2(dn);
+    const double dm = static_cast<double>(next_pow2(2 * n - 1));
+    return 3.0 * 5.0 * dm * std::log2(dm) + 12.0 * dm + 12.0 * dn;
+}
+
+} // namespace detail
+
+// Estimated real flops of one in-place 3D transform on an nx*ny*nz grid: each
+// pass runs one 1D transform per line along that axis.
+inline double fft3d_flops(int nx, int ny, int nz) {
+    const double dnx = static_cast<double>(nx), dny = static_cast<double>(ny),
+                 dnz = static_cast<double>(nz);
+    return dnz * dny * detail::fft1d_flops(static_cast<std::size_t>(nx))
+         + dnz * dnx * detail::fft1d_flops(static_cast<std::size_t>(ny))
+         + dny * dnx * detail::fft1d_flops(static_cast<std::size_t>(nz));
+}
+
+namespace detail {
 
 // Forward DFT of arbitrary length via Bluestein (chirp-z).
 inline void fft_bluestein(std::vector<cd>& a) {
@@ -265,8 +293,16 @@ public:
         for (std::size_t p = 0; p < N_; ++p)
             for (int c = 0; c < 6; ++c) eps_[c][p] = cd(E[c], 0.0);
 
+        const FlopModel fm = flop_model();
+        const auto t_start = std::chrono::steady_clock::now();
+        auto seconds_since = [](const std::chrono::steady_clock::time_point& t) {
+            return std::chrono::duration<double>(std::chrono::steady_clock::now() - t).count();
+        };
+        double flops = 0.0;
+
         int it = 0;
         double err = 0.0;
+        bool converged = false;
         for (; it < maxit_; ++it) {
             // (1) real-space constitutive update  sigma = C(x):eps(x)
             local_stress();
@@ -277,17 +313,28 @@ public:
             // (3) equilibrium error from the transformed stress
             err = equilibrium_error();
 
+            flops += fm.per_iter_head;
+
             if (onIter) onIter(it, err);
 
             // Progress: printed straight to stdout (no Qt dependency here, see
             // file header) so a slow solve is visibly making progress rather
             // than looking hung. Throttled to avoid flooding the console.
-            if (it == 0 || err < tol_ || it % 20 == 0) {
-                std::fprintf(stdout, "[FFTHomogenizer::solve] iter %4d  err = %.3e  (tol = %.1e)\n",
-                             it, err, tol_);
+            // The flop figure is a model of the work done so far (see
+            // flop_model()), not a hardware counter, so the rate is an estimate
+            // of sustained throughput -- useful to compare grid sizes and
+            // thread counts, not to be taken as a benchmark number.
+            // (the converged iteration is reported by the summary below instead)
+            if (err >= tol_ && (it == 0 || it % 20 == 0)) {
+                const double secs = seconds_since(t_start);
+                std::fprintf(stdout,
+                             "[FFTHomogenizer::solve] iter %4d  err = %.3e  (tol = %.1e)  "
+                             "%.2f s  %.2f GFLOP  %.2f GFLOP/s\n",
+                             it, err, tol_, secs, flops * 1e-9,
+                             secs > 0.0 ? flops * 1e-9 / secs : 0.0);
                 std::fflush(stdout);
             }
-            if (err < tol_) break;
+            if (err < tol_) { converged = true; break; }
 
             // (4) FFT of current strain, apply Green operator, back-transform
             for (int c = 0; c < 6; ++c) fft3d(eps_[c], nx_, ny_, nz_, true);
@@ -298,17 +345,13 @@ public:
                 #pragma omp parallel for schedule(static)
                 for (std::size_t p = 0; p < N_; ++p) eps_[c][p] *= invN;
             }
+            flops += fm.per_iter_tail;
         }
         if (iters) *iters = it;
 
-        if (err >= tol_) {
-            std::fprintf(stderr, "[FFTHomogenizer::solve] did not converge in %d iterations (err = %.3e, tol = %.1e)\n",
-                         maxit_, err, tol_);
-            std::fflush(stderr);
-        }
-
         // final real-space stress and its average
         local_stress();
+        flops += fm.finalize;
         Vec6 avg{};
         for (int c = 0; c < 6; ++c) {
             double s = 0.0;
@@ -316,7 +359,28 @@ public:
             for (std::size_t p = 0; p < N_; ++p) s += sig_[c][p].real();
             avg[c] = s / static_cast<double>(N_);
         }
-        last_err_ = err;
+
+        const double secs = seconds_since(t_start);
+        const double gflops_rate = secs > 0.0 ? flops * 1e-9 / secs : 0.0;
+        if (converged) {
+            // `it` is the iteration index at which the error test passed, i.e.
+            // the number of Green-operator updates actually applied.
+            std::fprintf(stdout,
+                         "[FFTHomogenizer::solve] converged at iteration %d: err = %.3e < tol = %.1e  "
+                         "(%.2f s, %.2f GFLOP, %.2f GFLOP/s)\n",
+                         it, err, tol_, secs, flops * 1e-9, gflops_rate);
+            std::fflush(stdout);
+        } else {
+            std::fprintf(stderr,
+                         "[FFTHomogenizer::solve] did not converge in %d iterations (err = %.3e, tol = %.1e)  "
+                         "(%.2f s, %.2f GFLOP, %.2f GFLOP/s)\n",
+                         maxit_, err, tol_, secs, flops * 1e-9, gflops_rate);
+            std::fflush(stderr);
+        }
+
+        last_err_    = err;
+        last_secs_   = secs;
+        last_flops_  = flops;
         return avg;
     }
 
@@ -347,8 +411,37 @@ public:
     const std::vector<cd>& strain_component(int c) const { return eps_[c]; }
     const std::vector<cd>& stress_component(int c) const { return sig_[c]; }
     double last_error() const { return last_err_; }
+    // Modelled flops and wall time of the last solve() (see flop_model()).
+    double last_flops()   const { return last_flops_; }
+    double last_seconds() const { return last_secs_; }
+    double last_gflops_per_second() const {
+        return last_secs_ > 0.0 ? last_flops_ * 1e-9 / last_secs_ : 0.0;
+    }
 
 private:
+    // Modelled real-flop counts of the three parts of a solve() step.
+    struct FlopModel {
+        double per_iter_head;   // local_stress + 6 forward FFT + equilibrium_error
+        double per_iter_tail;   // 6 forward FFT + Green operator + 6 inverse FFT
+        double finalize;        // closing local_stress + the 6 volume averages
+    };
+
+    // Analytic flop estimate -- an operation count derived from the loops
+    // below, not a measurement. Per voxel: the constitutive update is a 6x6
+    // mat-vec (36 mul + 30 add ~= 72), the Green operator is ~150 (two 3x3
+    // complex mat-vecs plus the symmetric outer products), and the equilibrium
+    // error ~60 (one complex 3x3 mat-vec plus the norms). Those constants are
+    // deliberately coarse: on any realistic grid the FFTs dominate.
+    FlopModel flop_model() const {
+        const double n  = static_cast<double>(N_);
+        const double f3 = fft3d_flops(nx_, ny_, nz_);
+        FlopModel fm{};
+        fm.per_iter_head = 72.0 * n + 6.0 * f3 + 60.0 * n;
+        fm.per_iter_tail = 6.0 * f3 + 150.0 * n + 6.0 * f3 + 12.0 * n; // +complex scaling
+        fm.finalize      = 72.0 * n + 6.0 * n;
+        return fm;
+    }
+
     // sigma(x) = C(phase(x)) : eps(x)   (real part of eps used)
     void local_stress() {
         #pragma omp parallel for schedule(static)
@@ -495,6 +588,8 @@ private:
     int    maxit_ = 1000;
     double lam0_  = -1.0, mu0_ = -1.0;   // <=0 => auto
     double last_err_ = 0.0;
+    double last_flops_ = 0.0;
+    double last_secs_  = 0.0;
 };
 
 } // namespace ffth
