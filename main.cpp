@@ -166,12 +166,25 @@ int main(int argc, char *argv[])
 
         if (parser.isSet("run_stress_calc")) {
             Parameters* p = Parameters::instance();
-            if (p->getStressMode().compare("single", Qt::CaseInsensitive) == 0) {
+            const QString mode = p->getStressMode();
+            if (mode.compare("single", Qt::CaseInsensitive) == 0) {
                 const double* e = p->getStressEps();
                 QVariantList eps;
                 eps.reserve(6);
                 for (int i = 0; i < 6; ++i) eps.append(e[i]);
                 stressAnalysisController.runSingleShot(p->getStressSolver(), eps);
+            } else if (mode.compare("stiffness", Qt::CaseInsensitive) == 0) {
+                // Without this branch --stress_mode stiffness fell through to
+                // runDataset() and silently ran the full ~450-solve pipeline.
+                // The controller saves the result once the run finishes.
+                QObject::connect(&stressAnalysisController,
+                                 &StressAnalysisController::stiffnessChanged,
+                                 &stressAnalysisController,
+                                 [&stressAnalysisController]() {
+                                     stressAnalysisController.saveStiffnessResult();
+                                 },
+                                 static_cast<Qt::ConnectionType>(Qt::QueuedConnection | Qt::SingleShotConnection));
+                stressAnalysisController.runStiffnessMatrix(p->getStressSolver());
             } else {
                 stressAnalysisController.runDataset(p->getStressSolver());
             }

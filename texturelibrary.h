@@ -28,11 +28,19 @@ public:
         std::string name;     // "Copper", "Goss", "<111> fiber", ...
         bool   is_fiber = false;
         bool   is_random = false;
+        // Hard-capped perturbation: instead of the Gaussian applyScatter() used
+        // by the other components, rotate the ideal orientation about a
+        // uniformly random axis by an angle uniform in [0, scatter_deg]. No
+        // grain can ever deviate from the ideal by more than scatter_deg.
+        bool   is_capped = false;
     };
 
     enum class Lattice { FCC, BCC };
 
-    enum class Process { Random, Extrusion, Rolling, Recrystallization, Shear };
+    // Keep the order in sync with TextureView.qml's processList (the QML index
+    // is cast straight to this enum) and with parseProcess() in
+    // commandline_parser.cpp.
+    enum class Process { Random, Extrusion, Rolling, Recrystallization, Shear, ScatteredCube };
 
     enum class Mode {
         Cube,
@@ -78,6 +86,8 @@ private:
     static Matrix3 fiberMatrix(const int uvw[3], std::mt19937& rng);
     static Matrix3 applyScatter(const Matrix3& ideal, double scatter_deg,
                                 std::mt19937& rng);
+    static Matrix3 applyCappedScatter(const Matrix3& ideal, double max_deg,
+                                      std::mt19937& rng);
     static Matrix3 matmul(const Matrix3& A, const Matrix3& B);
 
     const Component& pickComponent();

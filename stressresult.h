@@ -36,6 +36,78 @@ struct FieldVisualizationData
     int denseIndex(int x, int y, int z) const { return (z * numCubes + y) * numCubes + x; }
 };
 
+// Gauss-Jordan 6x6 inverse (partial pivot), plain doubles. Returns false if
+// singular. Shared by StressAnalysis::computeStiffnessMatrix() (ANSYS) and
+// StressAnalysisFFT::computeStiffnessMatrix() (FFT) so both quick-test paths
+// invert C -> S (or S -> C) the same way, independent of the internal Mandel
+// types either solver uses.
+inline bool invert6x6(const double A[6][6], double out[6][6])
+{
+    double M[6][12];
+    for (int i = 0; i < 6; ++i) {
+        for (int j = 0; j < 6; ++j) { M[i][j] = A[i][j]; M[i][j + 6] = (i == j) ? 1.0 : 0.0; }
+    }
+    for (int c = 0; c < 6; ++c) {
+        int piv = c;
+        for (int r = c + 1; r < 6; ++r) if (std::abs(M[r][c]) > std::abs(M[piv][c])) piv = r;
+        if (std::abs(M[piv][c]) < 1e-300) return false;
+        for (int k = 0; k < 12; ++k) std::swap(M[c][k], M[piv][k]);
+        const double d = M[c][c];
+        for (int k = 0; k < 12; ++k) M[c][k] /= d;
+        for (int r = 0; r < 6; ++r) {
+            if (r == c) continue;
+            const double f = M[r][c];
+            for (int k = 0; k < 12; ++k) M[r][k] -= f * M[c][k];
+        }
+    }
+    for (int i = 0; i < 6; ++i) for (int j = 0; j < 6; ++j) out[i][j] = M[i][j + 6];
+    return true;
+}
+
+// Result of a "quick test" elastic-stiffness computation (S, C, P + effective
+// moduli), shared by StressAnalysisFFT::computeStiffnessMatrix() and
+// StressAnalysis::computeStiffnessMatrix() (ANSYS) -- the UI's "Stiffness
+// matrix" mode uses whichever one ran, via StressAnalysisController.
+//
+// Unlike the S_matrix/C_matrix/P_matrix written into the dataset-mode HDF5
+// output (write-only, buried in the file), this is meant to be read back and
+// displayed immediately, and to carry enough per-load debug info (FFT only)
+// to sanity-check the six canonical solves that built it.
+struct StiffnessMatrixResult
+{
+    bool    ok = false;
+    QString errorMessage;
+
+    double S[6][6] = {{0}};   // compliance, 1/Pa
+    double C[6][6] = {{0}};   // stiffness,  Pa
+    double P[6][6] = {{0}};   // P[i][j] = -S[i][j]/S[j][j]
+    double moduli[6] = {0};   // 1/S[i][i], Pa
+
+    bool isFFT           = false;
+    int  totalIterations = 0;   // FFT only; 0 for ANSYS
+
+    struct LoadDebug {
+        int    iterations = 0;    // FFT only
+        double error       = 0.0; // FFT only, final equilibrium error
+        double macroStress[6] = {0};
+    };
+    std::array<LoadDebug, 6> loads;   // one per canonical unit-strain direction
+};
+
+// Persist a stiffness-matrix result into a fresh auto-incremented /<n>/ group
+// -- S_matrix / C_matrix / P_matrix / Effective_Moduli / seed / solver (plus
+// iterations_total for FFT) -- the same schema and group convention dataset
+// mode writes, so existing readers need no special case.
+//
+// Defined in hdf5wrapper.cpp (all HDF5 I/O lives there). Shared by the
+// headless CLI path (MainWindowAlgorithmHandler::runStressCalculation) and the
+// GUI/controller path (StressAnalysisController::saveStiffnessResult) so the
+// two cannot drift apart. Returns the group name ("/3"), empty on refusal.
+QString saveStiffnessMatrixToHDF5(const QString& filename,
+                                  const StiffnessMatrixResult& r,
+                                  const QString& solver,
+                                  unsigned int seed);
+
 // Result of a single load-case solve, shared by StressAnalysisFFT and
 // StressAnalysis (ANSYS) so the controller can treat both solvers the same way.
 struct SingleShotResult

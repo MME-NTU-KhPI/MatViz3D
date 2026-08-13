@@ -170,6 +170,16 @@ bool LoadStepManager::LoadGeomSet(int geom_set_num, HDF5Wrapper& hdf5)
     // Read voxels
     this->cubeSize = hdf5.readInt(set_prefix, "cubeSize");
     this->numPoints = hdf5.readInt(set_prefix, "numPoints");
+
+    // A stiffness-matrix result group holds only S/C/P/moduli -- no voxels. Bail
+    // out here instead of building a cubeSize = -1 grid and indexing an empty
+    // voxel vector further down.
+    if (cubeSize <= 0 || !hdf5.datasetExists(set_prefix, "voxels")) {
+        qWarning() << "Geom set" << geom_set_num << "has no geometry (cubeSize ="
+                   << cubeSize << ") -- nothing to visualise";
+        return false;
+    }
+
     this->local_cs = hdf5.readVectorVectorFloat(set_prefix, "local_cs");
     this->voxels_vector = hdf5.readVoxels(set_prefix, "voxels");
     qDebug() << "\tGeom Set:" << geom_set_num;

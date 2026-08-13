@@ -35,17 +35,20 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
     parser.addOption(QCommandLineOption("nogui","Running a program with no GUI"));
     parser.addOption(QCommandLineOption("solver","Solver for --run_stress_calc: ansys | fft (default ansys)", "solver"));
     parser.addOption(QCommandLineOption("stress_mode",
-                                        "Stress calculation mode: single | dataset (default dataset)", "mode"));
+                                        "Stress calculation mode: single | dataset | stiffness (default dataset). "
+                                        "stiffness computes S/C/P/moduli only (6 solves, no Hill calibration or "
+                                        "300-sample run) and writes them to HDF5, same schema as dataset mode.", "mode"));
     parser.addOption(QCommandLineOption("eps",
                                         "Strain tensor for --stress_mode single: exx,eyy,ezz,exy,eyz,exz", "values"));
-    parser.addOption(QCommandLineOption("output", "Specify output file for generated cube", "directory"));
+    parser.addOption(QCommandLineOption("output",
+                                        "HDF5 file results are written to (default current_ls.hdf5)", "file"));
     parser.addOption(QCommandLineOption("num_rnd_loads", "Set number of random loads (as eps) for stress analis", "num_rnd_loads"));
     parser.addOption(QCommandLineOption("run_stress_calc", "Run FEM to estimate stresses and strains"));
     parser.addOption(QCommandLineOption("working_directory", "Set path where ansys working directory will be stored","working_directory"));
 
     // ── Crystallographic texture ──────────────────────────────────────────
     parser.addOption(QCommandLineOption("texture",
-                                        "Texture preset: random | extrusion | rolling | recrystallization | shear", "preset"));
+                                        "Texture preset: random | extrusion | rolling | recrystallization | shear | scattered_cube", "preset"));
     parser.addOption(QCommandLineOption("lattice",
                                         "Crystal lattice for the texture preset: fcc | bcc (default fcc)", "lattice"));
     parser.addOption(QCommandLineOption("scatter",
@@ -63,6 +66,8 @@ bool parseProcess(const QString& name, TextureLibrary::Process& out)
     else if (n == "rolling")                               out = TextureLibrary::Process::Rolling;
     else if (n == "recrystallization" || n == "recryst")   out = TextureLibrary::Process::Recrystallization;
     else if (n == "shear")                                 out = TextureLibrary::Process::Shear;
+    else if (n == "scattered_cube" || n == "scatteredcube" ||
+             n == "scattered-cube")                        out = TextureLibrary::Process::ScatteredCube;
     else return false;
     return true;
 }
@@ -241,7 +246,7 @@ void Commandline_Parser::processOptions(const QCommandLineParser& parser)
         TextureLibrary::Process proc;
         if (!parseProcess(parser.value("texture"), proc)) {
             qFatal("Option --texture expects one of: random, extrusion, rolling, "
-                   "recrystallization, shear; got \"%s\"",
+                   "recrystallization, shear, scattered_cube; got \"%s\"",
                    qPrintable(parser.value("texture")));
         }
 
@@ -294,8 +299,8 @@ void Commandline_Parser::processOptions(const QCommandLineParser& parser)
 
     if (parser.isSet("stress_mode")) {
         const QString m = parser.value("stress_mode").trimmed().toLower();
-        if (m != "single" && m != "dataset")
-            qFatal("Option --stress_mode expects single or dataset; got \"%s\"",
+        if (m != "single" && m != "dataset" && m != "stiffness")
+            qFatal("Option --stress_mode expects single, dataset or stiffness; got \"%s\"",
                    qPrintable(parser.value("stress_mode")));
         params->setStressMode(m);
         qInfo() << "stress_mode :" << m;

@@ -1,4 +1,5 @@
 #include "hdf5wrapper.h"
+#include "stressresult.h"
 #include <QFile>
 #include <QDebug>
 
@@ -30,8 +31,70 @@ HDF5Wrapper::HDF5Wrapper(const std::string& fileName)
 
 HDF5Wrapper::~HDF5Wrapper()
 {
-    if (file)
+    // A failed open leaves a negative id, which "if (file)" treated as valid.
+    if (file >= 0)
         H5Fclose(file);
+}
+
+// See stressresult.h for what this writes and why it lives here.
+QString saveStiffnessMatrixToHDF5(const QString& filename,
+                                  const StiffnessMatrixResult& r,
+                                  const QString& solver,
+                                  unsigned int seed)
+{
+    if (!r.ok) {
+        qWarning() << "saveStiffnessMatrixToHDF5: refusing to write a failed result";
+        return {};
+    }
+
+    HDF5Wrapper hdf5(filename.toStdString());
+
+    int last_set = hdf5.readInt("/", "last_set");
+    if (last_set == -1) { last_set = 1; hdf5.write("/", "last_set", last_set); }
+    else                { last_set += 1; hdf5.update("/", "last_set", last_set); }
+
+    const QString     group  = "/" + QString::number(last_set);
+    const std::string prefix = group.toStdString();
+
+    std::vector<std::vector<float>> mat_S(6, std::vector<float>(6));
+    std::vector<std::vector<float>> mat_C(6, std::vector<float>(6));
+    std::vector<std::vector<float>> mat_P(6, std::vector<float>(6));
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 6; ++j) {
+            mat_S[i][j] = float(r.S[i][j]);
+            mat_C[i][j] = float(r.C[i][j]);
+            mat_P[i][j] = float(r.P[i][j]);
+        }
+    std::vector<float> moduli(r.moduli, r.moduli + 6);
+
+    hdf5.write(prefix, "S_matrix",         mat_S);
+    hdf5.write(prefix, "C_matrix",         mat_C);
+    hdf5.write(prefix, "P_matrix",         mat_P);
+    hdf5.write(prefix, "Effective_Moduli", moduli);
+    hdf5.write(prefix, "seed",             int(seed));
+    hdf5.write(prefix, "solver",           solver);
+    if (r.isFFT) hdf5.write(prefix, "iterations_total", r.totalIterations);
+
+    qDebug() << "Stiffness matrix ->" << filename << group;
+    return group;
+}
+
+// "/" + "last_set" would otherwise give "//last_set".
+std::string HDF5Wrapper::fullPath(const std::string& dataGroup, const std::string& dataSetName)
+{
+    if (dataGroup.empty() || dataGroup == "/")
+        return "/" + dataSetName;
+    if (dataGroup.back() == '/')
+        return dataGroup + dataSetName;
+    return dataGroup + "/" + dataSetName;
+}
+
+bool HDF5Wrapper::datasetExists(const std::string& dataGroup, const std::string& dataSetName)
+{
+    if (file < 0) return false;
+    // H5Lexists reports a missing intermediate link as false rather than
+    // failing (HDF5 >= 1.10), so the whole path can be probed in one call.
+    return H5Lexists(file, fullPath(dataGroup, dataSetName).c_str(), H5P_DEFAULT) > 0;
 }
 
 bool HDF5Wrapper::checkError(hid_t id, const std::string& message)
@@ -312,7 +375,11 @@ void HDF5Wrapper::write(const std::string& dataGroup, const std::string& dataSet
 
 
 std::vector<float> HDF5Wrapper::readVectorFloat(const std::string& dataGroup, const std::string& dataSetName) {
-    hid_t dataset = H5Dopen(file, (dataGroup + "/" + dataSetName).c_str(), H5P_DEFAULT);
+    if (!datasetExists(dataGroup, dataSetName)) {
+        qWarning() << "HDF5: no dataset" << fullPath(dataGroup, dataSetName).c_str() << "-- returning empty";
+        return {};
+    }
+    hid_t dataset = H5Dopen(file, fullPath(dataGroup, dataSetName).c_str(), H5P_DEFAULT);
     hid_t dataspace = H5Dget_space(dataset);
 
     hsize_t dims[1];
@@ -328,7 +395,11 @@ std::vector<float> HDF5Wrapper::readVectorFloat(const std::string& dataGroup, co
 }
 
 std::vector<std::vector<float>> HDF5Wrapper::readVectorVectorFloat(const std::string& dataGroup, const std::string& dataSetName) {
-    hid_t dataset = H5Dopen(file, (dataGroup + "/" + dataSetName).c_str(), H5P_DEFAULT);
+    if (!datasetExists(dataGroup, dataSetName)) {
+        qWarning() << "HDF5: no dataset" << fullPath(dataGroup, dataSetName).c_str() << "-- returning empty";
+        return {};
+    }
+    hid_t dataset = H5Dopen(file, fullPath(dataGroup, dataSetName).c_str(), H5P_DEFAULT);
     hid_t dataspace = H5Dget_space(dataset);
 
     hsize_t dims[2];
@@ -352,8 +423,12 @@ std::vector<std::vector<float>> HDF5Wrapper::readVectorVectorFloat(const std::st
 
 float HDF5Wrapper::readFloat(const std::string& dataGroup, const std::string& dataSetName)
 {
-    hid_t dataset = H5Dopen(file, (dataGroup + "/" + dataSetName).c_str(), H5P_DEFAULT);
-    float data;
+    if (!datasetExists(dataGroup, dataSetName)) {
+        qWarning() << "HDF5: no dataset" << fullPath(dataGroup, dataSetName).c_str() << "-- returning 0";
+        return 0.0f;
+    }
+    hid_t dataset = H5Dopen(file, fullPath(dataGroup, dataSetName).c_str(), H5P_DEFAULT);
+    float data = 0.0f;
     H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &data);
     H5Dclose(dataset);
     return data;
@@ -361,29 +436,30 @@ float HDF5Wrapper::readFloat(const std::string& dataGroup, const std::string& da
 
 int HDF5Wrapper::readInt(const std::string& dataGroup, const std::string& dataSetName)
 {
-    hid_t group_id = createGroupIfNotExists(dataGroup);
-    if (group_id < 0) {
-        // Handle error
-        qCritical() << "Can not create group " << dataGroup.c_str();
+    // -1 means "not there". Callers rely on it (the last_set counter starts at
+    // 1 when absent), so an absent dataset is a normal answer, not an error:
+    // probe the link rather than letting H5Dopen fail and print a stack.
+    if (!datasetExists(dataGroup, dataSetName))
         return -1;
-    }
-    hid_t dataset = H5Dopen(file, (dataGroup + "/" + dataSetName).c_str(), H5P_DEFAULT);
+
+    hid_t dataset = H5Dopen(file, fullPath(dataGroup, dataSetName).c_str(), H5P_DEFAULT);
     if (dataset < 0) {
-        // Handle error
-        qCritical() << "Can not open dataset " << (dataGroup + "/" + dataSetName).c_str();
-        H5Gclose(group_id);
+        qCritical() << "Can not open dataset " << fullPath(dataGroup, dataSetName).c_str();
         return -1;
     }
-    int data;
+    int data = -1;
     H5Dread(dataset, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &data);
     H5Dclose(dataset);
-    H5Gclose(group_id);
     return data;
 }
 
 QString HDF5Wrapper::readQString(const std::string& dataGroup, const std::string& dataSetName)
 {
-    hid_t dataset = H5Dopen(file, (dataGroup + "/" + dataSetName).c_str(), H5P_DEFAULT);
+    if (!datasetExists(dataGroup, dataSetName)) {
+        qWarning() << "HDF5: no dataset" << fullPath(dataGroup, dataSetName).c_str() << "-- returning empty";
+        return {};
+    }
+    hid_t dataset = H5Dopen(file, fullPath(dataGroup, dataSetName).c_str(), H5P_DEFAULT);
     hid_t dataspace = H5Dget_space(dataset);
 
     hsize_t dims[1];
@@ -404,7 +480,13 @@ std::vector<std::vector<std::vector<int32_t>>> HDF5Wrapper::readVoxels(const std
         return {};
     }
 
-    hid_t dataset = H5Dopen(file, (dataGroup + "/" + dataSetName).c_str(), H5P_DEFAULT);
+    if (!datasetExists(dataGroup, dataSetName)) {
+        qWarning() << "HDF5: no dataset" << fullPath(dataGroup, dataSetName).c_str()
+                   << "-- this group holds no geometry";
+        return {};
+    }
+
+    hid_t dataset = H5Dopen(file, fullPath(dataGroup, dataSetName).c_str(), H5P_DEFAULT);
     if (checkError(dataset, "readVoxels: Failed to open dataset")) {
         return {};
     }

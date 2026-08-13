@@ -5,6 +5,7 @@
 #include <QString>
 #include <QVariantList>
 #include <QFutureWatcher>
+#include <vector>
 #include "stressresult.h"
 
 // Backs the "Stress Analysis" window (StressAnalysisView.qml). Lets the user
@@ -42,13 +43,39 @@ class StressAnalysisController : public QObject
     // the field from m_lastResult -- it doesn't require re-solving.
     Q_PROPERTY(bool        showField            READ showField           WRITE setShowField           NOTIFY showFieldChanged)
 
+    // "Stiffness matrix" mode: quick-test S/C/P + effective moduli, without
+    // Hill calibration or a full dataset build.
+    Q_PROPERTY(bool         hasStiffness      READ hasStiffness      NOTIFY stiffnessChanged)
+    Q_PROPERTY(bool         stiffnessIsFFT    READ stiffnessIsFFT    NOTIFY stiffnessChanged)
+    Q_PROPERTY(QVariantList stiffnessS        READ stiffnessS        NOTIFY stiffnessChanged)
+    Q_PROPERTY(QVariantList stiffnessC        READ stiffnessC        NOTIFY stiffnessChanged)
+    Q_PROPERTY(QVariantList stiffnessP        READ stiffnessP        NOTIFY stiffnessChanged)
+    Q_PROPERTY(QVariantList stiffnessModuli   READ stiffnessModuli   NOTIFY stiffnessChanged)
+    Q_PROPERTY(int          stiffnessTotalIterations READ stiffnessTotalIterations NOTIFY stiffnessChanged)
+
+    // Live FFT convergence (iteration -> equilibrium error), fed by whichever
+    // FFT solve last ran -- the single-shot solve (one series, loadIndex 0)
+    // or the stiffness-matrix solve (up to 6 series, one per canonical load).
+    // Empty / convergenceIsFFT==false when the last run was ANSYS (no
+    // per-iteration error to plot -- ANSYS is a direct FE solve).
+    Q_PROPERTY(QVariantList convergencePoints    READ convergencePoints    NOTIFY convergenceChanged)
+    Q_PROPERTY(bool         convergenceIsFFT     READ convergenceIsFFT     NOTIFY convergenceChanged)
+    Q_PROPERTY(int          convergenceLoadCount READ convergenceLoadCount NOTIFY convergenceChanged)
+    Q_PROPERTY(double       convergenceTol       READ convergenceTol       NOTIFY convergenceChanged)
+
 public:
     explicit StressAnalysisController(QObject* parent = nullptr);
 
     // solver: "fft" or "ansys" (case-insensitive).
     Q_INVOKABLE void runSingleShot(const QString& solver, const QVariantList& eps);
     Q_INVOKABLE void runDataset(const QString& solver);
+    Q_INVOKABLE void runStiffnessMatrix(const QString& solver);
     Q_INVOKABLE void saveSingleShotResult();
+
+    // Stiffness-matrix counterpart of saveSingleShotResult(). Without it the
+    // matrix mode only ever existed on screen -- the headless CLI path wrote
+    // HDF5 but the GUI (and GUI-mode --stress_mode stiffness) did not.
+    Q_INVOKABLE void saveStiffnessResult();
 
     bool   isRunning()  const { return m_isRunning; }
     bool   hasResult()  const { return m_hasResult; }
@@ -81,6 +108,19 @@ public:
     bool        showField() const { return m_showField; }
     Q_INVOKABLE void setShowField(bool show);
 
+    bool         hasStiffness()           const { return m_hasStiffness; }
+    bool         stiffnessIsFFT()         const { return m_lastStiffness.isFFT; }
+    QVariantList stiffnessS()             const { return matrixToVariant(m_lastStiffness.S); }
+    QVariantList stiffnessC()             const { return matrixToVariant(m_lastStiffness.C); }
+    QVariantList stiffnessP()             const { return matrixToVariant(m_lastStiffness.P); }
+    QVariantList stiffnessModuli()        const;
+    int          stiffnessTotalIterations() const { return m_lastStiffness.totalIterations; }
+
+    QVariantList convergencePoints()    const;
+    bool         convergenceIsFFT()     const { return m_convergenceIsFFT; }
+    int          convergenceLoadCount() const { return m_convergenceLoadCount; }
+    double       convergenceTol()       const { return m_convergenceTol; }
+
 signals:
     void isRunningChanged();
     void resultChanged();
@@ -93,6 +133,8 @@ signals:
     void showDeformedChanged();
     void deformedScaleChanged();
     void showFieldChanged();
+    void stiffnessChanged();
+    void convergenceChanged();
 
 private:
     void setRunning(bool running);
@@ -103,12 +145,23 @@ private:
     // Pushes m_lastResult's field into the 3D view and picks a default
     // component/deformed-scale. Called after a successful runSingleShot().
     void pushResultToView();
+    static QVariantList matrixToVariant(const double m[6][6]);
 
     // Runs on the main thread once the background solve finishes (queued via
     // QFutureWatcher::finished -- Qt marshals this back automatically since
     // both watchers live on the thread that constructed this controller).
     void onSingleShotFinished();
     void onDatasetFinished();
+    void onStiffnessFinished();
+
+    // Clears the convergence buffer and (re)tags it for a new FFT run.
+    // loadCount is 1 for a single-shot solve, 6 for a stiffness-matrix run.
+    void resetConvergence(bool isFFT, int loadCount);
+    // Appends one (loadIndex, iteration, error) sample. Only ever called on
+    // the main thread -- worker threads reach it via
+    // QMetaObject::invokeMethod(this, ..., Qt::QueuedConnection), which Qt
+    // safely no-ops if this controller is destroyed before the call runs.
+    void appendConvergencePoint(int loadIndex, int iteration, double error);
 
     bool   m_isRunning = false;
     bool   m_hasResult = false;
@@ -121,8 +174,9 @@ private:
     // used to call LoadStepManager::getInstance().LoadFromHDF5() internally --
     // that's been moved to onDatasetFinished() so the (unsynchronized)
     // singleton is only ever touched from the main thread.
-    QFutureWatcher<SingleShotResult> m_singleShotWatcher;
-    QFutureWatcher<void>             m_datasetWatcher;
+    QFutureWatcher<SingleShotResult>      m_singleShotWatcher;
+    QFutureWatcher<void>                  m_datasetWatcher;
+    QFutureWatcher<StiffnessMatrixResult> m_stiffnessWatcher;
     QString                          m_pendingDatasetFilename;
 
     QString m_lastErrorMessage;
@@ -135,6 +189,18 @@ private:
     bool   m_showDeformed        = false;
     double m_deformedScale       = 1.0;
     bool   m_showField           = false;
+
+    bool                   m_hasStiffness = false;
+    StiffnessMatrixResult  m_lastStiffness;
+
+    // (loadIndex, iteration, error) samples for the live convergence plot,
+    // in arrival order (loadIndex distinguishes the up-to-6 series when a
+    // stiffness-matrix run is in progress).
+    struct ConvergencePoint { int loadIndex; int iteration; double error; };
+    std::vector<ConvergencePoint> m_convergence;
+    bool   m_convergenceIsFFT     = false;
+    int    m_convergenceLoadCount = 0;
+    double m_convergenceTol       = 0.0;
 };
 
 #endif // STRESSANALYSISCONTROLLER_H

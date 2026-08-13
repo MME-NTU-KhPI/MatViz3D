@@ -59,15 +59,19 @@ unix:!macos {
 }
 
 win32 {
-    HDF5_ROOT = "C:\Program Files\HDF_Group\HDF5"
-    message(HDF5_ROOT = $$HDF5_ROOT)
-    HCMD = dir /B /AD \"$$HDF5_ROOT\" | findstr \"^[0-9]\"
-    message(HCMD = $$HCMD)
-    HDF5_VERSION = $$system($$HCMD)
-    message(HDF5_VERSION = $$HDF5_VERSION)
-    HDF5_LIBPATH = "$$HDF5_ROOT/$$HDF5_VERSION/lib"
+    HDF5_DIR = $$(HDF5_DIR)
+    isEmpty(HDF5_DIR) {
+        HDF5_ROOT = "C:\Program Files\HDF_Group\HDF5"
+        message(HDF5_ROOT = $$HDF5_ROOT)
+        HCMD = dir /B /AD \"$$HDF5_ROOT\" | findstr \"^[0-9]\"
+        message(HCMD = $$HCMD)
+        HDF5_VERSION = $$system($$HCMD)
+        message(HDF5_VERSION = $$HDF5_VERSION)
+        HDF5_DIR = "$$HDF5_ROOT/$$HDF5_VERSION"
+    }
+    HDF5_LIBPATH = "$$HDF5_DIR/lib"
     message(HDF5_LIBPATH = $$HDF5_LIBPATH)
-    HDF5_INCLUDEPATH = "$$HDF5_ROOT/$$HDF5_VERSION/include"
+    HDF5_INCLUDEPATH = "$$HDF5_DIR/include"
     message(HDF5_INCLUDEPATH = $$HDF5_INCLUDEPATH)
     INCLUDEPATH += $$HDF5_INCLUDEPATH
     LIBS += -L$$HDF5_LIBPATH -lhdf5
@@ -165,4 +169,5 @@ HEADERS += \
     stressanalysiscontroller.h \
     stressresult.h \
     texturelibrary.h \
+    texturemath.hpp \
     texturecontroller.h

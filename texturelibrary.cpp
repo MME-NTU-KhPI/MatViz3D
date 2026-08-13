@@ -187,6 +187,35 @@ TextureLibrary::Matrix3 TextureLibrary::applyScatter(const Matrix3& ideal,
     return matmul(Rp, ideal);
 }
 
+// Hard-capped variant of applyScatter(): rotation axis uniform on the sphere
+// (Gaussian triple, normalised -- unlike applyScatter()'s cube-biased
+// uniform(-1,1) triple), rotation angle uniform in [0, max_deg]. Used by the
+// ScatteredCube process, where every grain starts at the global/cube
+// orientation and is then tilted by *at most* the scatter angle.
+TextureLibrary::Matrix3 TextureLibrary::applyCappedScatter(const Matrix3& ideal,
+                                                           double max_deg,
+                                                           std::mt19937& rng)
+{
+    if (max_deg < EPS) return ideal;
+
+    std::normal_distribution<double> nd(0.0, 1.0);
+    double ax[3] = { nd(rng), nd(rng), nd(rng) };
+    double an = std::sqrt(ax[0]*ax[0] + ax[1]*ax[1] + ax[2]*ax[2]);
+    if (an < EPS) return ideal;
+    ax[0]/=an; ax[1]/=an; ax[2]/=an;
+
+    std::uniform_real_distribution<double> uni(0.0, max_deg*DEG);
+    double ang = uni(rng);
+    double c = std::cos(ang), s = std::sin(ang), t = 1 - c;
+
+    Matrix3 Rp{{
+        { c+ax[0]*ax[0]*t,       ax[0]*ax[1]*t-ax[2]*s,  ax[0]*ax[2]*t+ax[1]*s },
+        { ax[1]*ax[0]*t+ax[2]*s, c+ax[1]*ax[1]*t,        ax[1]*ax[2]*t-ax[0]*s },
+        { ax[2]*ax[0]*t-ax[1]*s, ax[2]*ax[1]*t+ax[0]*s,  c+ax[2]*ax[2]*t       }
+    }};
+    return matmul(Rp, ideal);
+}
+
 const TextureLibrary::Component& TextureLibrary::pickComponent()
 {
     if (m_components.size() == 1 || m_cumWeights.empty())
@@ -215,6 +244,9 @@ void TextureLibrary::sampleNext(double angl[3], bool in_deg)
 
             if (c.is_random) {
                 R = randomMatrix(m_rng);
+            }
+            else if (c.is_capped) {
+                R = applyCappedScatter(orientationFromMiller(c.hkl, c.uvw), c.scatter_deg, m_rng);
             }
             else if (c.is_fiber) {
                 R = fiberMatrix(c.uvw, m_rng);
@@ -327,6 +359,21 @@ TextureLibrary::componentsForProcess(Process p, Lattice lat, double scatter_deg)
         add(0,0,1, 1,1,0, 0.5, "Shear A");
         add(1,1,1, 1,1,-2,0.5, "Shear C");
         break;
+
+    case Process::ScatteredCube: {
+        // Every grain starts at the global (cube) orientation {001}<100> == the
+        // identity rotation, then gets tilted about a uniformly random axis by
+        // an angle uniform in [0, scatter_deg] -- a "perfectly aligned +- noise"
+        // polycrystal that collapses to a single crystal at scatter_deg = 0.
+        Component c;
+        c.hkl[0]=0; c.hkl[1]=0; c.hkl[2]=1;
+        c.uvw[0]=1; c.uvw[1]=0; c.uvw[2]=0;
+        c.scatter_deg = scatter_deg; c.weight = 1.0;
+        c.name = "Cube +-scatter";
+        c.is_capped = true;
+        out.push_back(c);
+        break;
+    }
     }
     return out;
 }
@@ -437,6 +484,7 @@ void TextureLibrary::sampleNextBunge(double bunge[3], bool in_deg)
         if (m_components.empty()) { bunge[0] = bunge[1] = bunge[2] = 0.0; return; }
         const Component& c = pickComponent();
         if (c.is_random)      R = randomMatrix(m_rng);
+        else if (c.is_capped) R = applyCappedScatter(orientationFromMiller(c.hkl, c.uvw), c.scatter_deg, m_rng);
         else if (c.is_fiber)  R = applyScatter(fiberMatrix(c.uvw, m_rng), c.scatter_deg, m_rng);
         else                  R = applyScatter(orientationFromMiller(c.hkl, c.uvw), c.scatter_deg, m_rng);
         break;

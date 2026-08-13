@@ -41,6 +41,7 @@ jobs:
             libfontconfig1-dev \
             libx11-dev \
             libfuse2 \
+            libhdf5-dev \
             ruby ruby-dev \
             rpm
           sudo gem install --no-document fpm
@@ -149,6 +150,12 @@ jobs:
         run: |
           choco install mingw -y
           echo "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install HDF5 via MSYS2
+        shell: pwsh
+        run: |
+          & "C:\msys64\usr\bin\bash.exe" -lc "pacman -S --noconfirm --needed mingw-w64-x86_64-hdf5"
+          echo "HDF5_DIR=C:/msys64/mingw64" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Configure
         shell: cmd
