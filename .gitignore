@@ -85,3 +85,6 @@ output.dat
 *.db
 *.emat
 *.esav
+
+# Linux
+*.nix

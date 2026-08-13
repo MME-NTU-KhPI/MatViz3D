@@ -10,13 +10,20 @@ win32 {
 }
 
 unix:!macos {
-    LIBS += -lGL
+    CONFIG += link_pkgconfig
+    PKGCONFIG += gl
 }
 
 macos {
     LIBS += -framework OpenGL
 }
 
+QML_LIBEXEC = $$(QT_QML_LIBEXEC)
+!isEmpty(QML_LIBEXEC) {
+    QT_TOOL.qmltyperegistrar.binary = $$QML_LIBEXEC/qmltyperegistrar
+    QT_TOOL.qmlcachegen.binary      = $$QML_LIBEXEC/qmlcachegen
+    QT_TOOL.qmlimportscanner.binary = $$QML_LIBEXEC/qmlimportscanner
+}
 
 QMAKE_CXXFLAGS += -fopenmp
 LIBS += -fopenmp
@@ -25,6 +32,10 @@ CONFIG += qmltypes
 QML_IMPORT_NAME = OpenGLUnderQML
 QML_IMPORT_MAJOR_VERSION = 1
 
+QMAKE_QMLTYPEREGISTRAR = qmltyperegistrar
+QMAKE_QMLCACHEGEN = qmlcachegen
+QMAKE_QMLDEBUGGER = qmldebugger
+
 CONFIG += console
 
 # You can make your code fail to compile if it uses deprecated APIs.
@@ -32,11 +43,19 @@ CONFIG += console
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 # define include paths for hdf5 library
-unix {
-    HDF5_INCLUDEPATH = "/usr/include/hdf5/serial"
-    HDF5_LIBPATH = "/usr/lib/x86_64-linux-gnu"
-    LIBS += -L$${HDF5_LIBPATH} -lhdf5_serial
-    INCLUDEPATH += $$HDF5_INCLUDEPATH
+unix:!macos {
+    #(NixOS, Arch, Fedora)
+    CONFIG += link_pkgconfig
+    PKGCONFIG += hdf5
+
+    # Ubuntu/Debian,
+    # where hdf5 can be hdf5_serial
+    exists(/usr/include/hdf5/serial) {
+        HDF5_INCLUDEPATH = "/usr/include/hdf5/serial"
+        HDF5_LIBPATH = "/usr/lib/x86_64-linux-gnu"
+        LIBS += -L$${HDF5_LIBPATH} -lhdf5_serial
+        INCLUDEPATH += $$HDF5_INCLUDEPATH
+    }
 }
 
 win32 {
