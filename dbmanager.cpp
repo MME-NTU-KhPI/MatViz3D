@@ -1,24 +1,91 @@
 #include <QCoreApplication>
 #include "dbmanager.h"
 
+// Opened lazily and shared by every caller: the GUI builds a DBManager at
+// startup, but headless runs resolve --db_material without one, and both must
+// end up talking to the same file and the same seeded table.
+QSqlDatabase DBManager::materialDatabase()
+{
+    if (QSqlDatabase::contains(QSqlDatabase::defaultConnection)) {
+        QSqlDatabase existing = QSqlDatabase::database(QSqlDatabase::defaultConnection);
+        if (existing.isOpen())
+            return existing;
+    }
+
+    if (!QSqlDatabase::isDriverAvailable("QSQLITE")) {
+        qCritical() << "Error: the QSQLITE driver is not available";
+        return QSqlDatabase();
+    }
+
+    QString dbPath = QCoreApplication::applicationDirPath() + "/material_properties.db";
+    QSqlDatabase db = QSqlDatabase::contains(QSqlDatabase::defaultConnection)
+                          ? QSqlDatabase::database(QSqlDatabase::defaultConnection, /*open=*/false)
+                          : QSqlDatabase::addDatabase("QSQLITE");
+    db.setDatabaseName(dbPath);
+
+    if (!db.open()) {
+        qCritical() << "Error: Unable to connect to database" << db.lastError().text();
+        return QSqlDatabase();
+    }
+
+    qDebug() << "Database connected successfully";
+    createTable(db);
+    insertInitialData(db);
+    return db;
+}
+
+QStringList DBManager::materialNames()
+{
+    QStringList out;
+    QSqlDatabase db = materialDatabase();
+    if (!db.isOpen())
+        return out;
+
+    QSqlQuery query(db);
+    if (!query.exec("SELECT Material FROM material_properties ORDER BY id")) {
+        qCritical() << "Error listing materials:" << query.lastError().text();
+        return out;
+    }
+    while (query.next()) {
+        const QString name = query.value(0).toString();
+        if (!name.isEmpty())
+            out << name;
+    }
+    return out;
+}
+
+bool DBManager::cubicConstants(const QString& material,
+                               double& c11, double& c12, double& c44,
+                               QString& type)
+{
+    QSqlDatabase db = materialDatabase();
+    if (!db.isOpen())
+        return false;
+
+    QSqlQuery query(db);
+    query.prepare("SELECT c11, c12, c44, Type FROM material_properties "
+                  "WHERE Material = :m LIMIT 1");
+    query.bindValue(":m", material);
+    if (!query.exec()) {
+        qCritical() << "Error querying material" << material << ":" << query.lastError().text();
+        return false;
+    }
+    if (!query.next())
+        return false;
+
+    c11  = query.value(0).toDouble();
+    c12  = query.value(1).toDouble();
+    c44  = query.value(2).toDouble();
+    type = query.value(3).toString();
+    return true;
+}
+
 DBManager::DBManager(QObject *parent)
     : QObject(parent)
 {
-    QString dbPath = QCoreApplication::applicationDirPath() + "/material_properties.db";
-    db = QSqlDatabase::addDatabase("QSQLITE");
-    db.setDatabaseName(dbPath);
-
-    if (!db.open())
-    {
-        qCritical() << "Error: Unable to connect to database" << db.lastError().text();
+    db = materialDatabase();
+    if (!db.isOpen())
         return;
-    }
-    else
-    {
-        qDebug() << "Database connected successfully";
-        createTable();
-        insertInitialData();
-    }
 
     model = new QSqlTableModel(this, db);
     model->setTable("material_properties");
@@ -31,9 +98,9 @@ DBManager::~DBManager()
     db.close();
 };
 
-void DBManager::createTable()
+void DBManager::createTable(QSqlDatabase& db)
 {
-    QSqlQuery query;
+    QSqlQuery query(db);
     QString createTableSQL =
         "CREATE TABLE IF NOT EXISTS material_properties ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, "
@@ -53,7 +120,7 @@ void DBManager::createTable()
         qDebug() << "Table created successfully.";
 }
 
-void DBManager::insertInitialData()
+void DBManager::insertInitialData(QSqlDatabase& db)
 {
     QSqlQuery query(db);
 
@@ -135,7 +202,8 @@ void DBManager::insertInitialData()
 
 Q_INVOKABLE void DBManager::addMaterial(const QString &material)
 {
-    QSqlQuery query;
+    if (!model) return;
+    QSqlQuery query(db);
     query.prepare("INSERT INTO material_properties (Material) VALUES (:Material)");
     query.bindValue(":Material", material);
     if (!query.exec()) {
@@ -148,6 +216,7 @@ Q_INVOKABLE void DBManager::addMaterial(const QString &material)
 
 Q_INVOKABLE void DBManager::removeMaterial(int row)
 {
+    if (!model) return;
     if (row >= 0 && row < model->rowCount()) {
         model->removeRow(row);
         model->submitAll();
@@ -156,6 +225,7 @@ Q_INVOKABLE void DBManager::removeMaterial(int row)
 }
 
 Q_INVOKABLE void DBManager::updateMaterial(int row, int column, const QVariant &value) {
+    if (!model) return;
     if (row >= 0 && row < model->rowCount()) {
         model->setData(model->index(row, column), value);
         model->submitAll();

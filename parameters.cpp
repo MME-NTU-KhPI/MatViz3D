@@ -1,5 +1,7 @@
 #include "parameters.h"
 #include "openglwidgetqml.h"
+#include "dbmanager.h"
+#include <QDebug>
 #include <QDir>
 
 Parameters* Parameters::m_instance = nullptr;
@@ -37,6 +39,19 @@ QString Parameters::m_material  = "bcc";
 QString Parameters::m_material1  = "fcc";
 QString Parameters::m_material2  = "bcc";
 
+double  Parameters::minkowski_p = 2.0;   // Euclidean == the classical Voronoi
+bool    Parameters::is_periodic = false;
+
+QString Parameters::db_material = "";
+double  Parameters::mat_c11 = 168.40;    // GPa, Cu -- the solvers' historical default
+double  Parameters::mat_c12 = 121.40;
+double  Parameters::mat_c44 = 75.40;
+QString Parameters::mat_type = "fcc";
+
+QString Parameters::texture_preset   = "random";
+double  Parameters::texture_scatter  = 11.0;
+QString Parameters::lattice_override = "";
+
 QString Parameters::stressSolver = "ansys";
 QString Parameters::stressMode   = "dataset";
 double  Parameters::stressEps[6] = {0, 0, 0, 0, 0, 0};
@@ -63,8 +78,11 @@ void Parameters::processPointInput(const QString &text)
         double concentration = text.toDouble(&ok);
         if (ok)
         {
-            int volume = std::pow(size, 3);
-            points = static_cast<int>(concentration * volume / 100.0);
+            const double volume = std::pow(static_cast<double>(size), 3);
+            // Rounded, not truncated: pointsDisplayValue() converts the other
+            // way, and truncation made a count lose a point on every trip
+            // through the concentration field.
+            points = static_cast<int>(std::lround(concentration * volume / 100.0));
             if (ogl)
                 ogl->setNumColors(points);
         }
@@ -72,6 +90,15 @@ void Parameters::processPointInput(const QString &text)
     }
 
     emit initialConditionSelectionChanged();
+}
+
+QString Parameters::pointsDisplayValue() const
+{
+    if (getPointsMode() != "density" || size <= 0)
+        return QString::number(points);
+
+    const double volume = std::pow(static_cast<double>(size), 3);
+    return QString::number(points * 100.0 / volume, 'g', 6);
 }
 
 
@@ -232,6 +259,163 @@ void Parameters::setMaterial2(const QString& value)
         m_material2 = value;
         emit material2Changed();
     }
+}
+
+void Parameters::setMinkowskiP(double value)
+{
+    if (minkowski_p != value) {
+        minkowski_p = value;
+        emit minkowskiPChanged();
+    }
+}
+
+void Parameters::setIsPeriodic(bool value)
+{
+    if (is_periodic != value) {
+        is_periodic = value;
+        emit isPeriodicChanged();
+    }
+}
+
+void Parameters::setDbMaterial(const QString& value)
+{
+    if (db_material == value)
+        return;
+
+    db_material = value;
+
+    double c11 = 0, c12 = 0, c44 = 0;
+    QString type;
+    if (value.isEmpty()) {
+        // Back to the built-in Cu constants.
+        mat_c11 = 168.40; mat_c12 = 121.40; mat_c44 = 75.40; mat_type = "fcc";
+    } else if (DBManager::cubicConstants(value, c11, c12, c44, type)) {
+        // A row with every constant left at 0 (a hand-added material nobody
+        // filled in) would hand the solvers a singular stiffness, so keep the
+        // previous constants and say so rather than producing garbage.
+        if (c11 > 0.0 && c44 > 0.0) {
+            mat_c11 = c11; mat_c12 = c12; mat_c44 = c44;
+            mat_type = type.isEmpty() ? QStringLiteral("fcc") : type.toLower();
+            qInfo().noquote() << QString("material: %1 (%2)  C11=%3 C12=%4 C44=%5 GPa")
+                                     .arg(value, mat_type)
+                                     .arg(mat_c11).arg(mat_c12).arg(mat_c44);
+        } else {
+            qWarning() << "material" << value
+                       << "has no elastic constants in the database; keeping"
+                       << mat_c11 << mat_c12 << mat_c44 << "GPa";
+        }
+    } else {
+        qWarning() << "material" << value
+                   << "not found in material_properties.db; keeping"
+                   << mat_c11 << mat_c12 << mat_c44 << "GPa";
+    }
+
+    // The lattice may have flipped fcc <-> bcc, and the presets differ per
+    // lattice, so the texture has to follow the material.
+    rebuildTextureFromPreset();
+
+    emit dbMaterialChanged();
+}
+
+void Parameters::setTexturePreset(const QString& value)
+{
+    // Accept both the UI labels ("Scattered cube", "Custom (editor)") and the
+    // CLI spellings ("scattered_cube", "custom"); store one normalised form.
+    QString norm = value.trimmed().toLower();
+    norm.replace(' ', '_').replace('-', '_');
+    if (norm.startsWith("custom"))       norm = "custom";
+    else if (norm.startsWith("recryst")) norm = "recrystallization";
+
+    if (texture_preset == norm)
+        return;
+
+    texture_preset = norm;
+    rebuildTextureFromPreset();
+    emit textureSettingsChanged();
+}
+
+QString Parameters::texturePresetLabel()
+{
+    // Must match textureParamFields()'s option list exactly.
+    if (texture_preset == "extrusion")         return QStringLiteral("Extrusion");
+    if (texture_preset == "rolling")           return QStringLiteral("Rolling");
+    if (texture_preset == "recrystallization") return QStringLiteral("Recrystallization");
+    if (texture_preset == "shear")             return QStringLiteral("Shear");
+    if (texture_preset == "scattered_cube")    return QStringLiteral("Scattered cube");
+    if (texture_preset == "custom")            return QStringLiteral("Custom (editor)");
+    return QStringLiteral("Random");
+}
+
+void Parameters::setTextureScatter(double value)
+{
+    if (texture_scatter == value)
+        return;
+
+    texture_scatter = value;
+    rebuildTextureFromPreset();
+    emit textureSettingsChanged();
+}
+
+void Parameters::markTextureCustom()
+{
+    if (texture_preset == "custom")
+        return;
+    texture_preset = "custom";
+    emit textureSettingsChanged();
+}
+
+void Parameters::cubicConstantsPa(double& c11, double& c12, double& c44)
+{
+    c11 = mat_c11 * 1e9;
+    c12 = mat_c12 * 1e9;
+    c44 = mat_c44 * 1e9;
+}
+
+void Parameters::setLatticeOverride(const QString& value)
+{
+    const QString norm = value.trimmed().toLower();
+    if (lattice_override == norm)
+        return;
+    lattice_override = norm;
+    rebuildTextureFromPreset();
+    emit textureSettingsChanged();
+}
+
+TextureLibrary::Lattice Parameters::materialLattice()
+{
+    const QString type = lattice_override.isEmpty() ? mat_type : lattice_override;
+    return (type.compare("bcc", Qt::CaseInsensitive) == 0)
+               ? TextureLibrary::Lattice::BCC
+               : TextureLibrary::Lattice::FCC;
+}
+
+void Parameters::rebuildTextureFromPreset()
+{
+    if (texture_preset == "custom")
+        return;   // owned by the texture editor
+
+    TextureLibrary::Process proc;
+    if      (texture_preset == "random")            proc = TextureLibrary::Process::Random;
+    else if (texture_preset == "extrusion")         proc = TextureLibrary::Process::Extrusion;
+    else if (texture_preset == "rolling")           proc = TextureLibrary::Process::Rolling;
+    else if (texture_preset == "recrystallization") proc = TextureLibrary::Process::Recrystallization;
+    else if (texture_preset == "shear")             proc = TextureLibrary::Process::Shear;
+    else if (texture_preset == "scattered_cube")    proc = TextureLibrary::Process::ScatteredCube;
+    else {
+        qWarning() << "unknown texture preset" << texture_preset << "-- using random";
+        proc = TextureLibrary::Process::Random;
+    }
+
+    // Random is the pipeline's "no components" state: leaving the vector empty
+    // is what every existing caller already treats as uniformly random, and it
+    // keeps runs made before this option existed reproducible.
+    if (proc == TextureLibrary::Process::Random) {
+        textureComponents.clear();
+        return;
+    }
+
+    textureComponents = TextureLibrary::componentsForProcess(proc, materialLattice(),
+                                                             texture_scatter);
 }
 
 void Parameters::setWaveSpread(float value)

@@ -14,10 +14,14 @@
 // launching ANSYS.  Output HDF5 layout is kept identical so the existing
 // LoadStepManager / viewers work unchanged.
 //
-// Material: cubic single crystal, defaults Cu/Fe-like in Pa (168.4/121.4/75.4 GPa).
+// Material: cubic single crystal. C11/C12/C44 default to the constants of the
+// material selected from material_properties.db (Cu-like 168.4/121.4/75.4 GPa
+// when nothing is selected) and can still be overridden per instance.
 class StressAnalysisFFT
 {
 public:
+    StressAnalysisFFT();
+
     // Same entry-point signature as StressAnalysis::estimateStressWithANSYS.
     void estimateStressWithFFT(short int numCubes, short int numPoints, int32_t ***voxels);
 
@@ -42,7 +46,8 @@ public:
                                                  const std::function<void(int, int, double)>& onIter = nullptr);
 
     // Single-crystal constants (Pa) and grid controls (optional overrides).
-    double C11 = 168.4e9, C12 = 121.4e9, C44 = 75.4e9;
+    // Seeded from Parameters by the constructor.
+    double C11, C12, C44;
     double fft_tol      = 1e-5;
     int    fft_max_iter = 1000;
 

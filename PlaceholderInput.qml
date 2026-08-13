@@ -24,6 +24,12 @@ Item {
 
     signal textChanged(string text)
 
+    // Replaces the contents from code (and raises textChanged), for values the
+    // UI recomputes rather than the user typing them.
+    function setText(t) {
+        textInput.text = t
+    }
+
     Rectangle {
         anchors.fill: parent
         color: "#282828"

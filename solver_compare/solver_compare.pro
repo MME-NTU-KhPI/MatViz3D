@@ -59,6 +59,7 @@ SOURCES += \
         ../hdf5wrapper.cpp \
         ../hillcriterion.cpp \
         ../algorithmfactory.cpp \
+        ../algorithmplugin.cpp \
         ../ansyswrapper.cpp \
         ../composite.cpp \
         ../dlca.cpp \
@@ -82,18 +83,20 @@ SOURCES += \
         ../statisticscontroller.cpp \
         ../stressanalysis.cpp \
         ../stressanalysis_fft.cpp \
-        ../stressanalysiscontroller.cpp
+        ../stressanalysiscontroller.cpp \
+        ../voronoi.cpp
 
 HEADERS += \
     ../commandline_parser.h ../consolelogger.h ../cpuinfo.hpp ../dbmanager.h ../exportcontroller.h \
     ../fft_homog.hpp ../fft_solver_session.hpp ../grain_analyzer.h ../hdf5wrapper.h ../hillcriterion.h \
-    ../algorithmfactory.h ../ansyswrapper.h ../composite.h ../dlca.h ../legendview.h ../logo_printer.h \
+    ../algorithmfactory.h ../algorithmplugin.h ../ansyswrapper.h ../composite.h ../dlca.h \
+    ../legendview.h ../logo_printer.h \
     ../loadstepmanager.h ../mainwindowalgorithmhandler.h ../mainwindowwrapper.h \
     ../materialdatabaseviewwrapper.h ../matviz_homog.hpp ../moore.h ../neumann.h ../openglwidgetqml.h \
     ../parameters.h ../paramfield.h ../parent_algorithm.h ../probability_algorithm.h \
     ../probability_circle.h ../probability_ellipse.h ../radial.h ../renderopengl.h ../schemacontroller.h \
     ../statisticscontroller.h ../stressanalysis.h ../stressanalysis_fft.h ../stressanalysiscontroller.h \
-    ../stressresult.h
+    ../stressresult.h ../voronoi.h
 
 # qml.qrc is intentionally omitted: this is a console tool, no QML engine is
 # started. If your build complains about missing QML type registrations, add

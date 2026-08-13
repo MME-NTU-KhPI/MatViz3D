@@ -92,9 +92,10 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
         wr->setTextureComponents(Parameters::textureComponents);
     }
 
-    // BCC material constants (Fe-like)
-    double c11 = 168.40e9, c12 = 121.40e9, c44 = 75.40e9;
-    qDebug() << "[StressAnalysis] Material (BCC anisotropic):";
+    // Cubic single-crystal constants of the selected database material.
+    double c11 = 0, c12 = 0, c44 = 0;
+    Parameters::cubicConstantsPa(c11, c12, c44);
+    qDebug() << "[StressAnalysis] Material (cubic anisotropic):" << Parameters::instance()->getDbMaterial();
     qDebug() << "  C11 =" << c11 << "Pa  C12 =" << c12 << "Pa  C44 =" << c44 << "Pa";
     wr->setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44);
     wr->setElemByNum(185);
@@ -257,7 +258,8 @@ bool StressAnalysis::computeElasticProperties(short int numCubes, short int numP
     temp_wr.setNP(Parameters::num_threads);
     if (!Parameters::textureComponents.empty())
         temp_wr.setTextureComponents(Parameters::textureComponents);
-    double c11 = 168.40e9, c12 = 121.40e9, c44 = 75.40e9;
+    double c11 = 0, c12 = 0, c44 = 0;
+    Parameters::cubicConstantsPa(c11, c12, c44);
     temp_wr.setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44);
     temp_wr.setElemByNum(185);
     temp_wr.createFEfromArray8Node(voxels, numCubes, numPoints, true);
@@ -377,7 +379,8 @@ bool StressAnalysis::calibrateHillMatrix(short int numCubes, short int numPoints
     temp_wr.setNP(Parameters::num_threads);
     if (!Parameters::textureComponents.empty())
         temp_wr.setTextureComponents(Parameters::textureComponents);
-    double c11 = 168.40e9, c12 = 121.40e9, c44 = 75.40e9;
+    double c11 = 0, c12 = 0, c44 = 0;
+    Parameters::cubicConstantsPa(c11, c12, c44);
     temp_wr.setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44);
     temp_wr.setElemByNum(185);
     temp_wr.createFEfromArray8Node(voxels, numCubes, numPoints, true);
@@ -499,7 +502,8 @@ SingleShotResult StressAnalysis::solveSingleLoadCase(short int numCubes, short i
 
     temp_wr->setSeed(Parameters::seed);
     temp_wr->setNP(Parameters::num_threads);
-    double c11 = 168.40e9, c12 = 121.40e9, c44 = 75.40e9;
+    double c11 = 0, c12 = 0, c44 = 0;
+    Parameters::cubicConstantsPa(c11, c12, c44);
     qDebug() << "[StressAnalysis::solveSingleLoadCase]   [DEBUG] seed =" << Parameters::seed
              << " C11 =" << c11 << " C12 =" << c12 << " C44 =" << c44;
     temp_wr->setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44);

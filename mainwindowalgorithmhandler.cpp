@@ -165,7 +165,7 @@ void MainWindowAlgorithmHandler::setAlgorithmFlags(Parent_Algorithm& algorithm)
 {
     algorithm.setAnimation(Parameters::instance()->getIsAnimation());
     algorithm.setWaveGeneration(false);
-    algorithm.setPeriodicStructure(false);
+    algorithm.setPeriodicStructure(Parameters::instance()->getIsPeriodic());
 }
 
 void MainWindowAlgorithmHandler::runStressCalculation()

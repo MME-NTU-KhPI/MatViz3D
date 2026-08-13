@@ -31,7 +31,19 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
     parser.addOption(QCommandLineOption("orientation_angle_b", "Rotation angle of the y-axis for the Probability algorithm", "value"));
     parser.addOption(QCommandLineOption("orientation_angle_c", "Rotation angle of the z-axis for the Probability algorithm", "value"));
     parser.addOption(QCommandLineOption("ellipse_order", "The degree of the superellipse equation", "value"));
+    parser.addOption(QCommandLineOption("minkowski_p",
+                                        "Minkowski exponent p for the Voronoi algorithm: 1 = Manhattan "
+                                        "(octahedral grains), 2 = Euclidean, large = Chebyshev (cuboidal). "
+                                        "Default 2", "value"));
+    parser.addOption(QCommandLineOption("periodic",
+                                        "Generate a periodic cell: grains wrap across opposite faces"));
+    parser.addOption(QCommandLineOption("material",
+                                        "Material from material_properties.db (e.g. Cu, Fe, W). Supplies the "
+                                        "cubic constants both stress solvers use and the lattice the texture "
+                                        "presets are built for", "name"));
     parser.addOption(QCommandLineOption("autostart","Running a program with auto-generation of a cube"));
+    parser.addOption(QCommandLineOption("animate",
+                                        "Grow the structure iteration by iteration instead of in one shot"));
     parser.addOption(QCommandLineOption("nogui","Running a program with no GUI"));
     parser.addOption(QCommandLineOption("solver","Solver for --run_stress_calc: ansys | fft (default ansys)", "solver"));
     parser.addOption(QCommandLineOption("stress_mode",
@@ -168,8 +180,12 @@ void Commandline_Parser::processOptions(const QCommandLineParser& parser)
             qFatal("Option --concentration expects a value in (0, 100]; got %s",
                    qPrintable(str));
 
+        // Double, and rounded rather than truncated, to match
+        // Parameters::processPointInput(): computed in float, 0.375% of 20^3
+        // lands on 29.999... and truncated to 29 instead of the exact 30.
+        const double volume = std::pow(static_cast<double>(params->getSize()), 3);
         const int derived = static_cast<int>(
-            (pct / 100.0f) * std::pow(params->getSize(), 3));
+            std::lround(static_cast<double>(pct) / 100.0 * volume));
         if (derived <= 0)
             qFatal("Option --concentration resolved to %d points; raise --size or --concentration",
                    derived);
@@ -204,6 +220,15 @@ void Commandline_Parser::processOptions(const QCommandLineParser& parser)
 
     // ── Algorithm options ─────────────────────────────────────────────────
     parseDouble("ellipse_order",    [&](double v) { params->setEllipseOrder(v); });
+    parseDouble("minkowski_p",      [&](double v) {
+        if (v <= 0.0)
+            qFatal("Option --minkowski_p expects a positive value; got %s",
+                   qPrintable(QString::number(v)));
+        params->setMinkowskiP(v);
+    });
+    params->setIsPeriodic(parser.isSet("periodic"));
+    if (parser.isSet("animate"))
+        params->setIsAnimation(true);
     parseFloat ("wave_coefficient", [&](float  v) { params->setWaveCoefficient(v); });
 
     if (!parser.isSet("wave_coefficient"))
@@ -239,6 +264,19 @@ void Commandline_Parser::processOptions(const QCommandLineParser& parser)
     }
     qInfo() << "Number of threads:" << params->getNumThreads();
 
+    // ── Material ──────────────────────────────────────────────────────────
+    // Before the texture block: the material's Type column decides which
+    // lattice the presets are built for, unless --lattice overrides it.
+    parseString("material", [&](const QString& v) { params->setDbMaterial(v); });
+
+    if (parser.isSet("lattice")) {
+        TextureLibrary::Lattice lat;
+        if (!parseLattice(parser.value("lattice"), lat))
+            qFatal("Option --lattice expects fcc or bcc; got \"%s\"",
+                   qPrintable(parser.value("lattice")));
+        params->setLatticeOverride(parser.value("lattice").trimmed().toLower());
+    }
+
     // ── Crystallographic texture ──────────────────────────────────────────
     // Fills the same Parameters::textureComponents that the Texture Editor writes,
     // so ansysWrapper and the viewport pick it up through the usual path.
@@ -250,27 +288,23 @@ void Commandline_Parser::processOptions(const QCommandLineParser& parser)
                    qPrintable(parser.value("texture")));
         }
 
-        TextureLibrary::Lattice lat = TextureLibrary::Lattice::FCC;
-        if (parser.isSet("lattice") && !parseLattice(parser.value("lattice"), lat)) {
-            qFatal("Option --lattice expects fcc or bcc; got \"%s\"",
-                   qPrintable(parser.value("lattice")));
-        }
-
-        double scatter = 11.0;
         if (parser.isSet("scatter")) {
             bool ok = false;
-            scatter = parser.value("scatter").toDouble(&ok);
+            const double scatter = parser.value("scatter").toDouble(&ok);
             if (!ok || scatter < 0.0)
                 qFatal("Option --scatter expects a non-negative number of degrees; got \"%s\"",
                        qPrintable(parser.value("scatter")));
+            params->setTextureScatter(scatter);
         }
 
-        Parameters::textureComponents =
-            TextureLibrary::componentsForProcess(proc, lat, scatter);
+        // Routed through Parameters (rather than writing textureComponents
+        // directly) so the GUI panel shows the preset the CLI selected.
+        params->setTexturePreset(parser.value("texture"));
 
+        const bool bcc = Parameters::materialLattice() == TextureLibrary::Lattice::BCC;
         qInfo() << "texture:" << parser.value("texture")
-                << " lattice:" << (lat == TextureLibrary::Lattice::FCC ? "fcc" : "bcc")
-                << " scatter:" << scatter << "deg"
+                << " lattice:" << (bcc ? "bcc" : "fcc")
+                << " scatter:" << params->getTextureScatter() << "deg"
                 << " components:" << Parameters::textureComponents.size();
     } else {
         if (parser.isSet("lattice") || parser.isSet("scatter"))

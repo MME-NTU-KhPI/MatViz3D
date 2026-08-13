@@ -21,6 +21,15 @@ using fftsa::FFTSolverSession;
 using fftsa::Vec6;
 using fftsa::ResCol;
 using namespace fftsa;
+// The constants come from the material picked in the UI/CLI rather than from a
+// literal here, so the ANSYS and FFT backends are guaranteed to be solving the
+// same material. Callers that want something else (solver_compare) can still
+// assign C11/C12/C44 after construction.
+StressAnalysisFFT::StressAnalysisFFT()
+{
+    Parameters::cubicConstantsPa(C11, C12, C44);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  helpers
 // ─────────────────────────────────────────────────────────────────────────────

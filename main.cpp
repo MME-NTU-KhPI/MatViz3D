@@ -109,6 +109,9 @@ int main(int argc, char *argv[])
     ExportController exportController;
     StressAnalysisController stressAnalysisController;
     TextureController textureController;
+    // Both before the QML engine: the algorithm combo box reads the registry,
+    // so every algorithm has to be in it by the time the panel is built.
+    registerAlgorithms();
     registerSchemas();
 
     QQmlApplicationEngine engine;
@@ -145,6 +148,9 @@ int main(int argc, char *argv[])
                      &textureController,
                      [](const std::vector<TextureLibrary::Component>& comps) {
                          Parameters::textureComponents = comps;
+                         // Hand-edited from now on: stop the preset dropdown
+                         // from rebuilding over the user's components.
+                         Parameters::instance()->markTextureCustom();
                      });
 
     QTimer::singleShot(0, [&mainWindowWrapper, &parser, &schemaController, &stressAnalysisController]() {

@@ -60,6 +60,24 @@ Window {
             onLoaded: item.visible = true
     }
 
+    function openTextureEditor() {
+        textureLoader.active = true
+        if (textureLoader.item) {
+            textureLoader.item.visible = true
+            textureLoader.item.raise()
+        }
+    }
+
+    // Action fields in the algorithm parameter panel do not know about windows;
+    // they raise an id and this is where it becomes a window.
+    Connections {
+        target: schemaController
+        function onActionTriggered(action) {
+            if (action === "open_texture_editor")
+                mainWindow.openTextureEditor()
+        }
+    }
+
     ColumnLayout {
             id: mainLayout
             anchors.fill: parent
@@ -551,17 +569,10 @@ Window {
                                         radius: 11
                                         border.color: "#969696"
                                     }
-                                    model: ListModel {
-                                        id: model
-                                        ListElement { text: "Neumann" }
-                                        ListElement { text: "Moore" }
-                                        ListElement { text: "Radial" }
-                                        ListElement { text: "Probability Ellipse" }
-                                        ListElement { text: "Probability Circle" }
-                                        ListElement { text: "Probability Algorithm" }
-                                        ListElement { text: "Composite" }
-                                        ListElement { text: "DLCA" }
-                                    }
+                                    // The registry is the list: an algorithm
+                                    // that self-registers shows up here with
+                                    // no edit to this file.
+                                    model: schemaController.algorithmNames
                                     Connections {
                                         target: Parameters
                                         function onAlgorithmChanged() {
@@ -579,7 +590,16 @@ Window {
                                     }
                                     onActivated: applySelection(currentIndex)
                                     onAccepted: {
-                                        if (find(editText) === -1) model.append({text: editText})
+                                        // Typing is a filter over the registry,
+                                        // not a way to invent an algorithm the
+                                        // factory cannot build.
+                                        var idx = find(editText)
+                                        if (idx === -1) {
+                                            editText = currentIndex === -1 ? "" : currentText
+                                        } else {
+                                            currentIndex = idx
+                                            applySelection(idx)
+                                        }
                                     }
                                 }
                             }

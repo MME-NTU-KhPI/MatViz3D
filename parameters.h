@@ -37,6 +37,23 @@ class Parameters : public QObject
     Q_PROPERTY(QString material1 READ getMaterial1 WRITE setMaterial1 NOTIFY material1Changed)
     Q_PROPERTY(QString material2 READ getMaterial2 WRITE setMaterial2 NOTIFY material2Changed)
 
+    // Minkowski exponent p of the distance used by tessellation algorithms:
+    // 1 = Manhattan (octahedral grains), 2 = Euclidean, large = Chebyshev
+    // (cuboidal grains).
+    Q_PROPERTY(double minkowski_p READ getMinkowskiP WRITE setMinkowskiP NOTIFY minkowskiPChanged)
+
+    // Wrap the RVE on a torus, so grains that leave one face re-enter the
+    // opposite one. Required for a periodic homogenization cell.
+    Q_PROPERTY(bool is_periodic READ getIsPeriodic WRITE setIsPeriodic NOTIFY isPeriodicChanged)
+
+    // Material picked from material_properties.db. Selecting one loads its
+    // cubic constants (used by both stress solvers) and its lattice type
+    // (used to build the texture presets).
+    Q_PROPERTY(QString db_material READ getDbMaterial WRITE setDbMaterial NOTIFY dbMaterialChanged)
+
+    Q_PROPERTY(QString texture_preset  READ getTexturePreset  WRITE setTexturePreset  NOTIFY textureSettingsChanged)
+    Q_PROPERTY(double  texture_scatter READ getTextureScatter WRITE setTextureScatter NOTIFY textureSettingsChanged)
+
     Q_PROPERTY(float wave_spread          READ getWaveSpread         WRITE setWaveSpread         NOTIFY waveSpreadChanged)
     Q_PROPERTY(float stefan_number        READ getStefanNumber       WRITE setStefanNumber       NOTIFY stefanNumberChanged)
     Q_PROPERTY(int   initial_nuclei_count READ getInitialNucleiCount WRITE setInitialNucleiCount NOTIFY initialNucleiCountChanged)
@@ -127,6 +144,71 @@ public:
 
     Q_INVOKABLE void processPointInput(const QString &text);
 
+    /**
+     * @brief The current point count expressed in the units of the current
+     *        points mode: a raw count under "count", a percentage of the cube
+     *        volume under "density".
+     *
+     * Lets the UI convert the field in place when the mode is switched, so the
+     * structure being described does not change just because the unit did.
+     */
+    Q_INVOKABLE QString pointsDisplayValue() const;
+
+    double getMinkowskiP() const { return minkowski_p; }
+    Q_INVOKABLE void setMinkowskiP(double value);
+
+    bool getIsPeriodic() const { return is_periodic; }
+    Q_INVOKABLE void setIsPeriodic(bool value);
+
+    QString getDbMaterial() const { return db_material; }
+    Q_INVOKABLE void setDbMaterial(const QString& value);
+
+    // Returns the UI label ("Scattered cube"), not the normalised internal
+    // spelling, so the combo box can match it against its own option list.
+    QString getTexturePreset() const { return texturePresetLabel(); }
+    Q_INVOKABLE void setTexturePreset(const QString& value);
+
+    static QString texturePresetLabel();
+
+    /// Forces the lattice the texture presets are built for, overriding the
+    /// selected material's Type column. Empty string = follow the material.
+    Q_INVOKABLE void setLatticeOverride(const QString& value);
+
+    double getTextureScatter() const { return texture_scatter; }
+    Q_INVOKABLE void setTextureScatter(double value);
+
+    /**
+     * @brief Cubic single-crystal constants of the selected material, in Pa.
+     *
+     * Both stress solvers call this instead of hardcoding numbers, so the
+     * material dropdown actually changes what is solved. Falls back to the
+     * historical Cu values (168.4 / 121.4 / 75.4 GPa) when no material has
+     * been selected or the database cannot be read.
+     */
+    static void cubicConstantsPa(double& c11, double& c12, double& c44);
+
+    /**
+     * @brief Lattice implied by the selected material's Type column, for
+     *        building texture presets. Anything that is not 'bcc' (including
+     *        the diamond-cubic / zincblende / rocksalt rows, which share the
+     *        FCC sublattice) maps to FCC.
+     */
+    static TextureLibrary::Lattice materialLattice();
+
+    /**
+     * @brief Rebuilds textureComponents from texture_preset / texture_scatter
+     *        and the material's lattice.
+     *
+     * A no-op while the preset is "custom", which is what the interactive
+     * texture editor sets when it applies -- so an edited texture is never
+     * silently overwritten by a preset rebuild.
+     */
+    static void rebuildTextureFromPreset();
+
+    /// Marks the texture as hand-edited, so rebuildTextureFromPreset() stops
+    /// touching it. Called when the texture editor applies.
+    void markTextureCustom();
+
     float getWaveSpread()         const { return wave_spread; }
     float getStefanNumber()       const { return stefan_number; }
     int   getInitialNucleiCount() const { return initial_nuclei_count; }
@@ -192,6 +274,11 @@ signals:
     void stefanNumberChanged();
     void initialNucleiCountChanged();
 
+    void minkowskiPChanged();
+    void isPeriodicChanged();
+    void dbMaterialChanged();
+    void textureSettingsChanged();
+
     void numRndLoadsChanged();
     void stressSolverChanged();
     void stressModeChanged();
@@ -228,6 +315,20 @@ private:
     static QString m_material;
     static QString m_material1;
     static QString m_material2;
+
+    static double  minkowski_p;
+    static bool    is_periodic;
+
+    static QString db_material;
+    // Cubic constants of db_material in GPa, the unit material_properties.db
+    // stores; cubicConstantsPa() converts. Defaults are the Cu values the
+    // solvers used to hardcode, so an unset material changes nothing.
+    static double  mat_c11, mat_c12, mat_c44;
+    static QString mat_type;
+
+    static QString texture_preset;
+    static double  texture_scatter;
+    static QString lattice_override;
 };
 
 #endif // PARAMETERS_H

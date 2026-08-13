@@ -86,6 +86,7 @@ SOURCES += \
         hdf5wrapper.cpp \
         hillcriterion.cpp \
         algorithmfactory.cpp \
+        algorithmplugin.cpp \
         ansyswrapper.cpp \
         composite.cpp \
         dlca.cpp \
@@ -112,7 +113,8 @@ SOURCES += \
         stressanalysis_fft.cpp \
         stressanalysiscontroller.cpp \
         texturelibrary.cpp \
-        texturecontroller.cpp
+        texturecontroller.cpp \
+        voronoi.cpp
 
 RESOURCES += qml.qrc
 
@@ -141,6 +143,7 @@ HEADERS += \
     hdf5wrapper.h \
     hillcriterion.h \
     algorithmfactory.h \
+    algorithmplugin.h \
     ansyswrapper.h \
     composite.h \
     dlca.h \
@@ -170,4 +173,5 @@ HEADERS += \
     stressresult.h \
     texturelibrary.h \
     texturemath.hpp \
-    texturecontroller.h
+    texturecontroller.h \
+    voronoi.h

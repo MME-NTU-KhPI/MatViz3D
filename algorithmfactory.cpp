@@ -9,6 +9,9 @@
 #include "probability_ellipse.h"
 #include "dlca.h"
 
+// Legacy half-registration for the algorithms that have not been converted to
+// self-registering AlgorithmPlugins yet. Plugin-based algorithms (voronoi.cpp)
+// are already in the factory before main() runs and are not listed here.
 void registerAlgorithms() {
     auto& factory = AlgorithmFactory::instance();
     Parameters& params = *Parameters::instance();
@@ -50,15 +53,9 @@ void registerSchemas()
 {
     auto& factory = AlgorithmFactory::instance();
 
-    std::vector<ParamField> base = {
-                                    { "size", "Cube size", ParamField::Int, 10, 1, 500, {}, "main" },
-
-                                    { "points", "Points", ParamField::PointsMode, 10, 1, 100000,
-                                     { "Size", "Concentration" }, "main" },
-
-                                    { "wave_coefficient", "Wave coefficient", ParamField::Double, 0.0, 0.0, 10.0, {}, "main" },
-                                    { "wave_spread",      "Wave spread",      ParamField::Double, 0.0, 0.0, 10.0, {}, "main" },
-                                    };
+    // Algorithms that have been migrated to AlgorithmPlugin carry their own
+    // schema and are absent from this function entirely -- see voronoi.cpp.
+    std::vector<ParamField> base = baseAlgorithmSchema();
 
     // Neumann / Moore / Radial / Composite
     factory.registerSchema("Neumann", base);
