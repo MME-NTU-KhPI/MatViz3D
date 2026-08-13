@@ -17,6 +17,7 @@
 #include "exportcontroller.h"
 #include "stressanalysiscontroller.h"
 #include "texturecontroller.h"
+#include "tensormath_selftest.hpp"
 
 #ifdef _WIN32
     #include <windows.h>
@@ -57,6 +58,15 @@ int main(int argc, char *argv[])
     QCommandLineParser parser;
     Commandline_Parser::setupParser(parser);
     parser.process(app);   // exits here if --help / --version
+
+    // ── Optional: tensor math known-answer tests ──────────────────────────
+    //    Opt-in via MATVIZ_TENSOR_SELFTEST=1 so it never costs anything in a
+    //    normal run.  Exits non-zero on failure so it can gate a build:
+    //        MATVIZ_TENSOR_SELFTEST=1 MatViz3D --nogui --autostart
+    if (qEnvironmentVariable("MATVIZ_TENSOR_SELFTEST") == QLatin1String("1")) {
+        if (!mvt::selfTest())
+            return 1;
+    }
 
     // ── Optional: skip QML entirely in headless mode ──────────────────────
     if (parser.isSet("nogui")) {

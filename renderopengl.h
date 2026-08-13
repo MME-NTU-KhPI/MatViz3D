@@ -12,15 +12,16 @@
 #include <vector>
 #include <QOpenGLContext>
 
+#include "glvertex.hpp"
+
 class RenderOpenGL : public QQuickFramebufferObject::Renderer, protected QOpenGLFunctions, public QObject
 {
 public:
-    struct Voxel
-    {
-        GLfloat x, y, z;
-        GLubyte r, g, b, a;
-        GLbyte nx, ny, nz;
-    };
+    /// The interleaved vertex layout now lives in glvertex.hpp so that geometry
+    /// builders (tensor glyphs, streamline tubes, elastic surfaces) can name it
+    /// without including this renderer. Kept as a member alias so every
+    /// existing RenderOpenGL::Voxel use site and the VBO layout are unchanged.
+    using Voxel = GlVertex;
 
     RenderOpenGL();
     virtual ~RenderOpenGL();

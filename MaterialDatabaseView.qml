@@ -7,11 +7,13 @@ import QtQuick.Controls.Material 2.15
 
 Window {
     id: materialDatabaseView
-    width: 1200
+    // Wider by default so the anisotropy panel has room; the minimum stays
+    // sized for the table alone, since the panel starts hidden.
+    width: 1660
     height: 600
     color: "#282828"
     minimumHeight: 600
-    minimumWidth: 1200
+    minimumWidth: 1280
     title: qsTr("Material Data")
 
     Material.theme: Material.Dark
@@ -25,9 +27,15 @@ Window {
         source: "qrc:/fonts/Inter-VariableFont_opsz,wght.ttf"
     }
 
+    RowLayout {
+        id: mainRowData
+        anchors.fill: parent
+        spacing: 0
+
     ColumnLayout {
         id: mainColumnData
-        anchors.fill: parent
+        Layout.fillWidth: true
+        Layout.fillHeight: true
         spacing: 0
 
         Rectangle {
@@ -127,7 +135,8 @@ Window {
             spacing: 20
             topPadding: 10
             bottomPadding: 15
-            width: (addButton.width * 3) + 40
+            // 3 x 90 px buttons + the 140 px anisotropy toggle + 3 x 20 spacing
+            width: (addButton.width * 3) + anisoButton.width + 60
             height: 70
             Layout.alignment: Qt.AlignHCenter
 
@@ -253,6 +262,51 @@ Window {
                     editingColumn = -1;
                 }
             }
+
+            Button {
+                id: anisoButton
+                width: 140
+                height: 45
+                text: anisoPanel.visible ? qsTr("Hide anisotropy") : qsTr("Anisotropy ▸")
+                checkable: true
+
+                background: Rectangle {
+                    id: buttonBackground4
+                    width: 140
+                    height: 40
+                    radius: 10
+                    color: anisoButton.checked ? "#3a3a3a" : "#303030"
+                    border.color: anisoButton.checked ? "#4db6ac" : "#969696"
+                    border.width: 1
+
+                    MouseArea {
+                        id: hoverArea4
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        acceptedButtons: Qt.NoButton
+                    }
+                }
+                contentItem: Text {
+                    text: anisoButton.text
+                    font.family: inter.name
+                    font.pixelSize: 18
+                    color: "#CFCECE"
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    anchors.centerIn: parent
+                }
+            }
+        }
+    }
+
+        AnisotropySurfacePanel {
+            id: anisoPanel
+            Layout.preferredWidth: 440
+            Layout.minimumWidth: 380
+            Layout.fillHeight: true
+            visible: anisoButton.checked
+            selectedRow: materialDatabaseView.selectedRow
         }
     }
 }

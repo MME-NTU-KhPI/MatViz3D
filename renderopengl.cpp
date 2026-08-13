@@ -1,4 +1,5 @@
 #include "renderopengl.h"
+#include "glshaders.hpp"
 #include "qopenglframebufferobject.h"
 
 #include <QDebug>
@@ -213,135 +214,12 @@ void RenderOpenGL::initializeGL()
 
     qDebug() << "RenderOpenGL::initializeGL() - creating main shader program";
 
-    const char* vertexShaderSource = R"(
-        #version 130
-        attribute vec3 aPosition;
-        attribute vec4 aColor;
-        attribute vec3 aNormal;
-
-        uniform mat4 uMVP;
-        uniform mat4 uModel;
-        uniform mat4 uView;
-        uniform mat4 uProjection;
-
-        varying vec3 FragPos;
-        varying vec3 Normal;
-        varying vec4 Color;
-
-        void main()
-        {
-            FragPos = vec3(uModel * vec4(aPosition, 1.0));
-            Normal = normalize(mat3(uModel) * aNormal);
-            Color = aColor;
-            gl_Position = uMVP * vec4(aPosition, 1.0);
-        }
-    )";
-
-
-    const char* fragmentShaderSource = R"(
-        #version 130
-        varying vec3 FragPos;
-        varying vec3 Normal;
-        varying vec4 Color;
-
-        uniform vec3 uLightDirections[6];
-        uniform float uLightWeights[6];
-        uniform vec3 uViewPos;
-        uniform int uDebugMode;
-        uniform int uWireframe;
-        void main()
-        {
-            // --- Geometry ---
-            vec3 norm    = normalize(Normal);
-            // if (!gl_FrontFacing) norm = -norm;
-            vec3 viewDir = normalize(uViewPos - FragPos);
-
-            // --- Ambient ---
-            // Tinted by face color so shadowed faces still show their hue,
-            // not a flat gray. Low enough to not wash out diffuse.
-            vec3 ambient = 0.50 * Color.rgb;
-            vec3 result  = ambient;
-
-            // --- Lights ---
-
-            for (int i = 0; i < 6; i++)
-            {
-                vec3 lightDir = uLightDirections[i];
-                vec3 halfDir  = normalize(lightDir + viewDir);
-
-                // max(dot, 0) not abs() — abs() creates dark bands at 90deg
-                // because it mirrors the lighting response, causing entire
-                // layers of faces to go dark simultaneously at certain angles.
-                float diff = max(dot(norm, lightDir), 0.0);
-
-                // Specular: reduced exponent (16 vs 32) for wider softer highlight,
-                // reduced intensity (0.15) so 3 lights don't blow out bright faces.
-                float spec = pow(max(dot(norm, halfDir), 0.0), 16.0);
-
-                vec3 diffuse  = diff * uLightWeights[i] * Color.rgb;
-                vec3 specular = spec * uLightWeights[i] * 0.15 * vec3(1.0);
-                result += (diffuse + specular);
-            }
-
-            // --- Clamp ---
-            // Prevents overbright faces making adjacent dark faces look
-            // even darker by contrast. Hard requirement when accumulating
-            // multiple lights without HDR tonemapping.
-            result = clamp(result, 0.0, 1.0);
-
-            // --- Debug modes ---
-            if (uDebugMode == 1) {
-                // Raw vertex color — confirms color data is reaching shader correctly.
-                // If all faces same color here, node_colors assignment is broken.
-                gl_FragColor = Color;
-
-            } else if (uDebugMode == 2) {
-                // Absolute normal as RGB. Each axis pair shows as one color:
-                //   X faces = red, Y faces = green, Z faces = blue.
-                // If any face shows wrong color, normal encoding or winding is wrong.
-                // If all faces show same dark color, GLbyte normals are near zero —
-                // check that n[] array uses +-127 not +-1.
-                gl_FragColor = vec4(abs(norm.x), abs(norm.y), abs(norm.z), 1.0);
-
-            } else if (uDebugMode == 3) {
-                // Flat white — confirms geometry is being drawn and depth test works.
-                // If scene disappears here, the issue is in geometry not lighting.
-                gl_FragColor = vec4(1.0, 1.0, 1.0, Color.a);
-
-            } else if (uWireframe == 1) {
-                // Flat gray for wireframe lines, ignore lighting and voxel color
-                gl_FragColor = vec4(0.6, 0.6, 0.6, 1.0);
-                } else {
-                    // Normal lighting mode (uDebugMode == 0)
-                    gl_FragColor = vec4(result, Color.a);
-                }
-        }
- )";
-
-    const char* axisVertexShaderSource = R"(
-        #version 130
-        attribute vec3 aPosition;
-        attribute vec3 aColor;
-
-        uniform mat4 uMVP;
-
-        varying vec3 Color;
-
-        void main()
-        {
-            Color = aColor;
-            gl_Position = uMVP * vec4(aPosition, 1.0);
-        }
-    )";
-
-    const char* axisFragmentShaderSource = R"(
-        #version 130
-        varying vec3 Color;
-        void main()
-        {
-            gl_FragColor = vec4(Color, 1.0);
-        }
-    )";
+    // Shader sources live in glshaders.hpp so the elastic-surface renderer in
+    // the material database window shades identically instead of forking a copy.
+    const char* vertexShaderSource       = matviz_gl::kLitVertexShader;
+    const char* fragmentShaderSource     = matviz_gl::kLitFragmentShader;
+    const char* axisVertexShaderSource   = matviz_gl::kAxisVertexShader;
+    const char* axisFragmentShaderSource = matviz_gl::kAxisFragmentShader;
 
     qDebug() << "RenderOpenGL::initializeGL() - creating shader program object";
     shaderProgram = new QOpenGLShaderProgram();

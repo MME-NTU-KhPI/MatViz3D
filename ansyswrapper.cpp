@@ -63,7 +63,7 @@ void ansysWrapper::setWorkingDirectory(QString path)
     #if QT_VERSION >= QT_VERSION_CHECK(6, 4, 0)
         tempDir = QTemporaryDir(path);
     #endif
-    
+
     if (!tempDir.isValid()) {
         qCritical() << "Failed to create temporary directory at path:" << path;
         return;

@@ -6,6 +6,7 @@
 #include <QOpenGLFunctions>
 #include <memory>
 #include "ansyswrapper.h"
+#include "colormap.hpp"
 #include "renderopengl.h"
 #include "stressresult.h"
 
@@ -58,7 +59,9 @@ public:
     // original hardcoded 9-band map); CoolWarm/RdBu are diverging with white
     // at the middle of the current min/max range; Viridis is a perceptually
     // uniform sequential map; Grayscale is black (low) -> white (high).
-    enum class ColorMapPalette { Rainbow, CoolWarm, RdBu, Viridis, Grayscale };
+    // Defined in colormap.hpp so the elastic-surface view shares one palette
+    // source; the ordinals are part of the QML API and must not be reordered.
+    using ColorMapPalette = matviz_cmap::Palette;
 
     Q_PROPERTY(int colorMapPalette READ colorMapPaletteIndex WRITE setColorMapPalette NOTIFY colorMapPaletteChanged)
     int colorMapPaletteIndex() const { return int(colorMapPalette); }

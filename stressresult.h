@@ -64,6 +64,49 @@ inline bool invert6x6(const double A[6][6], double out[6][6])
     return true;
 }
 
+// Symmetrize a PIPELINE-basis stiffness matrix, i.e. one whose column j is the
+// macroscopic stress produced by a unit *tensor* strain e[j] = 1, in the
+// pipeline component order (xx, yy, zz, xy, yz, xz).
+//
+// Such a matrix is NOT symmetric in the normal<->shear coupling block, and the
+// asymmetry is exact rather than numerical. For a shear column j >= 3 the
+// applied strain has eps_xy = eps_yx = 1, i.e. twice the tensor component, so
+// working a column through strain_pipeline_to_mandel/stress_mandel_to_pipeline
+// gives, for i < 3 <= j:
+//
+//     C[i][j] == 2 * C[j][i]        (exactly, by construction)
+//
+// The obvious 0.5*(C[i][j] + C[j][i]) average therefore destroys BOTH entries
+// rather than removing numerical noise. This routine averages the two blocks
+// that really are symmetric (normal-normal and shear-shear) and reconstructs
+// the coupling block in its correct 2X / X form.
+//
+// This only changes results for aggregates with non-zero normal<->shear
+// coupling -- cubic and orthotropic aggregates have none, which is why the old
+// averaging never visibly misbehaved. A textured, non-orthotropic aggregate
+// does.
+inline void symmetrizePipelineC(double C[6][6])
+{
+    for (int i = 0; i < 3; ++i)                     // normal-normal: truly symmetric
+        for (int j = i + 1; j < 3; ++j) {
+            const double m = 0.5 * (C[i][j] + C[j][i]);
+            C[i][j] = C[j][i] = m;
+        }
+
+    for (int i = 3; i < 6; ++i)                     // shear-shear: truly symmetric
+        for (int j = i + 1; j < 6; ++j) {
+            const double m = 0.5 * (C[i][j] + C[j][i]);
+            C[i][j] = C[j][i] = m;
+        }
+
+    for (int i = 0; i < 3; ++i)                     // coupling: the pair is (2X, X)
+        for (int j = 3; j < 6; ++j) {
+            const double X = 0.5 * (0.5 * C[i][j] + C[j][i]);
+            C[i][j] = 2.0 * X;
+            C[j][i] = X;
+        }
+}
+
 // Result of a "quick test" elastic-stiffness computation (S, C, P + effective
 // moduli), shared by StressAnalysisFFT::computeStiffnessMatrix() and
 // StressAnalysis::computeStiffnessMatrix() (ANSYS) -- the UI's "Stiffness

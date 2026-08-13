@@ -385,122 +385,12 @@ void OpenGLWidgetQML::handleResize()
 
 
 
-namespace {
-
-struct ColorStop { float t; GLubyte r, g, b; };
-
-// Sequential, matches the original hardcoded 9-band map (blue -> cyan ->
-// green -> yellow -> red) -- kept as the default so existing plots don't
-// change look.
-const std::vector<ColorStop>& rainbowStops()
-{
-    static const std::vector<ColorStop> stops = {
-        {0.000f, 0,   0,   255},
-        {0.125f, 0,   178, 255},
-        {0.250f, 0,   255, 255},
-        {0.375f, 0,   255, 178},
-        {0.500f, 0,   255, 0  },
-        {0.625f, 178, 255, 0  },
-        {0.750f, 255, 255, 0  },
-        {0.875f, 255, 178, 0  },
-        {1.000f, 255, 0,   0  },
-    };
-    return stops;
-}
-
-// Diverging, white at the middle of the current min/max range.
-const std::vector<ColorStop>& coolWarmStops()
-{
-    static const std::vector<ColorStop> stops = {
-        {0.0f, 0,   0,   255},
-        {0.5f, 255, 255, 255},
-        {1.0f, 255, 0,   0  },
-    };
-    return stops;
-}
-
-// Diverging, reversed from CoolWarm -- red = high (tension), blue = low
-// (compression), a common solid-mechanics convention.
-const std::vector<ColorStop>& rdBuStops()
-{
-    static const std::vector<ColorStop> stops = {
-        {0.0f, 255, 0,   0  },
-        {0.5f, 255, 255, 255},
-        {1.0f, 0,   0,   255},
-    };
-    return stops;
-}
-
-// Perceptually uniform sequential map (approximates matplotlib's viridis).
-const std::vector<ColorStop>& viridisStops()
-{
-    static const std::vector<ColorStop> stops = {
-        {0.00f, 68,  1,   84 },
-        {0.25f, 59,  82,  139},
-        {0.50f, 33,  145, 140},
-        {0.75f, 94,  201, 98 },
-        {1.00f, 253, 231, 37 },
-    };
-    return stops;
-}
-
-// Sequential, black (low) -> white (high).
-const std::vector<ColorStop>& grayscaleStops()
-{
-    static const std::vector<ColorStop> stops = {
-        {0.0f, 0,   0,   0  },
-        {1.0f, 255, 255, 255},
-    };
-    return stops;
-}
-
-const std::vector<ColorStop>& stopsForPalette(OpenGLWidgetQML::ColorMapPalette palette)
-{
-    switch (palette) {
-        case OpenGLWidgetQML::ColorMapPalette::CoolWarm:  return coolWarmStops();
-        case OpenGLWidgetQML::ColorMapPalette::RdBu:      return rdBuStops();
-        case OpenGLWidgetQML::ColorMapPalette::Viridis:   return viridisStops();
-        case OpenGLWidgetQML::ColorMapPalette::Grayscale: return grayscaleStops();
-        case OpenGLWidgetQML::ColorMapPalette::Rainbow:
-        default:                                          return rainbowStops();
-    }
-}
-
-// Piecewise-linear interpolation between a palette's color stops at t in [0,1].
-std::array<GLubyte, 4> interpolateStops(const std::vector<ColorStop>& stops, float t)
-{
-    t = std::min(1.0f, std::max(0.0f, t));
-    for (size_t i = 1; i < stops.size(); ++i) {
-        if (t <= stops[i].t || i == stops.size() - 1) {
-            const ColorStop& a = stops[i - 1];
-            const ColorStop& b = stops[i];
-            const float span = b.t - a.t;
-            const float f = span > 0.0f ? (t - a.t) / span : 0.0f;
-            return {
-                GLubyte(a.r + f * (int(b.r) - int(a.r))),
-                GLubyte(a.g + f * (int(b.g) - int(a.g))),
-                GLubyte(a.b + f * (int(b.b) - int(a.b))),
-                255
-            };
-        }
-    }
-    return {stops.back().r, stops.back().g, stops.back().b, 255};
-}
-
-} // namespace
-
+// The palette tables themselves live in colormap.hpp so the elastic-surface
+// view in the material database window shares them; these remain as the
+// existing call sites' entry points.
 std::vector<std::array<GLubyte, 4>> OpenGLWidgetQML::createColorMap(int numLevels, ColorMapPalette palette)
 {
-    numLevels = std::max(2, numLevels);
-    const std::vector<ColorStop>& stops = stopsForPalette(palette);
-
-    std::vector<std::array<GLubyte, 4>> colorMap(numLevels);
-    for (int i = 0; i < numLevels; i++)
-    {
-        const float t = float(i) / float(numLevels - 1);
-        colorMap[i] = interpolateStops(stops, t);
-    }
-    return colorMap;
+    return matviz_cmap::createColorMap(numLevels, palette);
 }
 
 QVector<QColor> OpenGLWidgetQML::getColorMap(int numLevels)
@@ -533,8 +423,7 @@ void OpenGLWidgetQML::setColorMapPalette(int palette)
 
 std::array<GLubyte, 4> OpenGLWidgetQML::scalarToColor(float value, const std::vector<std::array<GLubyte, 4>>& colorMap)
 {
-    int index = static_cast<int>(value * (colorMap.size() - 1));
-    return colorMap[index];
+    return matviz_cmap::scalarToColor(value, colorMap);
 }
 
 void OpenGLWidgetQML::pushSceneToRenderer()

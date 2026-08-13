@@ -109,6 +109,9 @@ SOURCES += \
         renderopengl.cpp \
         schemacontroller.cpp \
         statisticscontroller.cpp \
+        stiffnesssurfacebuilder.cpp \
+        stiffnesssurfaceitem.cpp \
+        stiffnesssurfacerenderer.cpp \
         stressanalysis.cpp \
         stressanalysis_fft.cpp \
         stressanalysiscontroller.cpp \
@@ -132,6 +135,7 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
 HEADERS += \
+    colormap.hpp \
     commandline_parser.h \
     consolelogger.h \
     cpuinfo.hpp \
@@ -139,6 +143,8 @@ HEADERS += \
     exportcontroller.h \
     fft_homog.hpp \
     fft_solver_session.hpp \
+    glshaders.hpp \
+    glvertex.hpp \
     grain_analyzer.h \
     hdf5wrapper.h \
     hillcriterion.h \
@@ -167,10 +173,15 @@ HEADERS += \
     renderopengl.h \
     schemacontroller.h \
     statisticscontroller.h \
+    stiffnesssurfacebuilder.h \
+    stiffnesssurfaceitem.h \
+    stiffnesssurfacerenderer.h \
     stressanalysis.h \
     stressanalysis_fft.h \
     stressanalysiscontroller.h \
     stressresult.h \
+    tensormath.hpp \
+    tensormath_selftest.hpp \
     texturelibrary.h \
     texturemath.hpp \
     texturecontroller.h \

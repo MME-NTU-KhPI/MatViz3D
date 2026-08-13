@@ -33,6 +33,7 @@
         <file>img/toolBar/zoom-inIcon.svg</file>
         <file>img/toolBar/zoom-outIcon.svg</file>
         <file>MaterialDatabaseView.qml</file>
+        <file>AnisotropySurfacePanel.qml</file>
         <file>PlaceholderInput.qml</file>
         <file>ConsoleOutput.qml</file>
         <file>DynamicParamBlock.qml</file>

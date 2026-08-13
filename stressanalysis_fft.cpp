@@ -516,12 +516,11 @@ StiffnessMatrixResult StressAnalysisFFT::computeStiffnessMatrix(short int numCub
                        << ">= tol" << fft_tol << ") -- C/S may be inaccurate for this column";
     }
 
-    // symmetrize small numerical asymmetry (same as computeCompliance())
-    for (int i = 0; i < 6; ++i)
-        for (int j = i + 1; j < 6; ++j) {
-            const double m = 0.5 * (C[i][j] + C[j][i]);
-            C[i][j] = C[j][i] = m;
-        }
+    // Symmetrize. NOT a plain average: C here is pipeline-basis, built from
+    // unit TENSOR strains, so its normal<->shear coupling block satisfies
+    // C[i][j] == 2*C[j][i] by construction and a plain average would destroy
+    // both entries. See symmetrizePipelineC() in stressresult.h.
+    symmetrizePipelineC(C);
 
     if (!invert6x6(C, r.S)) {
         r.errorMessage = QObject::tr("Stiffness matrix C is singular; cannot invert to S");

@@ -87,6 +87,42 @@ inline Vec6 strain_mandel_to_engineering(const ffth::Vec6& m) {
 }
 
 // ----------------------------------------------------------------------------
+//  Symmetrize a PIPELINE-basis stiffness (column j = macro stress for a unit
+//  TENSOR strain e[j] = 1).
+//
+//  Such a matrix is not symmetric across the normal<->shear coupling block, and
+//  the asymmetry is exact, not numerical: for a shear column j >= 3 the applied
+//  strain has eps_xy = eps_yx = 1, so for i < 3 <= j
+//
+//      C[i][j] == 2 * C[j][i]      (by construction)
+//
+//  A plain 0.5*(C[i][j] + C[j][i]) average therefore destroys both entries
+//  instead of removing noise. Average only the two genuinely symmetric blocks,
+//  and rebuild the coupling block in its correct 2X / X form.
+//
+//  Mirrors symmetrizePipelineC() in stressresult.h; kept separate only because
+//  this header is standalone and Mat6-typed.
+// ----------------------------------------------------------------------------
+inline void symmetrize_pipeline_C(Mat6& C) {
+    for (int i = 0; i < 3; ++i)
+        for (int j = i + 1; j < 3; ++j) {
+            const double m = 0.5 * (C[i][j] + C[j][i]);
+            C[i][j] = C[j][i] = m;
+        }
+    for (int i = 3; i < 6; ++i)
+        for (int j = i + 1; j < 6; ++j) {
+            const double m = 0.5 * (C[i][j] + C[j][i]);
+            C[i][j] = C[j][i] = m;
+        }
+    for (int i = 0; i < 3; ++i)
+        for (int j = 3; j < 6; ++j) {
+            const double X = 0.5 * (0.5 * C[i][j] + C[j][i]);
+            C[i][j] = 2.0 * X;
+            C[j][i] = X;
+        }
+}
+
+// ----------------------------------------------------------------------------
 //  6x6 inverse (Gauss-Jordan, partial pivot).  Returns false if singular.
 // ----------------------------------------------------------------------------
 inline bool invert6x6(const Mat6& A, Mat6& out) {
@@ -251,12 +287,7 @@ public:
             itsum += r.iterations;
             for (int i = 0; i < 6; ++i) C[i][j] = r.macro_stress[i];
         }
-        // symmetrize small numerical asymmetry
-        for (int i = 0; i < 6; ++i)
-            for (int j = i + 1; j < 6; ++j) {
-                const double m = 0.5 * (C[i][j] + C[j][i]);
-                C[i][j] = C[j][i] = m;
-            }
+        symmetrize_pipeline_C(C);
         Mat6 S{};
         if (!invert6x6(C, S)) return false;
         for (int i = 0; i < 6; ++i)

@@ -211,6 +211,7 @@ Q_INVOKABLE void DBManager::addMaterial(const QString &material)
     } else {
         qDebug() << "Material added!";
         model->select();
+        bumpRevision();
     }
 }
 
@@ -221,6 +222,7 @@ Q_INVOKABLE void DBManager::removeMaterial(int row)
         model->removeRow(row);
         model->submitAll();
         model->select();
+        bumpRevision();
     }
 }
 
@@ -230,7 +232,52 @@ Q_INVOKABLE void DBManager::updateMaterial(int row, int column, const QVariant &
         model->setData(model->index(row, column), value);
         model->submitAll();
         model->select();
+        bumpRevision();
     }
+}
+
+void DBManager::bumpRevision()
+{
+    ++m_revision;
+    emit revisionChanged();
+}
+
+QVariantList DBManager::elasticMatrix(int row) const
+{
+    QVariantList out;
+    if (!model || row < 0 || row >= model->rowCount())
+        return out;
+
+    const QSqlRecord rec = model->record(row);
+
+    // The table stores the upper triangle only (c11..c66); mirror it.
+    double c[6][6] = {{0}};
+    for (int i = 0; i < 6; ++i) {
+        for (int j = i; j < 6; ++j) {
+            const QString col = QStringLiteral("c%1%2").arg(i + 1).arg(j + 1);
+            const int idx = rec.indexOf(col);
+            if (idx < 0) continue;              // column missing: leave at 0
+            const double v = rec.value(idx).toDouble();
+            c[i][j] = v;
+            c[j][i] = v;
+        }
+    }
+
+    for (int i = 0; i < 6; ++i) {
+        QVariantList r;
+        for (int j = 0; j < 6; ++j) r.append(c[i][j]);
+        out.append(QVariant(r));
+    }
+    return out;
+}
+
+QString DBManager::materialNameAt(int row) const
+{
+    if (!model || row < 0 || row >= model->rowCount())
+        return QString();
+    const QSqlRecord rec = model->record(row);
+    const int idx = rec.indexOf(QStringLiteral("Material"));
+    return (idx < 0) ? QString() : rec.value(idx).toString();
 }
 
 QVariantList DBManager::executeSelectQuery(const QString& queryString)
