@@ -224,12 +224,14 @@ QString ansysWrapper::ansysSysDir() const
     QString sysdir = qEnvironmentVariable("ANSYS_SYSDIR");
     if (sysdir.isEmpty())
     {
-#if defined(_WIN32) || defined(_WIN64)
-        sysdir = "winx64";
-#else
-        sysdir = "linx64";
-#endif
+        #if defined(_WIN32) || defined(_WIN64)
+            sysdir = "winx64";
+        #else
+            sysdir = "";
+        #endif
+        qWarning() << "ANSYS_SYSDIR is empty. Use " << sysdir<< "as default value";
     }
+
     return sysdir;
 }
 
