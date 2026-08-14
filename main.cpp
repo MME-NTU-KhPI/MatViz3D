@@ -45,6 +45,9 @@ int main(int argc, char *argv[])
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 #endif
+#ifdef QT_DEBUG
+    qputenv("QML_DISABLE_DISK_CACHE", "1");
+#endif
     QApplication app(argc, argv);
 
     QApplication::setApplicationName("MatViz3D");

@@ -707,7 +707,7 @@ Window {
                         Layout.preferredHeight: 26
                         source: "qrc:/img/toolBar/saveIcon.svg"
                         fillMode: Image.PreserveAspectFit
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: exportController.exportToHDF5(); }
                     }
 
                     Image {
@@ -735,7 +735,7 @@ Window {
                         source: "qrc:/img/toolBar/screenIcon.svg"
                         fillMode: Image.PreserveAspectFit
                         scale: 1.2
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: exportController.saveAsImage(glWidget) }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: exportController.copyToClipboard(glWidget); }
                     }
 
                     Image {
