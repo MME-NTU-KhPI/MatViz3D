@@ -179,12 +179,14 @@ void StiffnessSurfaceItem::rebuild()
         m_error = tr("Selected quantity is identically zero");
 
     qDebug().noquote()
-        << QString("[StiffnessSurfaceItem] %1: min=%2 max=%3 %4  anisotropy=%5"
+        << QString("[StiffnessSurfaceItem] %1: min=%2 max=%3 %4  %5"
                    "  cubic=%6 zener=%7  verts=%8 tris=%9")
                .arg(QString::fromLatin1(mvsurf::quantityName(m_params.quantity)))
                .arg(m_mesh.minValue, 0, 'g', 6).arg(m_mesh.maxValue, 0, 'g', 6)
                .arg(QString::fromLatin1(m_mesh.unit))
-               .arg(m_mesh.anisotropyRatio, 0, 'g', 5)
+               .arg(m_mesh.ratioMeaningful
+                        ? QString("anisotropy=%1").arg(m_mesh.anisotropyRatio, 0, 'g', 5)
+                        : QString("range=%1 (ratio not meaningful)").arg(m_mesh.range, 0, 'g', 5))
                .arg(m_state.cubic ? "yes" : "no")
                .arg(m_state.zener, 0, 'g', 5)
                .arg(m_mesh.verts.size()).arg(m_mesh.indices.size() / 3);
@@ -219,7 +221,10 @@ QVariantMap StiffnessSurfaceItem::stats() const
     m["error"]           = m_error;
     m["min"]             = m_mesh.minValue;
     m["max"]             = m_mesh.maxValue;
+    m["range"]           = m_mesh.range;
     m["anisotropyRatio"] = m_mesh.anisotropyRatio;
+    m["signChanging"]    = m_mesh.signChanging;
+    m["ratioMeaningful"] = m_mesh.ratioMeaningful;
     m["unit"]            = QString::fromLatin1(m_mesh.unit);
     m["cubic"]           = m_state.cubic;
     m["zener"]           = m_state.zener;

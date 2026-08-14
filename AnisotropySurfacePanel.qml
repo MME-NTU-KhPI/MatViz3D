@@ -384,12 +384,20 @@ Rectangle {
                 Layout.fillWidth: true; horizontalAlignment: Text.AlignRight
             }
 
+            // A max/min ratio is a property of the material only when both
+            // extremes are trustworthy. See Mesh::ratioMeaningful: it is not,
+            // either when the quantity crosses zero or when the quantity is
+            // itself an extremum over the transverse direction. The span is
+            // well behaved in every case.
             Text {
-                text: qsTr("anisotropy (max/min)")
+                text: surface.ratioMeaningful ? qsTr("anisotropy (max/min)")
+                                              : qsTr("range (max - min)")
                 color: panel.textDim; font.family: interFont.name; font.pixelSize: 12
             }
             Text {
-                text: panel.fmt(surface.anisotropyRatio, 4)
+                text: surface.ratioMeaningful
+                      ? panel.fmt(surface.anisotropyRatio, 4)
+                      : panel.fmt(surface.range) + " " + surface.unit
                 color: panel.textStrong; font.family: interFont.name; font.pixelSize: 12
                 Layout.fillWidth: true; horizontalAlignment: Text.AlignRight
             }
@@ -421,6 +429,21 @@ Rectangle {
             Layout.fillWidth: true
             visible: surface.valid && !surface.isCubic
             text: qsTr("Matrix is not cubic — Zener ratio does not apply.")
+            color: panel.textFaint
+            font.family: interFont.name
+            font.pixelSize: 10
+            wrapMode: Text.WordWrap
+        }
+
+        Text {
+            Layout.fillWidth: true
+            visible: surface.valid && !surface.ratioMeaningful
+            text: surface.signChanging
+                  ? qsTr("This quantity changes sign over the sphere, so a max/min ratio "
+                       + "would report the sampling rather than the material.")
+                  : qsTr("This quantity is itself an extremum over the transverse direction, "
+                       + "so its surface has cusps. A max/min ratio would track the sampling "
+                       + "resolution; expect a few percent of it in the extremes too.")
             color: panel.textFaint
             font.family: interFont.name
             font.pixelSize: 10

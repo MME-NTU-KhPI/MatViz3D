@@ -146,15 +146,36 @@ Mesh buildSurface(const ElasticState& state, const Params& params)
 
     mesh.minValue = vMin;
     mesh.maxValue = vMax;
+    mesh.range    = vMax - vMin;
     mesh.unit = quantityUnit(params.quantity);
 
-    double absMin = 1e300;
-    for (double v : value) absMin = std::min(absMin, std::abs(v));
-    mesh.anisotropyRatio = (absMin > 1e-300) ? absMax / absMin : 0.0;
-
-    // Colour normalization: symmetric about zero when the quantity changes sign
-    // (Poisson's ratio and rotated components do), plain min..max otherwise.
+    // Poisson's ratio and the rotated components genuinely change sign over the
+    // sphere; E, G and the bulk modulus do not.
     const bool signed_ = (vMin < 0.0 && vMax > 0.0);
+    mesh.signChanging = signed_;
+
+    // Quantities that are themselves an extremum over the transverse direction
+    // produce a cusped surface, so their sampled extremes -- and any ratio built
+    // from two of them -- converge only O(h). See Mesh::ratioMeaningful.
+    const bool extremumOverTransverse =
+           params.quantity == Quantity::ShearGmin
+        || params.quantity == Quantity::ShearGmax
+        || params.quantity == Quantity::PoissonMin
+        || params.quantity == Quantity::PoissonMax
+        || ((params.quantity == Quantity::C_component ||
+             params.quantity == Quantity::S_component) &&
+            (params.twist == TwistMode::Min || params.twist == TwistMode::Max));
+
+    mesh.ratioMeaningful = !signed_ && !extremumOverTransverse;
+
+    if (!mesh.ratioMeaningful) {
+        mesh.anisotropyRatio = 0.0;
+    } else {
+        double absMin = 1e300;
+        for (double v : value) absMin = std::min(absMin, std::abs(v));
+        mesh.anisotropyRatio = (absMin > 1e-300) ? absMax / absMin : 0.0;
+    }
+
     const auto cmap = matviz_cmap::createColorMap(params.colorLevels, params.palette);
 
     auto colorFor = [&](double v) {
