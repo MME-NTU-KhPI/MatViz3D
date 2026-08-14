@@ -1,6 +1,8 @@
 #include <QtGlobal>
 #include <QDateTime>
+#include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QProcess>
 #include <cfloat>
 #include <random>
@@ -60,6 +62,11 @@ ansysWrapper::ansysWrapper(bool isBatch)
 
 void ansysWrapper::setWorkingDirectory(QString path)
 {
+    // QTemporaryDir uses `path` as a name *template*, so its parent has to
+    // exist already -- callers that mkpath() the directory only afterwards get
+    // an invalid temp dir and a run() that fails with "cannot find the path".
+    QDir().mkpath(QFileInfo(path).path());
+
     #if QT_VERSION >= QT_VERSION_CHECK(6, 4, 0)
         tempDir = QTemporaryDir(path);
     #endif
@@ -68,6 +75,9 @@ void ansysWrapper::setWorkingDirectory(QString path)
         qCritical() << "Failed to create temporary directory at path:" << path;
         return;
     }
+    // Debug aid: keep input.dat/output.dat/ls_*.csv around for inspection.
+    if (qEnvironmentVariableIsSet("MATVIZ_KEEP_ANSYS_TMP"))
+        tempDir.setAutoRemove(false);
     m_projectPath = tempDir.path();
     m_projectPath = QDir::toNativeSeparators(m_projectPath);
     qDebug() << "Woring directory is set to: " << m_projectPath;
@@ -81,6 +91,10 @@ void ansysWrapper::setSeed(unsigned int seed)
 
 bool ansysWrapper::clear_temp_data()
 {
+    if (qEnvironmentVariableIsSet("MATVIZ_KEEP_ANSYS_TMP")) {
+        qDebug() << "MATVIZ_KEEP_ANSYS_TMP set -- keeping" << m_projectPath;
+        return false;
+    }
     bool res = tempDir.remove();
     qDebug() << "Ansys tmp dir has been removed :" << res;
     return res;
@@ -939,7 +953,8 @@ void ansysWrapper::applyComplexLoads(double x1, double y1, double z1,
 void ansysWrapper::applyPeriodicBC(double x1, double y1, double z1,
                                    double x2, double y2, double z2,
                                    double eps_x, double eps_y, double eps_z,
-                                   double eps_xy, double eps_xz, double eps_yz)
+                                   double eps_xy, double eps_xz, double eps_yz,
+                                   bool solveNow)
 {
     this->prep7();
     this->clearBC();
@@ -969,6 +984,18 @@ void ansysWrapper::applyPeriodicBC(double x1, double y1, double z1,
     apdl << "/NOPR" << Qt::endl;
 
     int eqn = 0;
+    // coupleNode(slave, master, d) enforces  u(master) - u(slave) = d,
+    // eliminating the slave's DOFs. So d must always be the jump measured
+    // FROM the slave TO the master: d = eps . (master_pos - slave_pos).
+    // The face pass below has master = slave + (lattice vector), so it passes
+    // +jump(...); the edge pass has it the other way round (the slave is the
+    // offset node, the master is the reference edge it is an image of), so it
+    // must pass the NEGATED offset. Getting that backwards flips the sign of
+    // the jump on the 28 edge nodes of each face while the 49 face-interior
+    // and 4 corner nodes stay correct, which drags the realised macroscopic
+    // strain down to (49 + 1 - 14)/64 = 36/64 = 0.5625 of the applied value
+    // (weights: 1 per interior node, 1/2 per edge node, 1/4 per corner) and
+    // scales the whole effective stiffness by the same factor.
     auto coupleNode = [&](int slave_id, int master_id, const std::array<double, 3>& d) {
         // slave.Lab - master.Lab = -d  <=>  master.Lab - slave.Lab = d
         apdl << "CE," << ++eqn << "," << -d[0] << "," << slave_id << ",UX,1," << master_id << ",UX,-1" << Qt::endl;
@@ -1033,21 +1060,24 @@ void ansysWrapper::applyPeriodicBC(double x1, double y1, double z1,
         if (numPlanes == 2) {
             // Edge node: couple to the reference edge of its direction-group
             // (the edge sharing the min-plane on both of the fixed axes).
+            // This node sits at reference + offset, so it is the SLAVE and the
+            // reference is the MASTER -- master - slave = -eps.offset, hence
+            // the negated arguments to jump() (see coupleNode above).
             if (!onX1 && !onX2) {
                 if (onY1 && onZ1) { ++nEdgeFree; continue; } // this is the reference edge
                 n3d::node3d mk; mk.data[0] = key[0]; mk.data[1] = static_cast<float>(y1); mk.data[2] = static_cast<float>(z1);
                 if (!nodes.contains(mk)) { ++nEdgeMissing; continue; }
-                coupleNode(it.value() + 1, nodes[mk] + 1, jump(0, ny - y1, nz - z1)); ++nEdgeSlave;
+                coupleNode(it.value() + 1, nodes[mk] + 1, jump(0, -(ny - y1), -(nz - z1))); ++nEdgeSlave;
             } else if (!onY1 && !onY2) {
                 if (onX1 && onZ1) { ++nEdgeFree; continue; }
                 n3d::node3d mk; mk.data[0] = static_cast<float>(x1); mk.data[1] = key[1]; mk.data[2] = static_cast<float>(z1);
                 if (!nodes.contains(mk)) { ++nEdgeMissing; continue; }
-                coupleNode(it.value() + 1, nodes[mk] + 1, jump(nx - x1, 0, nz - z1)); ++nEdgeSlave;
+                coupleNode(it.value() + 1, nodes[mk] + 1, jump(-(nx - x1), 0, -(nz - z1))); ++nEdgeSlave;
             } else { // free axis Z
                 if (onX1 && onY1) { ++nEdgeFree; continue; }
                 n3d::node3d mk; mk.data[0] = static_cast<float>(x1); mk.data[1] = static_cast<float>(y1); mk.data[2] = key[2];
                 if (!nodes.contains(mk)) { ++nEdgeMissing; continue; }
-                coupleNode(it.value() + 1, nodes[mk] + 1, jump(nx - x1, ny - y1, 0)); ++nEdgeSlave;
+                coupleNode(it.value() + 1, nodes[mk] + 1, jump(-(nx - x1), -(ny - y1), 0)); ++nEdgeSlave;
             }
             continue;
         }
@@ -1085,7 +1115,31 @@ void ansysWrapper::applyPeriodicBC(double x1, double y1, double z1,
     apdl << "/GOPR" << Qt::endl;
     apdl << "!-----END periodic BC -------" << Qt::endl;
     apdl << "NSEL,S, , ,all" << Qt::endl;
-    apdl << "LSWRITE," << Qt::endl;
+    if (solveNow) {
+        // Solve against the CEs just written, before the next load case
+        // deletes them. Appends one result set to the .rst.
+        //
+        // TIME must be set explicitly: saveAll()/saveElementAverages() name
+        // their per-set output ls_%current_time%.csv / lse_%current_time%.csv,
+        // and load_loadstep(n) reads ls_<n>.csv. LSSOLVE supplies TIME = load
+        // step number on its own; a bare SOLVE would leave every set at the
+        // static default TIME = 1, so all six would land in ls_1.csv and
+        // overwrite each other. eps_as_loading was just push_back'd, so its
+        // size is this load case's 1-based index.
+        apdl << "FINISH" << Qt::endl;
+        apdl << "/SOL" << Qt::endl;
+        apdl << "TIME," << (int)this->eps_as_loading.size() << Qt::endl;
+        apdl << "SOLVE" << Qt::endl;
+        // Leave the stream in /POST1 with this case's (single) result set
+        // loaded. Editing the model in /PREP7 between solves restarts the
+        // analysis, so the .rst is REWRITTEN rather than appended to -- the
+        // caller must therefore extract this case's results now, before the
+        // next applyPeriodicBC() overwrites them.
+        apdl << "FINISH" << Qt::endl;
+        apdl << "/POST1" << Qt::endl;
+    } else {
+        apdl << "LSWRITE," << Qt::endl;
+    }
 }
 
 

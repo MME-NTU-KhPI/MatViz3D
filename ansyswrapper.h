@@ -171,10 +171,28 @@ public:
     // remove rigid-body translation; the other seven corners get their exact
     // displacement prescribed directly since their position relative to the
     // reference is known exactly.
+    //
+    // solveNow: LSWRITE + LSSOLVE canNOT be used to batch several periodic load
+    // cases. LSWRITE stores only the *loads* of a load step -- constraint
+    // equations are database-level model data, so replaying six load steps
+    // would apply the CEs of whichever load case was written last to all six.
+    // With solveNow=true this sets TIME to the load case index and emits
+    // FINISH,/SOL,SOLVE,FINISH,/POST1 right here instead, so each case is
+    // solved against its own CEs. Editing CEs in /PREP7 between solves
+    // restarts the analysis, which REWRITES the .rst instead of appending, so
+    // the caller must extract each case's results immediately:
+    //
+    //     for (load : loads) { wr.applyPeriodicBC(..., true);
+    //                          wr.saveAll(); wr.saveElementAverages(); }
+    //
+    // TIME is what names the per-case ls_<n>.csv / lse_<n>.csv that
+    // load_loadstep(n) reads back. solveNow=false keeps the LSWRITE behaviour
+    // for single-load-case callers that follow up with solveLS().
     void applyPeriodicBC(double x1, double y1, double z1,
                          double x2, double y2, double z2,
                          double eps_x, double eps_y, double eps_z,
-                         double eps_xy, double eps_xz, double eps_yz);
+                         double eps_xy, double eps_xz, double eps_yz,
+                         bool solveNow = false);
     bool IsFaceNode(const n3d::node3d& node,
                     double x1, double y1, double z1,
                     double x2, double y2, double z2);

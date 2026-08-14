@@ -7,6 +7,49 @@
 #include <memory>
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  Shared grain orientations for every ANSYS path.
+//
+//  Every StressAnalysisFFT entry point feeds its grains from
+//  buildGrainOrientations(), so an ANSYS path that omits the sharedOrientations
+//  argument of createFEfromArray8Node() silently falls back to
+//  ansysWrapper's own private TextureLibrary draw -- a *different* realization
+//  of the same texture (and off by one grain, since that legacy loop also
+//  samples for the void slot). Same statistics, different polycrystal, so a
+//  fixed-seed ANSYS-vs-FFT comparison stops being apples-to-apples.
+//
+//  Same grain-count scan FFT's buildGrainField() does, so both solvers index
+//  the exact same orientation array the exact same way.
+// ─────────────────────────────────────────────────────────────────────────────
+static std::vector<std::array<double,3>> sharedOrientationsFor(short int numCubes,
+                                                               int32_t ***voxels,
+                                                               const char* who)
+{
+    int nGrains = 0;
+    for (int i = 0; i < numCubes; ++i)
+        for (int j = 0; j < numCubes; ++j)
+            for (int k = 0; k < numCubes; ++k)
+                if (voxels[i][j][k] > nGrains) nGrains = voxels[i][j][k];
+
+    std::array<double,3> forcedOrient;
+    const bool useForced = getForcedOrientationDebugOverride(forcedOrient);
+    auto orient = buildGrainOrientations(nGrains, Parameters::seed,
+                                         useForced ? &forcedOrient : nullptr,
+                                         Parameters::textureComponents);
+
+    const double r2d = 180.0 / M_PI;
+    if (useForced)
+        qDebug() << "[" << who << "]   [DEBUG] MATVIZ_FORCE_ORIENT_DEG active: every grain forced to"
+                 << forcedOrient[0]*r2d << forcedOrient[1]*r2d << forcedOrient[2]*r2d << "(Bunge ZXZ, deg)";
+    qDebug() << "[" << who << "]   [DEBUG] nGrains (scanned) =" << nGrains
+             << " seed =" << Parameters::seed
+             << " textureComponents =" << (int)Parameters::textureComponents.size();
+    if (nGrains >= 1)
+        qDebug() << "[" << who << "]   [DEBUG] grain#1 orientation (shared Bunge ZXZ, deg) ="
+                 << orient[1][0]*r2d << orient[1][1]*r2d << orient[1][2]*r2d;
+    return orient;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  Main method: three-phase stress estimation via ANSYS
 //
 //  PHASE 1.0: 6 canonical loads  -> elastic compliance matrix S
@@ -101,18 +144,22 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
     wr->setElemByNum(185);
 
     qDebug() << "[StressAnalysis] Building FE mesh (8-node hexahedra, SOLID185)...";
-    wr->createFEfromArray8Node(voxels, N, numPoints, true);
+    wr->createFEfromArray8Node(voxels, N, numPoints, true,
+                               sharedOrientationsFor(numCubes, voxels, "StressAnalysis::phase2"));
 
     qDebug() << "[StressAnalysis] Applying" << (int)load_cases.size() << "load cases...";
+    // Periodic BC + element (volume) averaging, to stay on the same
+    // homogenization as phases 1.0/1.5 -- see computeElasticProperties().
     for (const auto& load : load_cases) {
-        // applyComplexLoads() takes (eps_xy, eps_xz, eps_yz) in that param order,
+        // applyPeriodicBC() takes (eps_xy, eps_xz, eps_yz) in that param order,
         // but load[] is [ex,ey,ez,gxy,gyz,gxz] -- swap the last two to match.
-        wr->applyComplexLoads(0, 0, 0, N, N, N, load[0], load[1], load[2], load[3], load[5], load[4]);
+        wr->applyPeriodicBC(0, 0, 0, N, N, N, load[0], load[1], load[2], load[3], load[5], load[4],
+                            /*solveNow=*/true);
+        wr->saveAll();              // per-case: the next solve rewrites the .rst
+        wr->saveElementAverages();
     }
 
-    qDebug() << "[StressAnalysis] Writing load steps (1 .." << (int)load_cases.size() << ")...";
-    wr->solveLS(1, (int)load_cases.size());
-    wr->saveAll();
+    qDebug() << "[StressAnalysis]" << (int)load_cases.size() << "periodic load cases queued for ANSYS...";
 
     qDebug() << "[StressAnalysis] Launching ANSYS (phase 2.0)...";
     if (!wr->run()) {
@@ -262,7 +309,9 @@ bool StressAnalysis::computeElasticProperties(short int numCubes, short int numP
     Parameters::cubicConstantsPa(c11, c12, c44);
     temp_wr.setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44);
     temp_wr.setElemByNum(185);
-    temp_wr.createFEfromArray8Node(voxels, numCubes, numPoints, true);
+    temp_wr.createFEfromArray8Node(voxels, numCubes, numPoints, true,
+                                   sharedOrientationsFor(numCubes, voxels,
+                                                         "StressAnalysis::computeElasticProperties"));
 
     // Canonical loads: one unit strain component at a time
     const char* comp_names[] = {"ex", "ey", "ez", "gxy", "gyz", "gxz"};
@@ -271,19 +320,32 @@ bool StressAnalysis::computeElasticProperties(short int numCubes, short int numP
         {0,0,0,strain_val,0,0}, {0,0,0,0,strain_val,0}, {0,0,0,0,0,strain_val}
     };
 
+    // Periodic BC, not applyComplexLoads (KUBC). Prescribing an affine
+    // displacement on every boundary node pins a whole grain-thick surface
+    // layer at the macroscopic strain, so the apparent stiffness collapses
+    // towards the Voigt bound instead of the effective one -- and it does not
+    // converge to the periodic answer under mesh refinement. The FFT solver is
+    // intrinsically periodic, so this is also what makes the two backends
+    // comparable. Each case is solved immediately (see applyPeriodicBC's
+    // solveNow note: CEs cannot be batched through LSWRITE/LSSOLVE).
     for (int k = 0; k < 6; ++k) {
         qDebug() << QString("[StressAnalysis::computeElasticProperties]   Load #%1: %2 = %3")
                         .arg(k+1).arg(comp_names[k]).arg(strain_val, 0, 'e', 2);
         const auto& load = canonical[k];
-        // applyComplexLoads() takes (eps_xy, eps_xz, eps_yz) in that param order,
+        // applyPeriodicBC() takes (eps_xy, eps_xz, eps_yz) in that param order,
         // but load[] is [ex,ey,ez,gxy,gyz,gxz] -- swap the last two to match.
-        temp_wr.applyComplexLoads(0,0,0, numCubes,numCubes,numCubes,
-                                  load[0],load[1],load[2],load[3],load[5],load[4]);
+        temp_wr.applyPeriodicBC(0,0,0, numCubes,numCubes,numCubes,
+                                load[0],load[1],load[2],load[3],load[5],load[4],
+                                /*solveNow=*/true);
+        // Extract before the next case's solve rewrites the .rst. The second
+        // call is what creates lse_<n>.csv; without it load_loadstep() falls
+        // back to its node-weighted average, which reads ~23% low under
+        // periodic BC.
+        temp_wr.saveAll();
+        temp_wr.saveElementAverages();
     }
 
-    qDebug() << "[StressAnalysis::computeElasticProperties]   Solving 6 load steps in ANSYS...";
-    temp_wr.solveLS(1, (int)canonical.size());
-    temp_wr.saveAll();
+    qDebug() << "[StressAnalysis::computeElasticProperties]   6 periodic load cases queued for ANSYS...";
 
     qDebug() << "[StressAnalysis::computeElasticProperties]   Launching ANSYS...";
     if (!temp_wr.run()) {
@@ -383,7 +445,9 @@ bool StressAnalysis::calibrateHillMatrix(short int numCubes, short int numPoints
     Parameters::cubicConstantsPa(c11, c12, c44);
     temp_wr.setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44);
     temp_wr.setElemByNum(185);
-    temp_wr.createFEfromArray8Node(voxels, numCubes, numPoints, true);
+    temp_wr.createFEfromArray8Node(voxels, numCubes, numPoints, true,
+                                   sharedOrientationsFor(numCubes, voxels,
+                                                         "StressAnalysis::calibrateHillMatrix"));
 
     // num_calib is a member field (editable from the UI).
     qDebug() << "[StressAnalysis::calibrateHillMatrix]   Calibration load cases :" << num_calib;
@@ -432,16 +496,19 @@ bool StressAnalysis::calibrateHillMatrix(short int numCubes, short int numPoints
     }
 
     qDebug() << "[StressAnalysis::calibrateHillMatrix]   Applying load cases to model...";
+    // Periodic BC + element (volume) averaging, to stay on the same
+    // homogenization as phase 1.0 -- see computeElasticProperties().
     for (const auto& load : load_cases) {
-        // applyComplexLoads() takes (eps_xy, eps_xz, eps_yz) in that param order,
+        // applyPeriodicBC() takes (eps_xy, eps_xz, eps_yz) in that param order,
         // but load[] is [ex,ey,ez,gxy,gyz,gxz] -- swap the last two to match.
-        temp_wr.applyComplexLoads(0, 0, 0, numCubes, numCubes, numCubes,
-                                  load[0], load[1], load[2], load[3], load[5], load[4]);
+        temp_wr.applyPeriodicBC(0, 0, 0, numCubes, numCubes, numCubes,
+                                load[0], load[1], load[2], load[3], load[5], load[4],
+                                /*solveNow=*/true);
+        temp_wr.saveAll();              // per-case: the next solve rewrites the .rst
+        temp_wr.saveElementAverages();
     }
 
-    qDebug() << "[StressAnalysis::calibrateHillMatrix]   Solving" << (int)load_cases.size() << "steps in ANSYS...";
-    temp_wr.solveLS(1, (int)load_cases.size());
-    temp_wr.saveAll();
+    qDebug() << "[StressAnalysis::calibrateHillMatrix]  " << (int)load_cases.size() << "periodic cases queued for ANSYS...";
 
     qDebug() << "[StressAnalysis::calibrateHillMatrix]   Launching ANSYS (calibration)...";
     if (!temp_wr.run()) {
@@ -509,30 +576,8 @@ SingleShotResult StressAnalysis::solveSingleLoadCase(short int numCubes, short i
     temp_wr->setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44);
     temp_wr->setElemByNum(185);
 
-    // Same grain-count scan FFT's buildGrainField() does, so both solvers
-    // index the exact same orientation array the exact same way.
-    int nGrains = 0;
-    for (int i = 0; i < numCubes; ++i)
-        for (int j = 0; j < numCubes; ++j)
-            for (int k = 0; k < numCubes; ++k)
-                if (voxels[i][j][k] > nGrains) nGrains = voxels[i][j][k];
-    std::array<double,3> forcedOrient;
-    const bool useForced = getForcedOrientationDebugOverride(forcedOrient);
-    auto sharedOrient = buildGrainOrientations(nGrains, Parameters::seed,
-                                               useForced ? &forcedOrient : nullptr,
-                                               Parameters::textureComponents);
-    if (useForced) {
-        const double r2d = 180.0 / M_PI;
-        qDebug() << "[StressAnalysis::solveSingleLoadCase]   [DEBUG] MATVIZ_FORCE_ORIENT_DEG active: every grain forced to"
-                 << forcedOrient[0]*r2d << forcedOrient[1]*r2d << forcedOrient[2]*r2d << "(Bunge ZXZ, deg)";
-    }
-    qDebug() << "[StressAnalysis::solveSingleLoadCase]   [DEBUG] nGrains (scanned) =" << nGrains;
-    if (nGrains >= 1) {
-        const double r2d = 180.0 / M_PI;
-        const auto& g1 = sharedOrient[1];
-        qDebug() << "[StressAnalysis::solveSingleLoadCase]   [DEBUG] grain#1 orientation (shared Bunge ZXZ, deg) ="
-                 << g1[0]*r2d << g1[1]*r2d << g1[2]*r2d;
-    }
+    auto sharedOrient = sharedOrientationsFor(numCubes, voxels,
+                                              "StressAnalysis::solveSingleLoadCase");
 
     temp_wr->createFEfromArray8Node(voxels, numCubes, numPoints, true, sharedOrient);
     qDebug() << "[StressAnalysis::solveSingleLoadCase]   [DEBUG] numCubes =" << numCubes
@@ -547,10 +592,13 @@ SingleShotResult StressAnalysis::solveSingleLoadCase(short int numCubes, short i
                  << g1[0] << g1[1] << g1[2];
     }
 
-    // applyComplexLoads() takes (eps_xy, eps_xz, eps_yz) in that param order,
+    // Periodic BC, matching the FFT single-shot (see the harness note at the
+    // top of solver_compare_main.cpp). Only one load case here, so the single
+    // CE set stays valid through LSWRITE/LSSOLVE and solveNow is unnecessary.
+    // applyPeriodicBC() takes (eps_xy, eps_xz, eps_yz) in that param order,
     // but eps[] is [ex,ey,ez,exy,eyz,exz] -- swap the last two to match.
-    temp_wr->applyComplexLoads(0, 0, 0, numCubes, numCubes, numCubes,
-                            eps[0], eps[1], eps[2], eps[3], eps[5], eps[4]);
+    temp_wr->applyPeriodicBC(0, 0, 0, numCubes, numCubes, numCubes,
+                             eps[0], eps[1], eps[2], eps[3], eps[5], eps[4]);
 
     qDebug() << "[StressAnalysis::solveSingleLoadCase]   Solving 1 load step in ANSYS...";
     temp_wr->solveLS(1, 1);
