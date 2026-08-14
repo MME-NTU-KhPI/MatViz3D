@@ -484,11 +484,14 @@ Window {
 
             Item {
                 id: _itemData
+                // Anchored top-to-bottom rather than given a fixed height: the
+                // parameter ScrollView below is the fillHeight item, so every
+                // extra pixel of window height goes to the parameter list.
                 anchors.top: parent.top
+                anchors.bottom: parent.bottom
                 anchors.left: parent.left
                 anchors.margins: 20
                 width: mainWindow.width < 1250 ? 310 : 350
-                height: mainWindow.height < 780 ? 440 : 455
                 visible: true
 
                 Rectangle {
