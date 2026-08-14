@@ -36,6 +36,16 @@
 #include <cmath>
 #include <cstddef>
 
+// Windows headers define `near` and `far` as empty macros for legacy 16-bit
+// pointer qualifiers — these clash with the Ctx::near() method below.
+#ifdef near
+    #undef near
+#endif
+
+#ifdef far
+    #undef far
+#endif
+
 namespace mvt {
 
 // ----------------------------------------------------------------------------
