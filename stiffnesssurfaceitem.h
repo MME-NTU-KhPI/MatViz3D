@@ -50,7 +50,11 @@ class StiffnessSurfaceItem : public QQuickFramebufferObject
     Q_PROPERTY(QString errorMessage    READ errorMessage    NOTIFY statsChanged)
     Q_PROPERTY(double  minValue        READ minValue        NOTIFY statsChanged)
     Q_PROPERTY(double  maxValue        READ maxValue        NOTIFY statsChanged)
+    Q_PROPERTY(double  range           READ range           NOTIFY statsChanged)
+    /// 0 unless ratioMeaningful; show `range` otherwise.
     Q_PROPERTY(double  anisotropyRatio READ anisotropyRatio NOTIFY statsChanged)
+    Q_PROPERTY(bool    signChanging    READ signChanging    NOTIFY statsChanged)
+    Q_PROPERTY(bool    ratioMeaningful READ ratioMeaningful NOTIFY statsChanged)
     Q_PROPERTY(double  zener           READ zener           NOTIFY statsChanged)
     Q_PROPERTY(bool    isCubic         READ isCubic         NOTIFY statsChanged)
     Q_PROPERTY(double  bulkModulus     READ bulkModulus     NOTIFY statsChanged)
@@ -89,7 +93,10 @@ public:
     QString errorMessage() const { return m_error; }
     double  minValue() const { return m_mesh.minValue; }
     double  maxValue() const { return m_mesh.maxValue; }
+    double  range() const { return m_mesh.range; }
     double  anisotropyRatio() const { return m_mesh.anisotropyRatio; }
+    bool    signChanging() const { return m_mesh.signChanging; }
+    bool    ratioMeaningful() const { return m_mesh.ratioMeaningful; }
     double  zener() const { return m_state.zener; }
     bool    isCubic() const { return m_state.cubic; }
     double  bulkModulus() const { return m_state.bulkVRH; }

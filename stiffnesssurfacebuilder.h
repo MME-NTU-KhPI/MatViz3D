@@ -96,7 +96,46 @@ struct Mesh {
     bool   valid = false;
     double minValue = 0.0;        ///< min over the sampled directions
     double maxValue = 0.0;
-    double anisotropyRatio = 1.0; ///< max/min of |q|; 1 for an isotropic surface
+    /// maxValue - minValue. Reported in place of anisotropyRatio when that
+    /// would be meaningless; well defined for every quantity, though for a
+    /// cusped surface it still inherits the sampling error of its extremes
+    /// (see ratioMeaningful).
+    double range = 0.0;
+
+    /// max|q| / min|q| over the sampled directions; 1 for an isotropic surface.
+    /// Zero, and ratioMeaningful false, when the ratio would not be a property
+    /// of the material -- see ratioMeaningful. Prefer `range` in that case.
+    double anisotropyRatio = 1.0;
+
+    /// True when the quantity changes sign over the sphere. Also drives the
+    /// symmetric-about-zero colour normalization.
+    bool signChanging = false;
+
+    /// False when max|q|/min|q| would report the sampling rather than the
+    /// material. Two independent causes, both measured on copper:
+    ///
+    ///  * The quantity CHANGES SIGN, so the surface passes through zero and
+    ///    min|q| is decided by how near a sample lands to the zero curve. The
+    ///    Poisson-min surface then reports 120 .. 530 across three grid sizes
+    ///    while its min and max stay put at -0.1357 .. 0.4189.
+    ///
+    ///  * The quantity is itself an EXTREMUM over the transverse direction
+    ///    (G min/max, Poisson min/max, and a component under TwistMode Min or
+    ///    Max). Such a surface has cusps where the extremising transverse
+    ///    direction switches branch, and a sampled extremum converges only O(h)
+    ///    at a cusp: the Poisson-max ratio moves 2.69 .. 3.04 over the same
+    ///    three grids even though it never changes sign.
+    ///
+    /// Note what this flag does NOT promise. In the second case the underlying
+    /// extremes are themselves sampled, so min and range carry a few percent of
+    /// resolution dependence too -- copper's Poisson-max surface has a stable
+    /// maximum of 0.81872 but a minimum wandering over 0.270 .. 0.304, and
+    /// refining the transverse sampling does not help because the sensitivity is
+    /// in the direction grid, not the azimuth sweep. Suppressing the ratio
+    /// removes the term that also blows up near a zero crossing; it does not
+    /// make a cusp easy to sample.
+    bool ratioMeaningful = true;
+
     const char* unit = "";
 };
 

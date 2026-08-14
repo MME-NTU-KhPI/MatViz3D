@@ -5,8 +5,10 @@
 #include <QQuickFramebufferObject>
 #include <QOpenGLFunctions>
 #include <QFutureWatcher>
+#include <QPointF>
 #include <memory>
 #include "ansyswrapper.h"
+#include "cornergizmo.hpp"
 #include "colormap.hpp"
 #include "renderopengl.h"
 #include "stressresult.h"
@@ -142,6 +144,17 @@ public:
 
     bool streamlinesBusy() const { return m_streamBusy; }
     int  streamlineCount() const { return m_streamCount; }
+
+    // Screen positions of the corner-triad axis labels, in logical pixels of
+    // this item. The QML overlay binds its X/Y/Z Text elements to these, so
+    // the labels track the triad as the camera rotates.
+    Q_PROPERTY(QPointF axisLabelX READ axisLabelX NOTIFY axisLabelsChanged)
+    Q_PROPERTY(QPointF axisLabelY READ axisLabelY NOTIFY axisLabelsChanged)
+    Q_PROPERTY(QPointF axisLabelZ READ axisLabelZ NOTIFY axisLabelsChanged)
+
+    QPointF axisLabelX() const { return projectAxisLabel(QVector3D(1, 0, 0)); }
+    QPointF axisLabelY() const { return projectAxisLabel(QVector3D(0, 1, 0)); }
+    QPointF axisLabelZ() const { return projectAxisLabel(QVector3D(0, 0, 1)); }
 
     Q_INVOKABLE void setShowStreamlines(bool show);
     Q_INVOKABLE void setStreamlineSeedStride(int stride);
@@ -283,12 +296,17 @@ signals:
     void zRotationChanged(int angle);
     void colorMapPaletteChanged();
     void tensorStateChanged();
+    void axisLabelsChanged();
 
 private:
     QTimer* timer;
 
 private:
     GLuint vboIds[3];
+    /// Projects a unit axis direction onto this item, reproducing the
+    /// rotation-only MVP that drawCornerAxes() uses for the triad.
+    QPointF projectAxisLabel(const QVector3D& dir) const;
+    void pushRotations();
 
 protected:
     int xRot;

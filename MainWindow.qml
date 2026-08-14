@@ -426,41 +426,36 @@ Window {
                 id: glWidget
                 anchors.fill: parent
 
-                // Отрисовка осей
+                // Axis labels for the corner triad. Positions come from
+                // glWidget, which projects the triad's own MVP -- anchors
+                // would only pin them to a fixed corner, not to the axes.
                 Item {
                     id: axisLabelOverlay
                     anchors.fill: parent
-                    anchors.margins: 10
 
                     Text {
                         text: "X"
                         color: "#FF4444"
                         font.pixelSize: 14
                         font.bold: true
-                        anchors.right: parent.right
-                        anchors.rightMargin: 10
-                        anchors.bottom: parent.bottom
-                        anchors.bottomMargin: 40
+                        x: glWidget.axisLabelX.x - width / 2
+                        y: glWidget.axisLabelX.y - height / 2
                     }
                     Text {
                         text: "Y"
                         color: "#44FF44"
                         font.pixelSize: 14
                         font.bold: true
-                        anchors.right: parent.right
-                        anchors.rightMargin: 50
-                        anchors.bottom: parent.bottom
-                        anchors.bottomMargin: 85
+                        x: glWidget.axisLabelY.x - width / 2
+                        y: glWidget.axisLabelY.y - height / 2
                     }
                     Text {
                         text: "Z"
                         color: "#4488FF"
                         font.pixelSize: 14
                         font.bold: true
-                        anchors.right: parent.right
-                        anchors.rightMargin: 85
-                        anchors.bottom: parent.bottom
-                        anchors.bottomMargin: 40
+                        x: glWidget.axisLabelZ.x - width / 2
+                        y: glWidget.axisLabelZ.y - height / 2
                     }
                 }
             }
@@ -707,7 +702,7 @@ Window {
                         Layout.preferredHeight: 26
                         source: "qrc:/img/toolBar/saveIcon.svg"
                         fillMode: Image.PreserveAspectFit
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: exportController.exportToHDF5(); }
                     }
 
                     Image {
@@ -735,7 +730,7 @@ Window {
                         source: "qrc:/img/toolBar/screenIcon.svg"
                         fillMode: Image.PreserveAspectFit
                         scale: 1.2
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: exportController.saveAsImage(glWidget) }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: exportController.copyToClipboard(glWidget); }
                     }
 
                     Image {
