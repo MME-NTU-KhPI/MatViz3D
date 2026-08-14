@@ -145,20 +145,22 @@ bool ansysWrapper::run(QString apdl)
     QString monitorFilePath = m_projectPath + "/" + m_jobName + ".mntr";
     QFile monitorFile(monitorFilePath);
 
+    QString lastLine, oldLastLine;
     while (!pr.waitForFinished(1000)) // Check every second
     {
         if (monitorFile.exists() && monitorFile.open(QIODevice::ReadOnly | QIODevice::Text))
         {
             QTextStream in(&monitorFile);
-            QString lastLine;
+
             while (!in.atEnd())
             {
                 lastLine = in.readLine();
             }
             monitorFile.close();
 
-            if (!lastLine.isEmpty())
+            if (!lastLine.isEmpty() && oldLastLine != lastLine)
             {
+                oldLastLine = lastLine;
                 qDebug().noquote() << "ANSYS Progress: " << lastLine;
             }
         }
