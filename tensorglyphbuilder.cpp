@@ -18,34 +18,6 @@ struct GlyphRecord
     float  equivalent;      ///< von Mises / equivalent, before normalization
 };
 
-/// Von Mises stress, or equivalent strain, of a symmetric tensor whose shear
-/// components are TENSOR shear.  Both reduce to the same expression in terms of
-/// principal values up to the leading constant, so this works off eigenvalues
-/// and stays source-agnostic.
-double equivalentOf(const mvt::Eig3& e, TensorSource src)
-{
-    const double a = e.lambda[0] - e.lambda[1];
-    const double b = e.lambda[1] - e.lambda[2];
-    const double c = e.lambda[2] - e.lambda[0];
-    const double j2 = 0.5 * (a * a + b * b + c * c);
-    // sqrt(J2-form) for stress; strain uses the 2/3 factor of equivalent strain.
-    return (src == TensorSource::Stress) ? std::sqrt(j2)
-                                         : std::sqrt(4.0 / 9.0 * j2);
-}
-
-/// Categorical colours for the sign-pattern mode: how many principal values are
-/// negative.  3 = fully compressive, 0 = fully tensile, 1/2 = mixed states.
-const std::array<std::array<GLubyte, 4>, 4>& signPatternColors()
-{
-    static const std::array<std::array<GLubyte, 4>, 4> c = {{
-        {{ 214,  64,  52, 255 }},   // 0 negative  -- triaxial tension
-        {{ 236, 162,  58, 255 }},   // 1 negative
-        {{  92, 176, 128, 255 }},   // 2 negative
-        {{  52, 108, 214, 255 }},   // 3 negative  -- triaxial compression
-    }};
-    return c;
-}
-
 } // namespace
 
 int autoGlyphStride(int numCubes, int budget)
@@ -141,7 +113,7 @@ GlyphMesh buildGlyphMesh(const TensorFieldSnapshot& snap, const GlyphParams& p)
                 r.wz = -(half - j) * p.cubeSize + 0.5f * p.cubeSize + oz;
 
                 // ---- colour ---------------------------------------------
-                r.equivalent = static_cast<float>(equivalentOf(E, p.source));
+                r.equivalent = static_cast<float>(tensorEquivalent(E, p.source));
                 switch (p.colorMode) {
                 case GlyphColorMode::SignedPrincipal: {
                     // The algebraically largest or smallest eigenvalue,
@@ -206,7 +178,7 @@ GlyphMesh buildGlyphMesh(const TensorFieldSnapshot& snap, const GlyphParams& p)
         std::array<GLubyte, 4> col;
         if (p.colorMode == GlyphColorMode::SignPattern) {
             const int n = std::clamp(static_cast<int>(r.colorT), 0, 3);
-            col = signPatternColors()[static_cast<size_t>(n)];
+            col = tensorSignPatternColors()[static_cast<size_t>(n)];
         } else {
             col = matviz_cmap::scalarToColor(r.colorT, cmap);
         }

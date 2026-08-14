@@ -6,6 +6,7 @@
 #include <QGuiApplication>
 #include <QClipboard>
 #include <QTimer>
+#include <QtConcurrent>
 #include <QImage>
 #include <QThread>
 #include <algorithm>
@@ -63,10 +64,14 @@ QQuickFramebufferObject::Renderer *OpenGLWidgetQML::createRenderer() const
     // which cannot happen from a const method, so it is deferred to the event
     // loop.
     m_render->setShowGlyphs(showGlyphs);
+    m_render->setShowStreamlines(showStreamlines);
     m_render->setVoxelOpacity(voxelOpacity);
-    if (showGlyphs) {
+    if (showGlyphs || showStreamlines) {
         auto* self = const_cast<OpenGLWidgetQML*>(this);
-        QTimer::singleShot(0, self, [self]() { self->rebuildGlyphs(); });
+        QTimer::singleShot(0, self, [self]() {
+            if (self->showGlyphs)      self->rebuildGlyphs();
+            if (self->showStreamlines) self->rebuildStreamlines();
+        });
     }
 
     return m_render;
@@ -434,6 +439,7 @@ void OpenGLWidgetQML::setColorMapPalette(int palette)
         calculateScene();
         pushSceneToRenderer();
         scheduleGlyphRebuild();   // glyph colours come from the same palette
+        if (showStreamlines) rebuildStreamlines();
     }
 }
 
@@ -633,6 +639,7 @@ void OpenGLWidgetQML::setTensorSource(int source)
     if (glyphParams.source == s) return;
     glyphParams.source = s;
     scheduleGlyphRebuild();
+    if (showStreamlines) rebuildStreamlines();
 }
 
 void OpenGLWidgetQML::setTensorDeviatoric(bool on)
@@ -640,6 +647,7 @@ void OpenGLWidgetQML::setTensorDeviatoric(bool on)
     if (glyphParams.deviatoric == on) return;
     glyphParams.deviatoric = on;
     scheduleGlyphRebuild();
+    if (showStreamlines) rebuildStreamlines();
 }
 
 void OpenGLWidgetQML::setGlyphStride(int stride)
@@ -667,6 +675,7 @@ void OpenGLWidgetQML::setGlyphColorMode(int mode)
     if (glyphParams.colorMode == m) return;
     glyphParams.colorMode = m;
     scheduleGlyphRebuild();
+    if (showStreamlines) rebuildStreamlines();
 }
 
 void OpenGLWidgetQML::setGlyphSlice(int axis, int index)
@@ -674,6 +683,141 @@ void OpenGLWidgetQML::setGlyphSlice(int axis, int index)
     glyphParams.sliceAxis  = std::clamp(axis, -1, 2);
     glyphParams.sliceIndex = index;
     scheduleGlyphRebuild();
+}
+
+// ---------------------------------------------------------------------------
+//  Hyperstreamlines (off-thread)
+// ---------------------------------------------------------------------------
+void OpenGLWidgetQML::rebuildStreamlines()
+{
+    if (!m_render) return;
+
+    // Every entry point bumps the generation, so a job already running becomes
+    // stale the moment its inputs change.
+    ++m_streamGeneration;
+
+    if (!showStreamlines) {
+        m_render->updateStreamlineMesh({}, {});
+        m_streamCount = 0;
+        m_streamBusy  = false;
+        update();
+        emit tensorStateChanged();
+        return;
+    }
+
+    if (!ensureTensorSnapshot()) {
+        m_streamCount = 0;
+        m_streamBusy  = false;
+        emit tensorStateChanged();
+        return;
+    }
+
+    if (!streamWatcher) {
+        streamWatcher = new QFutureWatcher<StreamJob>(this);
+        connect(streamWatcher, &QFutureWatcher<StreamJob>::finished,
+                this, &OpenGLWidgetQML::onStreamlinesFinished);
+    }
+
+    streamParams.numCubes  = numCubes;
+    streamParams.cubeSize  = static_cast<float>(cubeSize);
+    streamParams.source    = glyphParams.source;       // one Source control for both
+    streamParams.deviatoric = glyphParams.deviatoric;
+    streamParams.colorMode = glyphParams.colorMode;
+    streamParams.palette   = colorMapPalette;
+
+    // The worker captures only an immutable snapshot and a POD parameter struct:
+    // no GL singleton, no Parameters::voxels, no LoadStepManager. Per the
+    // threading convention in CLAUDE.md those are main-thread only.
+    auto snap = tensorSnapshot;
+    const StreamlineParams params = streamParams;
+    const int generation = m_streamGeneration;
+
+    m_streamBusy = true;
+    emit tensorStateChanged();
+
+    streamWatcher->setFuture(QtConcurrent::run([snap, params, generation]() {
+        StreamJob job;
+        job.generation = generation;
+        job.mesh = buildStreamlineMesh(*snap, params);
+        return job;
+    }));
+}
+
+void OpenGLWidgetQML::onStreamlinesFinished()
+{
+    m_streamBusy = false;
+
+    if (!streamWatcher || !streamWatcher->isFinished() || streamWatcher->isCanceled()) {
+        emit tensorStateChanged();
+        return;
+    }
+
+    StreamJob job = streamWatcher->result();
+
+    // Superseded while it ran: the parameters have moved on, so this geometry
+    // would be visibly wrong. Another job is already queued for the current
+    // ones, so simply drop this.
+    if (job.generation != m_streamGeneration) {
+        emit tensorStateChanged();
+        return;
+    }
+
+    if (!showStreamlines || !m_render) {
+        emit tensorStateChanged();
+        return;
+    }
+
+    // Back on the main thread, which is the only place the renderer may be
+    // touched.
+    m_streamCount = job.mesh.lineCount;
+    qDebug() << "streamlines:" << job.mesh.lineCount << "lines,"
+             << job.mesh.stationCount << "stations, stride" << job.mesh.strideUsed
+             << "verts" << job.mesh.verts.size();
+
+    m_render->updateStreamlineMesh(std::move(job.mesh.verts), std::move(job.mesh.indices));
+    update();
+    emit tensorStateChanged();
+}
+
+void OpenGLWidgetQML::setShowStreamlines(bool show)
+{
+    if (showStreamlines == show) return;
+    showStreamlines = show;
+    if (m_render) m_render->setShowStreamlines(show);
+    rebuildStreamlines();
+}
+
+void OpenGLWidgetQML::setStreamlineSeedStride(int stride)
+{
+    if (streamParams.seedStride == stride) return;
+    streamParams.seedStride = stride;
+    if (showStreamlines) rebuildStreamlines();
+}
+
+void OpenGLWidgetQML::setStreamlineMaxLines(int lines)
+{
+    lines = std::clamp(lines, 1, 5000);
+    if (streamParams.maxLines == lines) return;
+    streamParams.maxLines = lines;
+    if (showStreamlines) rebuildStreamlines();
+}
+
+void OpenGLWidgetQML::setStreamlineStep(qreal voxels)
+{
+    streamParams.stepVoxels = std::clamp(double(voxels), 0.05, 1.0);
+    if (showStreamlines) rebuildStreamlines();
+}
+
+void OpenGLWidgetQML::setStreamlineMinLinearity(qreal cl)
+{
+    streamParams.minLinearity = std::clamp(double(cl), 0.0, 0.95);
+    if (showStreamlines) rebuildStreamlines();
+}
+
+void OpenGLWidgetQML::setStreamlineTubeRadius(qreal radius)
+{
+    streamParams.tubeRadius = static_cast<float>(std::clamp(double(radius), 0.02, 1.5));
+    if (showStreamlines) rebuildStreamlines();
 }
 
 std::vector<std::array<GLubyte, 4>> OpenGLWidgetQML::generateDistinctColors()

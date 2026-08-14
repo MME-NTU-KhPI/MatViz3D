@@ -77,7 +77,7 @@ Item {
             Text {
                 width: parent.width
                 wrapMode: Text.WordWrap
-                visible: glyphSwitch.checked && panel.target && panel.target.tensorSourceMissing
+                visible: (glyphSwitch.checked || streamSwitch.checked) && panel.target && panel.target.tensorSourceMissing
                 text: qsTr("This solve has no data for the selected tensor.")
                 color: "#e0a04a"
                 font.pixelSize: 11
@@ -87,7 +87,7 @@ Item {
             // ── Source ──────────────────────────────────────────────────
             Row {
                 width: parent.width
-                visible: glyphSwitch.checked
+                visible: glyphSwitch.checked || streamSwitch.checked
                 spacing: 10
 
                 Text {
@@ -107,7 +107,7 @@ Item {
             }
 
             Row {
-                visible: glyphSwitch.checked
+                visible: glyphSwitch.checked || streamSwitch.checked
                 spacing: 10
 
                 Switch {
@@ -207,7 +207,7 @@ Item {
             // ── Colour ──────────────────────────────────────────────────
             Row {
                 width: parent.width
-                visible: glyphSwitch.checked
+                visible: glyphSwitch.checked || streamSwitch.checked
                 spacing: 10
 
                 Text {
@@ -233,7 +233,7 @@ Item {
             // ── Slice ───────────────────────────────────────────────────
             Row {
                 width: parent.width
-                visible: glyphSwitch.checked
+                visible: glyphSwitch.checked || streamSwitch.checked
                 spacing: 10
 
                 Text {
@@ -277,12 +277,154 @@ Item {
                 }
             }
 
-            // ── Voxel opacity ───────────────────────────────────────────
-            // Renderer-side only: fades the voxel block so glyphs buried inside
-            // it are visible. Costs nothing to drag -- no geometry is rebuilt.
+            // ── Hyperstreamlines ────────────────────────────────────────
+            // Integration is unbounded in the worst case, so this runs off the
+            // main thread; the busy indicator is the only sign it is working.
+            Rectangle {
+                width: parent.width
+                height: 1
+                color: "#3a3a3a"
+                visible: glyphSwitch.checked || streamSwitch.checked
+            }
+
+            Row {
+                width: parent.width
+                spacing: 10
+
+                Switch {
+                    id: streamSwitch
+                    width: 50
+                    height: 20
+                    scale: 0.7
+                    display: AbstractButton.IconOnly
+                    checked: false
+                    onCheckedChanged: if (panel.target) panel.target.setShowStreamlines(checked)
+                }
+
+                Text {
+                    color: "#d9d9d9"
+                    text: qsTr("Hyperstreamlines")
+                    font.pixelSize: 14
+                    font.family: panel.titleFont
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                BusyIndicator {
+                    running: panel.target ? panel.target.streamlinesBusy : false
+                    visible: running
+                    width: 18; height: 18
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+
+            Text {
+                width: parent.width
+                visible: streamSwitch.checked
+                text: qsTr("%1 lines").arg(panel.target ? panel.target.streamlineCount : 0)
+                color: "#9e9e9e"
+                font.pixelSize: 11
+                font.family: panel.bodyFont
+            }
+
             Column {
                 width: parent.width
-                visible: glyphSwitch.checked
+                visible: streamSwitch.checked
+                spacing: 2
+
+                Text {
+                    text: qsTr("Seed spacing: %1 voxels").arg(Math.round(seedSlider.value))
+                    color: "#9e9e9e"
+                    font.pixelSize: 11
+                    font.family: panel.bodyFont
+                }
+
+                Slider {
+                    id: seedSlider
+                    width: parent.width
+                    from: 2
+                    to: 24
+                    stepSize: 1
+                    value: 8
+                    onMoved: if (panel.target) panel.target.setStreamlineSeedStride(Math.round(value))
+                }
+            }
+
+            Column {
+                width: parent.width
+                visible: streamSwitch.checked
+                spacing: 2
+
+                Text {
+                    text: qsTr("Tube radius: %1").arg(tubeSlider.value.toFixed(2))
+                    color: "#9e9e9e"
+                    font.pixelSize: 11
+                    font.family: panel.bodyFont
+                }
+
+                Slider {
+                    id: tubeSlider
+                    width: parent.width
+                    from: 0.05
+                    to: 1.2
+                    value: 0.35
+                    onMoved: if (panel.target) panel.target.setStreamlineTubeRadius(value)
+                }
+            }
+
+            Column {
+                width: parent.width
+                visible: streamSwitch.checked
+                spacing: 2
+
+                // Below this the major principal direction is not determined by
+                // the tensor, so the curve stops rather than drawing an
+                // orientation the data does not contain.
+                Text {
+                    text: qsTr("Stop below linearity: %1").arg(clSlider.value.toFixed(2))
+                    color: "#9e9e9e"
+                    font.pixelSize: 11
+                    font.family: panel.bodyFont
+                }
+
+                Slider {
+                    id: clSlider
+                    width: parent.width
+                    from: 0.0
+                    to: 0.8
+                    value: 0.15
+                    onMoved: if (panel.target) panel.target.setStreamlineMinLinearity(value)
+                }
+            }
+
+            Column {
+                width: parent.width
+                visible: streamSwitch.checked
+                spacing: 2
+
+                Text {
+                    text: qsTr("Integration step: %1 voxels").arg(stepSlider.value.toFixed(2))
+                    color: "#9e9e9e"
+                    font.pixelSize: 11
+                    font.family: panel.bodyFont
+                }
+
+                Slider {
+                    id: stepSlider
+                    width: parent.width
+                    from: 0.05
+                    to: 1.0
+                    value: 0.25
+                    onMoved: if (panel.target) panel.target.setStreamlineStep(value)
+                }
+            }
+
+            // ── Voxel opacity ───────────────────────────────────────────
+            // Renderer-side only: fades the voxel block so overlay geometry
+            // buried inside it is visible. Costs nothing to drag -- no geometry
+            // is rebuilt, only a uniform changes.
+            Column {
+                width: parent.width
+                visible: glyphSwitch.checked || streamSwitch.checked
                 spacing: 2
 
                 Text {

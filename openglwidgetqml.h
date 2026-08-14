@@ -4,6 +4,7 @@
 
 #include <QQuickFramebufferObject>
 #include <QOpenGLFunctions>
+#include <QFutureWatcher>
 #include <memory>
 #include "ansyswrapper.h"
 #include "colormap.hpp"
@@ -131,6 +132,24 @@ public:
     /** axis: -1 none, 0 = x, 1 = y, 2 = z. */
     Q_INVOKABLE void setGlyphSlice(int axis, int index);
 
+    // ── Hyperstreamlines ────────────────────────────────────────────────
+    // Integration is unbounded in the worst case (a smooth field can carry a
+    // curve for thousands of steps), so unlike the glyphs this runs off the main
+    // thread. Results are stamped with a generation counter and discarded if the
+    // parameters moved on while the job was running.
+    Q_PROPERTY(bool streamlinesBusy READ streamlinesBusy NOTIFY tensorStateChanged)
+    Q_PROPERTY(int  streamlineCount READ streamlineCount NOTIFY tensorStateChanged)
+
+    bool streamlinesBusy() const { return m_streamBusy; }
+    int  streamlineCount() const { return m_streamCount; }
+
+    Q_INVOKABLE void setShowStreamlines(bool show);
+    Q_INVOKABLE void setStreamlineSeedStride(int stride);
+    Q_INVOKABLE void setStreamlineMaxLines(int lines);
+    Q_INVOKABLE void setStreamlineStep(qreal voxels);
+    Q_INVOKABLE void setStreamlineMinLinearity(qreal cl);
+    Q_INVOKABLE void setStreamlineTubeRadius(qreal radius);
+
 
 protected:
     //struct RenderOpenGL::Voxel;
@@ -203,6 +222,25 @@ protected:
     /// Per-grain exploded-view offsets, same derivation as calculateScene(),
     /// so glyphs travel with the grain they belong to.
     std::vector<std::array<float, 3>> buildGrainOffsets() const;
+
+    // ── Streamline state ────────────────────────────────────────────────
+    StreamlineParams streamParams;
+    bool showStreamlines = false;
+    bool m_streamBusy    = false;
+    int  m_streamCount   = 0;
+
+    /// Bumped on every parameter change that invalidates an in-flight job. The
+    /// stamp travels with the result so a finished worker can be recognised as
+    /// stale and thrown away, rather than a slow job overwriting a newer fast
+    /// one. Carried in this wrapper rather than in StreamlineMesh so the builder
+    /// stays free of UI bookkeeping.
+    struct StreamJob { int generation = 0; StreamlineMesh mesh; };
+
+    int m_streamGeneration = 0;
+    QFutureWatcher<StreamJob>* streamWatcher = nullptr;
+
+    void rebuildStreamlines();
+    void onStreamlinesFinished();
 
 
 public slots:

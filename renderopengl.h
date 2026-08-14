@@ -65,6 +65,9 @@ public:
     void updateGlyphMesh(std::vector<Voxel> verts, std::vector<uint32_t> indices);
     void setShowGlyphs(bool show);
 
+    void updateStreamlineMesh(std::vector<Voxel> verts, std::vector<uint32_t> indices);
+    void setShowStreamlines(bool show);
+
     /// Alpha multiplier applied to the voxel block only, so overlay geometry
     /// inside it stays visible. 1.0 == opaque, the previous behaviour.
     void setVoxelOpacity(float opacity);
@@ -151,8 +154,10 @@ protected:
     void setVoxelAttribPointers();
 
     IndexedMesh glyphMesh;
-    bool  showGlyphs   = false;
-    float voxelOpacity = 1.0f;
+    IndexedMesh streamMesh;
+    bool  showGlyphs      = false;
+    bool  showStreamlines = false;
+    float voxelOpacity    = 1.0f;
 
     GLuint orientationVAO  = 0;
     GLuint orientationVBOs[2] = {0, 0};  // [0]=positions, [1]=colors

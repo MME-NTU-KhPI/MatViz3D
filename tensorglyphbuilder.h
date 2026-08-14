@@ -1,5 +1,6 @@
 // ============================================================================
-//  tensorglyphbuilder.h  -  Superquadric tensor glyph geometry.
+//  tensorglyphbuilder.h  -  Tensor field geometry: superquadric glyphs and
+//                           hyperstreamline tubes.
 //
 //  Turns a TensorFieldSnapshot into one indexed triangle mesh in the app's
 //  standard GlVertex layout, ready to hand straight to a VBO.  Pure geometry:
@@ -27,12 +28,41 @@
 #define TENSORGLYPHBUILDER_H
 
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <vector>
 
 #include "colormap.hpp"
 #include "glvertex.hpp"
 #include "tensorfieldsnapshot.h"
+
+// ---------------------------------------------------------------------------
+//  Shared colour helpers, used by both the glyph and the streamline builder.
+// ---------------------------------------------------------------------------
+/// Von Mises stress, or equivalent strain, from eigenvalues.  Both reduce to the
+/// same expression in principal values up to the leading constant, so this works
+/// off the spectrum and stays source-agnostic.
+inline double tensorEquivalent(const mvt::Eig3& e, TensorSource src)
+{
+    const double a = e.lambda[0] - e.lambda[1];
+    const double b = e.lambda[1] - e.lambda[2];
+    const double c = e.lambda[2] - e.lambda[0];
+    const double j2 = 0.5 * (a * a + b * b + c * c);
+    return (src == TensorSource::Stress) ? std::sqrt(j2) : std::sqrt(4.0 / 9.0 * j2);
+}
+
+/// Categorical colours keyed by how many principal values are negative:
+/// 0 = triaxial tension ... 3 = triaxial compression.
+inline const std::array<std::array<GLubyte, 4>, 4>& tensorSignPatternColors()
+{
+    static const std::array<std::array<GLubyte, 4>, 4> c = {{
+        {{ 214,  64,  52, 255 }},   // 0 negative -- triaxial tension
+        {{ 236, 162,  58, 255 }},   // 1 negative
+        {{  92, 176, 128, 255 }},   // 2 negative
+        {{  52, 108, 214, 255 }},   // 3 negative -- triaxial compression
+    }};
+    return c;
+}
 
 /// What the glyph colour encodes.  Ordinals are part of the QML API.
 enum class GlyphColorMode {
@@ -92,5 +122,76 @@ struct GlyphMesh
 int autoGlyphStride(int numCubes, int budget);
 
 GlyphMesh buildGlyphMesh(const TensorFieldSnapshot& snap, const GlyphParams& p);
+
+// ============================================================================
+//  Hyperstreamlines
+// ============================================================================
+//  A tube swept along an integral curve of the major principal direction, whose
+//  elliptical cross-section carries the two minor eigenvalues -- so one object
+//  shows all three principal magnitudes and the full orientation, continuously,
+//  where a field of glyphs shows them only at sample points.
+//
+//  Three things here are correctness requirements rather than choices:
+//
+//  1. The six tensor COMPONENTS are interpolated and the result is
+//     eigendecomposed -- never the other way round. Interpolating eigenvectors
+//     is not a well-posed operation: they are defined only up to sign, and
+//     within a degenerate subspace only up to an arbitrary rotation.
+//     (TensorFieldSnapshot::sampleTensor does the interpolation.)
+//
+//  2. The eigenvector sign is re-fixed at EVERY Runge-Kutta stage against the
+//     direction carried into that stage. eigenSym3 returns an arbitrary sign, so
+//     without this k2 points backwards about half the time and the integrator
+//     stalls instead of advancing.
+//
+//  3. The cross-section axes come from a rotation-minimizing frame (parallel
+//     transport), not from the minor eigenvectors directly. Taking the
+//     eigenvectors makes the tube snap through 90 degrees from one step to the
+//     next wherever the two minor eigenvalues are close, because their labelling
+//     inside a near-degenerate subspace is arbitrary. The eigenvalues still set
+//     the two radii; only the axes are transported.
+// ============================================================================
+
+struct StreamlineParams
+{
+    TensorSource source     = TensorSource::Stress;
+    bool         deviatoric = false;
+
+    /// Seeds are placed on a lattice every seedStride voxels. <= 0 picks one
+    /// automatically so the line count lands near maxLines.
+    int seedStride = 0;
+    int maxLines   = 200;
+
+    double stepVoxels    = 0.25;  ///< RK4 step, in voxels
+    int    maxSteps      = 2000;  ///< per direction, so a curve is 2x this at most
+    double minLinearity  = 0.15;  ///< stop where Westin cl falls below this
+    double minTurnDot    = 0.2;   ///< stop on a turn sharper than acos(this)
+
+    float tubeRadius    = 0.35f;  ///< largest cross-section semi-axis, voxel units
+    float minRadiusFrac = 0.15f;  ///< floor on a semi-axis, fraction of the above
+    int   radialSegments = 10;    ///< around the tube
+
+    GlyphColorMode       colorMode = GlyphColorMode::SignedPrincipal;
+    matviz_cmap::Palette palette   = matviz_cmap::Palette::CoolWarm;
+
+    int   numCubes = 0;
+    float cubeSize = 1.0f;
+};
+
+struct StreamlineMesh
+{
+    std::vector<GlVertex> verts;
+    std::vector<uint32_t> indices;
+    int  lineCount     = 0;
+    int  stationCount  = 0;   ///< total integration stations across all lines
+    int  strideUsed    = 1;
+    bool sourceMissing = false;
+};
+
+/// Seed lattice stride that yields about `budget` seeds in an N^3 grid.
+int autoSeedStride(int numCubes, int budget);
+
+StreamlineMesh buildStreamlineMesh(const TensorFieldSnapshot& snap,
+                                   const StreamlineParams& p);
 
 #endif // TENSORGLYPHBUILDER_H

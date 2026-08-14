@@ -117,6 +117,7 @@ SOURCES += \
         stressanalysiscontroller.cpp \
         tensorfieldsnapshot.cpp \
         tensorglyphbuilder.cpp \
+        tensorstreamlinebuilder.cpp \
         texturelibrary.cpp \
         texturecontroller.cpp \
         voronoi.cpp

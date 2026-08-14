@@ -113,6 +113,11 @@ RenderOpenGL::~RenderOpenGL()
             ef->glDeleteBuffers(1, &glyphMesh.vbo);
             ef->glDeleteBuffers(1, &glyphMesh.ebo);
         }
+        if (ef && streamMesh.vao) {
+            ef->glDeleteVertexArrays(1, &streamMesh.vao);
+            ef->glDeleteBuffers(1, &streamMesh.vbo);
+            ef->glDeleteBuffers(1, &streamMesh.ebo);
+        }
     } else {
         qDebug() << "RenderOpenGL::~RenderOpenGL() - context is not valid";
     }
@@ -761,6 +766,18 @@ void RenderOpenGL::setShowGlyphs(bool show)
     showGlyphs = show;
 }
 
+void RenderOpenGL::updateStreamlineMesh(std::vector<Voxel> verts, std::vector<uint32_t> indices)
+{
+    streamMesh.verts   = std::move(verts);
+    streamMesh.indices = std::move(indices);
+    streamMesh.dirty   = true;
+}
+
+void RenderOpenGL::setShowStreamlines(bool show)
+{
+    showStreamlines = show;
+}
+
 void RenderOpenGL::setVoxelOpacity(float opacity)
 {
     voxelOpacity = std::clamp(opacity, 0.0f, 1.0f);
@@ -925,15 +942,16 @@ void RenderOpenGL::paintGL()
     if (fadeVoxels) f->glDepthMask(GL_TRUE);
     shaderProgram->setUniformValue("uAlphaScale", 1.0f);
 
-    if (showGlyphs) {                    // drawIndexedMesh() no-ops when empty
+    if (showGlyphs || showStreamlines) {   // drawIndexedMesh() no-ops when empty
         // Culling off: superquadrics at high anisotropy get thin enough that
-        // a back face can end up in front of its own front face, and open
-        // geometry (tube ends, later) has no consistent facing at all.
+        // a back face can end up in front of its own front face, and a swept
+        // tube has no consistent facing where its cross-section is degenerate.
         const GLboolean hadCull = f->glIsEnabled(GL_CULL_FACE);
         f->glDisable(GL_CULL_FACE);
         if (plotWireFrame) glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-        drawIndexedMesh(glyphMesh);
+        if (showGlyphs)      drawIndexedMesh(glyphMesh);
+        if (showStreamlines) drawIndexedMesh(streamMesh);
 
         if (hadCull) f->glEnable(GL_CULL_FACE);
         ef->glBindVertexArray(vaoId);   // restore what the rest of paintGL expects
