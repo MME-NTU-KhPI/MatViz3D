@@ -86,6 +86,20 @@ public:
     /// Material name of a table row, for UI labelling. Empty if out of range.
     Q_INVOKABLE QString materialNameAt(int row) const;
 
+    /**
+     * @brief Indices of elastic-constant columns that are zero in every row.
+     *
+     * The table carries all 21 independent constants, but a database of cubic
+     * and isotropic materials leaves most of them at zero -- 24 columns of
+     * which only c11/c12/c44 ever differ from zero. The view uses this to
+     * collapse the dead columns so the interesting ones fit on screen beside
+     * the anisotropy panel.
+     *
+     * Only c11..c66 are considered; id, Material and Type are never reported,
+     * so the caller can hide everything in the returned list unconditionally.
+     */
+    Q_INVOKABLE QVariantList emptyElasticColumns() const;
+
 signals:
     void revisionChanged();
 };

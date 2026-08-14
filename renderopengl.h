@@ -10,6 +10,7 @@
 #include <QImage>
 #include <QSize>
 #include <vector>
+#include <cstdint>
 #include <QOpenGLContext>
 
 #include "glvertex.hpp"
@@ -56,6 +57,17 @@ public:
     void updateOrientationData(const std::vector<float>& verts,
                                const std::vector<float>& colors);
     void setShowOrientations(bool show);
+
+    // ── Tensor overlays ──────────────────────────────────────────────────
+    // Geometry is built off-thread into GlVertex + uint32 index arrays and
+    // moved in here; the actual GL upload is deferred to the next render()
+    // because that is the only place a current context is guaranteed.
+    void updateGlyphMesh(std::vector<Voxel> verts, std::vector<uint32_t> indices);
+    void setShowGlyphs(bool show);
+
+    /// Alpha multiplier applied to the voxel block only, so overlay geometry
+    /// inside it stays visible. 1.0 == opaque, the previous behaviour.
+    void setVoxelOpacity(float opacity);
 
 protected:
 
@@ -112,6 +124,35 @@ protected:
 
     void drawOrientationGlyphs();
     void initOrientationVBO();
+
+    // ── Indexed overlay meshes ───────────────────────────────────────────
+    // One VAO/VBO/EBO triple per overlay, allocated once and reuploaded only
+    // when `dirty`. Deliberately NOT modelled on drawOrientationGlyphs(),
+    // which generates and deletes its buffers every single frame.
+    //
+    // Indices are GL_UNSIGNED_INT, not GL_UNSIGNED_SHORT: a few thousand
+    // glyphs is already several hundred thousand vertices, well past 65535.
+    struct IndexedMesh
+    {
+        GLuint  vao = 0, vbo = 0, ebo = 0;
+        std::vector<Voxel>    verts;
+        std::vector<uint32_t> indices;
+        GLsizei indexCount = 0;
+        bool    dirty      = false;
+    };
+
+    void initIndexedMesh(IndexedMesh& m);
+    void uploadIndexedMesh(IndexedMesh& m);
+    void drawIndexedMesh(IndexedMesh& m);
+
+    /// The three glVertexAttribPointer calls describing the GlVertex layout.
+    /// Factored out of initializeVBO() so every VAO in this class describes the
+    /// vertex format exactly once, in one place.
+    void setVoxelAttribPointers();
+
+    IndexedMesh glyphMesh;
+    bool  showGlyphs   = false;
+    float voxelOpacity = 1.0f;
 
     GLuint orientationVAO  = 0;
     GLuint orientationVBOs[2] = {0, 0};  // [0]=positions, [1]=colors

@@ -1292,4 +1292,19 @@ Window {
             }
         }
     }
+
+    // Tensor overlays, stacked directly under the field-view card and shown
+    // under the same condition, so the two read as one panel.
+    TensorViewPanel {
+        id: _itemTensorView
+        x: _itemFieldView.x
+        y: _itemFieldView.y + _itemFieldView.height + 12
+        width: _itemFieldView.width
+        visible: stressAnalysisController.hasResult
+
+        target: glWidget
+        titleFont: montserrat.name
+        bodyFont: inter.name
+        gridSize: Parameters.size
+    }
 }

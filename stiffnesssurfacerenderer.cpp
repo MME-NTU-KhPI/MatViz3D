@@ -56,6 +56,7 @@ void StiffnessSurfaceRenderer::synchronize(QQuickFramebufferObject* item)
     m_distance  = s->distance();
     m_wireframe = s->wireframe();
     m_showAxes  = s->showAxes();
+    m_bgColor   = s->backgroundColor();
     m_viewSize  = QSize(int(s->width()), int(s->height()));
     m_dpr = s->window() ? float(s->window()->devicePixelRatio()) : 1.0f;
 }
@@ -195,7 +196,8 @@ void StiffnessSurfaceRenderer::render()
     const int h = std::max(1, int(m_viewSize.height() * m_dpr));
     f->glViewport(0, 0, w, h);
 
-    f->glClearColor(0.157f, 0.157f, 0.157f, 1.0f);   // #282828, the DB window's ground
+    f->glClearColor(float(m_bgColor.redF()), float(m_bgColor.greenF()),
+                    float(m_bgColor.blueF()), 1.0f);
     f->glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     f->glEnable(GL_DEPTH_TEST);
@@ -249,6 +251,7 @@ void StiffnessSurfaceRenderer::render()
     m_litProgram->setUniformValue("uViewPos", viewPos);
     m_litProgram->setUniformValue("uDebugMode", 0);
     m_litProgram->setUniformValue("uWireframe", 0);
+    m_litProgram->setUniformValue("uAlphaScale", 1.0f);   // required: see glshaders.hpp
 
     ef->glBindVertexArray(m_vao);
     if (m_wireframe) {

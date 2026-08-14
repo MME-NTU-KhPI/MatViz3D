@@ -9,6 +9,8 @@
 
 #include <QOpenGLExtraFunctions>
 
+#include <algorithm>
+
 
 RenderOpenGL::RenderOpenGL()
 {
@@ -105,6 +107,11 @@ RenderOpenGL::~RenderOpenGL()
         if (ef && orientationVAO) {
             ef->glDeleteVertexArrays(1, &orientationVAO);
             ef->glDeleteBuffers(2, orientationVBOs);
+        }
+        if (ef && glyphMesh.vao) {
+            ef->glDeleteVertexArrays(1, &glyphMesh.vao);
+            ef->glDeleteBuffers(1, &glyphMesh.vbo);
+            ef->glDeleteBuffers(1, &glyphMesh.ebo);
         }
     } else {
         qDebug() << "RenderOpenGL::~RenderOpenGL() - context is not valid";
@@ -658,6 +665,19 @@ void RenderOpenGL::initializeVBO()
         ef->glBufferData(GL_ARRAY_BUFFER, voxelScene.size() * sizeof(Voxel), voxelScene.data(), GL_STATIC_DRAW);
     }
 
+    setVoxelAttribPointers();
+
+    ef->glBindBuffer(GL_ARRAY_BUFFER, 0);
+    ef->glBindVertexArray(0);
+}
+
+void RenderOpenGL::setVoxelAttribPointers()
+{
+    QOpenGLExtraFunctions *ef = QOpenGLContext::currentContext()->extraFunctions();
+    if (!ef) return;
+
+    // Must be called with the target VAO and its array buffer already bound --
+    // glVertexAttribPointer records whatever GL_ARRAY_BUFFER is current.
     ef->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Voxel), (void*)offsetof(Voxel, x));
     ef->glEnableVertexAttribArray(0);
 
@@ -666,9 +686,84 @@ void RenderOpenGL::initializeVBO()
 
     ef->glVertexAttribPointer(2, 3, GL_BYTE, GL_TRUE, sizeof(Voxel), (void*)offsetof(Voxel, nx));
     ef->glEnableVertexAttribArray(2);
+}
 
-    ef->glBindBuffer(GL_ARRAY_BUFFER, 0);
+// ---------------------------------------------------------------------------
+//  Indexed overlay meshes
+// ---------------------------------------------------------------------------
+void RenderOpenGL::initIndexedMesh(IndexedMesh& m)
+{
+    QOpenGLExtraFunctions *ef = QOpenGLContext::currentContext()->extraFunctions();
+    if (!ef || m.vao != 0) return;
+
+    ef->glGenVertexArrays(1, &m.vao);
+    ef->glGenBuffers(1, &m.vbo);
+    ef->glGenBuffers(1, &m.ebo);
+}
+
+void RenderOpenGL::uploadIndexedMesh(IndexedMesh& m)
+{
+    QOpenGLExtraFunctions *ef = QOpenGLContext::currentContext()->extraFunctions();
+    if (!ef) return;
+    if (m.vao == 0) initIndexedMesh(m);
+    if (m.vao == 0) return;
+
+    ef->glBindVertexArray(m.vao);
+
+    ef->glBindBuffer(GL_ARRAY_BUFFER, m.vbo);
+    ef->glBufferData(GL_ARRAY_BUFFER,
+                     static_cast<GLsizeiptr>(m.verts.size() * sizeof(Voxel)),
+                     m.verts.empty() ? nullptr : m.verts.data(),
+                     GL_STATIC_DRAW);
+    setVoxelAttribPointers();
+
+    // The element buffer binding is VAO state, so this must happen while the
+    // VAO is bound -- and the VAO must be unbound BEFORE the element buffer is,
+    // or the unbind is recorded into the VAO and the mesh silently draws
+    // nothing.
+    ef->glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m.ebo);
+    ef->glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                     static_cast<GLsizeiptr>(m.indices.size() * sizeof(uint32_t)),
+                     m.indices.empty() ? nullptr : m.indices.data(),
+                     GL_STATIC_DRAW);
+
+    m.indexCount = static_cast<GLsizei>(m.indices.size());
+
     ef->glBindVertexArray(0);
+    ef->glBindBuffer(GL_ARRAY_BUFFER, 0);
+    ef->glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+    m.dirty = false;
+}
+
+void RenderOpenGL::drawIndexedMesh(IndexedMesh& m)
+{
+    QOpenGLExtraFunctions *ef = QOpenGLContext::currentContext()->extraFunctions();
+    if (!ef) return;
+
+    if (m.dirty) uploadIndexedMesh(m);
+    if (m.vao == 0 || m.indexCount == 0) return;
+
+    ef->glBindVertexArray(m.vao);
+    ef->glDrawElements(GL_TRIANGLES, m.indexCount, GL_UNSIGNED_INT, nullptr);
+    ef->glBindVertexArray(0);
+}
+
+void RenderOpenGL::updateGlyphMesh(std::vector<Voxel> verts, std::vector<uint32_t> indices)
+{
+    glyphMesh.verts   = std::move(verts);
+    glyphMesh.indices = std::move(indices);
+    glyphMesh.dirty   = true;
+}
+
+void RenderOpenGL::setShowGlyphs(bool show)
+{
+    showGlyphs = show;
+}
+
+void RenderOpenGL::setVoxelOpacity(float opacity)
+{
+    voxelOpacity = std::clamp(opacity, 0.0f, 1.0f);
 }
 
 void RenderOpenGL::updateVBO()
@@ -768,6 +863,14 @@ void RenderOpenGL::paintGL()
     shaderProgram->setUniformValue("uDebugMode", debugMode);
     shaderProgram->setUniformValue("uWireframe", plotWireFrame ? 1 : 0);
 
+    // Fade the voxel block back so tensor overlays inside it are visible. With
+    // the block translucent its depth writes are also suppressed, so the
+    // overlays drawn afterwards are not occluded by the shell they sit inside
+    // -- which is the entire point of the control.
+    const bool fadeVoxels = (voxelOpacity < 0.999f);
+    shaderProgram->setUniformValue("uAlphaScale", voxelOpacity);
+    if (fadeVoxels) f->glDepthMask(GL_FALSE);
+
     ef->glBindVertexArray(vaoId);
 
     f->glEnable(GL_BLEND);
@@ -816,7 +919,27 @@ void RenderOpenGL::paintGL()
         }
     }
 
-     drawOrientationGlyphs();
+    // ── Tensor overlays ──────────────────────────────────────────────
+    // Drawn inside the shaderProgram bind so they inherit every lighting
+    // uniform set above, and at full alpha regardless of the voxel fade.
+    if (fadeVoxels) f->glDepthMask(GL_TRUE);
+    shaderProgram->setUniformValue("uAlphaScale", 1.0f);
+
+    if (showGlyphs) {                    // drawIndexedMesh() no-ops when empty
+        // Culling off: superquadrics at high anisotropy get thin enough that
+        // a back face can end up in front of its own front face, and open
+        // geometry (tube ends, later) has no consistent facing at all.
+        const GLboolean hadCull = f->glIsEnabled(GL_CULL_FACE);
+        f->glDisable(GL_CULL_FACE);
+        if (plotWireFrame) glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+        drawIndexedMesh(glyphMesh);
+
+        if (hadCull) f->glEnable(GL_CULL_FACE);
+        ef->glBindVertexArray(vaoId);   // restore what the rest of paintGL expects
+    }
+
+    drawOrientationGlyphs();
 
     f->glDisable(GL_BLEND);
 

@@ -14,6 +14,7 @@
 #pragma once
 
 #include <QQuickFramebufferObject>
+#include <QColor>
 #include <QVariantList>
 #include <QVariantMap>
 #include <QPoint>
@@ -35,10 +36,14 @@ class StiffnessSurfaceItem : public QQuickFramebufferObject
     Q_PROPERTY(int    componentI READ componentI WRITE setComponentI NOTIFY paramsChanged)
     Q_PROPERTY(int    componentJ READ componentJ WRITE setComponentJ NOTIFY paramsChanged)
     Q_PROPERTY(double spinDeg    READ spinDeg    WRITE setSpinDeg    NOTIFY paramsChanged)
-    Q_PROPERTY(bool   extremumOverSpin READ extremumOverSpin WRITE setExtremumOverSpin NOTIFY paramsChanged)
+    /// See mvsurf::TwistMode. 0=mean, 1=min, 2=max, 3=fixed spinDeg.
+    Q_PROPERTY(int    twistMode  READ twistMode  WRITE setTwistMode  NOTIFY paramsChanged)
     Q_PROPERTY(int    palette    READ palette    WRITE setPalette    NOTIFY paramsChanged)
     Q_PROPERTY(bool   wireframe  READ wireframe  WRITE setWireframe  NOTIFY paramsChanged)
     Q_PROPERTY(bool   showAxes   READ showAxes   WRITE setShowAxes   NOTIFY paramsChanged)
+    /// Viewport clear colour. Exposed so the panel's light/dark theme reaches
+    /// the GL ground, which a QML Rectangle behind an FBO item cannot tint.
+    Q_PROPERTY(QColor backgroundColor READ backgroundColor WRITE setBackgroundColor NOTIFY paramsChanged)
 
     // --- read-only results ---
     Q_PROPERTY(bool    valid           READ valid           NOTIFY statsChanged)
@@ -69,14 +74,16 @@ public:
     void   setComponentJ(int j);
     double spinDeg() const { return m_params.spinDeg; }
     void   setSpinDeg(double d);
-    bool   extremumOverSpin() const { return m_params.extremumOverSpin; }
-    void   setExtremumOverSpin(bool e);
+    int    twistMode() const { return int(m_params.twist); }
+    void   setTwistMode(int m);
     int    palette() const { return int(m_params.palette); }
     void   setPalette(int p);
     bool   wireframe() const { return m_wireframe; }
     void   setWireframe(bool w);
     bool   showAxes() const { return m_showAxes; }
     void   setShowAxes(bool s);
+    QColor backgroundColor() const { return m_bgColor; }
+    void   setBackgroundColor(const QColor& c);
 
     bool    valid() const { return m_mesh.valid; }
     QString errorMessage() const { return m_error; }
@@ -135,4 +142,5 @@ private:
     QPoint m_lastPos;
     bool   m_wireframe = false;
     bool   m_showAxes = true;
+    QColor m_bgColor{ 40, 40, 40 };   // #282828, the dark window's ground
 };

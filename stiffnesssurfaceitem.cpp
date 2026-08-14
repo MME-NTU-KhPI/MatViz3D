@@ -82,10 +82,11 @@ void StiffnessSurfaceItem::setSpinDeg(double d)
     scheduleRebuild();
 }
 
-void StiffnessSurfaceItem::setExtremumOverSpin(bool e)
+void StiffnessSurfaceItem::setTwistMode(int m)
 {
-    if (m_params.extremumOverSpin == e) return;
-    m_params.extremumOverSpin = e;
+    const auto mode = static_cast<mvsurf::TwistMode>(std::clamp(m, 0, 3));
+    if (m_params.twist == mode) return;
+    m_params.twist = mode;
     emit paramsChanged();
     scheduleRebuild();
 }
@@ -113,6 +114,14 @@ void StiffnessSurfaceItem::setShowAxes(bool s)
     m_showAxes = s;
     emit paramsChanged();
     update();
+}
+
+void StiffnessSurfaceItem::setBackgroundColor(const QColor& c)
+{
+    if (m_bgColor == c) return;
+    m_bgColor = c;
+    emit paramsChanged();
+    update();   // clear colour only -- no mesh rebuild
 }
 
 // ---------------------------------------------------------------------------

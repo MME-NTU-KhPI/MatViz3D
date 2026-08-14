@@ -54,11 +54,34 @@ struct ElasticState {
     double bulkVRH = 0.0;     ///< Voigt-Reuss-Hill bulk modulus [GPa]
 };
 
+/// How the free twist about the plotted direction is resolved for a component
+/// surface.
+///
+/// A component naming two or more axes is a function of the direction AND of the
+/// rotation about it -- one direction does not fix a frame. No continuous choice
+/// of frame exists over the whole sphere (hairy ball), so ANY fixed twist puts a
+/// defect in the surface. Measured on cubic copper, a fixed twist violates the
+/// crystal's own 24-fold symmetry by as much as the entire range of the
+/// quantity: the surface is then mostly artefact, showing a funnel where the
+/// frame degenerates.
+///
+/// Averaging or extremizing over the twist removes that entirely, because the
+/// result depends on the direction alone. Mean is exact to rounding (a uniform
+/// grid integrates the trigonometric polynomial exactly, and the average
+/// commutes with the crystal symmetry); Min and Max are correct to the grid
+/// step, and mirror the existing G-min/G-max and nu-min/nu-max quantities.
+enum class TwistMode {
+    Mean  = 0,  ///< average over the twist -- exactly symmetry-respecting
+    Min   = 1,
+    Max   = 2,
+    Fixed = 3   ///< the user's spinDeg; frame-dependent, for inspection only
+};
+
 struct Params {
     Quantity quantity = Quantity::YoungsE;
-    int      ci = 0, cj = 0;           ///< Mandel/Voigt indices for *_component
-    double   spinDeg = 0.0;            ///< spin of the cross-axes about n
-    bool     extremumOverSpin = false; ///< sweep the spin, keep the largest |q|
+    int      ci = 0, cj = 0;           ///< Voigt indices for *_component
+    double   spinDeg = 0.0;            ///< twist about n, used only by TwistMode::Fixed
+    TwistMode twist  = TwistMode::Mean;
     int      nTheta = 48, nPhi = 96;
     int      nAzimuth = 36;            ///< perpendicular samples for G and nu
     double   worldRadius = 1.0;        ///< radius the peak |q| maps to

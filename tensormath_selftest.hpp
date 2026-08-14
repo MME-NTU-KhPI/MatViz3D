@@ -404,6 +404,206 @@ inline void testElastic(Ctx& c)
         c.near(a, b, 1e-9 * std::abs(a), "C'_1111 is spin-independent");
     }
 
+    // Component SURFACES -- directionalComponent(), the quantity the material
+    // database panel plots.  Regression guard for a real bug: the panel used to
+    // evaluate C22 with axis 1 (not axis 2) aligned to the plotted direction,
+    // so C22 measured stiffness along an arbitrary perpendicular instead. For
+    // cubic Cu that put C11 at 237.6 GPa along <111> while C22 read 220.3, and
+    // left a hard discontinuity where frameAbout() switches its up vector.
+    {
+        const double H = c11 - c12 - 2.0 * c44;
+
+        for (const Vec3& n : dirs) {
+            const double d11 = directionalComponent(C4s, n, 0.0, 0, 0);
+            const double d22 = directionalComponent(C4s, n, 0.0, 1, 1);
+            const double d33 = directionalComponent(C4s, n, 0.0, 2, 2);
+            const double expected = c11 - 2.0 * H * Jof(n);
+            c.near(d11, expected, 1e-9 * std::abs(expected), "C11 surface closed form");
+            c.near(d22, d11, 1e-9 * std::abs(d11), "C22 surface == C11 surface");
+            c.near(d33, d11, 1e-9 * std::abs(d11), "C33 surface == C11 surface");
+        }
+
+        // Voigt convention, so the numbers agree with the material table the
+        // panel is drawn next to (Mandel would report 2 * C44 here).
+        c.near(directionalComponent(C4s, { 1, 0, 0 }, 0.0, 3, 3), c44, 1e-9 * c44,
+               "C44 surface along <100> == C44 in Voigt convention");
+        c.near(directionalComponent(C4s, { 1, 0, 0 }, 0.0, 0, 1), c12, 1e-9 * c12,
+               "C12 surface along <100> == C12");
+
+        // Every component must reproduce its tabulated value along its own
+        // pivot direction -- the property that makes the surface readable, and
+        // the one an arbitrary tangent frame destroys for shear components.
+        // Checked on an ORTHOTROPIC matrix, where C44, C55 and C66 genuinely
+        // differ; on a cubic one the bug is invisible because they are equal.
+        {
+            double Vo[6][6] = {{0}};
+            Vo[0][0] = 200; Vo[1][1] = 150; Vo[2][2] = 120;
+            Vo[0][1] = Vo[1][0] = 60; Vo[0][2] = Vo[2][0] = 50; Vo[1][2] = Vo[2][1] = 40;
+            Vo[3][3] = 50;  Vo[4][4] = 80;  Vo[5][5] = 30;
+            const C4 O = mandel_to_C4(voigtC_to_mandel(Vo));
+
+            const Vec3 ex{ 1, 0, 0 }, ey{ 0, 1, 0 }, ez{ 0, 0, 1 };
+            c.near(directionalComponent(O, ex, 0.0, 0, 0), 200.0, 1e-9, "C11 at <100> == table C11");
+            c.near(directionalComponent(O, ey, 0.0, 1, 1), 150.0, 1e-9, "C22 at <010> == table C22");
+            c.near(directionalComponent(O, ez, 0.0, 2, 2), 120.0, 1e-9, "C33 at <001> == table C33");
+            c.near(directionalComponent(O, ex, 0.0, 3, 3),  50.0, 1e-9, "C44 at <100> == table C44");
+            c.near(directionalComponent(O, ey, 0.0, 4, 4),  80.0, 1e-9, "C55 at <010> == table C55");
+            c.near(directionalComponent(O, ez, 0.0, 5, 5),  30.0, 1e-9, "C66 at <001> == table C66");
+
+            // ... and the three shear surfaces must stay DISTINCT. They
+            // collapsed onto one another while the frame came from an arbitrary
+            // tangent, which is what made them look wrong.
+            double spread = 0.0;
+            for (const Vec3& n : dirs) {
+                const double s4 = directionalComponent(O, n, 0.0, 3, 3);
+                const double s5 = directionalComponent(O, n, 0.0, 4, 4);
+                const double s6 = directionalComponent(O, n, 0.0, 5, 5);
+                spread = std::max(spread, std::max(std::abs(s4 - s5), std::abs(s4 - s6)));
+            }
+            c.check(spread > 1.0, "C44/C55/C66 surfaces stay distinct for orthotropic",
+                    spread, 27.0);
+
+            // The normal diagonal still collapses, as it must.
+            for (const Vec3& n : dirs) {
+                const double d1 = directionalComponent(O, n, 0.0, 0, 0);
+                c.near(directionalComponent(O, n, 0.0, 1, 1), d1, 1e-6 * std::abs(d1),
+                       "orthotropic C22 surface == C11 surface");
+                c.near(directionalComponent(O, n, 0.0, 2, 2), d1, 1e-6 * std::abs(d1),
+                       "orthotropic C33 surface == C11 surface");
+            }
+        }
+
+        // Cubic shear surfaces.
+        //
+        // C44, C55 and C66 are equal in the crystal frame, but their surfaces
+        // are NOT pointwise equal: each is pivoted on a different crystal axis,
+        // so the twist-free transport carries a different pair of in-plane axes
+        // and they sample different in-plane orientations. They agree only
+        // where the direction treats the relevant axes symmetrically. That is a
+        // property of the frame convention, not of the material -- so the two
+        // things worth pinning down are the physical bound, which every
+        // convention must respect, and the twist ENVELOPE, which is
+        // convention-free and therefore must collapse the three onto one.
+        {
+            const double lo = std::min(c44, 0.5 * (c11 - c12));
+            const double hi = std::max(c44, 0.5 * (c11 - c12));
+
+            auto envelope = [&](const Vec3& n, int idx, bool wantMax) {
+                double best = wantMax ? -1e300 : 1e300;
+                for (int k = 0; k < 180; ++k) {
+                    const double v = directionalComponent(C4s, n, kPi * k / 180.0, idx, idx);
+                    best = wantMax ? std::max(best, v) : std::min(best, v);
+                }
+                return best;
+            };
+
+            bool inBound = true;
+            for (const Vec3& n : dirs) {
+                for (int k = 0; k < 3; ++k) {
+                    const double v = directionalComponent(C4s, n, 0.0, 3 + k, 3 + k);
+                    if (v < lo - 1e-6 || v > hi + 1e-6) inBound = false;
+                }
+                // Convention-free: the largest and smallest shear stiffness
+                // over all in-plane orientations cannot depend on which axis
+                // pair the transport happened to start from.
+                // Tolerance is set by the twist grid, not by the invariant:
+                // the three sweeps start at different phases, so a 1 degree
+                // step leaves an O(h^2) offset near the extremum (~2e-5
+                // relative). A genuine failure of the invariant would be tens
+                // of GPa, so this is still a sharp test.
+                const double mx0 = envelope(n, 3, true),  mn0 = envelope(n, 3, false);
+                c.near(envelope(n, 4, true),  mx0, 1e-3 * std::abs(mx0), "cubic C55 twist-max == C44 twist-max");
+                c.near(envelope(n, 5, true),  mx0, 1e-3 * std::abs(mx0), "cubic C66 twist-max == C44 twist-max");
+                c.near(envelope(n, 4, false), mn0, 1e-3 * std::abs(mn0), "cubic C55 twist-min == C44 twist-min");
+                c.near(envelope(n, 5, false), mn0, 1e-3 * std::abs(mn0), "cubic C66 twist-min == C44 twist-min");
+            }
+            c.check(inBound, "cubic shear surfaces stay within [C', C44]");
+
+            // <001> treats x and y symmetrically, so the surfaces pivoted on
+            // them must agree there even at a fixed twist.
+            const Vec3 ez{ 0, 0, 1 };
+            c.near(directionalComponent(C4s, ez, 0.0, 4, 4),
+                   directionalComponent(C4s, ez, 0.0, 3, 3), 1e-9,
+                   "cubic C44 == C55 along <001>");
+        }
+
+        // Single-axis components must be continuous across the old seam at
+        // |n_z| == 0.9, and genuinely inert to the spin control.
+        auto atNz = [&](double nz) {
+            const double r = std::sqrt(1.0 - nz * nz);
+            const Vec3 n{ r * std::cos(0.7), r * std::sin(0.7), nz };
+            return directionalComponent(C4s, n, 0.0, 1, 1);
+        };
+        c.near(atNz(0.9 + 1e-12), atNz(0.9 - 1e-12), 1e-6,
+               "C22 surface has no seam where frameAbout() switches up vector");
+
+        const Vec3 nd2 = normalized({ 2, 1, 3 });
+        c.near(directionalComponent(C4s, nd2, 0.0,   1, 1),
+               directionalComponent(C4s, nd2, 1.234, 1, 1), 1e-9,
+               "C22 surface is spin-independent");
+
+        c.check(componentIsSpinFree(0, 0) && componentIsSpinFree(1, 1) &&
+                componentIsSpinFree(2, 2), "C11/C22/C33 classified spin-free");
+        c.check(!componentIsSpinFree(0, 1) && !componentIsSpinFree(3, 3),
+                "C12/C44 classified spin-dependent");
+
+        // ---- CRYSTAL SYMMETRY: the check that catches frame artefacts -------
+        //
+        // A directional surface of a cubic crystal must be invariant under the
+        // 24 rotations of the cube. Nothing else in this file would have caught
+        // the defect this guards against: a fixed twist angle gave surfaces that
+        // broke cubic symmetry by 100% of the range of the quantity -- a visible
+        // funnel where the frame degenerates -- while still passing every
+        // pointwise and closed-form check above.
+        //
+        // Averaging over the twist restores it exactly: the average commutes
+        // with the symmetry operations, and a uniform grid integrates the
+        // trigonometric polynomial in the twist without error.
+        {
+            // The 24 proper rotations, as signed axis permutations with det=+1.
+            Mat3 group[24];
+            int  nGroup = 0;
+            const int perms[6][3] = { {0,1,2},{0,2,1},{1,0,2},{1,2,0},{2,0,1},{2,1,0} };
+            for (const auto& pm : perms) {
+                for (int sgn = 0; sgn < 8; ++sgn) {
+                    Mat3 m{};
+                    const double s[3] = { (sgn&1)?-1.0:1.0, (sgn&2)?-1.0:1.0, (sgn&4)?-1.0:1.0 };
+                    for (int i = 0; i < 3; ++i) m[i][pm[i]] = s[i];
+                    const double det = m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1])
+                                     - m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0])
+                                     + m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0]);
+                    if (det > 0.5 && nGroup < 24) group[nGroup++] = m;
+                }
+            }
+            c.check(nGroup == 24, "cubic rotation group has 24 elements", nGroup, 24);
+
+            // Mean over the twist, i.e. what the panel plots by default.
+            auto meanOverTwist = [&](const Vec3& n, int a, int b) {
+                const int N = 72;
+                double sum = 0.0;
+                for (int k = 0; k < N; ++k)
+                    sum += directionalComponent(C4s, n, 2.0 * kPi * k / N, a, b);
+                return sum / N;
+            };
+
+            const int probe[5][2] = { {0,0}, {0,1}, {3,3}, {4,4}, {5,5} };
+            for (const auto& pr : probe) {
+                double worst = 0.0;
+                for (const Vec3& n : dirs) {
+                    const double v0 = meanOverTwist(n, pr[0], pr[1]);
+                    for (int g = 0; g < nGroup; ++g) {
+                        Vec3 gn{ 0, 0, 0 };
+                        for (int i = 0; i < 3; ++i)
+                            for (int j = 0; j < 3; ++j) gn[i] += group[g][i][j] * n[j];
+                        worst = std::max(worst, std::abs(meanOverTwist(gn, pr[0], pr[1]) - v0));
+                    }
+                }
+                c.check(worst < 1e-6, "twist-mean component surface is cubic-symmetric",
+                        worst, 0.0);
+            }
+        }
+    }
+
     // An isotropic cubic crystal (Zener == 1) must give a perfectly spherical
     // E surface.  W is the seeded near-isotropic case; use exact isotropy here.
     {

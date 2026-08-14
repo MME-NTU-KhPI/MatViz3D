@@ -280,6 +280,39 @@ QString DBManager::materialNameAt(int row) const
     return (idx < 0) ? QString() : rec.value(idx).toString();
 }
 
+QVariantList DBManager::emptyElasticColumns() const
+{
+    QVariantList empty;
+    if (!model) return empty;
+
+    // Make sure every row is loaded: QSqlTableModel fetches lazily, so a plain
+    // rowCount() on a large table only sees the first batch and would call
+    // columns "empty" on the strength of the first 256 rows.
+    while (model->canFetchMore()) model->fetchMore();
+
+    const int rows = model->rowCount();
+    const int cols = model->columnCount();
+    if (rows <= 0) return empty;
+
+    const QSqlRecord header = model->record();
+    for (int c = 0; c < cols; ++c) {
+        const QString name = header.fieldName(c);
+        // Identity columns always stay: hiding them would leave rows unlabelled.
+        if (name.compare(QStringLiteral("id"),       Qt::CaseInsensitive) == 0) continue;
+        if (name.compare(QStringLiteral("Material"), Qt::CaseInsensitive) == 0) continue;
+        if (name.compare(QStringLiteral("Type"),     Qt::CaseInsensitive) == 0) continue;
+
+        bool allZero = true;
+        for (int r = 0; r < rows && allZero; ++r) {
+            bool ok = false;
+            const double v = model->data(model->index(r, c)).toDouble(&ok);
+            if (!ok || v != 0.0) allZero = false;
+        }
+        if (allZero) empty.append(c);
+    }
+    return empty;
+}
+
 QVariantList DBManager::executeSelectQuery(const QString& queryString)
 {
     QVariantList resultList;

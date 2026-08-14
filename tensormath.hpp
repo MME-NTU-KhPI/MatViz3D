@@ -501,13 +501,164 @@ inline double rotatedComponent(const C4& T, const Mat3& g, int a, int b, int c, 
     return contract4(T, ga, gb, gc, gd);
 }
 
-/// Rotated Mandel component T'[a][b], for the "any component of C or S" surface
-/// mode.  a and b are Mandel/Voigt indices (0=xx 1=yy 2=zz 3=yz 4=xz 5=xy).
+/// Rotated Mandel component T'[a][b].  a and b are Mandel/Voigt indices
+/// (0=xx 1=yy 2=zz 3=yz 4=xz 5=xy).  Carries the sqrt(2) Mandel scaling, so for
+/// shear indices this is NOT the Voigt component -- Mandel C_44 is twice the
+/// Voigt one.  Use directionalComponent() for anything shown next to a
+/// Voigt-convention material table.
 inline double rotatedMandelComponent(const C4& T, const Mat3& g, int a, int b)
 {
     const double v = rotatedComponent(T, g, kMandelI[a], kMandelJ[a],
                                             kMandelI[b], kMandelJ[b]);
     return mandelFactor(a) * mandelFactor(b) * v;
+}
+
+/// The distinct tensor axes named by the Voigt component pair (a, b), ascending.
+/// Returns how many there are: 1 for C11/C22/C33, 2 for C12 or C44, 3 for C14.
+inline int componentAxes(int a, int b, int axes[3])
+{
+    const int raw[4] = { kMandelI[a], kMandelJ[a], kMandelI[b], kMandelJ[b] };
+    int n = 0;
+    for (int c = 0; c < 3; ++c) {
+        for (int k = 0; k < 4; ++k) {
+            if (raw[k] == c) { axes[n++] = c; break; }
+        }
+    }
+    return n;
+}
+
+/// The crystal axis that follows the plotted direction for component (a, b).
+///
+/// Decided by the LOWER of the two Voigt indices, and by what that index means:
+///
+///  - A normal index k < 3 stands for the axis pair (k, k), and a component
+///    built on it is "about" axis k. So C11 -> axis 1, C22 -> axis 2, and also
+///    C12 -> axis 1 and S12 -> axis 1: the first of the two coupled directions,
+///    matching how poissonNu() treats n as the loading axis and m as the
+///    transverse one.
+///  - A shear index k >= 3 stands for a pair (i, j) with i != j, i.e. a shear
+///    plane, and such a component is about that plane's NORMAL: C44 = C_2323
+///    -> axis 1, C55 -> axis 2, C66 -> axis 3.
+///
+/// Taking the lower index makes the choice symmetric, so the surface for S12 and
+/// the surface for S21 are the same picture -- as they must be, the matrix being
+/// symmetric.
+///
+/// Two consequences worth stating, because they are what make the surface
+/// readable:
+///   * At the pivot direction with zero twist the swing rotation is the
+///     identity, so the frame IS the crystal frame and the radius equals the
+///     tabulated entry -- for every component.
+///   * C11, C22 and C33 collapse onto one surface (each reduces to the n-n-n-n
+///     contraction), while C44/C55/C66 and C12/C13/C23 stay distinct.
+inline int componentPivotAxis(int a, int b)
+{
+    const int k = (a < b) ? a : b;
+    if (k < 3) return k;                          // normal index (k,k)
+    return 3 - kMandelI[k] - kMandelJ[k];         // shear index -> plane normal
+}
+
+/// Minimal ("swing") rotation taking unit vector a to unit vector b: the
+/// rotation about a x b, carrying no twist about b, and the identity when
+/// a == b. Undefined only at the exact antipode, where any 180 degree rotation
+/// will do.
+inline Mat3 swingRotation(const Vec3& a, const Vec3& b)
+{
+    const Vec3   v = cross(a, b);
+    const double c = dot(a, b);
+    Mat3 R{};
+
+    if (c < -0.999999) {
+        // Antipodal: a half turn about any perpendicular axis. The choice is
+        // arbitrary, so the surface has a single discontinuous POINT here --
+        // a far smaller artefact than the discontinuous ring a fixed tangent
+        // frame leaves, and unavoidable: no continuous frame field exists on
+        // the whole sphere.
+        const Vec3 ax = (std::abs(a[0]) < 0.9) ? Vec3{ 1, 0, 0 } : Vec3{ 0, 1, 0 };
+        const Vec3 u  = normalized(cross(a, ax));
+        for (int i = 0; i < 3; ++i)
+            for (int j = 0; j < 3; ++j)
+                R[i][j] = 2.0 * u[i] * u[j] - (i == j ? 1.0 : 0.0);
+        return R;
+    }
+
+    const double k = 1.0 / (1.0 + c);
+    const double vx[3][3] = { { 0, -v[2], v[1] }, { v[2], 0, -v[0] }, { -v[1], v[0], 0 } };
+    for (int i = 0; i < 3; ++i)
+        for (int j = 0; j < 3; ++j) {
+            double vv = 0.0;
+            for (int m = 0; m < 3; ++m) vv += vx[i][m] * vx[m][j];
+            R[i][j] = (i == j ? 1.0 : 0.0) + vx[i][j] + k * vv;
+        }
+    return R;
+}
+
+/// Rotation about unit axis n by angle rad (Rodrigues).
+inline Mat3 rotationAbout(const Vec3& n, double rad)
+{
+    const double c = std::cos(rad), s = std::sin(rad), t = 1.0 - c;
+    Mat3 R{};
+    R[0][0] = c + t*n[0]*n[0];      R[0][1] = t*n[0]*n[1] - s*n[2]; R[0][2] = t*n[0]*n[2] + s*n[1];
+    R[1][0] = t*n[1]*n[0] + s*n[2]; R[1][1] = c + t*n[1]*n[1];      R[1][2] = t*n[1]*n[2] - s*n[0];
+    R[2][0] = t*n[2]*n[0] - s*n[1]; R[2][1] = t*n[2]*n[1] + s*n[0]; R[2][2] = c + t*n[2]*n[2];
+    return R;
+}
+
+/// Frame for evaluating component (a, b) along direction n: the crystal axes
+/// carried by the twist-free rotation that takes the component's pivot axis to
+/// n, optionally twisted about n by spinRad afterwards.
+///
+/// Columns are the rotated crystal axes, g[:,c] = R e_c, matching the index
+/// convention of rotatedComponent().
+///
+/// Deliberately NOT built from frameAbout(): a tangent-frame heuristic picks an
+/// arbitrary perpendicular, which both discards the distinction between C44,
+/// C55 and C66 and puts a discontinuous ring in the surface where the heuristic
+/// switches its up vector.
+inline Mat3 directionalFrame(const Vec3& n, double spinRad, int a, int b)
+{
+    Vec3 e{ 0, 0, 0 };
+    e[componentPivotAxis(a, b)] = 1.0;
+
+    Mat3 R = swingRotation(e, n);
+    if (spinRad != 0.0) {
+        const Mat3 tw = rotationAbout(n, spinRad);
+        Mat3 out{};
+        for (int i = 0; i < 3; ++i)
+            for (int c = 0; c < 3; ++c) {
+                double s = 0.0;
+                for (int m = 0; m < 3; ++m) s += tw[i][m] * R[m][c];
+                out[i][c] = s;
+            }
+        R = out;
+    }
+    return R;
+}
+
+/// Voigt component (a, b) of T as a function of direction -- the quantity a
+/// "component surface" should plot.
+///
+/// Voigt, not Mandel: this sits next to a material table whose C44 is 75.4 GPa
+/// for copper, and Mandel would report 150.8.
+///
+/// At its own pivot direction every component reproduces the value in the
+/// table, which is the property that makes the surface readable: C44 plotted
+/// along <100> IS the tabulated C44.
+///
+/// Components naming a single axis (C11/C22/C33) reduce to the n-n-n-n
+/// contraction and so ignore spinRad entirely; see componentIsSpinFree().
+inline double directionalComponent(const C4& T, const Vec3& n, double spinRad, int a, int b)
+{
+    const Mat3 g = directionalFrame(n, spinRad, a, b);
+    return rotatedComponent(T, g, kMandelI[a], kMandelJ[a], kMandelI[b], kMandelJ[b]);
+}
+
+/// True when component (a, b) names a single axis, i.e. its surface is a
+/// function of direction alone and the spin control is inert.
+inline bool componentIsSpinFree(int a, int b)
+{
+    int axes[3];
+    return componentAxes(a, b, axes) == 1;
 }
 
 /// Voigt-Reuss-Hill bulk modulus from Mandel stiffness and compliance.
