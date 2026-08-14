@@ -143,6 +143,7 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 
 HEADERS += \
     colormap.hpp \
+    cornergizmo.hpp \
     commandline_parser.h \
     consolelogger.h \
     cpuinfo.hpp \

@@ -12,7 +12,7 @@
 #include <vector>
 #include <cstdint>
 #include <QOpenGLContext>
-
+#include "cornergizmo.hpp"
 #include "glvertex.hpp"
 
 class RenderOpenGL : public QQuickFramebufferObject::Renderer, protected QOpenGLFunctions, public QObject
@@ -85,9 +85,6 @@ protected:
     QSize sizeHint() const;
 
     void initializeVBO();
-
-    int m_cornerSize = 80;   // px
-    int m_cornerMargin = 10; // px
 
     float m_dpr = 1.0f;  // device pixel ratio
 protected:

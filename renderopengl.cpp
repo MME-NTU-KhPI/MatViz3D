@@ -386,8 +386,8 @@ void RenderOpenGL::drawCornerAxes()
     // Convert logical → physical pixels
     const int physW      = static_cast<int>(width  * m_dpr);
     const int physH      = static_cast<int>(height * m_dpr);
-    const int physSize   = static_cast<int>(m_cornerSize   * m_dpr);
-    const int physMargin = static_cast<int>(m_cornerMargin * m_dpr);
+    const int physSize   = static_cast<int>(matviz_gizmo::kSize  * m_dpr);
+    const int physMargin = static_cast<int>(matviz_gizmo::kMargin * m_dpr);
 
     // ── 1. Switch to a small corner viewport ──────────────────────────────
 
@@ -403,21 +403,21 @@ void RenderOpenGL::drawCornerAxes()
     // ── 2. Build rotation-only MVP (no scene translation/scale) ───────────
     QMatrix4x4 view;
     view.setToIdentity();
-    view.translate(0.0f, 0.0f, -2.8f);          // pull camera back slightly
+    view.translate(0.0f, 0.0f, -matviz_gizmo::kCamDist);   // pull camera back slightly
     view.rotate( xRot / 16.0f, 1.0f, 0.0f, 0.0f);
     view.rotate( yRot / 16.0f, 0.0f, 1.0f, 0.0f);
     view.rotate( zRot / 16.0f, 0.0f, 0.0f, 1.0f);
 
     QMatrix4x4 proj;
     proj.setToIdentity();
-    proj.perspective(45.0f, 1.0f, 0.1f, 10.0f); // square aspect — matches square viewport
+    proj.perspective(matviz_gizmo::kFov, 1.0f, 0.1f, 10.0f); // square aspect — matches square viewport
 
     QMatrix4x4 mvp = proj * view;
 
     // ── 3. Geometry: unit-length axes + small arrow-tip cross-bars ─────────
     //  X = red   Y = green   Z = blue
     //  Each axis: shaft + two short perpendicular lines at tip (cheap arrowhead)
-    const float L  = 0.8f;   // shaft length
+    const float L  = matviz_gizmo::kAxisLen;   // shaft length
     const float TL = 0.12f;  // arrowhead half-width
 
     // clang-format off

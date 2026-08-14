@@ -11,6 +11,11 @@
 #include <QThread>
 #include <algorithm>
 
+// QQuickFramebufferObject hands its FBO texture to the scene graph flipped
+// vertically, so NDC +Y ends up pointing DOWN on screen. Flip to false if the
+// labels come out mirrored about the triad's horizontal axis.
+static constexpr bool kGizmoYFlip = true;
+
 RenderOpenGL* OpenGLWidgetQML::m_render = nullptr;
 OpenGLWidgetQML* OpenGLWidgetQML::instance = nullptr;
 
@@ -29,6 +34,10 @@ OpenGLWidgetQML::OpenGLWidgetQML(QQuickItem *parent) : QQuickFramebufferObject(p
     bgColor.setRgbF(0.21f, 0.21f, 0.21f);
     connect(this, &QQuickItem::widthChanged, this, &OpenGLWidgetQML::handleResize, Qt::QueuedConnection);
     connect(this, &QQuickItem::heightChanged, this, &OpenGLWidgetQML::handleResize, Qt::QueuedConnection);
+
+    // Label positions depend on the item size, not just on rotation.
+    connect(this, &QQuickItem::widthChanged,  this, &OpenGLWidgetQML::axisLabelsChanged);
+    connect(this, &QQuickItem::heightChanged, this, &OpenGLWidgetQML::axisLabelsChanged);
 
     // Only set instance if null (or warn if multiple instances)
     if (instance == nullptr)
@@ -99,15 +108,66 @@ void OpenGLWidgetQML::qNormalizeAngle(int &angle)
         angle -= 360 * 16;
 }
 
+QPointF OpenGLWidgetQML::projectAxisLabel(const QVector3D& dir) const
+{
+    // Same view matrix as RenderOpenGL::drawCornerAxes(): rotation only, no
+    // scene translation, zoom or numCubes -- the triad never scales with the
+    // scene, it only turns.
+    QMatrix4x4 view;
+    view.translate(0.0f, 0.0f, -matviz_gizmo::kCamDist);
+    view.rotate(xRot / 16.0f, 1.0f, 0.0f, 0.0f);
+    view.rotate(yRot / 16.0f, 0.0f, 1.0f, 0.0f);
+    view.rotate(zRot / 16.0f, 0.0f, 0.0f, 1.0f);
+
+    // Aspect 1.0: the triad viewport is square.
+    QMatrix4x4 proj;
+    proj.perspective(matviz_gizmo::kFov, 1.0f, 0.1f, 10.0f);
+
+    // Explicit w-divide rather than QMatrix4x4::map(), which divides
+    // implicitly and leaves the w == 0 case undefined.
+    const QVector4D clip =
+        (proj * view) * QVector4D(dir * matviz_gizmo::kAxisLen, 1.0f);
+
+    if (qFuzzyIsNull(clip.w()))
+        return QPointF(-1000.0, -1000.0);   // park the label off-screen
+
+    const float ndcX = clip.x() / clip.w();  // NDC, range [-1, +1]
+    const float ndcY = clip.y() / clip.w();
+
+    // Top-left corner of the triad viewport, in logical pixels. No device
+    // pixel ratio here: QQuickItem::width() is already logical, and so is
+    // everything QML positions.
+    const float size    = matviz_gizmo::kSize;
+    const float margin  = matviz_gizmo::kMargin;
+    const float originX = float(width())  - size - margin;
+    const float originY = float(height()) - size - margin;
+
+    const float localX = (ndcX * 0.5f + 0.5f) * size;
+    const float localY = kGizmoYFlip ? (ndcY * 0.5f + 0.5f) * size
+                                     : (0.5f - ndcY * 0.5f) * size;
+
+    return QPointF(originX + localX, originY + localY);
+}
+
+// Single choke point for "the camera turned": pushes the angles to the
+// renderer, repaints, and tells QML to move the corner-triad labels. Every
+// rotation setter and view preset goes through here so none can forget the
+// notification.
+void OpenGLWidgetQML::pushRotations()
+{
+    if (m_render) {
+        m_render->setRotations(xRot, yRot, zRot);
+    }
+    update();
+    emit axisLabelsChanged();
+}
+
 void OpenGLWidgetQML::setXRotation(int angle)
 {
     qNormalizeAngle(angle);
     if (angle != xRot) {
         xRot = angle;
-        if (m_render) {
-            m_render->setRotations(xRot, yRot, zRot);
-        }
-        update();
+        pushRotations();
     }
 }
 
@@ -116,10 +176,7 @@ void OpenGLWidgetQML::setYRotation(int angle)
     qNormalizeAngle(angle);
     if (angle != yRot) {
         yRot = angle;
-        if (m_render) {
-            m_render->setRotations(xRot, yRot, zRot);
-        }
-        update();
+        pushRotations();
     }
 }
 
@@ -128,10 +185,7 @@ void OpenGLWidgetQML::setZRotation(int angle)
     qNormalizeAngle(angle);
     if (angle != zRot) {
         zRot = angle;
-        if (m_render) {
-            m_render->setRotations(xRot, yRot, zRot);
-        }
-        update();
+        pushRotations();
     }
 }
 
@@ -149,50 +203,35 @@ void OpenGLWidgetQML::setBackView() {
     xRot = 0;
     yRot = 180 * 16;
     zRot = 0;
-    if (m_render) {
-        m_render->setRotations(xRot, yRot, zRot);
-    }
-    update();
+    pushRotations();
 }
 
 void OpenGLWidgetQML::setTopView() {
     xRot = 90 * 16;
     yRot = 0;
     zRot = 0;
-    if (m_render) {
-        m_render->setRotations(xRot, yRot, zRot);
-    }
-    update();
+    pushRotations();
 }
 
 void OpenGLWidgetQML::setBottomView() {
     xRot = -90 * 16;
     yRot = 0;
     zRot = 0;
-    if (m_render) {
-        m_render->setRotations(xRot, yRot, zRot);
-    }
-    update();
+    pushRotations();
 }
 
 void OpenGLWidgetQML::setLeftView() {
     xRot = 0;
     yRot = 90 * 16;
     zRot = 0;
-    if (m_render) {
-        m_render->setRotations(xRot, yRot, zRot);
-    }
-    update();
+    pushRotations();
 }
 
 void OpenGLWidgetQML::setRightView() {
     xRot = 0;
     yRot = -90 * 16;
     zRot = 0;
-    if (m_render) {
-        m_render->setRotations(xRot, yRot, zRot);
-    }
-    update();
+    pushRotations();
 }
 
 /**
@@ -203,10 +242,7 @@ void OpenGLWidgetQML::setIsometricView()
     xRot =  35.26 * 16;
     yRot = -45.00 * 16;
     zRot =  0;
-    if (m_render) {
-        m_render->setRotations(xRot, yRot, zRot);
-    }
-    update();
+    pushRotations();
 }
 
 /**
@@ -217,10 +253,7 @@ void OpenGLWidgetQML::setDimetricView()
     xRot =  26.57 * 16;
     yRot = -45.00 * 16;
     zRot =  0;
-    if (m_render) {
-        m_render->setRotations(xRot, yRot, zRot);
-    }
-    update();
+    pushRotations();
 }
 
 void OpenGLWidgetQML::setNumCubes(int numCubes)
