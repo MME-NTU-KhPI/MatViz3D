@@ -6,6 +6,7 @@
 #include <QGuiApplication>
 #include <QClipboard>
 #include <QTimer>
+#include <QtConcurrent>
 #include <QImage>
 #include <QThread>
 #include <algorithm>
@@ -54,6 +55,25 @@ QQuickFramebufferObject::Renderer *OpenGLWidgetQML::createRenderer() const
     m_render = new RenderOpenGL();
     m_render->resizeGL(this->width(), this->height());
     m_render->setDevicePixelRatio(window() ? window()->devicePixelRatio() : 1.0f);
+
+    // A fresh renderer starts with default overlay state and an empty glyph
+    // buffer, so anything the user had switched on has to be restored -- the
+    // scene graph can recreate the renderer at any time (window re-show, device
+    // loss) and the overlay would otherwise silently vanish until the next
+    // control change. Flags are pushed directly; the geometry needs a rebuild,
+    // which cannot happen from a const method, so it is deferred to the event
+    // loop.
+    m_render->setShowGlyphs(showGlyphs);
+    m_render->setShowStreamlines(showStreamlines);
+    m_render->setVoxelOpacity(voxelOpacity);
+    if (showGlyphs || showStreamlines) {
+        auto* self = const_cast<OpenGLWidgetQML*>(this);
+        QTimer::singleShot(0, self, [self]() {
+            if (self->showGlyphs)      self->rebuildGlyphs();
+            if (self->showStreamlines) self->rebuildStreamlines();
+        });
+    }
+
     return m_render;
 }
 
@@ -418,6 +438,8 @@ void OpenGLWidgetQML::setColorMapPalette(int palette)
     if (fieldMode != FieldMode::None) {
         calculateScene();
         pushSceneToRenderer();
+        scheduleGlyphRebuild();   // glyph colours come from the same palette
+        if (showStreamlines) rebuildStreamlines();
     }
 }
 
@@ -441,8 +463,10 @@ void OpenGLWidgetQML::showAnsysField(std::shared_ptr<ansysWrapper> wr, int compo
     this->fftField.reset();
     this->fieldMode      = FieldMode::Ansys;
     this->fieldComponent = component;
+    invalidateTensorSnapshot();
     this->calculateScene();
     pushSceneToRenderer();
+    emit tensorStateChanged();
 }
 
 void OpenGLWidgetQML::showFFTField(std::shared_ptr<FieldVisualizationData> data, int component)
@@ -451,16 +475,23 @@ void OpenGLWidgetQML::showFFTField(std::shared_ptr<FieldVisualizationData> data,
     this->ansysField.reset();
     this->fieldMode       = FieldMode::FFT;
     this->fieldComponent  = component;
+    invalidateTensorSnapshot();
     this->calculateScene();
     pushSceneToRenderer();
+    emit tensorStateChanged();
 }
 
 void OpenGLWidgetQML::setFieldComponent(int component)
 {
     if (fieldMode == FieldMode::None) return;
     this->fieldComponent = component;
+    // The snapshot caches the selected component as its normalized colour
+    // scalar, so it has to be rebuilt -- but only if a glyph overlay is
+    // actually using it.
+    invalidateTensorSnapshot();
     this->calculateScene();
     pushSceneToRenderer();
+    scheduleGlyphRebuild();
 }
 
 void OpenGLWidgetQML::clearFieldVisualization()
@@ -469,8 +500,10 @@ void OpenGLWidgetQML::clearFieldVisualization()
     this->ansysField.reset();
     this->fftField.reset();
     this->showDeformed = false;
+    invalidateTensorSnapshot();
     this->calculateScene();
     pushSceneToRenderer();
+    emit tensorStateChanged();
 }
 
 void OpenGLWidgetQML::setShowDeformed(bool show)
@@ -478,6 +511,7 @@ void OpenGLWidgetQML::setShowDeformed(bool show)
     this->showDeformed = show;
     this->calculateScene();
     pushSceneToRenderer();
+    if (showGlyphs) scheduleGlyphRebuild();
 }
 
 void OpenGLWidgetQML::setDeformedScale(float scale)
@@ -486,7 +520,304 @@ void OpenGLWidgetQML::setDeformedScale(float scale)
     if (showDeformed) {
         this->calculateScene();
         pushSceneToRenderer();
+        if (showGlyphs) scheduleGlyphRebuild();
     }
+}
+
+// ---------------------------------------------------------------------------
+//  Tensor field overlays
+// ---------------------------------------------------------------------------
+void OpenGLWidgetQML::invalidateTensorSnapshot()
+{
+    tensorSnapshot.reset();
+}
+
+bool OpenGLWidgetQML::ensureTensorSnapshot()
+{
+    if (tensorSnapshot) return true;
+    if (!voxels || numCubes <= 0) return false;
+
+    // Built on demand rather than eagerly on every solve: a full snapshot is
+    // tens of MB and, for ANSYS, several seconds of nodal lookups. Users who
+    // never open the tensor panel should never pay for either.
+    if (fieldMode == FieldMode::FFT && fftField) {
+        tensorSnapshot = buildSnapshotFromFFT(*fftField, voxels, fieldComponent);
+    } else if (fieldMode == FieldMode::Ansys && ansysField) {
+        tensorSnapshot = buildSnapshotFromAnsys(*ansysField, numCubes, voxels, fieldComponent);
+    }
+    return static_cast<bool>(tensorSnapshot);
+}
+
+std::vector<std::array<float, 3>> OpenGLWidgetQML::buildGrainOffsets() const
+{
+    std::vector<std::array<float, 3>> offsets;
+    if (distanceFactor <= 0.0f) return offsets;   // not exploded
+
+    // Same derivation as calculateScene(): each grain is pushed away along the
+    // difference between its colour and white, scaled by its direction factor.
+    const size_t n = std::min(colors.size(), directionFactors.size());
+    offsets.resize(n);
+    for (size_t idx = 0; idx < n; ++idx) {
+        const auto& c = colors[idx];
+        const float diff[3] = { c[0] / 255.0f - 1.0f,
+                                c[1] / 255.0f - 1.0f,
+                                c[2] / 255.0f - 1.0f };
+        for (int t = 0; t < 3; ++t)
+            offsets[idx][t] = directionFactors[idx] * diff[t] * distanceFactor;
+    }
+    return offsets;
+}
+
+void OpenGLWidgetQML::rebuildGlyphs()
+{
+    if (!m_render) return;
+
+    if (!showGlyphs) {
+        m_render->updateGlyphMesh({}, {});
+        m_glyphCount = 0;
+        update();
+        emit tensorStateChanged();
+        return;
+    }
+
+    if (!ensureTensorSnapshot()) {
+        m_glyphCount = 0;
+        m_glyphSourceMissing = true;
+        emit tensorStateChanged();
+        return;
+    }
+
+    glyphParams.numCubes      = numCubes;
+    glyphParams.cubeSize      = static_cast<float>(cubeSize);
+    glyphParams.grainOffset   = buildGrainOffsets();
+    glyphParams.showDeformed  = showDeformed;
+    glyphParams.deformedScale = deformedScale;
+    glyphParams.palette       = colorMapPalette;
+
+    GlyphMesh mesh = buildGlyphMesh(*tensorSnapshot, glyphParams);
+
+    m_glyphCount         = mesh.glyphCount;
+    m_glyphSourceMissing = mesh.sourceMissing;
+
+    m_render->updateGlyphMesh(std::move(mesh.verts), std::move(mesh.indices));
+    update();
+    emit tensorStateChanged();
+}
+
+void OpenGLWidgetQML::scheduleGlyphRebuild()
+{
+    if (!showGlyphs) return;
+    if (!glyphRebuildTimer) {
+        glyphRebuildTimer = new QTimer(this);
+        glyphRebuildTimer->setSingleShot(true);
+        glyphRebuildTimer->setInterval(120);
+        connect(glyphRebuildTimer, &QTimer::timeout, this, &OpenGLWidgetQML::rebuildGlyphs);
+    }
+    glyphRebuildTimer->start();   // restarting collapses a slider drag into one build
+}
+
+void OpenGLWidgetQML::setShowGlyphs(bool show)
+{
+    if (showGlyphs == show) return;
+    showGlyphs = show;
+    if (m_render) m_render->setShowGlyphs(show);
+    rebuildGlyphs();              // immediate: this is a click, not a drag
+}
+
+void OpenGLWidgetQML::setVoxelOpacity(qreal opacity)
+{
+    voxelOpacity = static_cast<float>(std::clamp(opacity, 0.0, 1.0));
+    if (m_render) {
+        m_render->setVoxelOpacity(voxelOpacity);   // renderer flag only, no re-mesh
+        update();
+    }
+}
+
+void OpenGLWidgetQML::setTensorSource(int source)
+{
+    const TensorSource s = (source == 1) ? TensorSource::Strain : TensorSource::Stress;
+    if (glyphParams.source == s) return;
+    glyphParams.source = s;
+    scheduleGlyphRebuild();
+    if (showStreamlines) rebuildStreamlines();
+}
+
+void OpenGLWidgetQML::setTensorDeviatoric(bool on)
+{
+    if (glyphParams.deviatoric == on) return;
+    glyphParams.deviatoric = on;
+    scheduleGlyphRebuild();
+    if (showStreamlines) rebuildStreamlines();
+}
+
+void OpenGLWidgetQML::setGlyphStride(int stride)
+{
+    if (glyphParams.stride == stride) return;
+    glyphParams.stride = stride;
+    scheduleGlyphRebuild();
+}
+
+void OpenGLWidgetQML::setGlyphScale(qreal scale)
+{
+    glyphParams.maxHalfAxis = static_cast<float>(std::clamp(scale, 0.05, 2.0));
+    scheduleGlyphRebuild();
+}
+
+void OpenGLWidgetQML::setGlyphSharpness(qreal gamma)
+{
+    glyphParams.gamma = static_cast<float>(std::clamp(gamma, 0.0, 6.0));
+    scheduleGlyphRebuild();
+}
+
+void OpenGLWidgetQML::setGlyphColorMode(int mode)
+{
+    const GlyphColorMode m = static_cast<GlyphColorMode>(std::clamp(mode, 0, 3));
+    if (glyphParams.colorMode == m) return;
+    glyphParams.colorMode = m;
+    scheduleGlyphRebuild();
+    if (showStreamlines) rebuildStreamlines();
+}
+
+void OpenGLWidgetQML::setGlyphSlice(int axis, int index)
+{
+    glyphParams.sliceAxis  = std::clamp(axis, -1, 2);
+    glyphParams.sliceIndex = index;
+    scheduleGlyphRebuild();
+}
+
+// ---------------------------------------------------------------------------
+//  Hyperstreamlines (off-thread)
+// ---------------------------------------------------------------------------
+void OpenGLWidgetQML::rebuildStreamlines()
+{
+    if (!m_render) return;
+
+    // Every entry point bumps the generation, so a job already running becomes
+    // stale the moment its inputs change.
+    ++m_streamGeneration;
+
+    if (!showStreamlines) {
+        m_render->updateStreamlineMesh({}, {});
+        m_streamCount = 0;
+        m_streamBusy  = false;
+        update();
+        emit tensorStateChanged();
+        return;
+    }
+
+    if (!ensureTensorSnapshot()) {
+        m_streamCount = 0;
+        m_streamBusy  = false;
+        emit tensorStateChanged();
+        return;
+    }
+
+    if (!streamWatcher) {
+        streamWatcher = new QFutureWatcher<StreamJob>(this);
+        connect(streamWatcher, &QFutureWatcher<StreamJob>::finished,
+                this, &OpenGLWidgetQML::onStreamlinesFinished);
+    }
+
+    streamParams.numCubes  = numCubes;
+    streamParams.cubeSize  = static_cast<float>(cubeSize);
+    streamParams.source    = glyphParams.source;       // one Source control for both
+    streamParams.deviatoric = glyphParams.deviatoric;
+    streamParams.colorMode = glyphParams.colorMode;
+    streamParams.palette   = colorMapPalette;
+
+    // The worker captures only an immutable snapshot and a POD parameter struct:
+    // no GL singleton, no Parameters::voxels, no LoadStepManager. Per the
+    // threading convention in CLAUDE.md those are main-thread only.
+    auto snap = tensorSnapshot;
+    const StreamlineParams params = streamParams;
+    const int generation = m_streamGeneration;
+
+    m_streamBusy = true;
+    emit tensorStateChanged();
+
+    streamWatcher->setFuture(QtConcurrent::run([snap, params, generation]() {
+        StreamJob job;
+        job.generation = generation;
+        job.mesh = buildStreamlineMesh(*snap, params);
+        return job;
+    }));
+}
+
+void OpenGLWidgetQML::onStreamlinesFinished()
+{
+    m_streamBusy = false;
+
+    if (!streamWatcher || !streamWatcher->isFinished() || streamWatcher->isCanceled()) {
+        emit tensorStateChanged();
+        return;
+    }
+
+    StreamJob job = streamWatcher->result();
+
+    // Superseded while it ran: the parameters have moved on, so this geometry
+    // would be visibly wrong. Another job is already queued for the current
+    // ones, so simply drop this.
+    if (job.generation != m_streamGeneration) {
+        emit tensorStateChanged();
+        return;
+    }
+
+    if (!showStreamlines || !m_render) {
+        emit tensorStateChanged();
+        return;
+    }
+
+    // Back on the main thread, which is the only place the renderer may be
+    // touched.
+    m_streamCount = job.mesh.lineCount;
+    qDebug() << "streamlines:" << job.mesh.lineCount << "lines,"
+             << job.mesh.stationCount << "stations, stride" << job.mesh.strideUsed
+             << "verts" << job.mesh.verts.size();
+
+    m_render->updateStreamlineMesh(std::move(job.mesh.verts), std::move(job.mesh.indices));
+    update();
+    emit tensorStateChanged();
+}
+
+void OpenGLWidgetQML::setShowStreamlines(bool show)
+{
+    if (showStreamlines == show) return;
+    showStreamlines = show;
+    if (m_render) m_render->setShowStreamlines(show);
+    rebuildStreamlines();
+}
+
+void OpenGLWidgetQML::setStreamlineSeedStride(int stride)
+{
+    if (streamParams.seedStride == stride) return;
+    streamParams.seedStride = stride;
+    if (showStreamlines) rebuildStreamlines();
+}
+
+void OpenGLWidgetQML::setStreamlineMaxLines(int lines)
+{
+    lines = std::clamp(lines, 1, 5000);
+    if (streamParams.maxLines == lines) return;
+    streamParams.maxLines = lines;
+    if (showStreamlines) rebuildStreamlines();
+}
+
+void OpenGLWidgetQML::setStreamlineStep(qreal voxels)
+{
+    streamParams.stepVoxels = std::clamp(double(voxels), 0.05, 1.0);
+    if (showStreamlines) rebuildStreamlines();
+}
+
+void OpenGLWidgetQML::setStreamlineMinLinearity(qreal cl)
+{
+    streamParams.minLinearity = std::clamp(double(cl), 0.0, 0.95);
+    if (showStreamlines) rebuildStreamlines();
+}
+
+void OpenGLWidgetQML::setStreamlineTubeRadius(qreal radius)
+{
+    streamParams.tubeRadius = static_cast<float>(std::clamp(double(radius), 0.02, 1.5));
+    if (showStreamlines) rebuildStreamlines();
 }
 
 std::vector<std::array<GLubyte, 4>> OpenGLWidgetQML::generateDistinctColors()
@@ -760,6 +1091,7 @@ void OpenGLWidgetQML::setVoxels(int32_t*** voxels, short int numCubes)
     this->voxels = voxels;
     this->numCubes = numCubes;
     voxelScene.clear();
+    invalidateTensorSnapshot();   // new structure: any cached tensor field is stale
     calculateScene();
     if (m_render)
     {
@@ -915,6 +1247,7 @@ void OpenGLWidgetQML::explodedValueChanged(double value)
         m_render->updateVoxelData(voxelScene);
         // Push updated glyph positions so they track their grains.
         m_render->updateOrientationData(orientationVerts, orientationColors);
+        scheduleGlyphRebuild();   // tensor glyphs travel with their grain too
         qDebug() << "Exploded View Value Changed";
     } else {
         qWarning() << "OpenGLWidgetQML::explodedValueChanged() - ERROR: m_render is null!";

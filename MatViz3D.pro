@@ -119,6 +119,9 @@ SOURCES += \
         stressanalysis.cpp \
         stressanalysis_fft.cpp \
         stressanalysiscontroller.cpp \
+        tensorfieldsnapshot.cpp \
+        tensorglyphbuilder.cpp \
+        tensorstreamlinebuilder.cpp \
         texturelibrary.cpp \
         texturecontroller.cpp \
         voronoi.cpp
@@ -184,6 +187,8 @@ HEADERS += \
     stressanalysis_fft.h \
     stressanalysiscontroller.h \
     stressresult.h \
+    tensorfieldsnapshot.h \
+    tensorglyphbuilder.h \
     tensormath.hpp \
     tensormath_selftest.hpp \
     texturelibrary.h \

@@ -60,6 +60,15 @@ inline constexpr const char* kLitFragmentShader = R"(
         uniform vec3 uViewPos;
         uniform int uDebugMode;
         uniform int uWireframe;
+
+        // Multiplies the vertex alpha. Lets the voxel block be faded back so
+        // overlay geometry drawn inside it (tensor glyphs, streamline tubes)
+        // stays visible, without touching the per-vertex colours.
+        //
+        // GLSL uniforms default to 0, i.e. fully transparent -- so EVERY pass
+        // that binds this program must set it. There are two: RenderOpenGL and
+        // StiffnessSurfaceRenderer.
+        uniform float uAlphaScale;
         void main()
         {
             // --- Geometry ---
@@ -124,7 +133,7 @@ inline constexpr const char* kLitFragmentShader = R"(
                 gl_FragColor = vec4(0.6, 0.6, 0.6, 1.0);
                 } else {
                     // Normal lighting mode (uDebugMode == 0)
-                    gl_FragColor = vec4(result, Color.a);
+                    gl_FragColor = vec4(result, Color.a * uAlphaScale);
                 }
         }
  )";

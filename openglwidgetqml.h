@@ -4,11 +4,16 @@
 
 #include <QQuickFramebufferObject>
 #include <QOpenGLFunctions>
+#include <QFutureWatcher>
 #include <memory>
 #include "ansyswrapper.h"
 #include "colormap.hpp"
 #include "renderopengl.h"
 #include "stressresult.h"
+#include "tensorfieldsnapshot.h"
+#include "tensorglyphbuilder.h"
+
+class QTimer;
 
 
 class RenderOpenGL;
@@ -92,6 +97,59 @@ public:
     /** Scale of each orientation triad relative to one voxel unit. */
     void setOrientationGlyphScale(float scale);
 
+    // ── Tensor field overlays ───────────────────────────────────────────
+    // All of this is inert until a solve has produced a field AND the user
+    // switches an overlay on: the per-voxel tensor snapshot is built lazily on
+    // first use, so headless runs and ordinary structure generation pay nothing.
+    //
+    // Controls that only change a renderer flag (visibility, voxel opacity) go
+    // straight through and cost no CPU. Controls that change geometry go
+    // through scheduleGlyphRebuild(), which coalesces slider drags onto a short
+    // timer instead of rebuilding the mesh on every pixel of travel.
+
+    /** True once a solved field is present, i.e. the panel has something to show. */
+    Q_PROPERTY(bool tensorAvailable READ tensorAvailable NOTIFY tensorStateChanged)
+    Q_PROPERTY(int  glyphCount      READ glyphCount      NOTIFY tensorStateChanged)
+    /** True when the selected tensor source is absent from the current field. */
+    Q_PROPERTY(bool tensorSourceMissing READ tensorSourceMissing NOTIFY tensorStateChanged)
+
+    bool tensorAvailable() const { return fieldMode != FieldMode::None; }
+    int  glyphCount() const { return m_glyphCount; }
+    bool tensorSourceMissing() const { return m_glyphSourceMissing; }
+
+    Q_INVOKABLE void setShowGlyphs(bool show);
+    Q_INVOKABLE void setVoxelOpacity(qreal opacity);
+
+    /** 0 = stress, 1 = strain. */
+    Q_INVOKABLE void setTensorSource(int source);
+    Q_INVOKABLE void setTensorDeviatoric(bool on);
+    /** Sampling stride in voxels; <= 0 selects one automatically from the budget. */
+    Q_INVOKABLE void setGlyphStride(int stride);
+    Q_INVOKABLE void setGlyphScale(qreal scale);
+    Q_INVOKABLE void setGlyphSharpness(qreal gamma);
+    /** See GlyphColorMode. */
+    Q_INVOKABLE void setGlyphColorMode(int mode);
+    /** axis: -1 none, 0 = x, 1 = y, 2 = z. */
+    Q_INVOKABLE void setGlyphSlice(int axis, int index);
+
+    // ── Hyperstreamlines ────────────────────────────────────────────────
+    // Integration is unbounded in the worst case (a smooth field can carry a
+    // curve for thousands of steps), so unlike the glyphs this runs off the main
+    // thread. Results are stamped with a generation counter and discarded if the
+    // parameters moved on while the job was running.
+    Q_PROPERTY(bool streamlinesBusy READ streamlinesBusy NOTIFY tensorStateChanged)
+    Q_PROPERTY(int  streamlineCount READ streamlineCount NOTIFY tensorStateChanged)
+
+    bool streamlinesBusy() const { return m_streamBusy; }
+    int  streamlineCount() const { return m_streamCount; }
+
+    Q_INVOKABLE void setShowStreamlines(bool show);
+    Q_INVOKABLE void setStreamlineSeedStride(int stride);
+    Q_INVOKABLE void setStreamlineMaxLines(int lines);
+    Q_INVOKABLE void setStreamlineStep(qreal voxels);
+    Q_INVOKABLE void setStreamlineMinLinearity(qreal cl);
+    Q_INVOKABLE void setStreamlineTubeRadius(qreal radius);
+
 
 protected:
     //struct RenderOpenGL::Voxel;
@@ -143,6 +201,48 @@ protected:
 
     void buildOrientationGlyphs();           // called from calculateScene()
 
+    // ── Tensor overlay state ────────────────────────────────────────────
+    std::shared_ptr<const TensorFieldSnapshot> tensorSnapshot;
+    GlyphParams glyphParams;
+    bool    showGlyphs           = false;
+    float   voxelOpacity         = 1.0f;
+    int     m_glyphCount         = 0;
+    bool    m_glyphSourceMissing = false;
+    QTimer* glyphRebuildTimer    = nullptr;
+
+    /// Build the per-voxel tensor snapshot if it is missing. Returns false when
+    /// there is no solved field to build one from.
+    bool ensureTensorSnapshot();
+    /// Drop the snapshot; the next overlay that needs it rebuilds it.
+    void invalidateTensorSnapshot();
+    /// Rebuild glyph geometry now and push it to the renderer.
+    void rebuildGlyphs();
+    /// Rebuild soon, coalescing a burst of parameter changes into one build.
+    void scheduleGlyphRebuild();
+    /// Per-grain exploded-view offsets, same derivation as calculateScene(),
+    /// so glyphs travel with the grain they belong to.
+    std::vector<std::array<float, 3>> buildGrainOffsets() const;
+
+    // ── Streamline state ────────────────────────────────────────────────
+    StreamlineParams streamParams;
+    bool showStreamlines = false;
+    bool m_streamBusy    = false;
+    int  m_streamCount   = 0;
+
+    /// Bumped on every parameter change that invalidates an in-flight job. The
+    /// stamp travels with the result so a finished worker can be recognised as
+    /// stale and thrown away, rather than a slow job overwriting a newer fast
+    /// one. Carried in this wrapper rather than in StreamlineMesh so the builder
+    /// stays free of UI bookkeeping.
+    struct StreamJob { int generation = 0; StreamlineMesh mesh; };
+
+    int m_streamGeneration = 0;
+    QFutureWatcher<StreamJob>* streamWatcher = nullptr;
+
+    void rebuildStreamlines();
+    void onStreamlinesFinished();
+
+
 public slots:
     // slots for xyz-rotation slider
     void setXRotation(int angle);
@@ -182,6 +282,7 @@ signals:
     void yRotationChanged(int angle);
     void zRotationChanged(int angle);
     void colorMapPaletteChanged();
+    void tensorStateChanged();
 
 private:
     QTimer* timer;

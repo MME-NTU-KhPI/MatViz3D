@@ -22,11 +22,23 @@ Rectangle {
     /// Row in the material table to visualize.
     property int selectedRow: -1
 
-    color: "#282828"
-    border.color: "#3a3a3a"
+    // Palette, supplied by the host window so the light/dark switch is decided
+    // in one place. Defaults reproduce the original dark styling, so the panel
+    // still looks right if instantiated without them.
+    property bool  darkTheme:   true
+    property color panelBg:     "#282828"
+    property color viewportBg:  "#1e1e1e"
+    property color borderColor: "#3a3a3a"
+    property color textStrong:  "#CFCECE"
+    property color textBody:    "#c6c6c6"
+    property color textDim:     "#9e9e9e"
+    property color textFaint:   "#6a6a6a"
+
+    color: panelBg
+    border.color: borderColor
     border.width: 1
 
-    Material.theme: Material.Dark
+    Material.theme: panel.darkTheme ? Material.Dark : Material.Light
     Material.accent: Material.Teal
 
     FontLoader { id: interFont; source: "qrc:/fonts/Inter-VariableFont_opsz,wght.ttf" }
@@ -34,6 +46,13 @@ Rectangle {
     readonly property bool usingSolver: sourceCombo.currentIndex === 1
     readonly property bool componentMode:
         quantityCombo.currentIndex === 8 || quantityCombo.currentIndex === 9
+
+    // A component that names a single axis (C11, C22, C33) reduces to the
+    // n-n-n-n contraction, so the twist about the plotted direction cannot
+    // change it. Showing a spin slider there would invite the user to drag a
+    // control that does nothing. Mirrors mvt::componentIsSpinFree().
+    readonly property bool componentSpinFree:
+        iSpin.value === jSpin.value && iSpin.value <= 3
 
     function fmt(v, digits) {
         if (v === undefined || v === null || isNaN(v)) return "-"
@@ -50,7 +69,7 @@ Rectangle {
         // ── Header ────────────────────────────────────────────────────────
         Text {
             text: qsTr("Elastic anisotropy")
-            color: "#CFCECE"
+            color: panel.textStrong
             font.family: interFont.name
             font.pixelSize: 16
             font.weight: Font.Bold
@@ -61,7 +80,7 @@ Rectangle {
             spacing: 8
             Text {
                 text: qsTr("Source:")
-                color: "#9e9e9e"
+                color: panel.textDim
                 font.family: interFont.name
                 font.pixelSize: 13
             }
@@ -86,7 +105,7 @@ Rectangle {
                   : (dbManager.materialNameAt(panel.selectedRow) !== ""
                      ? dbManager.materialNameAt(panel.selectedRow)
                      : qsTr("Select a row in the table"))
-            color: "#7a7a7a"
+            color: panel.textDim
             font.family: interFont.name
             font.pixelSize: 12
             elide: Text.ElideRight
@@ -97,8 +116,8 @@ Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
             Layout.minimumHeight: 220
-            color: "#1e1e1e"
-            border.color: "#3a3a3a"
+            color: panel.viewportBg
+            border.color: panel.borderColor
             border.width: 1
             clip: true
 
@@ -123,8 +142,13 @@ Rectangle {
                 componentI: iSpin.value - 1
                 componentJ: jSpin.value - 1
                 spinDeg:    spinSlider.value
-                extremumOverSpin: spinExtremumSwitch.checked
+                twistMode:  twistCombo.currentIndex
                 wireframe:  wireframeSwitch.checked
+
+                // The GL viewport clears itself, so the Rectangle behind this
+                // item never shows through -- the clear colour has to be told
+                // about the theme separately.
+                backgroundColor: panel.viewportBg
             }
 
             Text {
@@ -132,7 +156,7 @@ Rectangle {
                 width: parent.width - 30
                 visible: !surface.valid
                 text: surface.errorMessage
-                color: "#9e9e9e"
+                color: panel.textDim
                 font.family: interFont.name
                 font.pixelSize: 13
                 horizontalAlignment: Text.AlignHCenter
@@ -145,26 +169,50 @@ Rectangle {
                 anchors.margins: 6
                 visible: surface.valid
                 text: qsTr("drag to rotate · wheel to zoom")
-                color: "#6a6a6a"
+                color: panel.textFaint
                 font.family: interFont.name
                 font.pixelSize: 10
             }
 
-            MouseArea {
+            // Overlay tools, top-right of the viewport: reset view, save a PNG,
+            // copy to the clipboard. ExportController takes any QQuickItem and
+            // grabs it via QQuickItem::grabToImage(), which is the only correct
+            // way to capture a threaded-render FBO item, so the surface needs no
+            // capture code of its own.
+            Row {
                 anchors.right: parent.right
                 anchors.top: parent.top
                 anchors.margins: 4
-                width: 22; height: 22
-                cursorShape: Qt.PointingHandCursor
-                onClicked: surface.resetView()
-                ToolTip.visible: containsMouse
-                ToolTip.text: qsTr("Reset view")
-                hoverEnabled: true
-                Text {
-                    anchors.centerIn: parent
-                    text: "⟲"
-                    color: "#9e9e9e"
-                    font.pixelSize: 15
+                spacing: 2
+
+                Repeater {
+                    model: [
+                        { glyph: "⟲", tip: qsTr("Reset view"),        action: "reset" },
+                        { glyph: "🖫", tip: qsTr("Save image as PNG"), action: "save"  },
+                        { glyph: "⧉", tip: qsTr("Copy image to clipboard"), action: "copy" }
+                    ]
+
+                    MouseArea {
+                        required property var modelData
+                        width: 22; height: 22
+                        cursorShape: Qt.PointingHandCursor
+                        hoverEnabled: true
+                        enabled: modelData.action === "reset" || surface.valid
+                        opacity: enabled ? 1.0 : 0.35
+                        ToolTip.visible: containsMouse
+                        ToolTip.text: modelData.tip
+                        onClicked: {
+                            if (modelData.action === "reset")     surface.resetView()
+                            else if (modelData.action === "save") exportController.saveAsImage(surface)
+                            else                                  exportController.copyToClipboard(surface)
+                        }
+                        Text {
+                            anchors.centerIn: parent
+                            text: parent.modelData.glyph
+                            color: panel.textDim
+                            font.pixelSize: 15
+                        }
+                    }
                 }
             }
         }
@@ -175,7 +223,7 @@ Rectangle {
             spacing: 8
             Text {
                 text: qsTr("Plot:")
-                color: "#9e9e9e"
+                color: panel.textDim
                 font.family: interFont.name
                 font.pixelSize: 13
             }
@@ -198,7 +246,7 @@ Rectangle {
             spacing: 6
             Text {
                 text: qsTr("Index i, j:")
-                color: "#9e9e9e"
+                color: panel.textDim
                 font.family: interFont.name
                 font.pixelSize: 13
             }
@@ -208,52 +256,100 @@ Rectangle {
         Text {
             Layout.fillWidth: true
             visible: panel.componentMode
-            text: qsTr("1=xx  2=yy  3=zz  4=yz  5=xz  6=xy  (Voigt/Mandel order)")
-            color: "#6a6a6a"
+            text: qsTr("1=xx  2=yy  3=zz  4=yz  5=xz  6=xy  (Voigt order, as in the table)")
+            color: panel.textFaint
             font.family: interFont.name
             font.pixelSize: 10
         }
 
+        // What the radius actually means. Without this the shear surfaces read
+        // as arbitrary: it is not obvious that C44 is plotted about the normal
+        // of its shear plane rather than along an axis of it.
+        Text {
+            Layout.fillWidth: true
+            visible: panel.componentMode
+            text: panel.componentSpinFree
+                  ? qsTr("Radius = the component with its own axis along that direction, "
+                       + "so C11, C22 and C33 give the same surface.")
+                  : qsTr("Radius = the component with the crystal carried to that direction "
+                       + "by a twist-free rotation, pivoted on the axis the component does "
+                       + "not name. Along that pivot axis the value equals the table entry.")
+            color: panel.textFaint
+            font.family: interFont.name
+            font.pixelSize: 10
+            wrapMode: Text.WordWrap
+        }
+
+        // How the free rotation about the plotted direction is resolved. Only
+        // meaningful for components naming two or more axes -- and for those it
+        // is not cosmetic: a fixed twist violates the crystal's own symmetry by
+        // as much as the whole range of the quantity, so "Fixed" is an
+        // inspection tool, not a default.
         RowLayout {
             Layout.fillWidth: true
-            visible: panel.componentMode && !spinExtremumSwitch.checked
+            visible: panel.componentMode && !panel.componentSpinFree
+            spacing: 8
+            Text {
+                text: qsTr("Twist:")
+                color: panel.textDim
+                font.family: interFont.name
+                font.pixelSize: 13
+            }
+            ComboBox {
+                id: twistCombo
+                Layout.fillWidth: true
+                font.pixelSize: 13
+                // Order must match mvsurf::TwistMode.
+                model: [ qsTr("Mean over twist"), qsTr("Min over twist"),
+                         qsTr("Max over twist"),  qsTr("Fixed twist angle") ]
+                currentIndex: 0
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            visible: panel.componentMode && !panel.componentSpinFree
+                     && twistCombo.currentIndex === 3
             spacing: 6
             Text {
-                text: qsTr("Spin:")
-                color: "#9e9e9e"
+                text: qsTr("Angle:")
+                color: panel.textDim
                 font.family: interFont.name
                 font.pixelSize: 13
             }
             Slider {
                 id: spinSlider
                 Layout.fillWidth: true
-                from: 0; to: 90; value: 0
+                from: 0; to: 360; value: 0
             }
             Text {
                 text: Math.round(spinSlider.value) + "°"
-                color: "#9e9e9e"
+                color: panel.textDim
                 font.family: interFont.name
                 font.pixelSize: 12
             }
         }
 
-        RowLayout {
+        Text {
             Layout.fillWidth: true
-            visible: panel.componentMode
-            spacing: 6
-            Switch {
-                id: spinExtremumSwitch
-                scale: 0.7
-                display: AbstractButton.IconOnly
-                implicitWidth: 50; implicitHeight: 20
+            visible: panel.componentMode && !panel.componentSpinFree
+            text: {
+                if (twistCombo.currentIndex === 3)
+                    return qsTr("Warning: a single twist angle cannot be chosen consistently over "
+                              + "a whole sphere, so this surface carries a frame artefact — for a "
+                              + "cubic crystal it breaks the crystal's own symmetry. Use it to "
+                              + "inspect frame dependence, not to read off a shape.")
+                if (twistCombo.currentIndex === 0)
+                    return qsTr("Average over all twists about each direction. Depends on the "
+                              + "direction alone, so it respects the crystal symmetry exactly.")
+                return qsTr("Extreme value over all twists about each direction — the stiffness "
+                          + "counterpart of the G min/max quantities. Depends on the direction "
+                          + "alone, so C44, C55 and C66 coincide in this mode.")
             }
-            Text {
-                text: qsTr("Extremum over spin")
-                color: "#c6c6c6"
-                font.family: interFont.name
-                font.pixelSize: 12
-                Layout.alignment: Qt.AlignVCenter
-            }
+            color: twistCombo.currentIndex === 3 ? "#e0a04a" : panel.textFaint
+            font.family: interFont.name
+            font.pixelSize: 10
+            wrapMode: Text.WordWrap
         }
 
         // ── Readouts ──────────────────────────────────────────────────────
@@ -270,53 +366,53 @@ Rectangle {
 
             Text {
                 text: qsTr("min")
-                color: "#7a7a7a"; font.family: interFont.name; font.pixelSize: 12
+                color: panel.textDim; font.family: interFont.name; font.pixelSize: 12
             }
             Text {
                 text: panel.fmt(surface.minValue) + " " + surface.unit
-                color: "#CFCECE"; font.family: interFont.name; font.pixelSize: 12
+                color: panel.textStrong; font.family: interFont.name; font.pixelSize: 12
                 Layout.fillWidth: true; horizontalAlignment: Text.AlignRight
             }
 
             Text {
                 text: qsTr("max")
-                color: "#7a7a7a"; font.family: interFont.name; font.pixelSize: 12
+                color: panel.textDim; font.family: interFont.name; font.pixelSize: 12
             }
             Text {
                 text: panel.fmt(surface.maxValue) + " " + surface.unit
-                color: "#CFCECE"; font.family: interFont.name; font.pixelSize: 12
+                color: panel.textStrong; font.family: interFont.name; font.pixelSize: 12
                 Layout.fillWidth: true; horizontalAlignment: Text.AlignRight
             }
 
             Text {
                 text: qsTr("anisotropy (max/min)")
-                color: "#7a7a7a"; font.family: interFont.name; font.pixelSize: 12
+                color: panel.textDim; font.family: interFont.name; font.pixelSize: 12
             }
             Text {
                 text: panel.fmt(surface.anisotropyRatio, 4)
-                color: "#CFCECE"; font.family: interFont.name; font.pixelSize: 12
+                color: panel.textStrong; font.family: interFont.name; font.pixelSize: 12
                 Layout.fillWidth: true; horizontalAlignment: Text.AlignRight
             }
 
             Text {
                 text: qsTr("Zener ratio")
                 visible: surface.isCubic
-                color: "#7a7a7a"; font.family: interFont.name; font.pixelSize: 12
+                color: panel.textDim; font.family: interFont.name; font.pixelSize: 12
             }
             Text {
                 text: panel.fmt(surface.zener, 4)
                 visible: surface.isCubic
-                color: "#CFCECE"; font.family: interFont.name; font.pixelSize: 12
+                color: panel.textStrong; font.family: interFont.name; font.pixelSize: 12
                 Layout.fillWidth: true; horizontalAlignment: Text.AlignRight
             }
 
             Text {
                 text: qsTr("bulk modulus (VRH)")
-                color: "#7a7a7a"; font.family: interFont.name; font.pixelSize: 12
+                color: panel.textDim; font.family: interFont.name; font.pixelSize: 12
             }
             Text {
                 text: panel.fmt(surface.bulkModulus) + " GPa"
-                color: "#CFCECE"; font.family: interFont.name; font.pixelSize: 12
+                color: panel.textStrong; font.family: interFont.name; font.pixelSize: 12
                 Layout.fillWidth: true; horizontalAlignment: Text.AlignRight
             }
         }
@@ -325,7 +421,7 @@ Rectangle {
             Layout.fillWidth: true
             visible: surface.valid && !surface.isCubic
             text: qsTr("Matrix is not cubic — Zener ratio does not apply.")
-            color: "#6a6a6a"
+            color: panel.textFaint
             font.family: interFont.name
             font.pixelSize: 10
             wrapMode: Text.WordWrap
@@ -343,7 +439,7 @@ Rectangle {
             }
             Text {
                 text: qsTr("Wireframe")
-                color: "#c6c6c6"
+                color: panel.textBody
                 font.family: interFont.name
                 font.pixelSize: 12
                 Layout.alignment: Qt.AlignVCenter

@@ -45,23 +45,36 @@ double evaluate(const ElasticState& st, const Params& p, const mvt::Vec3& n)
         case Quantity::S_component: {
             const mvt::C4& T = (p.quantity == Quantity::C_component) ? st.C4s : st.S4s;
 
-            // C'_1111 involves n four times and so cannot depend on the spin,
-            // but off-diagonal components genuinely can. Rather than silently
-            // picking a spin, the caller either fixes one or asks for the
-            // extremum over a sweep.
-            if (!p.extremumOverSpin) {
-                const mvt::Mat3 g = mvt::frameAbout(n, p.spinDeg * mvt::kPi / 180.0);
-                return mvt::rotatedMandelComponent(T, g, p.ci, p.cj);
-            }
-            double best = 0.0, bestAbs = -1.0;
-            const int kSpins = 24;
+            // mvt::directionalComponent carries the crystal axes to the plotted
+            // direction with a twist-free rotation, in Voigt convention, so at
+            // the component's pivot direction with zero twist the radius equals
+            // the tabulated entry.
+            //
+            // Single-axis components (C11/C22/C33) reduce to the n-n-n-n
+            // contraction: the twist cannot change them, so all four modes give
+            // the same surface and there is nothing to resolve.
+            if (mvt::componentIsSpinFree(p.ci, p.cj))
+                return mvt::directionalComponent(T, n, 0.0, p.ci, p.cj);
+
+            if (p.twist == mvsurf::TwistMode::Fixed)
+                return mvt::directionalComponent(T, n, p.spinDeg * mvt::kPi / 180.0,
+                                                 p.ci, p.cj);
+
+            // Full 2*pi, not pi: components with an odd number of in-plane
+            // factors (C16) change sign under a half turn, so a pi sweep would
+            // miss half the range and bias the mean.
+            const int kSpins = 72;
+            double lo = 1e300, hi = -1e300, sum = 0.0;
             for (int k = 0; k < kSpins; ++k) {
-                const double spin = mvt::kPi * double(k) / double(kSpins);
-                const mvt::Mat3 g = mvt::frameAbout(n, spin);
-                const double v = mvt::rotatedMandelComponent(T, g, p.ci, p.cj);
-                if (std::abs(v) > bestAbs) { bestAbs = std::abs(v); best = v; }
+                const double spin = 2.0 * mvt::kPi * double(k) / double(kSpins);
+                const double v = mvt::directionalComponent(T, n, spin, p.ci, p.cj);
+                lo = std::min(lo, v);
+                hi = std::max(hi, v);
+                sum += v;
             }
-            return best;
+            if (p.twist == mvsurf::TwistMode::Min) return lo;
+            if (p.twist == mvsurf::TwistMode::Max) return hi;
+            return sum / double(kSpins);
         }
     }
     return 0.0;

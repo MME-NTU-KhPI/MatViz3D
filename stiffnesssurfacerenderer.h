@@ -19,6 +19,7 @@
 #pragma once
 
 #include <QQuickFramebufferObject>
+#include <QColor>
 #include <QOpenGLFunctions>
 #include <QOpenGLShaderProgram>
 #include <QMatrix4x4>
@@ -62,6 +63,7 @@ private:
     float m_distance = 3.2f;
     bool  m_wireframe = false;
     bool  m_showAxes = true;
+    QColor m_bgColor{ 40, 40, 40 };
     QSize m_viewSize{ 1, 1 };
     float m_dpr = 1.0f;
 };
