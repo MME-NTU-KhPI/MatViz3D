@@ -60,6 +60,24 @@ public:
                                double& c11, double& c12, double& c44,
                                QString& type);
 
+    /**
+     * @brief Full symmetric 6x6 stiffness of one material, in GPa (the unit the
+     *        table stores) and VOIGT order 11,22,33,23,13,12.
+     *
+     * The generalisation of cubicConstants(): every c11..c66 column is read, so
+     * a transversely isotropic row (carbon fiber) survives intact instead of
+     * being flattened onto a cubic triple. Rows that only have c11/c12/c44
+     * filled in -- which is what a hand-added cubic material looks like -- are
+     * expanded to the cubic matrix those three constants imply, so the two
+     * accessors never disagree about the same row.
+     *
+     * @return false if the material is not in the database or has no usable
+     *         constants (c11 <= 0), leaving C untouched.
+     */
+    static bool stiffnessMatrix(const QString& material,
+                                double C[6][6],
+                                QString& type);
+
     Q_INVOKABLE void addMaterial(const QString &material);
     Q_INVOKABLE void removeMaterial(int row);
     Q_INVOKABLE void updateMaterial(int row, int column, const QVariant &value);

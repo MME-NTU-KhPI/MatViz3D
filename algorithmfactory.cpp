@@ -3,7 +3,6 @@
 #include "neumann.h"
 #include "moore.h"
 #include "radial.h"
-#include "composite.h"
 #include "probability_algorithm.h"
 #include "probability_circle.h"
 #include "probability_ellipse.h"
@@ -28,10 +27,6 @@ void registerAlgorithms() {
         return std::make_shared<Radial>(params.getSize(), params.getPoints());
     });
 
-    factory.registerAlgorithm("Composite", [&params](const Parameters&) {
-        return std::make_shared<Composite>(params.getSize(), params.getPoints());
-    });
-
     factory.registerAlgorithm("DLCA", [&params](const Parameters&) {
         return std::make_shared<DLCA>(params.getSize(), params.getPoints());
     });
@@ -54,14 +49,14 @@ void registerSchemas()
     auto& factory = AlgorithmFactory::instance();
 
     // Algorithms that have been migrated to AlgorithmPlugin carry their own
-    // schema and are absent from this function entirely -- see voronoi.cpp.
+    // schema and are absent from this function entirely -- see voronoi.cpp
+    // and composite.cpp.
     std::vector<ParamField> base = baseAlgorithmSchema();
 
-    // Neumann / Moore / Radial / Composite
+    // Neumann / Moore / Radial
     factory.registerSchema("Neumann", base);
     factory.registerSchema("Moore",   base);
     factory.registerSchema("Radial",  base);
-    factory.registerSchema("Composite", base);
     factory.registerSchema("Probability Circle", base);
     factory.registerSchema("Probability Ellipse", base);
 

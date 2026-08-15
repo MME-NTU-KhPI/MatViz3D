@@ -480,6 +480,60 @@ private:
         lam0_ = 0.5 * (lamMin + lamMax);
         if (mu0_ <= 0.0) mu0_ = 1.0;                    // safety
         if (lam0_ < 0.0) lam0_ = 0.0;
+
+        // The estimate above reads a phase's stiffness off its SHEAR diagonal
+        // and its lambda block only -- it never looks at C[0..2][0..2]. For a
+        // cubic crystal the two track each other and the result is fine, but a
+        // strongly anisotropic phase (a transversely isotropic fiber, whose
+        // along-axis modulus is an order of magnitude above its transverse one)
+        // comes out far too soft and the iteration DIVERGES rather than merely
+        // converging slowly.
+        //
+        // So enforce the basic scheme's sufficient condition directly: it
+        // converges when 2*C0 - C(x) is positive definite for every phase, and
+        // an isotropic C0 has Mandel eigenvalues 3*lam0 + 2*mu0 (hydrostatic)
+        // and 2*mu0 (deviatoric, multiplicity 5). Raising the reference costs
+        // some convergence rate but never changes the fixed point it converges
+        // to, so this can only make an existing run more robust -- and it is a
+        // no-op whenever the heuristic was already stiff enough, which is the
+        // case for every cubic material in the library.
+        double lamMaxAll = 0.0;
+        for (std::size_t ph = 0; ph < C_.size(); ++ph) {
+            if (!present[ph]) continue;
+            lamMaxAll = std::max(lamMaxAll, spectral_radius_sym6(C_[ph]));
+        }
+
+        const double need = 0.55 * lamMaxAll;   // the 0.5 bound, plus a margin
+        const double have = std::min(3.0 * lam0_ + 2.0 * mu0_, 2.0 * mu0_);
+        if (have > 0.0 && have < need) {
+            const double k = need / have;
+            mu0_  *= k;
+            lam0_ *= k;
+        }
+    }
+
+    // Largest eigenvalue of a symmetric positive-definite 6x6, by power
+    // iteration. Only used to size the reference medium, so a few percent of
+    // slack is harmless -- and it beats a Gershgorin bound, which would
+    // over-stiffen the reference and slow every solve down.
+    static double spectral_radius_sym6(const Mat6& C) {
+        Vec6 v; v.fill(1.0 / std::sqrt(6.0));
+        double lam = 0.0;
+        for (int it = 0; it < 64; ++it) {
+            Vec6 w{};
+            for (int i = 0; i < 6; ++i) {
+                double s = 0.0;
+                for (int j = 0; j < 6; ++j) s += C[i][j] * v[j];
+                w[i] = s;
+            }
+            double n2 = 0.0;
+            for (int i = 0; i < 6; ++i) n2 += w[i] * w[i];
+            const double n = std::sqrt(n2);
+            if (n <= 0.0) return 0.0;
+            for (int i = 0; i < 6; ++i) v[i] = w[i] / n;
+            lam = n;
+        }
+        return lam;
     }
 
     // Frequency (wave number) along an axis, FFT ordering.

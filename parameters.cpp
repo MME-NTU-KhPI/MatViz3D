@@ -52,11 +52,26 @@ QString Parameters::texture_preset   = "random";
 double  Parameters::texture_scatter  = 11.0;
 QString Parameters::lattice_override = "";
 
+// Composite defaults: a perfect square lattice of circular unidirectional
+// fibers at 40 % volume fraction -- the textbook RVE the imperfection knobs
+// perturb away from.
+QString Parameters::composite_dim         = "1d";
+QString Parameters::composite_packing     = "square";
+double  Parameters::fiber_volume_fraction = 0.40;
+int     Parameters::fibers_per_row        = 3;
+double  Parameters::fiber_aspect_ratio    = 1.0;
+double  Parameters::fiber_angle_scatter   = 0.0;
+double  Parameters::fiber_center_jitter   = 0.0;
+bool    Parameters::fiber_allow_overlap   = false;
+QString Parameters::matrix_material       = "Epoxy";
+QString Parameters::fiber_material        = "C-fiber";
+
 QString Parameters::stressSolver = "ansys";
 QString Parameters::stressMode   = "dataset";
 double  Parameters::stressEps[6] = {0, 0, 0, 0, 0, 0};
 
 std::vector<TextureLibrary::Component> Parameters::textureComponents;
+PhaseAssignment Parameters::phaseAssignment;
 
 Parameters::Parameters(QObject* parent) : QObject(parent) {}
 
@@ -364,11 +379,148 @@ void Parameters::markTextureCustom()
     emit textureSettingsChanged();
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  Composite (fiber-reinforced RVE)
+// ─────────────────────────────────────────────────────────────────────────────
+
+void Parameters::setCompositeDim(const QString& value)
+{
+    // Accepts the panel labels ("2D (fibers along X,Y)") and the CLI spellings
+    // ("2d", "2") alike -- the leading digit is the whole answer.
+    const QString norm = value.trimmed().toLower();
+    QString stored = composite_dim;
+    if      (norm.startsWith('1')) stored = "1d";
+    else if (norm.startsWith('2')) stored = "2d";
+    else if (norm.startsWith('3')) stored = "3d";
+    else {
+        qWarning() << "composite_dim expects 1D, 2D or 3D; got" << value
+                   << "-- keeping" << composite_dim;
+        return;
+    }
+
+    if (composite_dim == stored)
+        return;
+    composite_dim = stored;
+    emit compositeSettingsChanged();
+}
+
+void Parameters::setCompositePacking(const QString& value)
+{
+    const QString norm = value.trimmed().toLower();
+    const QString stored = norm.startsWith("hex") ? QStringLiteral("hexagonal")
+                                                  : QStringLiteral("square");
+    if (composite_packing == stored)
+        return;
+    composite_packing = stored;
+    emit compositeSettingsChanged();
+}
+
+// Must match compositeParamFields()'s option lists exactly, or the combo box
+// falls back to its first entry and silently disagrees with what will run.
+QString Parameters::compositeDimLabel()
+{
+    if (composite_dim == "2d") return QStringLiteral("2D (fibers along X,Y)");
+    if (composite_dim == "3d") return QStringLiteral("3D (fibers along X,Y,Z)");
+    return QStringLiteral("1D (fibers along Z)");
+}
+
+QString Parameters::compositePackingLabel()
+{
+    return composite_packing == "hexagonal" ? QStringLiteral("Hexagonal")
+                                            : QStringLiteral("Square");
+}
+
+int Parameters::compositeDimensions()
+{
+    if (composite_dim == "2d") return 2;
+    if (composite_dim == "3d") return 3;
+    return 1;
+}
+
+bool Parameters::compositeHexagonal()
+{
+    return composite_packing == "hexagonal";
+}
+
+void Parameters::setFiberVolumeFraction(double value)
+{
+    if (fiber_volume_fraction == value) return;
+    fiber_volume_fraction = value;
+    emit compositeSettingsChanged();
+}
+
+void Parameters::setFibersPerRow(int value)
+{
+    if (fibers_per_row == value) return;
+    fibers_per_row = value;
+    emit compositeSettingsChanged();
+}
+
+void Parameters::setFiberAspectRatio(double value)
+{
+    if (fiber_aspect_ratio == value) return;
+    fiber_aspect_ratio = value;
+    emit compositeSettingsChanged();
+}
+
+void Parameters::setFiberAngleScatter(double value)
+{
+    if (fiber_angle_scatter == value) return;
+    fiber_angle_scatter = value;
+    emit compositeSettingsChanged();
+}
+
+void Parameters::setFiberCenterJitter(double value)
+{
+    if (fiber_center_jitter == value) return;
+    fiber_center_jitter = value;
+    emit compositeSettingsChanged();
+}
+
+void Parameters::setFiberAllowOverlap(bool value)
+{
+    if (fiber_allow_overlap == value) return;
+    fiber_allow_overlap = value;
+    emit compositeSettingsChanged();
+}
+
+void Parameters::setMatrixMaterial(const QString& value)
+{
+    if (matrix_material == value) return;
+    matrix_material = value;
+    emit compositeSettingsChanged();
+}
+
+void Parameters::setFiberMaterial(const QString& value)
+{
+    if (fiber_material == value) return;
+    fiber_material = value;
+    emit compositeSettingsChanged();
+}
+
 void Parameters::cubicConstantsPa(double& c11, double& c12, double& c44)
 {
     c11 = mat_c11 * 1e9;
     c12 = mat_c12 * 1e9;
     c44 = mat_c44 * 1e9;
+}
+
+bool Parameters::materialStiffnessPa(const QString& name, double C[6][6])
+{
+    double G[6][6] = {{0}};
+    QString type;
+
+    if (name.isEmpty() || !DBManager::stiffnessMatrix(name, G, type)) {
+        if (!name.isEmpty())
+            qWarning() << "material" << name
+                       << "has no usable elastic constants in material_properties.db";
+        return false;
+    }
+
+    // The table stores GPa, every solver works in Pa.
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 6; ++j) C[i][j] = G[i][j] * 1e9;
+    return true;
 }
 
 void Parameters::setLatticeOverride(const QString& value)

@@ -655,7 +655,14 @@ void ansysWrapper::createFEfromArray8Node(int32_t*** voxels, short int numCubes,
     {
         key = reverse_nodes.value(elements[ei]);
         int kx = (int)key[0], ky = (int)key[1], kz = (int)key[2];
+
+        // Multi-phase structures hand in a grain -> material table; without one
+        // every element is material 1, as it always was.
+        const int32_t grain_id = voxels[kx][ky][kz];
         int mat_id = 1;
+        if (grain_id > 0 && grain_id < (int32_t)m_grainMaterial.size())
+            mat_id = m_grainMaterial[grain_id];
+
         int el_id = 1;
         int real_const = 1;
         int sec_id = 1;
@@ -1268,15 +1275,58 @@ void ansysWrapper::setMaterial(double E, double nu, double rho = 0)
 
 void ansysWrapper::setAnisoMaterial(double c11, double c12, double c13, double c22, double c23, double c33, double c44, double c55, double c66)
 {
-    m_apdl += QString::asprintf(R"(
-        !*
-        TB,ANEL,1,1,21,0
-        TBTEMP,0
-        TBDATA,, %g, %g, %g, 0, 0, 0
-        TBDATA,, %g, %g, 0, 0, 0, %g
-        TBDATA,, 0, 0, 0, %g, 0, 0
-        TBDATA,, %g, 0, %g,,,
-        )", c11, c12, c13, c22, c23, c33, c44, c55, c66);
+    // Orthotropic special case of the general form below, kept as its own entry
+    // point because every single-material caller uses it.
+    double C[6][6] = {{0}};
+    C[0][0] = c11; C[0][1] = C[1][0] = c12; C[0][2] = C[2][0] = c13;
+    C[1][1] = c22; C[1][2] = C[2][1] = c23; C[2][2] = c33;
+    C[3][3] = c44; C[4][4] = c55; C[5][5] = c66;
+    setAnisoMaterial(1, C);
+}
+
+// General anisotropic material `matId`, from a full symmetric Voigt 6x6
+// (order 11,22,33,23,13,12) in Pa.
+//
+// TB,ANEL with 21 constants takes the upper triangle written row by row:
+//   D11 D12 D13 D14 D15 D16  D22 D23 D24 D25 D26  D33 D34 D35 D36
+//   D44 D45 D46  D55 D56  D66
+// which is the slot layout the previous hardcoded version emitted -- confirmed
+// against a real solve: an isotropic material fed through here comes back with
+// its own E, which it could not if the constants landed in the wrong slots
+// (the ANSYS-documented column-wise order would put 0 in D33 and the material
+// would be singular).
+//
+// The shear BLOCK still has to be permuted. ANSYS orders the shear components
+// (xy, yz, xz), while Voigt -- and therefore this matrix, the material
+// database and the FFT solver -- orders them (yz, xz, xy). Writing Voigt
+// straight through put a transversely isotropic fiber's in-plane shear modulus
+// into Gxz instead of Gxy. It went unnoticed for as long as it did because a
+// cubic material has all three shear moduli equal and no normal-shear
+// coupling, which makes the permutation invisible.
+void ansysWrapper::setAnisoMaterial(int matId, const double C[6][6])
+{
+    QString block;
+    QTextStream s(&block);
+    s << "\n!*\nTB,ANEL," << matId << ",1,21,0\nTBTEMP,0\n";
+
+    // ANSYS slot -> Voigt index: 3(xy) <- 5(12), 4(yz) <- 3(23), 5(xz) <- 4(13).
+    static const int A2V[6] = { 0, 1, 2, 5, 3, 4 };
+
+    // Flatten the upper triangle in the order above, then emit six per line.
+    double d[21];
+    int n = 0;
+    for (int i = 0; i < 6; ++i)
+        for (int j = i; j < 6; ++j)
+            d[n++] = C[A2V[i]][A2V[j]];
+
+    for (int k = 0; k < 21; k += 6) {
+        s << "TBDATA,";
+        for (int c = 0; c < 6 && k + c < 21; ++c)
+            s << ", " << QString::number(d[k + c], 'g', 10);
+        s << "\n";
+    }
+
+    m_apdl += block;
 }
 
 void ansysWrapper::setSectionASEC(double area, double Ix, double r_out)

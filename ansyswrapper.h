@@ -55,6 +55,8 @@ protected:
     int m_lcs = 11;
     bool m_isBatch;
     QString m_apdl;
+    /// Grain id -> ANSYS material number; empty means "material 1 everywhere".
+    std::vector<int> m_grainMaterial;
 
     void findPathVersion();
     void findNp();
@@ -97,6 +99,26 @@ public:
     int spline(std::vector<double> x, std::vector<double> y, int left_boundary = 1, int right_boundary = 1);
     void setMaterial(double E, double nu, double rho );
     void setAnisoMaterial(double c11, double c12, double c13, double c22, double c23, double c33, double c44, double c55, double c66);
+
+    /**
+     * @brief Emit one anisotropic material definition from a full symmetric
+     *        Voigt 6x6 (order 11,22,33,23,13,12) in Pa.
+     *
+     * Call once per constituent, with matId 1, 2, ... The orthotropic overload
+     * above is the matId = 1 special case, and a cubic material produces the
+     * identical deck through either.
+     */
+    void setAnisoMaterial(int matId, const double C[6][6]);
+
+    /**
+     * @brief Grain id -> ANSYS material number, for multi-phase structures.
+     *
+     * Index is the grain id (0 unused), value is the material number a
+     * setAnisoMaterial(matId, ...) call defined. Elements pick their material
+     * up from here when the mesh is written; left empty, every element gets
+     * material 1, which is what every single-phase caller wants.
+     */
+    void setGrainMaterials(const std::vector<int>& grainMaterial) { m_grainMaterial = grainMaterial; }
 
     void setSectionASEC(double area, double Ix, double r_out);
     void setSectionCTUBE(double r_Out, double r_In);

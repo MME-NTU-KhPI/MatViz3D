@@ -37,6 +37,43 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
                                         "Default 2", "value"));
     parser.addOption(QCommandLineOption("periodic",
                                         "Generate a periodic cell: grains wrap across opposite faces"));
+    // ── Composite (fiber-reinforced RVE) ──────────────────────────────────
+    parser.addOption(QCommandLineOption("composite_dim",
+                                        "Reinforcement dimensionality for the Composite algorithm: "
+                                        "1d = fibers along Z, 2d = along X and Y, 3d = along X, Y and Z. "
+                                        "Default 1d", "dim"));
+    parser.addOption(QCommandLineOption("composite_packing",
+                                        "Fiber arrangement in the cross-section: square | hexagonal. "
+                                        "Default square", "packing"));
+    parser.addOption(QCommandLineOption("fiber_volume_fraction",
+                                        "Target fiber volume fraction (0..1). The fiber semi-axes are "
+                                        "solved so the structure actually reaches it; the value is "
+                                        "clamped to the packing limit unless --fiber_allow_overlap. "
+                                        "Default 0.4", "value"));
+    parser.addOption(QCommandLineOption("fibers_per_row",
+                                        "Fibers per row in the cross-section lattice. Default 3", "n"));
+    parser.addOption(QCommandLineOption("fiber_aspect_ratio",
+                                        "Fiber cross-section a/b (major over minor semi-axis); 1 = circular. "
+                                        "The area is held fixed, so this changes shape at constant volume "
+                                        "fraction. Default 1", "value"));
+    parser.addOption(QCommandLineOption("fiber_angle_scatter",
+                                        "Per-fiber in-plane rotation of the ellipse, full width in degrees "
+                                        "(0 = all aligned, 180 = fully random). Default 0", "degrees"));
+    parser.addOption(QCommandLineOption("fiber_center_jitter",
+                                        "Random shift of each fiber center, in half-pitches (0 = perfect "
+                                        "lattice, 1 = up to half a pitch). Default 0", "value"));
+    parser.addOption(QCommandLineOption("fiber_allow_overlap",
+                                        "Let jittered fibers overlap and merge instead of rejection-sampling "
+                                        "their centers; also lifts the packing limit on the volume fraction"));
+    parser.addOption(QCommandLineOption("matrix_material",
+                                        "Matrix constituent for the Composite algorithm, from "
+                                        "material_properties.db (e.g. Epoxy, Al, Cu). Default Epoxy", "name"));
+    parser.addOption(QCommandLineOption("fiber_material",
+                                        "Fiber constituent for the Composite algorithm, from "
+                                        "material_properties.db (e.g. C-fiber, E-glass, SiC, W). Its axis 3 "
+                                        "is aligned with the fiber, so a transversely isotropic row is stiff "
+                                        "along the fiber. Default C-fiber", "name"));
+
     parser.addOption(QCommandLineOption("material",
                                         "Material from material_properties.db (e.g. Cu, Fe, W). Supplies the "
                                         "cubic constants both stress solvers use and the lattice the texture "
@@ -227,6 +264,53 @@ void Commandline_Parser::processOptions(const QCommandLineParser& parser)
         params->setMinkowskiP(v);
     });
     params->setIsPeriodic(parser.isSet("periodic"));
+
+    // ── Composite (fiber-reinforced RVE) ──────────────────────────────────
+    parseString("composite_dim", [&](const QString& v) {
+        const QString n = v.trimmed().toLower();
+        if (!n.startsWith('1') && !n.startsWith('2') && !n.startsWith('3'))
+            qFatal("Option --composite_dim expects 1d, 2d or 3d; got \"%s\"", qPrintable(v));
+        params->setCompositeDim(v);
+    });
+    parseString("composite_packing", [&](const QString& v) {
+        const QString n = v.trimmed().toLower();
+        if (n != "square" && n != "hexagonal" && n != "hex")
+            qFatal("Option --composite_packing expects square or hexagonal; got \"%s\"",
+                   qPrintable(v));
+        params->setCompositePacking(v);
+    });
+    parseDouble("fiber_volume_fraction", [&](double v) {
+        if (v <= 0.0 || v >= 1.0)
+            qFatal("Option --fiber_volume_fraction expects a value in (0, 1); got %s",
+                   qPrintable(QString::number(v)));
+        params->setFiberVolumeFraction(v);
+    });
+    parseInt("fibers_per_row", [&](int v) {
+        requirePositive("fibers_per_row", v);
+        params->setFibersPerRow(v);
+    });
+    parseDouble("fiber_aspect_ratio", [&](double v) {
+        if (v <= 0.0)
+            qFatal("Option --fiber_aspect_ratio expects a positive value; got %s",
+                   qPrintable(QString::number(v)));
+        params->setFiberAspectRatio(v);
+    });
+    parseDouble("fiber_angle_scatter", [&](double v) {
+        if (v < 0.0 || v > 180.0)
+            qFatal("Option --fiber_angle_scatter expects degrees in [0, 180]; got %s",
+                   qPrintable(QString::number(v)));
+        params->setFiberAngleScatter(v);
+    });
+    parseDouble("fiber_center_jitter", [&](double v) {
+        if (v < 0.0 || v > 1.0)
+            qFatal("Option --fiber_center_jitter expects a value in [0, 1]; got %s",
+                   qPrintable(QString::number(v)));
+        params->setFiberCenterJitter(v);
+    });
+    params->setFiberAllowOverlap(parser.isSet("fiber_allow_overlap"));
+    parseString("matrix_material", [&](const QString& v) { params->setMatrixMaterial(v); });
+    parseString("fiber_material",  [&](const QString& v) { params->setFiberMaterial(v); });
+
     if (parser.isSet("animate"))
         params->setIsAnimation(true);
     parseFloat ("wave_coefficient", [&](float  v) { params->setWaveCoefficient(v); });

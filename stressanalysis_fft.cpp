@@ -21,6 +21,41 @@ using fftsa::FFTSolverSession;
 using fftsa::Vec6;
 using fftsa::ResCol;
 using namespace fftsa;
+
+// Resolve what every grain is made of and how it is oriented, then build the
+// session around it. The multi-phase and single-material paths differ only in
+// which FFTSolverSession constructor runs, so keeping the choice in one place
+// means the three call sites below cannot disagree about it.
+//
+// `gm` is an out-parameter because callers still want the orientations (for
+// debug logging) after the session owns its copy.
+static FFTSolverSession makeSession(int N, const std::vector<int>& grain_field,
+                                    int nGrains,
+                                    const std::array<double,3>* forced,
+                                    double C11, double C12, double C44,
+                                    GrainMaterials& gm)
+{
+    gm = resolveGrainMaterials(nGrains, Parameters::seed, forced,
+                               Parameters::textureComponents,
+                               Parameters::phaseAssignment,
+                               C11, C12, C44);
+
+    if (!gm.multiPhase)
+        return FFTSolverSession(N, N, N, grain_field, gm.orientation, C11, C12, C44);
+
+    // Count the grains per phase so the log says what was actually solved
+    // rather than just what was configured.
+    std::vector<int> perPhase(gm.phaseNames.size(), 0);
+    for (int g = 1; g <= nGrains; ++g)
+        ++perPhase[static_cast<size_t>(gm.phaseOfGrain[static_cast<size_t>(g)])];
+
+    QStringList parts;
+    for (size_t p = 0; p < gm.phaseNames.size(); ++p)
+        parts << QString("%1 x %2").arg(perPhase[p]).arg(gm.phaseNames[p]);
+    qDebug().noquote() << "[StressAnalysisFFT] multi-phase:" << parts.join(", ");
+
+    return FFTSolverSession(N, N, N, grain_field, gm.orientation, gm.voigtPa, gm.maxC11);
+}
 // The constants come from the material picked in the UI/CLI rather than from a
 // literal here, so the ANSYS and FFT backends are guaranteed to be solving the
 // same material. Callers that want something else (solver_compare) can still
@@ -95,13 +130,13 @@ void StressAnalysisFFT::estimateStressWithFFT(short int numCubes, short int numP
     std::vector<int> grain_field = buildGrainField(N, voxels, nGrains);
     if (nGrains < 1) { qCritical() << "[StressAnalysisFFT] x no grains in voxel field"; return; }
 
-    // buildGrainOrientations() is shared with StressAnalysis (ANSYS) -- for a
+    // resolveGrainMaterials() is shared with StressAnalysis (ANSYS) -- for a
     // given Parameters::seed both solvers see the exact same per-grain Bunge
-    // ZXZ orientations, not two independent random draws.
-    std::vector<std::array<double,3>> orient = buildGrainOrientations(
-        nGrains, Parameters::seed, nullptr, Parameters::textureComponents);
-
-    FFTSolverSession session(N, N, N, grain_field, orient, C11, C12, C44);
+    // ZXZ orientations and the same per-grain constituent, not two independent
+    // draws.
+    GrainMaterials gm;
+    FFTSolverSession session = makeSession(N, grain_field, nGrains, nullptr,
+                                           C11, C12, C44, gm);
     session.set_tolerance(fft_tol);
     session.set_max_iters(fft_max_iter);
     qDebug() << "[StressAnalysisFFT] grains =" << nGrains
@@ -346,9 +381,12 @@ SingleShotResult StressAnalysisFFT::solveSingleLoadCase(short int numCubes, shor
 
     std::array<double,3> forcedOrient;
     const bool useForced = getForcedOrientationDebugOverride(forcedOrient);
-    std::vector<std::array<double,3>> orient = buildGrainOrientations(
-        nGrains, Parameters::seed, useForced ? &forcedOrient : nullptr,
-        Parameters::textureComponents);
+
+    GrainMaterials gm;
+    FFTSolverSession session = makeSession(N, grain_field, nGrains,
+                                           useForced ? &forcedOrient : nullptr,
+                                           C11, C12, C44, gm);
+    const std::vector<std::array<double,3>>& orient = gm.orientation;
     if (useForced) {
         const double r2d = 180.0 / M_PI;
         qDebug() << "[StressAnalysisFFT]   [DEBUG] MATVIZ_FORCE_ORIENT_DEG active: every grain forced to"
@@ -365,7 +403,6 @@ SingleShotResult StressAnalysisFFT::solveSingleLoadCase(short int numCubes, shor
                  << g1[0]*r2d << g1[1]*r2d << g1[2]*r2d;
     }
 
-    FFTSolverSession session(N, N, N, grain_field, orient, C11, C12, C44);
     session.set_tolerance(fft_tol);
     session.set_max_iters(fft_max_iter);
     qDebug() << "[StressAnalysisFFT]   [DEBUG] solid_fraction =" << session.solid_fraction()
@@ -473,10 +510,9 @@ StiffnessMatrixResult StressAnalysisFFT::computeStiffnessMatrix(short int numCub
         return r;
     }
 
-    std::vector<std::array<double,3>> orient = buildGrainOrientations(
-        nGrains, Parameters::seed, nullptr, Parameters::textureComponents);
-
-    FFTSolverSession session(N, N, N, grain_field, orient, C11, C12, C44);
+    GrainMaterials gm;
+    FFTSolverSession session = makeSession(N, grain_field, nGrains, nullptr,
+                                           C11, C12, C44, gm);
     session.set_tolerance(fft_tol);
     session.set_max_iters(fft_max_iter);
     qDebug() << "[StressAnalysisFFT::computeStiffnessMatrix]   grains =" << nGrains

@@ -20,9 +20,9 @@
 //  Same grain-count scan FFT's buildGrainField() does, so both solvers index
 //  the exact same orientation array the exact same way.
 // ─────────────────────────────────────────────────────────────────────────────
-static std::vector<std::array<double,3>> sharedOrientationsFor(short int numCubes,
-                                                               int32_t ***voxels,
-                                                               const char* who)
+static GrainMaterials sharedGrainMaterialsFor(short int numCubes,
+                                              int32_t ***voxels,
+                                              const char* who)
 {
     int nGrains = 0;
     for (int i = 0; i < numCubes; ++i)
@@ -30,11 +30,19 @@ static std::vector<std::array<double,3>> sharedOrientationsFor(short int numCube
             for (int k = 0; k < numCubes; ++k)
                 if (voxels[i][j][k] > nGrains) nGrains = voxels[i][j][k];
 
+    double c11 = 0, c12 = 0, c44 = 0;
+    Parameters::cubicConstantsPa(c11, c12, c44);
+
     std::array<double,3> forcedOrient;
     const bool useForced = getForcedOrientationDebugOverride(forcedOrient);
-    auto orient = buildGrainOrientations(nGrains, Parameters::seed,
-                                         useForced ? &forcedOrient : nullptr,
-                                         Parameters::textureComponents);
+
+    // Same resolver StressAnalysisFFT::makeSession() calls, so for one seed the
+    // two backends see the identical per-grain orientation AND constituent.
+    GrainMaterials gm = resolveGrainMaterials(nGrains, Parameters::seed,
+                                              useForced ? &forcedOrient : nullptr,
+                                              Parameters::textureComponents,
+                                              Parameters::phaseAssignment,
+                                              c11, c12, c44);
 
     const double r2d = 180.0 / M_PI;
     if (useForced)
@@ -45,8 +53,43 @@ static std::vector<std::array<double,3>> sharedOrientationsFor(short int numCube
              << " textureComponents =" << (int)Parameters::textureComponents.size();
     if (nGrains >= 1)
         qDebug() << "[" << who << "]   [DEBUG] grain#1 orientation (shared Bunge ZXZ, deg) ="
-                 << orient[1][0]*r2d << orient[1][1]*r2d << orient[1][2]*r2d;
-    return orient;
+                 << gm.orientation[1][0]*r2d << gm.orientation[1][1]*r2d << gm.orientation[1][2]*r2d;
+    return gm;
+}
+
+// Write the material table into the deck and bind every grain to its entry.
+//
+// Single-phase keeps emitting exactly one cubic TB,ANEL block as material 1 --
+// byte for byte the deck this code always produced. Multi-phase emits one block
+// per constituent and hands the wrapper a grain -> material number table, which
+// is what turns the hardcoded MAT column in the EBLOCK into a real assignment.
+static void applyGrainMaterials(ansysWrapper& wr, const GrainMaterials& gm,
+                                const char* who)
+{
+    if (!gm.multiPhase) {
+        double c11 = 0, c12 = 0, c44 = 0;
+        Parameters::cubicConstantsPa(c11, c12, c44);
+        qDebug() << "[" << who << "] Material (cubic anisotropic):"
+                 << Parameters::instance()->getDbMaterial()
+                 << " C11 =" << c11 << " C12 =" << c12 << " C44 =" << c44 << "Pa";
+        wr.setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44);
+        return;
+    }
+
+    for (size_t p = 0; p < gm.phaseVoigtPa.size(); ++p) {
+        double C[6][6];
+        for (int i = 0; i < 6; ++i)
+            for (int j = 0; j < 6; ++j) C[i][j] = gm.phaseVoigtPa[p][i][j];
+        wr.setAnisoMaterial(static_cast<int>(p) + 1, C);
+        qDebug() << "[" << who << "] material" << (int)p + 1 << "=" << gm.phaseNames[p]
+                 << " C11 =" << C[0][0] << " C33 =" << C[2][2] << "Pa";
+    }
+
+    // Material numbers are 1-based, phase indices 0-based.
+    std::vector<int> grainMat(gm.phaseOfGrain.size(), 1);
+    for (size_t g = 1; g < gm.phaseOfGrain.size(); ++g)
+        grainMat[g] = gm.phaseOfGrain[g] + 1;
+    wr.setGrainMaterials(grainMat);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -135,17 +178,13 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
         wr->setTextureComponents(Parameters::textureComponents);
     }
 
-    // Cubic single-crystal constants of the selected database material.
-    double c11 = 0, c12 = 0, c44 = 0;
-    Parameters::cubicConstantsPa(c11, c12, c44);
-    qDebug() << "[StressAnalysis] Material (cubic anisotropic):" << Parameters::instance()->getDbMaterial();
-    qDebug() << "  C11 =" << c11 << "Pa  C12 =" << c12 << "Pa  C44 =" << c44 << "Pa";
-    wr->setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44);
+    const GrainMaterials gm =
+        sharedGrainMaterialsFor(numCubes, voxels, "StressAnalysis::phase2");
+    applyGrainMaterials(*wr, gm, "StressAnalysis::phase2");
     wr->setElemByNum(185);
 
     qDebug() << "[StressAnalysis] Building FE mesh (8-node hexahedra, SOLID185)...";
-    wr->createFEfromArray8Node(voxels, N, numPoints, true,
-                               sharedOrientationsFor(numCubes, voxels, "StressAnalysis::phase2"));
+    wr->createFEfromArray8Node(voxels, N, numPoints, true, gm.orientation);
 
     qDebug() << "[StressAnalysis] Applying" << (int)load_cases.size() << "load cases...";
     // Periodic BC + element (volume) averaging, to stay on the same
@@ -305,13 +344,11 @@ bool StressAnalysis::computeElasticProperties(short int numCubes, short int numP
     temp_wr.setNP(Parameters::num_threads);
     if (!Parameters::textureComponents.empty())
         temp_wr.setTextureComponents(Parameters::textureComponents);
-    double c11 = 0, c12 = 0, c44 = 0;
-    Parameters::cubicConstantsPa(c11, c12, c44);
-    temp_wr.setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44);
+    const GrainMaterials gm =
+        sharedGrainMaterialsFor(numCubes, voxels, "StressAnalysis::computeElasticProperties");
+    applyGrainMaterials(temp_wr, gm, "StressAnalysis::computeElasticProperties");
     temp_wr.setElemByNum(185);
-    temp_wr.createFEfromArray8Node(voxels, numCubes, numPoints, true,
-                                   sharedOrientationsFor(numCubes, voxels,
-                                                         "StressAnalysis::computeElasticProperties"));
+    temp_wr.createFEfromArray8Node(voxels, numCubes, numPoints, true, gm.orientation);
 
     // Canonical loads: one unit strain component at a time
     const char* comp_names[] = {"ex", "ey", "ez", "gxy", "gyz", "gxz"};
@@ -441,13 +478,11 @@ bool StressAnalysis::calibrateHillMatrix(short int numCubes, short int numPoints
     temp_wr.setNP(Parameters::num_threads);
     if (!Parameters::textureComponents.empty())
         temp_wr.setTextureComponents(Parameters::textureComponents);
-    double c11 = 0, c12 = 0, c44 = 0;
-    Parameters::cubicConstantsPa(c11, c12, c44);
-    temp_wr.setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44);
+    const GrainMaterials gm =
+        sharedGrainMaterialsFor(numCubes, voxels, "StressAnalysis::calibrateHillMatrix");
+    applyGrainMaterials(temp_wr, gm, "StressAnalysis::calibrateHillMatrix");
     temp_wr.setElemByNum(185);
-    temp_wr.createFEfromArray8Node(voxels, numCubes, numPoints, true,
-                                   sharedOrientationsFor(numCubes, voxels,
-                                                         "StressAnalysis::calibrateHillMatrix"));
+    temp_wr.createFEfromArray8Node(voxels, numCubes, numPoints, true, gm.orientation);
 
     // num_calib is a member field (editable from the UI).
     qDebug() << "[StressAnalysis::calibrateHillMatrix]   Calibration load cases :" << num_calib;
@@ -569,16 +604,12 @@ SingleShotResult StressAnalysis::solveSingleLoadCase(short int numCubes, short i
 
     temp_wr->setSeed(Parameters::seed);
     temp_wr->setNP(Parameters::num_threads);
-    double c11 = 0, c12 = 0, c44 = 0;
-    Parameters::cubicConstantsPa(c11, c12, c44);
-    qDebug() << "[StressAnalysis::solveSingleLoadCase]   [DEBUG] seed =" << Parameters::seed
-             << " C11 =" << c11 << " C12 =" << c12 << " C44 =" << c44;
-    temp_wr->setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44);
+    const GrainMaterials gm =
+        sharedGrainMaterialsFor(numCubes, voxels, "StressAnalysis::solveSingleLoadCase");
+    applyGrainMaterials(*temp_wr, gm, "StressAnalysis::solveSingleLoadCase");
     temp_wr->setElemByNum(185);
 
-    auto sharedOrient = sharedOrientationsFor(numCubes, voxels,
-                                              "StressAnalysis::solveSingleLoadCase");
-
+    const std::vector<std::array<double,3>>& sharedOrient = gm.orientation;
     temp_wr->createFEfromArray8Node(voxels, numCubes, numPoints, true, sharedOrient);
     qDebug() << "[StressAnalysis::solveSingleLoadCase]   [DEBUG] numCubes =" << numCubes
              << " numPoints(param) =" << numPoints

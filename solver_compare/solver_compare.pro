@@ -96,7 +96,7 @@ HEADERS += \
     ../parameters.h ../paramfield.h ../parent_algorithm.h ../probability_algorithm.h \
     ../probability_circle.h ../probability_ellipse.h ../radial.h ../renderopengl.h ../schemacontroller.h \
     ../statisticscontroller.h ../stressanalysis.h ../stressanalysis_fft.h ../stressanalysiscontroller.h \
-    ../stressresult.h ../voronoi.h
+    ../phasematerial.h ../stressresult.h ../voronoi.h
 
 # qml.qrc is intentionally omitted: this is a console tool, no QML engine is
 # started. If your build complains about missing QML type registrations, add

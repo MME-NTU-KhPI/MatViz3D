@@ -174,6 +174,7 @@ HEADERS += \
     parameters.h \
     paramfield.h \
     parent_algorithm.h \
+    phasematerial.h \
     probability_algorithm.h \
     probability_circle.h \
     probability_ellipse.h \

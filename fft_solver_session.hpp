@@ -176,9 +176,7 @@ public:
           grain_(std::move(grain_field)),
           orient_(std::move(orient_rad))
     {
-        if (grain_.size() != N_) throw std::invalid_argument("grain_field size != nx*ny*nz");
-        const int G = static_cast<int>(orient_.size()) - 1;   // highest grain id
-        if (G < 1) throw std::invalid_argument("need >=1 grain (orient size G+1)");
+        const int G = check_inputs();
 
         // Material library indexed directly by grain id.  lib[g] = rotated
         // cubic stiffness (Mandel, Pa) for grain g.
@@ -187,22 +185,43 @@ public:
             const auto& a = orient_[g];
             lib_[g] = mvh::cubic_grain_mandel(C11, C12, C44, a[0], a[1], a[2]);
         }
-        // Void slot: a soft isotropic phase (eta * C11) to keep contrast finite.
-        // If there is no void (dense structure) this is never referenced.
-        lib_[0] = ffth::isotropic_C(void_eta * C11, 0.3);
+        finish_init(void_eta * C11);
+    }
 
-        // Solid fraction (RVE-level scaling of averages already comes for free,
-        // see note in solveLoadCase()).
-        std::size_t solid = 0;
-        for (int g : grain_) if (g != 0) ++solid;
-        solid_fraction_ = N_ ? static_cast<double>(solid) / static_cast<double>(N_) : 1.0;
+    // Multi-phase overload: one Voigt stiffness per grain, given in that
+    // grain's OWN material axes, rotated here by that grain's orientation.
+    //
+    // This is what a structure whose constituents differ -- a fiber-reinforced
+    // composite -- feeds in: `grain_voigt_Pa[g]` is the constituent material of
+    // grain g (index 0 is the unused void slot). Nothing here assumes cubic
+    // symmetry, so a transversely isotropic fiber survives the trip intact.
+    //
+    // void_C11 sizes the soft phase that stands in for pores; pass the largest
+    // C11 in play so the contrast stays comparable to the single-phase path.
+    FFTSolverSession(int nx, int ny, int nz,
+                     std::vector<int> grain_field,
+                     std::vector<std::array<double,3>> orient_rad,
+                     const std::vector<Mat6>& grain_voigt_Pa,
+                     double void_C11,
+                     double void_eta = 1e-4)
+        : nx_(nx), ny_(ny), nz_(nz),
+          N_(static_cast<std::size_t>(nx) * ny * nz),
+          grain_(std::move(grain_field)),
+          orient_(std::move(orient_rad))
+    {
+        const int G = check_inputs();
+        if (static_cast<int>(grain_voigt_Pa.size()) < G + 1)
+            throw std::invalid_argument("grain_voigt_Pa size < nGrains+1");
 
-        // Copy of the local coordinate systems the downstream Schmid code reads:
-        // local_cs[grain_id] = {phi1,Phi,phi2} in radians.  Index == grain id.
-        local_cs_.assign(orient_.size(), std::vector<float>(3, 0.0f));
-        for (std::size_t g = 0; g < orient_.size(); ++g)
-            for (int k = 0; k < 3; ++k)
-                local_cs_[g][k] = static_cast<float>(orient_[g][k]);
+        lib_.assign(orient_.size(), Mat6{});
+        for (int g = 1; g <= G; ++g) {
+            const auto& a = orient_[g];
+            double Cv[6][6];
+            for (int i = 0; i < 6; ++i)
+                for (int j = 0; j < 6; ++j) Cv[i][j] = grain_voigt_Pa[g][i][j];
+            lib_[g] = mvh::aniso_grain_mandel(Cv, a[0], a[1], a[2]);
+        }
+        finish_init(void_eta * void_C11);
     }
 
     // Solver controls (forwarded to the FFT homogenizer).
@@ -300,6 +319,35 @@ public:
     }
 
 private:
+    // Shared by both constructors: validate and report the highest grain id.
+    int check_inputs() const {
+        if (grain_.size() != N_) throw std::invalid_argument("grain_field size != nx*ny*nz");
+        const int G = static_cast<int>(orient_.size()) - 1;   // highest grain id
+        if (G < 1) throw std::invalid_argument("need >=1 grain (orient size G+1)");
+        return G;
+    }
+
+    // Shared by both constructors: void slot, solid fraction and the local
+    // coordinate systems the downstream Schmid code reads. Only lib_[1..G]
+    // differs between the single-material and multi-phase paths.
+    void finish_init(double void_stiffness) {
+        // Void slot: a soft isotropic phase to keep the contrast finite. If
+        // there is no void (dense structure) this is never referenced.
+        lib_[0] = ffth::isotropic_C(void_stiffness, 0.3);
+
+        // Solid fraction (RVE-level scaling of averages already comes for free,
+        // see note in solveLoadCase()).
+        std::size_t solid = 0;
+        for (int g : grain_) if (g != 0) ++solid;
+        solid_fraction_ = N_ ? static_cast<double>(solid) / static_cast<double>(N_) : 1.0;
+
+        // local_cs[grain_id] = {phi1,Phi,phi2} in radians. Index == grain id.
+        local_cs_.assign(orient_.size(), std::vector<float>(3, 0.0f));
+        for (std::size_t g = 0; g < orient_.size(); ++g)
+            for (int k = 0; k < 3; ++k)
+                local_cs_[g][k] = static_cast<float>(orient_[g][k]);
+    }
+
     void ensure_solver_built() {
         if (H_) return;
         H_ = std::make_unique<ffth::FFTHomogenizer>(nx_, ny_, nz_);

@@ -10,6 +10,7 @@
 #include <memory>
 #include <QDebug>
 #include "ansyswrapper.h"   // tensor_components enum, ansysWrapper (kept alive for field visualization)
+#include "phasematerial.h"  // PhaseAssignment, PhaseMaterial, cubicVoigt()
 
 // Per-voxel field data produced by a single-shot FFT solve, dense over the
 // full N^3 grid -- index (z*N+y)*N+x, matching
@@ -224,6 +225,104 @@ inline std::vector<std::array<double,3>> buildGrainOrientations(
         orient[g] = { b[0], b[1], b[2] };
     }
     return orient;
+}
+
+// Per-grain material + orientation tables, resolved once and handed to
+// whichever solver is running. See resolveGrainMaterials() below.
+struct GrainMaterials
+{
+    /// False = every grain is the same material and only the orientation
+    /// varies (the historical single-phase path). True = voigtPa is populated
+    /// and each grain carries its own constituent.
+    bool multiPhase = false;
+
+    /// grain id -> Bunge ZXZ Euler angles (radians). Always populated.
+    std::vector<std::array<double,3>> orientation;
+
+    /// grain id -> Voigt stiffness in that grain's OWN material axes (Pa).
+    /// Populated only when multiPhase; index 0 is the unused void slot.
+    std::vector<std::array<std::array<double,6>,6>> voigtPa;
+
+    /// grain id -> phase index, plus the per-phase name and stiffness, for the
+    /// ANSYS material table (which is written per phase, not per grain) and for
+    /// logging. Populated only when multiPhase.
+    std::vector<int>     phaseOfGrain;
+    std::vector<QString> phaseNames;
+    std::vector<std::array<std::array<double,6>,6>> phaseVoigtPa;
+
+    /// Largest C11 across the phases -- sizes the soft void phase so the
+    /// contrast stays comparable to the single-phase path.
+    double maxC11 = 0.0;
+};
+
+// Resolve what each grain is made of and how it is oriented -- the single
+// place both StressAnalysisFFT and StressAnalysis (ANSYS) ask, so the two
+// backends cannot end up solving different problems.
+//
+// `phases` comes from Parameters::phaseAssignment, published by an algorithm
+// that knows its structure has more than one constituent (Composite). When it
+// is empty or does not match this structure, everything falls back to the
+// historical behaviour: one material from the cubic fallback constants, with
+// orientations sampled from the texture.
+//
+// A multi-phase assignment may also carry its own orientations -- Composite
+// derives each fiber's frame from its axis and ellipse angle rather than
+// sampling one -- in which case the texture is not consulted for those grains.
+inline GrainMaterials resolveGrainMaterials(
+    int nGrains, unsigned int seed,
+    const std::array<double,3>* forceOrientation,
+    const std::vector<TextureLibrary::Component>& texture,
+    const PhaseAssignment& phases,
+    double fallbackC11, double fallbackC12, double fallbackC44)
+{
+    GrainMaterials out;
+
+    const bool usable = phases.isUsable(nGrains);
+    if (!usable && !phases.materials.empty()) {
+        qWarning() << "[phases] the published phase assignment does not describe"
+                   << nGrains << "grains; falling back to a single material";
+    }
+
+    // A forced orientation is a debug override and must win over everything,
+    // including a geometry-derived fiber frame -- that is the whole point of it.
+    if (usable && !phases.grainOrientation.empty() && !forceOrientation) {
+        out.orientation.assign(phases.grainOrientation.begin(),
+                               phases.grainOrientation.begin() + nGrains + 1);
+    } else {
+        out.orientation = buildGrainOrientations(nGrains, seed, forceOrientation, texture);
+    }
+
+    if (!usable) {
+        out.maxC11 = fallbackC11;
+        return out;
+    }
+
+    out.multiPhase = true;
+    out.phaseOfGrain.assign(static_cast<size_t>(nGrains) + 1, 0);
+    out.voigtPa.assign(static_cast<size_t>(nGrains) + 1,
+                       std::array<std::array<double,6>,6>{});
+
+    for (const PhaseMaterial& m : phases.materials) {
+        out.phaseNames.push_back(m.name);
+        out.maxC11 = std::max(out.maxC11, m.C[0][0]);
+
+        std::array<std::array<double,6>,6> Cv{};
+        for (int i = 0; i < 6; ++i)
+            for (int j = 0; j < 6; ++j) Cv[i][j] = m.C[i][j];
+        out.phaseVoigtPa.push_back(Cv);
+    }
+
+    for (int g = 1; g <= nGrains; ++g) {
+        const int p = phases.phaseOf(g);
+        out.phaseOfGrain[static_cast<size_t>(g)] = p;
+        const PhaseMaterial& m = phases.materials[static_cast<size_t>(p)];
+        for (int i = 0; i < 6; ++i)
+            for (int j = 0; j < 6; ++j) out.voigtPa[static_cast<size_t>(g)][i][j] = m.C[i][j];
+    }
+
+    if (out.maxC11 <= 0.0) out.maxC11 = fallbackC11;
+    (void)fallbackC12; (void)fallbackC44;
+    return out;
 }
 
 // Convert a Bunge ZXZ orientation (phi1,Phi,phi2, radians) -- the same

@@ -5,6 +5,7 @@
 #include <QString>
 #include <vector>
 #include "texturelibrary.h"
+#include "phasematerial.h"
 
 class Parameters : public QObject
 {
@@ -50,6 +51,31 @@ class Parameters : public QObject
     // cubic constants (used by both stress solvers) and its lattice type
     // (used to build the texture presets).
     Q_PROPERTY(QString db_material READ getDbMaterial WRITE setDbMaterial NOTIFY dbMaterialChanged)
+
+    // ── Composite (fiber-reinforced RVE) ─────────────────────────────────
+    // Reinforcement dimensionality: "1D" (fibers along Z), "2D" (X and Y) or
+    // "3D" (X, Y and Z). Stored as the combo-box label, like texture_preset.
+    Q_PROPERTY(QString composite_dim     READ getCompositeDim     WRITE setCompositeDim     NOTIFY compositeSettingsChanged)
+    // In-plane arrangement of one fiber family: "Square" or "Hexagonal".
+    Q_PROPERTY(QString composite_packing READ getCompositePacking WRITE setCompositePacking NOTIFY compositeSettingsChanged)
+
+    // Target fiber volume fraction. This is the *input*: the fiber semi-axes
+    // are solved so the rasterized structure actually hits it.
+    Q_PROPERTY(double fiber_volume_fraction READ getFiberVolumeFraction WRITE setFiberVolumeFraction NOTIFY compositeSettingsChanged)
+    Q_PROPERTY(int    fibers_per_row        READ getFibersPerRow        WRITE setFibersPerRow        NOTIFY compositeSettingsChanged)
+
+    // RVE imperfections. a/b = 1 with no scatter and no jitter is the perfect
+    // lattice of circular fibers.
+    Q_PROPERTY(double fiber_aspect_ratio  READ getFiberAspectRatio  WRITE setFiberAspectRatio  NOTIFY compositeSettingsChanged)
+    Q_PROPERTY(double fiber_angle_scatter READ getFiberAngleScatter WRITE setFiberAngleScatter NOTIFY compositeSettingsChanged)
+    Q_PROPERTY(double fiber_center_jitter READ getFiberCenterJitter WRITE setFiberCenterJitter NOTIFY compositeSettingsChanged)
+    Q_PROPERTY(bool   fiber_allow_overlap READ getFiberAllowOverlap WRITE setFiberAllowOverlap NOTIFY compositeSettingsChanged)
+
+    // The two constituents, both from material_properties.db. The fiber's
+    // material axes follow the fiber (axis 3 = fiber axis), so a transversely
+    // isotropic row like C-fiber ends up stiff along the fiber.
+    Q_PROPERTY(QString matrix_material READ getMatrixMaterial WRITE setMatrixMaterial NOTIFY compositeSettingsChanged)
+    Q_PROPERTY(QString fiber_material  READ getFiberMaterial  WRITE setFiberMaterial  NOTIFY compositeSettingsChanged)
 
     Q_PROPERTY(QString texture_preset  READ getTexturePreset  WRITE setTexturePreset  NOTIFY textureSettingsChanged)
     Q_PROPERTY(double  texture_scatter READ getTextureScatter WRITE setTextureScatter NOTIFY textureSettingsChanged)
@@ -177,6 +203,41 @@ public:
     double getTextureScatter() const { return texture_scatter; }
     Q_INVOKABLE void setTextureScatter(double value);
 
+    // ── Composite ─────────────────────────────────────────────────────────
+    // Getters return the combo-box label so the panel can match its own option
+    // list; the setters accept both the labels and the CLI spellings.
+    QString getCompositeDim()     const { return compositeDimLabel(); }
+    QString getCompositePacking() const { return compositePackingLabel(); }
+    Q_INVOKABLE void setCompositeDim(const QString& value);
+    Q_INVOKABLE void setCompositePacking(const QString& value);
+
+    static QString compositeDimLabel();
+    static QString compositePackingLabel();
+
+    /// 1, 2 or 3 -- how many orthogonal fiber families the RVE carries.
+    static int  compositeDimensions();
+    /// True when the fibers of one family sit on a staggered (hexagonal)
+    /// lattice rather than a plain rectangular one.
+    static bool compositeHexagonal();
+
+    double getFiberVolumeFraction() const { return fiber_volume_fraction; }
+    int    getFibersPerRow()        const { return fibers_per_row; }
+    double getFiberAspectRatio()    const { return fiber_aspect_ratio; }
+    double getFiberAngleScatter()   const { return fiber_angle_scatter; }
+    double getFiberCenterJitter()   const { return fiber_center_jitter; }
+    bool   getFiberAllowOverlap()   const { return fiber_allow_overlap; }
+    QString getMatrixMaterial()     const { return matrix_material; }
+    QString getFiberMaterial()      const { return fiber_material; }
+
+    Q_INVOKABLE void setFiberVolumeFraction(double value);
+    Q_INVOKABLE void setFibersPerRow(int value);
+    Q_INVOKABLE void setFiberAspectRatio(double value);
+    Q_INVOKABLE void setFiberAngleScatter(double value);
+    Q_INVOKABLE void setFiberCenterJitter(double value);
+    Q_INVOKABLE void setFiberAllowOverlap(bool value);
+    Q_INVOKABLE void setMatrixMaterial(const QString& value);
+    Q_INVOKABLE void setFiberMaterial(const QString& value);
+
     /**
      * @brief Cubic single-crystal constants of the selected material, in Pa.
      *
@@ -240,6 +301,26 @@ public:
 
     static std::vector<TextureLibrary::Component> textureComponents;
 
+    /**
+     * @brief Grain -> (material, orientation) table for multi-phase structures.
+     *
+     * Published by the generating algorithm (Composite) and read by BOTH stress
+     * solvers, the same way textureComponents is. Left empty by every
+     * single-phase algorithm, which is what keeps them on the historical
+     * "one material from db_material + texture-sampled orientations" path.
+     */
+    static PhaseAssignment phaseAssignment;
+
+    /**
+     * @brief Full anisotropic stiffness of a named database material, in Pa.
+     *
+     * The generalisation of cubicConstantsPa(): reads all 21 columns, so
+     * transversely isotropic rows (carbon fiber) survive instead of being
+     * flattened onto a cubic triple. Returns false and leaves C untouched when
+     * the material is unknown or has no usable constants.
+     */
+    static bool materialStiffnessPa(const QString& name, double C[6][6]);
+
 signals:
     void sizeChanged();
     void pointsChanged();
@@ -278,6 +359,7 @@ signals:
     void isPeriodicChanged();
     void dbMaterialChanged();
     void textureSettingsChanged();
+    void compositeSettingsChanged();
 
     void numRndLoadsChanged();
     void stressSolverChanged();
@@ -329,6 +411,17 @@ private:
     static QString texture_preset;
     static double  texture_scatter;
     static QString lattice_override;
+
+    static QString composite_dim;        // "1d" | "2d" | "3d"
+    static QString composite_packing;    // "square" | "hexagonal"
+    static double  fiber_volume_fraction;
+    static int     fibers_per_row;
+    static double  fiber_aspect_ratio;
+    static double  fiber_angle_scatter;
+    static double  fiber_center_jitter;
+    static bool    fiber_allow_overlap;
+    static QString matrix_material;
+    static QString fiber_material;
 };
 
 #endif // PARAMETERS_H

@@ -81,6 +81,61 @@ inline Mat6 cubic_grain_mandel(double C11,double C12,double C44,
     return to_mandel(rotate_C4(cubic_C4(C11,C12,C44), bunge_zxz(phi1,Phi,phi2)));
 }
 
+// --- General anisotropic stiffness (Voigt 6x6, material axes) -> 4th order ---
+//  Voigt index <-> index pair:  0=11 1=22 2=33 3=23 4=13 5=12, which is the
+//  same pairing to_mandel() uses, and the same one the material database's
+//  c11..c66 columns are written in. Stiffness (as opposed to compliance) needs
+//  no factors of 2, so this is a plain re-indexing.
+//
+//  Anything the cubic path can express, this can too: cubic_C4(C11,C12,C44)
+//  and voigt_to_C4() of the corresponding Voigt matrix agree exactly.
+inline C4 voigt_to_C4(const double Cv[6][6]) {
+    // (i,j) -> Voigt row/column
+    static const int V[3][3] = { {0, 5, 4},
+                                 {5, 1, 3},
+                                 {4, 3, 2} };
+    C4 C{};
+    for (int i=0;i<3;++i)for(int j=0;j<3;++j)for(int k=0;k<3;++k)for(int l=0;l<3;++l)
+        C[i][j][k][l] = Cv[V[i][j]][V[k][l]];
+    return C;
+}
+
+// One-shot: general anisotropic material with a given orientation -> Mandel 6x6
+// in the sample frame. The transversely isotropic and orthotropic rows of the
+// material database go through here; cubic ones can too.
+inline Mat6 aniso_grain_mandel(const double Cv[6][6],
+                               double phi1,double Phi,double phi2) {
+    return to_mandel(rotate_C4(voigt_to_C4(Cv), bunge_zxz(phi1,Phi,phi2)));
+}
+
+// --- Orientation matrix -> Bunge ZXZ (radians) -------------------------------
+//  Exact inverse of bunge_zxz(): the rows of g are the crystal axes written in
+//  sample coordinates, so a caller that knows where it wants the material axes
+//  to point (a fiber, say) can build g directly and convert.
+//
+//  Phi is returned in [0, pi], which is the canonical Bunge range; at the
+//  Phi = 0 / pi poles only phi1 + phi2 (resp. phi1 - phi2) is determined, and
+//  the split is fixed by putting everything in phi1.
+inline void bunge_from_matrix(const Mat3& g,
+                              double& phi1, double& Phi, double& phi2) {
+    double c = g[2][2];
+    if (c >  1.0) c =  1.0;
+    if (c < -1.0) c = -1.0;
+    Phi = std::acos(c);
+
+    const double s = std::sqrt(std::max(0.0, 1.0 - c * c));
+    if (s < 1e-9) {                       // gimbal lock: the Z rotations merge
+        phi2 = 0.0;
+        phi1 = (c > 0.0) ? std::atan2(g[0][1],  g[0][0])    // Phi = 0
+                         : std::atan2(g[0][1], -g[0][0]);   // Phi = pi
+        return;
+    }
+    //  g[2][0] = sin(phi1) sin(Phi),  g[2][1] = -cos(phi1) sin(Phi)
+    //  g[0][2] = sin(phi2) sin(Phi),  g[1][2] =  cos(phi2) sin(Phi)
+    phi1 = std::atan2(g[2][0], -g[2][1]);
+    phi2 = std::atan2(g[0][2],  g[1][2]);
+}
+
 // Zener anisotropy of a cubic crystal (=1 for isotropic)
 inline double zener(double C11,double C12,double C44){ return 2.0*C44/(C11-C12); }
 

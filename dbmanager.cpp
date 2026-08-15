@@ -1,5 +1,7 @@
 #include <QCoreApplication>
+#include <QSet>
 #include "dbmanager.h"
+#include "phasematerial.h"   // cubicVoigt()
 
 // Opened lazily and shared by every caller: the GUI builds a DBManager at
 // startup, but headless runs resolve --db_material without one, and both must
@@ -80,6 +82,59 @@ bool DBManager::cubicConstants(const QString& material,
     return true;
 }
 
+bool DBManager::stiffnessMatrix(const QString& material,
+                                double C[6][6],
+                                QString& type)
+{
+    QSqlDatabase db = materialDatabase();
+    if (!db.isOpen())
+        return false;
+
+    // The table keeps the upper triangle only; build the column list in the
+    // same c<i><j> naming elasticMatrix() uses so the two stay in step.
+    QStringList cols;
+    for (int i = 1; i <= 6; ++i)
+        for (int j = i; j <= 6; ++j)
+            cols << QStringLiteral("c%1%2").arg(i).arg(j);
+
+    QSqlQuery query(db);
+    query.prepare(QStringLiteral("SELECT %1, Type FROM material_properties "
+                                 "WHERE Material = :m LIMIT 1").arg(cols.join(", ")));
+    query.bindValue(":m", material);
+    if (!query.exec()) {
+        qCritical() << "Error querying material" << material << ":" << query.lastError().text();
+        return false;
+    }
+    if (!query.next())
+        return false;
+
+    double M[6][6] = {{0}};
+    int col = 0;
+    for (int i = 0; i < 6; ++i)
+        for (int j = i; j < 6; ++j, ++col)
+            M[i][j] = M[j][i] = query.value(col).toDouble();
+
+    type = query.value(col).toString();
+
+    if (M[0][0] <= 0.0)
+        return false;                       // no usable constants in this row
+
+    // A hand-added cubic material typically has only c11/c12/c44 filled in,
+    // which as a raw matrix is singular (c22 = c33 = 0). Reconstruct what those
+    // three constants actually mean rather than handing a solver a broken
+    // tensor -- cubicConstants() reads the same row and would disagree.
+    if (M[1][1] <= 0.0 || M[2][2] <= 0.0) {
+        qInfo() << "material" << material
+                << "has only the cubic constants filled in; expanding c11/c12/c44"
+                << "into the full cubic matrix";
+        cubicVoigt(M[0][0], M[0][1], M[3][3], M);
+    }
+
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 6; ++j) C[i][j] = M[i][j];
+    return true;
+}
+
 DBManager::DBManager(QObject *parent)
     : QObject(parent)
 {
@@ -124,14 +179,16 @@ void DBManager::insertInitialData(QSqlDatabase& db)
 {
     QSqlQuery query(db);
 
-    query.prepare("SELECT COUNT(*) FROM material_properties");
-    if (!query.exec() || !query.next()) {
+    // Which materials the file already has. Seeding is per-material rather than
+    // all-or-nothing: the table is only ever created empty once, so an
+    // existing installation would never see a material added later. Rows that
+    // are already there are left exactly as they are, edits included.
+    QSet<QString> present;
+    if (query.exec("SELECT Material FROM material_properties")) {
+        while (query.next())
+            present.insert(query.value(0).toString());
+    } else {
         qCritical() << "Error checking existing data:" << query.lastError().text();
-        return;
-    }
-
-    if (query.value(0).toInt() > 0) {
-        qDebug() << "Initial data already exists, skipping insertion.";
         return;
     }
 
@@ -149,6 +206,8 @@ void DBManager::insertInitialData(QSqlDatabase& db)
         double c55, c56;
         double c66;
     };
+
+    int inserted = 0;
 
     QVector<Material> materials = {
         {"Ag", "fcc", 124.73, 94.05, 94.05, 0,0,0, 124.73, 94.05, 0,0,0, 124.73, 0,0,0, 46.58, 0,0, 46.58, 0, 46.58},
@@ -175,10 +234,34 @@ void DBManager::insertInitialData(QSqlDatabase& db)
         {"InP", "zb", 102.20, 57.60, 57.60, 0,0,0, 102.20, 57.60, 0,0,0, 102.20, 0,0,0, 46.00, 0,0, 46.00, 0, 46.00},
         {"LiF", "rs", 111.20, 42.40, 42.40, 0,0,0, 111.20, 42.40, 0,0,0, 111.20, 0,0,0, 64.90, 0,0, 64.90, 0, 64.90},
         {"MgO", "rs", 298.20, 95.25, 95.25, 0,0,0, 298.20, 95.25, 0,0,0, 298.20, 0,0,0, 154.40, 0,0, 154.40, 0, 154.40},
-        {"TiC", "rs", 389.10, 43.30, 43.30, 0,0,0, 389.10, 43.30, 0,0,0, 389.10, 0,0,0, 203.20, 0,0, 203.20, 0, 203.20}
+        {"TiC", "rs", 389.10, 43.30, 43.30, 0,0,0, 389.10, 43.30, 0,0,0, 389.10, 0,0,0, 203.20, 0,0, 203.20, 0, 203.20},
+
+        // ── Composite constituents ────────────────────────────────────────
+        // Everything above is a cubic single crystal. A fiber-reinforced RVE
+        // needs the other kind of constituent: engineering materials that are
+        // already homogeneous at the voxel scale.
+        //
+        // Type "iso": isotropic, so c11 = lambda + 2mu, c12 = lambda,
+        // c44 = mu = (c11 - c12)/2, and the orientation a solver assigns is
+        // irrelevant -- rotating them is a no-op.
+        {"Epoxy",   "iso",   5.62,   3.02,   3.02, 0,0,0,   5.62,   3.02, 0,0,0,   5.62, 0,0,0,   1.30, 0,0,   1.30, 0,   1.30},
+        {"E-glass", "iso",  82.20,  23.19,  23.19, 0,0,0,  82.20,  23.19, 0,0,0,  82.20, 0,0,0,  29.51, 0,0,  29.51, 0,  29.51},
+        {"Al2O3",   "iso", 433.85, 122.37, 122.37, 0,0,0, 433.85, 122.37, 0,0,0, 433.85, 0,0,0, 155.74, 0,0, 155.74, 0, 155.74},
+        {"SiC",     "iso", 429.58,  69.93,  69.93, 0,0,0, 429.58,  69.93, 0,0,0, 429.58, 0,0,0, 179.82, 0,0, 179.82, 0, 179.82},
+
+        // Type "ti": transversely isotropic about axis 3, which is the axis
+        // Composite aligns a fiber to -- so c33 is the stiff along-fiber
+        // direction. T300-class PAN carbon fiber, from the usual engineering
+        // constants (Ea = 230, Et = 15, Ga = 15, nu_a = 0.2, nu_t = 0.07 GPa)
+        // inverted to stiffnesses. Note c66 = (c11 - c12)/2 = 7.01, which is
+        // what makes the 1-2 plane isotropic.
+        {"C-fiber", "ti",   15.12,   1.10,   3.24, 0,0,0,  15.12,   3.24, 0,0,0, 231.30, 0,0,0,  15.00, 0,0,  15.00, 0,   7.01}
     };
 
     for (const auto &mat : materials) {
+        if (present.contains(mat.material))
+            continue;
+
         std::array<double, 21> coefficients = {
             mat.c11, mat.c12, mat.c13, mat.c14, mat.c15, mat.c16,
             mat.c22, mat.c23, mat.c24, mat.c25, mat.c26,
@@ -195,9 +278,15 @@ void DBManager::insertInitialData(QSqlDatabase& db)
         }
         if (!query.exec()) {
             qCritical() << "Failed to insert data:" << query.lastError().text();
+        } else {
+            ++inserted;
         }
     }
-    qDebug() << "Initial data inserted successfully.";
+
+    if (inserted > 0)
+        qDebug() << "Seeded" << inserted << "material(s) into material_properties.";
+    else
+        qDebug() << "material_properties is already up to date.";
 }
 
 Q_INVOKABLE void DBManager::addMaterial(const QString &material)

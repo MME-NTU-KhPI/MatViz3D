@@ -88,6 +88,13 @@ void MainWindowAlgorithmHandler::executeAlgorithm(Parent_Algorithm& algorithm, c
     Parameters& params = *Parameters::instance();
     OpenGLWidgetQML *ogl = OpenGLWidgetQML::getInstance();
     Parameters::voxels = algorithm.Allocate_Memory();
+
+    // Drop any phase table a previous run published. Only a multi-phase
+    // algorithm fills this in, and a stale one left over from, say, a Composite
+    // run would otherwise be applied to the next structure's grains -- whose
+    // ids mean something completely different.
+    Parameters::phaseAssignment.clear();
+
     // algorithm.Initialization(isWaveGeneration);
     algorithm.Initialization(false);
     algorithm.setRemainingPoints(algorithm.getNumColors() - static_cast<int>(Parameters::wave_coefficient * algorithm.getNumColors()));
