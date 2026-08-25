@@ -2,6 +2,7 @@
 #include <QSet>
 #include "dbmanager.h"
 #include "phasematerial.h"   // cubicVoigt()
+#include "tensormath.hpp"    // mvt::voigtReussHill(), eigenvaluesSym6()
 
 // Opened lazily and shared by every caller: the GUI builds a DBManager at
 // startup, but headless runs resolve --db_material without one, and both must
@@ -32,6 +33,7 @@ QSqlDatabase DBManager::materialDatabase()
 
     qDebug() << "Database connected successfully";
     createTable(db);
+    migrateSchema(db);
     insertInitialData(db);
     return db;
 }
@@ -161,6 +163,7 @@ void DBManager::createTable(QSqlDatabase& db)
         "id INTEGER PRIMARY KEY AUTOINCREMENT, "
         "Material TEXT NOT NULL, "
         "Type VARCHAR(6) DEFAULT '', "
+        "Comment TEXT DEFAULT '', "
         "c11 REAL DEFAULT 0, c12 REAL DEFAULT 0, c13 REAL DEFAULT 0, "
         "c14 REAL DEFAULT 0, c15 REAL DEFAULT 0, c16 REAL DEFAULT 0, "
         "c22 REAL DEFAULT 0, c23 REAL DEFAULT 0, c24 REAL DEFAULT 0, "
@@ -173,6 +176,41 @@ void DBManager::createTable(QSqlDatabase& db)
         qCritical() << "Error creating table: " << query.lastError().text();
     else
         qDebug() << "Table created successfully.";
+}
+
+/**
+ * @brief Adds the Comment column to a material_properties table created
+ *        before it existed.
+ *
+ * CREATE TABLE IF NOT EXISTS is a no-op against an existing file, so an
+ * installation with data already in it would otherwise never pick up a new
+ * column added here later -- exactly the problem insertInitialData() already
+ * solves for new rows, but for schema this needs its own migration.
+ */
+void DBManager::migrateSchema(QSqlDatabase& db)
+{
+    QSqlQuery info(db);
+    if (!info.exec("PRAGMA table_info(material_properties)")) {
+        qCritical() << "Error reading table_info:" << info.lastError().text();
+        return;
+    }
+
+    bool hasComment = false;
+    while (info.next()) {
+        // table_info columns are (cid, name, type, notnull, dflt_value, pk).
+        if (info.value(1).toString().compare(QStringLiteral("Comment"), Qt::CaseInsensitive) == 0) {
+            hasComment = true;
+            break;
+        }
+    }
+    if (hasComment)
+        return;
+
+    QSqlQuery alter(db);
+    if (!alter.exec("ALTER TABLE material_properties ADD COLUMN Comment TEXT DEFAULT ''"))
+        qCritical() << "Error adding Comment column:" << alter.lastError().text();
+    else
+        qDebug() << "Migrated material_properties: added Comment column.";
 }
 
 void DBManager::insertInitialData(QSqlDatabase& db)
@@ -192,9 +230,9 @@ void DBManager::insertInitialData(QSqlDatabase& db)
         return;
     }
 
-    query.prepare("INSERT INTO material_properties (Material, Type, c11, c12, c13, c14, c15, c16, "
+    query.prepare("INSERT INTO material_properties (Material, Type, Comment, c11, c12, c13, c14, c15, c16, "
                   "c22, c23, c24, c25, c26, c33, c34, c35, c36, c44, c45, c46, c55, c56, c66) "
-                  "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                  "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
     struct Material {
         QString material;
@@ -205,49 +243,93 @@ void DBManager::insertInitialData(QSqlDatabase& db)
         double c44, c45, c46;
         double c55, c56;
         double c66;
+        QString comment;
     };
 
     int inserted = 0;
 
+    // Every cubic entry below (fcc/bcc/dc/zb/rs) is "modified from Simmons and
+    // Wang, Single Crystal Elastic Constants and Calculated Aggregate
+    // Properties, MIT Press (1970)" -- the same wording the tabulation at the
+    // cited URL uses, and the one this table's own numbers trace back to.
+    // Comment strings put the URL last and unpunctuated so a simple "does this
+    // look like a URL" scan (see MaterialDatabaseView.qml/MaterialMatrixEditor
+    // .qml linkify()) never swallows trailing punctuation into the link.
+    const QString kCubicSrc =
+        "Simmons & Wang (1971), Single Crystal Elastic Constants and Calculated "
+        "Aggregate Properties, MIT Press; tabulated at "
+        "https://solidmechanics.org/text/Chapter3_2/Chapter3_2.htm#Sect3_2_17";
+    const QString kHcpSrc =
+        "Freund & Suresh, Thin Film Materials, CUP (2003), table of hcp elastic "
+        "constants (original sources cited on p.163 therein); tabulated at "
+        "https://solidmechanics.org/text/Chapter3_2/Chapter3_2.htm#Sect3_2_15";
+
     QVector<Material> materials = {
-        {"Ag", "fcc", 124.73, 94.05, 94.05, 0,0,0, 124.73, 94.05, 0,0,0, 124.73, 0,0,0, 46.58, 0,0, 46.58, 0, 46.58},
-        {"Al", "fcc", 107.90, 60.40, 60.40, 0,0,0, 107.90, 60.40, 0,0,0, 107.90, 0,0,0, 28.60, 0,0, 28.60, 0, 28.60},
-        {"Au", "fcc", 193.22, 163.78, 163.78, 0,0,0, 193.22, 163.78, 0,0,0, 193.22, 0,0,0, 42.26, 0,0, 42.26, 0, 42.26},
-        {"Cu", "fcc", 168.40, 121.40, 121.40, 0,0,0, 168.40, 121.40, 0,0,0, 168.40, 0,0,0, 75.40, 0,0, 75.40, 0, 75.40},
-        {"Ir", "fcc", 580.00, 242.00, 242.00, 0,0,0, 580.00, 242.00, 0,0,0, 580.00, 0,0,0, 256.00, 0,0, 256.00, 0, 256.00},
-        {"Ni", "fcc", 253.00, 152.00, 152.00, 0,0,0, 253.00, 152.00, 0,0,0, 253.00, 0,0,0, 124.00, 0,0, 124.00, 0, 124.00},
-        {"Pb", "fcc", 49.53, 42.29, 42.29, 0,0,0, 49.53, 42.29, 0,0,0, 49.53, 0,0,0, 14.90, 0,0, 14.90, 0, 14.90},
-        {"Pt", "fcc", 346.70, 250.70, 250.70, 0,0,0, 346.70, 250.70, 0,0,0, 346.70, 0,0,0, 76.50, 0,0, 76.50, 0, 76.50},
-        {"Pd", "fcc", 227.10, 176.00, 176.00, 0,0,0, 227.10, 176.00, 0,0,0, 227.10, 0,0,0, 71.70, 0,0, 71.70, 0, 71.70},
-        {"Cr", "bcc", 339.80, 58.60, 58.60, 0,0,0, 339.80, 58.60, 0,0,0, 339.80, 0,0,0, 99.00, 0,0, 99.00, 0, 99.00},
-        {"Fe", "bcc", 232.20, 134.70, 134.70, 0,0,0, 232.20, 134.70, 0,0,0, 232.20, 0,0,0, 117.00, 0,0, 117.00, 0, 117.00},
-        {"Mo", "bcc", 470.70, 167.50, 167.50, 0,0,0, 470.70, 167.50, 0,0,0, 470.70, 0,0,0, 107.00, 0,0, 107.00, 0, 107.00},
-        {"Nb", "bcc", 246.00, 134.00, 134.00, 0,0,0, 246.00, 134.00, 0,0,0, 246.00, 0,0,0, 28.70, 0,0, 28.70, 0, 28.70},
-        {"Ta", "bcc", 267.00, 161.00, 161.00, 0,0,0, 267.00, 161.00, 0,0,0, 267.00, 0,0,0, 82.50, 0,0, 82.50, 0, 82.50},
-        {"V", "bcc", 228.00, 119.00, 119.00, 0,0,0, 228.00, 119.00, 0,0,0, 228.00, 0,0,0, 42.60, 0,0, 42.60, 0, 42.60},
-        {"W", "bcc", 522.40, 204.40, 204.40, 0,0,0, 522.40, 204.40, 0,0,0, 522.40, 0,0,0, 160.50, 0,0, 160.50, 0, 160.50},
-        {"C", "dc", 1079.0, 124.00, 124.00, 0,0,0, 1079.0, 124.00, 0,0,0, 1079.0, 0,0,0, 578.00, 0,0, 578.00, 0, 578.00},
-        {"Ge", "dc", 129.20, 47.90, 47.90, 0,0,0, 129.20, 47.90, 0,0,0, 129.20, 0,0,0, 67.00, 0,0, 67.00, 0, 67.00},
-        {"Si", "dc", 167.40, 65.23, 65.23, 0,0,0, 167.40, 65.23, 0,0,0, 167.40, 0,0,0, 79.57, 0,0, 79.57, 0, 79.57},
-        {"GaAs", "zb", 118.41, 53.70, 53.70, 0,0,0, 118.41, 53.70, 0,0,0, 118.41, 0,0,0, 59.12, 0,0, 59.12, 0, 59.12},
-        {"GaP", "zb", 141.40, 63.98, 63.98, 0,0,0, 141.40, 63.98, 0,0,0, 141.40, 0,0,0, 70.28, 0,0, 70.28, 0, 70.28},
-        {"InP", "zb", 102.20, 57.60, 57.60, 0,0,0, 102.20, 57.60, 0,0,0, 102.20, 0,0,0, 46.00, 0,0, 46.00, 0, 46.00},
-        {"LiF", "rs", 111.20, 42.40, 42.40, 0,0,0, 111.20, 42.40, 0,0,0, 111.20, 0,0,0, 64.90, 0,0, 64.90, 0, 64.90},
-        {"MgO", "rs", 298.20, 95.25, 95.25, 0,0,0, 298.20, 95.25, 0,0,0, 298.20, 0,0,0, 154.40, 0,0, 154.40, 0, 154.40},
-        {"TiC", "rs", 389.10, 43.30, 43.30, 0,0,0, 389.10, 43.30, 0,0,0, 389.10, 0,0,0, 203.20, 0,0, 203.20, 0, 203.20},
+        {"Ag", "fcc", 124.73, 94.05, 94.05, 0,0,0, 124.73, 94.05, 0,0,0, 124.73, 0,0,0, 46.58, 0,0, 46.58, 0, 46.58, kCubicSrc},
+        {"Al", "fcc", 107.90, 60.40, 60.40, 0,0,0, 107.90, 60.40, 0,0,0, 107.90, 0,0,0, 28.60, 0,0, 28.60, 0, 28.60, kCubicSrc},
+        {"Au", "fcc", 193.22, 163.78, 163.78, 0,0,0, 193.22, 163.78, 0,0,0, 193.22, 0,0,0, 42.26, 0,0, 42.26, 0, 42.26, kCubicSrc},
+        {"Cu", "fcc", 168.40, 121.40, 121.40, 0,0,0, 168.40, 121.40, 0,0,0, 168.40, 0,0,0, 75.40, 0,0, 75.40, 0, 75.40, kCubicSrc},
+        {"Ir", "fcc", 580.00, 242.00, 242.00, 0,0,0, 580.00, 242.00, 0,0,0, 580.00, 0,0,0, 256.00, 0,0, 256.00, 0, 256.00, kCubicSrc},
+        {"Ni", "fcc", 253.00, 152.00, 152.00, 0,0,0, 253.00, 152.00, 0,0,0, 253.00, 0,0,0, 124.00, 0,0, 124.00, 0, 124.00, kCubicSrc},
+        {"Pb", "fcc", 49.53, 42.29, 42.29, 0,0,0, 49.53, 42.29, 0,0,0, 49.53, 0,0,0, 14.90, 0,0, 14.90, 0, 14.90, kCubicSrc},
+        {"Pt", "fcc", 346.70, 250.70, 250.70, 0,0,0, 346.70, 250.70, 0,0,0, 346.70, 0,0,0, 76.50, 0,0, 76.50, 0, 76.50, kCubicSrc},
+        {"Pd", "fcc", 227.10, 176.00, 176.00, 0,0,0, 227.10, 176.00, 0,0,0, 227.10, 0,0,0, 71.70, 0,0, 71.70, 0, 71.70, kCubicSrc},
+        {"Cr", "bcc", 339.80, 58.60, 58.60, 0,0,0, 339.80, 58.60, 0,0,0, 339.80, 0,0,0, 99.00, 0,0, 99.00, 0, 99.00, kCubicSrc},
+        {"Fe", "bcc", 232.20, 134.70, 134.70, 0,0,0, 232.20, 134.70, 0,0,0, 232.20, 0,0,0, 117.00, 0,0, 117.00, 0, 117.00, kCubicSrc},
+        {"Mo", "bcc", 470.70, 167.50, 167.50, 0,0,0, 470.70, 167.50, 0,0,0, 470.70, 0,0,0, 107.00, 0,0, 107.00, 0, 107.00, kCubicSrc},
+        {"Nb", "bcc", 246.00, 134.00, 134.00, 0,0,0, 246.00, 134.00, 0,0,0, 246.00, 0,0,0, 28.70, 0,0, 28.70, 0, 28.70, kCubicSrc},
+        {"Ta", "bcc", 267.00, 161.00, 161.00, 0,0,0, 267.00, 161.00, 0,0,0, 267.00, 0,0,0, 82.50, 0,0, 82.50, 0, 82.50, kCubicSrc},
+        {"V", "bcc", 228.00, 119.00, 119.00, 0,0,0, 228.00, 119.00, 0,0,0, 228.00, 0,0,0, 42.60, 0,0, 42.60, 0, 42.60, kCubicSrc},
+        {"W", "bcc", 522.40, 204.40, 204.40, 0,0,0, 522.40, 204.40, 0,0,0, 522.40, 0,0,0, 160.50, 0,0, 160.50, 0, 160.50, kCubicSrc},
+        {"C", "dc", 1079.0, 124.00, 124.00, 0,0,0, 1079.0, 124.00, 0,0,0, 1079.0, 0,0,0, 578.00, 0,0, 578.00, 0, 578.00, kCubicSrc},
+        {"Ge", "dc", 129.20, 47.90, 47.90, 0,0,0, 129.20, 47.90, 0,0,0, 129.20, 0,0,0, 67.00, 0,0, 67.00, 0, 67.00, kCubicSrc},
+        {"Si", "dc", 167.40, 65.23, 65.23, 0,0,0, 167.40, 65.23, 0,0,0, 167.40, 0,0,0, 79.57, 0,0, 79.57, 0, 79.57, kCubicSrc},
+        {"GaAs", "zb", 118.41, 53.70, 53.70, 0,0,0, 118.41, 53.70, 0,0,0, 118.41, 0,0,0, 59.12, 0,0, 59.12, 0, 59.12, kCubicSrc},
+        {"GaP", "zb", 141.40, 63.98, 63.98, 0,0,0, 141.40, 63.98, 0,0,0, 141.40, 0,0,0, 70.28, 0,0, 70.28, 0, 70.28, kCubicSrc},
+        {"InP", "zb", 102.20, 57.60, 57.60, 0,0,0, 102.20, 57.60, 0,0,0, 102.20, 0,0,0, 46.00, 0,0, 46.00, 0, 46.00, kCubicSrc},
+        {"LiF", "rs", 111.20, 42.40, 42.40, 0,0,0, 111.20, 42.40, 0,0,0, 111.20, 0,0,0, 64.90, 0,0, 64.90, 0, 64.90, kCubicSrc},
+        {"MgO", "rs", 298.20, 95.25, 95.25, 0,0,0, 298.20, 95.25, 0,0,0, 298.20, 0,0,0, 154.40, 0,0, 154.40, 0, 154.40, kCubicSrc},
+        {"TiC", "rs", 389.10, 43.30, 43.30, 0,0,0, 389.10, 43.30, 0,0,0, 389.10, 0,0,0, 203.20, 0,0, 203.20, 0, 203.20, kCubicSrc},
+
+        // ── Hexagonal close-packed single crystals ────────────────────────
+        // Type "hcp": transversely isotropic about axis 3 (the crystal's
+        // c-axis, perpendicular to the basal plane), same 5-constant tensor
+        // shape as Type "ti" below -- c66 = (c11 - c12)/2 is the value that
+        // makes the basal plane isotropic, and is filled in explicitly here
+        // (like every other row) rather than left for a solver to derive.
+        // ZnO is not a metal but shares the wurtzite/hcp symmetry, so it is
+        // grouped with the true hcp metals rather than the isotropic
+        // composite constituents below.
+        {"Be", "hcp", 292.3, 26.7, 14.0, 0,0,0, 292.3, 14.0, 0,0,0, 336.4, 0,0,0, 162.5, 0,0, 162.5, 0, 132.80, kHcpSrc},
+        {"Cd", "hcp", 115.8, 39.8, 40.6, 0,0,0, 115.8, 40.6, 0,0,0, 51.4, 0,0,0, 20.4, 0,0, 20.4, 0, 38.00, kHcpSrc},
+        {"Co", "hcp", 307.0, 165.0, 103.0, 0,0,0, 307.0, 103.0, 0,0,0, 358.1, 0,0,0, 78.3, 0,0, 78.3, 0, 71.00, kHcpSrc},
+        {"Hf", "hcp", 181.1, 77.2, 66.1, 0,0,0, 181.1, 66.1, 0,0,0, 196.9, 0,0,0, 55.7, 0,0, 55.7, 0, 51.95, kHcpSrc},
+        {"Mg", "hcp", 59.7, 26.2, 21.7, 0,0,0, 59.7, 21.7, 0,0,0, 61.7, 0,0,0, 16.4, 0,0, 16.4, 0, 16.75, kHcpSrc},
+        {"Ti", "hcp", 162.4, 92.0, 69.0, 0,0,0, 162.4, 69.0, 0,0,0, 180.7, 0,0,0, 46.7, 0,0, 46.7, 0, 35.20, kHcpSrc},
+        {"Zn", "hcp", 161.0, 34.2, 50.1, 0,0,0, 161.0, 50.1, 0,0,0, 61.0, 0,0,0, 38.3, 0,0, 38.3, 0, 63.40, kHcpSrc},
+        {"Zr", "hcp", 143.4, 72.8, 65.3, 0,0,0, 143.4, 65.3, 0,0,0, 164.8, 0,0,0, 32.0, 0,0, 32.0, 0, 35.30, kHcpSrc},
+        {"ZnO", "hcp", 209.7, 121.1, 105.1, 0,0,0, 209.7, 105.1, 0,0,0, 210.9, 0,0,0, 42.5, 0,0, 42.5, 0, 44.30, kHcpSrc},
 
         // ── Composite constituents ────────────────────────────────────────
-        // Everything above is a cubic single crystal. A fiber-reinforced RVE
-        // needs the other kind of constituent: engineering materials that are
-        // already homogeneous at the voxel scale.
+        // Everything above is a single crystal. A fiber-reinforced RVE needs
+        // the other kind of constituent: engineering materials that are
+        // already homogeneous at the voxel scale. These are representative
+        // textbook/datasheet values for a generic material of the class, not
+        // a certified allowable for any specific product -- there is no
+        // single-source citation to link the way there is for the single
+        // crystals above.
         //
         // Type "iso": isotropic, so c11 = lambda + 2mu, c12 = lambda,
         // c44 = mu = (c11 - c12)/2, and the orientation a solver assigns is
         // irrelevant -- rotating them is a no-op.
-        {"Epoxy",   "iso",   5.62,   3.02,   3.02, 0,0,0,   5.62,   3.02, 0,0,0,   5.62, 0,0,0,   1.30, 0,0,   1.30, 0,   1.30},
-        {"E-glass", "iso",  82.20,  23.19,  23.19, 0,0,0,  82.20,  23.19, 0,0,0,  82.20, 0,0,0,  29.51, 0,0,  29.51, 0,  29.51},
-        {"Al2O3",   "iso", 433.85, 122.37, 122.37, 0,0,0, 433.85, 122.37, 0,0,0, 433.85, 0,0,0, 155.74, 0,0, 155.74, 0, 155.74},
-        {"SiC",     "iso", 429.58,  69.93,  69.93, 0,0,0, 429.58,  69.93, 0,0,0, 429.58, 0,0,0, 179.82, 0,0, 179.82, 0, 179.82},
+        {"Epoxy",   "iso",   5.62,   3.02,   3.02, 0,0,0,   5.62,   3.02, 0,0,0,   5.62, 0,0,0,   1.30, 0,0,   1.30, 0,   1.30,
+         "Representative isotropic constants for a generic epoxy matrix resin (typical textbook/datasheet range; not a certified design allowable)."},
+        {"E-glass", "iso",  82.20,  23.19,  23.19, 0,0,0,  82.20,  23.19, 0,0,0,  82.20, 0,0,0,  29.51, 0,0,  29.51, 0,  29.51,
+         "Representative isotropic constants for generic E-glass fiber (typical textbook/datasheet range; not a certified design allowable)."},
+        {"Al2O3",   "iso", 433.85, 122.37, 122.37, 0,0,0, 433.85, 122.37, 0,0,0, 433.85, 0,0,0, 155.74, 0,0, 155.74, 0, 155.74,
+         "Representative isotropic constants for polycrystalline alumina (Al2O3) (typical textbook/datasheet range; not a certified design allowable)."},
+        {"SiC",     "iso", 429.58,  69.93,  69.93, 0,0,0, 429.58,  69.93, 0,0,0, 429.58, 0,0,0, 179.82, 0,0, 179.82, 0, 179.82,
+         "Representative isotropic constants for polycrystalline SiC (typical textbook/datasheet range; not a certified design allowable)."},
 
         // Type "ti": transversely isotropic about axis 3, which is the axis
         // Composite aligns a fiber to -- so c33 is the stiff along-fiber
@@ -255,7 +337,10 @@ void DBManager::insertInitialData(QSqlDatabase& db)
         // constants (Ea = 230, Et = 15, Ga = 15, nu_a = 0.2, nu_t = 0.07 GPa)
         // inverted to stiffnesses. Note c66 = (c11 - c12)/2 = 7.01, which is
         // what makes the 1-2 plane isotropic.
-        {"C-fiber", "ti",   15.12,   1.10,   3.24, 0,0,0,  15.12,   3.24, 0,0,0, 231.30, 0,0,0,  15.00, 0,0,  15.00, 0,   7.01}
+        {"C-fiber", "ti",   15.12,   1.10,   3.24, 0,0,0,  15.12,   3.24, 0,0,0, 231.30, 0,0,0,  15.00, 0,0,  15.00, 0,   7.01,
+         "Representative T300-class PAN carbon fiber engineering constants "
+         "(Ea=230, Et=15, Ga=15, nu_a=0.2, nu_t=0.07 GPa), typical textbook range; "
+         "not a certified design allowable."}
     };
 
     for (const auto &mat : materials) {
@@ -273,6 +358,7 @@ void DBManager::insertInitialData(QSqlDatabase& db)
 
         query.addBindValue(mat.material);
         query.addBindValue(mat.type);
+        query.addBindValue(mat.comment);
         for (const auto &coef : coefficients) {
             query.addBindValue(coef);
         }
@@ -280,6 +366,57 @@ void DBManager::insertInitialData(QSqlDatabase& db)
             qCritical() << "Failed to insert data:" << query.lastError().text();
         } else {
             ++inserted;
+        }
+    }
+
+    // ── Backfill comments for pre-existing rows ─────────────────────────
+    // If the DB was created before the Comment column existed, rows may have
+    // empty comments even though we now know the source. This pass updates
+    // only rows whose Comment is still empty, matching by Material name.
+    struct CommentBackfill {
+        const char* material;
+        const char* comment;
+    };
+    static const CommentBackfill backfill[] = {
+        {"Ag",  kCubicSrc.toUtf8().constData()},
+        {"Al",  kCubicSrc.toUtf8().constData()},
+        {"Au",  kCubicSrc.toUtf8().constData()},
+        {"Cu",  kCubicSrc.toUtf8().constData()},
+        {"Ir",  kCubicSrc.toUtf8().constData()},
+        {"Ni",  kCubicSrc.toUtf8().constData()},
+        {"Pb",  kCubicSrc.toUtf8().constData()},
+        {"Pt",  kCubicSrc.toUtf8().constData()},
+        {"Pd",  kCubicSrc.toUtf8().constData()},
+        {"Cr",  kCubicSrc.toUtf8().constData()},
+        {"Fe",  kCubicSrc.toUtf8().constData()},
+        {"Mo",  kCubicSrc.toUtf8().constData()},
+        {"Nb",  kCubicSrc.toUtf8().constData()},
+        {"Ta",  kCubicSrc.toUtf8().constData()},
+        {"V",   kCubicSrc.toUtf8().constData()},
+        {"W",   kCubicSrc.toUtf8().constData()},
+        {"C",   kCubicSrc.toUtf8().constData()},
+        {"Ge",  kCubicSrc.toUtf8().constData()},
+        {"Si",  kCubicSrc.toUtf8().constData()},
+        {"GaAs", kCubicSrc.toUtf8().constData()},
+        {"GaP", kCubicSrc.toUtf8().constData()},
+        {"InP", kCubicSrc.toUtf8().constData()},
+        {"LiF", kCubicSrc.toUtf8().constData()},
+        {"MgO", kCubicSrc.toUtf8().constData()},
+        {"TiC", kCubicSrc.toUtf8().constData()},
+        {"Epoxy",   "Representative isotropic constants for a generic epoxy matrix resin (typical textbook/datasheet range; not a certified design allowable)."},
+        {"E-glass", "Representative isotropic constants for generic E-glass fiber (typical textbook/datasheet range; not a certified design allowable)."},
+        {"Al2O3",   "Representative isotropic constants for polycrystalline alumina (Al2O3) (typical textbook/datasheet range; not a certified design allowable)."},
+        {"SiC",     "Representative isotropic constants for polycrystalline SiC (typical textbook/datasheet range; not a certified design allowable)."},
+        {"C-fiber", "Representative T300-class PAN carbon fiber engineering constants (Ea=230, Et=15, Ga=15, nu_a=0.2, nu_t=0.07 GPa), typical textbook range; not a certified design allowable."}
+    };
+
+    QSqlQuery upd(db);
+    upd.prepare("UPDATE material_properties SET Comment = ? WHERE Material = ? AND (Comment IS NULL OR Comment = '')");
+    for (const auto &b : backfill) {
+        upd.addBindValue(QString::fromUtf8(b.comment));
+        upd.addBindValue(QString::fromUtf8(b.material));
+        if (!upd.exec()) {
+            qCritical() << "Failed to backfill comment for" << b.material << ":" << upd.lastError().text();
         }
     }
 
@@ -369,6 +506,53 @@ QString DBManager::materialNameAt(int row) const
     return (idx < 0) ? QString() : rec.value(idx).toString();
 }
 
+QString DBManager::materialTypeAt(int row) const
+{
+    if (!model || row < 0 || row >= model->rowCount())
+        return QString();
+    const QSqlRecord rec = model->record(row);
+    const int idx = rec.indexOf(QStringLiteral("Type"));
+    return (idx < 0) ? QString() : rec.value(idx).toString();
+}
+
+QString DBManager::materialCommentAt(int row) const
+{
+    if (!model || row < 0 || row >= model->rowCount())
+        return QString();
+    const QSqlRecord rec = model->record(row);
+    const int idx = rec.indexOf(QStringLiteral("Comment"));
+    return (idx < 0) ? QString() : rec.value(idx).toString();
+}
+
+void DBManager::setElasticMatrix(int row, const QVariantList &matrix)
+{
+    if (!model || row < 0 || row >= model->rowCount())
+        return;
+    if (matrix.size() != 6)
+        return;
+
+    const QSqlRecord header = model->record();
+
+    // Same c<i><j> naming as elasticMatrix()/stiffnessMatrix(); only the
+    // upper triangle has a backing column, so the lower triangle of the
+    // incoming matrix (mirrored for display only) is never read.
+    for (int i = 0; i < 6; ++i) {
+        const QVariantList rowValues = matrix[i].toList();
+        if (rowValues.size() != 6)
+            return;
+        for (int j = i; j < 6; ++j) {
+            const QString col = QStringLiteral("c%1%2").arg(i + 1).arg(j + 1);
+            const int idx = header.indexOf(col);
+            if (idx < 0) continue;
+            model->setData(model->index(row, idx), rowValues[j]);
+        }
+    }
+
+    model->submitAll();
+    model->select();
+    bumpRevision();
+}
+
 QVariantList DBManager::emptyElasticColumns() const
 {
     QVariantList empty;
@@ -390,6 +574,10 @@ QVariantList DBManager::emptyElasticColumns() const
         if (name.compare(QStringLiteral("id"),       Qt::CaseInsensitive) == 0) continue;
         if (name.compare(QStringLiteral("Material"), Qt::CaseInsensitive) == 0) continue;
         if (name.compare(QStringLiteral("Type"),     Qt::CaseInsensitive) == 0) continue;
+        // Free text, not an elastic constant: never all-zero in the sense
+        // this scan means (an empty string fails toDouble() and would read as
+        // "not zero"), and hiding it would defeat its own purpose anyway.
+        if (name.compare(QStringLiteral("Comment"),  Qt::CaseInsensitive) == 0) continue;
 
         bool allZero = true;
         for (int r = 0; r < rows && allZero; ++r) {
@@ -401,6 +589,56 @@ QVariantList DBManager::emptyElasticColumns() const
     }
     return empty;
 }
+
+QVariantMap DBManager::elasticSummary(const QVariantList &matrix) const
+{
+    QVariantMap out;
+    out[QStringLiteral("valid")] = false;
+    if (matrix.size() != 6)
+        return out;
+
+    double raw[6][6];
+    mvt::Mat6 Cv{};
+    for (int i = 0; i < 6; ++i) {
+        const QVariantList rowValues = matrix[i].toList();
+        if (rowValues.size() != 6)
+            return out;
+        for (int j = 0; j < 6; ++j) {
+            const double v = rowValues[j].toDouble();
+            raw[i][j] = v;
+            Cv[i][j] = v;
+        }
+    }
+
+    mvt::Mat6 Sv{};
+    if (!mvt::invertMat6(Cv, Sv))
+        return out;                        // singular, e.g. a blank new row
+
+    const mvt::VRHAverages avg = mvt::voigtReussHill(Cv, Sv);
+    const std::array<double, 6> eig = mvt::eigenvaluesSym6(Cv);
+
+    // detectCubic()/zener() are defined against the Mandel matrix; converting
+    // once here keeps this the only place that needs both conventions.
+    const mvt::Mat6 Cm = mvt::voigtC_to_mandel(raw);
+    double c11 = 0, c12 = 0, c44 = 0;
+    const bool cubic = mvt::detectCubic(Cm, c11, c12, c44);
+
+    out[QStringLiteral("valid")] = true;
+    out[QStringLiteral("KV")] = avg.KV;  out[QStringLiteral("KR")] = avg.KR;  out[QStringLiteral("KH")] = avg.KH;
+    out[QStringLiteral("GV")] = avg.GV;  out[QStringLiteral("GR")] = avg.GR;  out[QStringLiteral("GH")] = avg.GH;
+    out[QStringLiteral("EV")] = avg.EV;  out[QStringLiteral("ER")] = avg.ER;  out[QStringLiteral("EH")] = avg.EH;
+    out[QStringLiteral("nuV")] = avg.nuV; out[QStringLiteral("nuR")] = avg.nuR; out[QStringLiteral("nuH")] = avg.nuH;
+
+    QVariantList eigList;
+    for (double v : eig) eigList.append(v);
+    out[QStringLiteral("eigenvalues")] = eigList;
+
+    out[QStringLiteral("cubic")] = cubic;
+    out[QStringLiteral("zener")] = cubic ? mvt::zener(c11, c12, c44) : 1.0;
+
+    return out;
+}
+
 
 QVariantList DBManager::executeSelectQuery(const QString& queryString)
 {

@@ -46,6 +46,13 @@ Window {
         readonly property color accent:     "#4db6ac"
     }
 
+    /// Wraps URLs (http/https) in a string with <a href=...> tags for RichText.
+    /// Simple regex-based, good enough for our manually-written comments.
+    function linkify(text) {
+        if (!text) return "";
+        return text.replace(/(https?:\/\/[^\s]+)/g, "<a href=\"$1\" style=\"color: #0E8E80;\">$1</a>");
+    }
+
     // Columns hidden while the anisotropy panel is open: everything the
     // database leaves at zero (most of c13..c66 for a table of cubic
     // materials), plus the surrogate key. Recomputed on every edit via
@@ -70,12 +77,19 @@ Window {
     }
     function columnWidth(c) {
         if (columnHidden(c)) return 0;
-        return (c === 1 || c === 2) ? 110 : 70;
+        // 1=Material, 2=Type, 3=Comment: wider for readability
+        return (c === 1 || c === 2 || c === 3) ? 150 : 70;
     }
 
     FontLoader {
         id: inter
         source: "qrc:/fonts/Inter-VariableFont_opsz,wght.ttf"
+    }
+
+    MaterialMatrixEditor {
+        id: matrixEditor
+        darkTheme: materialDatabaseView.darkTheme
+        visible: false
     }
 
     RowLayout {
@@ -154,12 +168,33 @@ Window {
                 color: "transparent"
                 border.color: theme.border
 
+                // Comment column (3): show with clickable links, not editable inline
+                Text {
+                    id: commentText
+                    anchors.fill: parent
+                    anchors.margins: 4
+                    visible: column === 3
+                    textFormat: Text.RichText
+                    // Guard: only call linkify for column 3; otherwise the
+                    // binding evaluates for all columns and tries .replace() on numbers.
+                    text: column === 3 ? materialDatabaseView.linkify(model.display) : ""
+                    color: theme.textStrong
+                    font.family: inter.name
+                    font.pixelSize: 13
+                    wrapMode: Text.WordWrap
+                    clip: true
+
+                    onLinkActivated: Qt.openUrlExternally(link)
+                }
+
+                // All other columns: editable TextField
                 TextField {
                     id: textField
                     anchors.fill: parent
                     anchors.margins: 4
                     text: model.display
                     readOnly: !(selectedRow === row && editingColumn === column)
+                    visible: column !== 3
 
                     background: Rectangle { color: "transparent" }
                     color: theme.textStrong
@@ -168,12 +203,30 @@ Window {
                         if (selectedRow === row && editingColumn === column) {
                             dbManager.updateMaterial(row, column, text)
                         }
-                        editingColumn = -1
+                        materialDatabaseView.editingColumn = -1
                     }
 
                     onPressed: {
                         selectedRow = row
                         editingColumn = column
+                    }
+                }
+
+                // Double-click anywhere in the row opens Matrix Editor
+                MouseArea {
+                    anchors.fill: parent
+                    // Don't steal clicks from the TextField when it's in edit mode
+                    enabled: !(selectedRow === row && editingColumn === column)
+                    onDoubleClicked: {
+                        selectedRow = row
+                        matrixEditor.openForRow(row)
+                    }
+                    // Still select the row on single click
+                    onPressed: {
+                        if (!(selectedRow === row && editingColumn === column)) {
+                            selectedRow = row
+                            editingColumn = -1
+                        }
                     }
                 }
             }
@@ -187,9 +240,9 @@ Window {
             spacing: 20
             topPadding: 10
             bottomPadding: 15
-            // 3 x 90 px buttons + the 140 px anisotropy toggle + the 44 px
-            // theme toggle + 4 x 20 spacing
-            width: (addButton.width * 3) + anisoButton.width + themeButton.width + 80
+            // 3 x 90 px buttons + the 150 px matrix-editor button + the 140 px
+            // anisotropy toggle + the 44 px theme toggle + 5 x 20 spacing
+            width: (addButton.width * 3) + matrixEditorButton.width + anisoButton.width + themeButton.width + 100
             height: 70
             Layout.alignment: Qt.AlignHCenter
 
@@ -319,6 +372,49 @@ Window {
                     dbManager.removeMaterial(selectedRow);
                     selectedRow = -1;
                     editingColumn = -1;
+                }
+            }
+
+            Button {
+                id: matrixEditorButton
+                width: 150
+                height: 45
+                text: qsTr("Matrix editor")
+
+                background: Rectangle {
+                    width: 150
+                    height: 40
+                    radius: 10
+                    color: hoverArea6.containsMouse ? theme.buttonHover : theme.buttonBg
+                    border.color: theme.buttonEdge
+                    border.width: 1
+
+                    MouseArea {
+                        id: hoverArea6
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        acceptedButtons: Qt.NoButton
+                    }
+                }
+                contentItem: Text {
+                    text: matrixEditorButton.text
+                    font.family: inter.name
+                    font.pixelSize: 18
+                    color: theme.textStrong
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    anchors.centerIn: parent
+                }
+
+                ToolTip.visible: hovered
+                ToolTip.text: qsTr("Add/edit the selected material as a 6\u00d76 matrix")
+
+                onClicked: {
+                    if (selectedRow >= 0)
+                        matrixEditor.openForRow(selectedRow);
+                    else
+                        matrixEditor.openForNew();
                 }
             }
 

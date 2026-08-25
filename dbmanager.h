@@ -32,6 +32,7 @@ private:
     int m_revision = 0;
     void bumpRevision();
     static void createTable(QSqlDatabase& db);
+    static void migrateSchema(QSqlDatabase& db);
     static void insertInitialData(QSqlDatabase& db);
 public:
     explicit DBManager(QObject *parent = nullptr);
@@ -84,6 +85,49 @@ public:
     Q_INVOKABLE QSqlTableModel* getModel() { return model; };
     Q_INVOKABLE QVariantList executeSelectQuery(const QString& queryString);
 
+    /**
+     * @brief Writes a full 6x6 symmetric stiffness matrix into one row in a
+     *        single commit.
+     *
+     * @param matrix 6 nested lists of 6 doubles (GPa, Voigt order), same shape
+     *        as elasticMatrix() returns. Only the upper triangle (j >= i) of
+     *        each row is actually read -- the table has no columns for the
+     *        lower triangle, so a caller that only ever writes a symmetric
+     *        matrix does not need to worry about which half is authoritative.
+     *        Out-of-range rows or a malformed matrix are silently ignored.
+     */
+    Q_INVOKABLE void setElasticMatrix(int row, const QVariantList &matrix);
+
+    /// Material type ("fcc", "iso", "ti", ...) of a table row, for UI
+    /// labelling. Empty if out of range.
+    Q_INVOKABLE QString materialTypeAt(int row) const;
+
+    /// Free-text note on where a row's constants came from (a literature
+    /// reference, a URL, or both). Empty if out of range or never set.
+    Q_INVOKABLE QString materialCommentAt(int row) const;
+
+    /**
+     * @brief Voigt/Reuss/Hill polycrystalline averages, eigenvalues and a
+     *        stability check for an arbitrary 6x6 stiffness matrix -- the
+     *        "Summary of properties" panel of the ELATE project
+     *        (progs.coudert.name/elate), reproduced from a matrix the caller
+     *        does not need to have saved to the table yet.
+     *
+     * @param matrix 6 nested lists of 6 doubles, Voigt order, GPa -- same
+     *        shape as elasticMatrix()/setElasticMatrix(). Only the values are
+     *        read; the matrix does not need to already be symmetric to the
+     *        bit; it is used as given.
+     * @return a map with "valid" (bool) plus, when valid: "KV"/"KR"/"KH"
+     *         (bulk modulus, GPa), "GV"/"GR"/"GH" (shear modulus, GPa),
+     *         "EV"/"ER"/"EH" (Young's modulus, GPa), "nuV"/"nuR"/"nuH"
+     *         (Poisson's ratio), "eigenvalues" (6 doubles, ascending, GPa --
+     *         all positive is equivalent to mechanical stability), "cubic"
+     *         (bool) and "zener" (meaningful only when cubic). Invalid (only
+     *         "valid": false) when the matrix is the wrong shape or singular,
+     *         e.g. a brand new all-zero row.
+     */
+    Q_INVOKABLE QVariantMap elasticSummary(const QVariantList &matrix) const;
+
     int revision() const { return m_revision; }
 
     /**
@@ -113,8 +157,9 @@ public:
      * collapse the dead columns so the interesting ones fit on screen beside
      * the anisotropy panel.
      *
-     * Only c11..c66 are considered; id, Material and Type are never reported,
-     * so the caller can hide everything in the returned list unconditionally.
+     * Only c11..c66 are considered; id, Material, Type and Comment are never
+     * reported, so the caller can hide everything in the returned list
+     * unconditionally.
      */
     Q_INVOKABLE QVariantList emptyElasticColumns() const;
 

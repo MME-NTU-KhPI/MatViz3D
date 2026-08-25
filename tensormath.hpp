@@ -720,4 +720,131 @@ inline double zener(double c11, double c12, double c44)
     return (std::abs(d) > 1e-300) ? 2.0 * c44 / d : 1.0;
 }
 
+// ----------------------------------------------------------------------------
+//  Polycrystalline averages and stability diagnostics -- the "Summary of
+//  properties" panel of the ELATE project (progs.coudert.name/elate).
+//
+//  Unlike the rest of this header, these operate on the PLAIN Voigt-convention
+//  matrix (Cv, GPa, no Mandel sqrt2 scaling) rather than the Mandel matrix used
+//  everywhere else -- both because that is what a material database row IS,
+//  and because it is what reproduces ELATE's own published numbers exactly
+//  (verified against its FAU-zeolite worked example). Two consequences:
+//
+//   * Sv, the matrix inverse of Cv, is the classical ENGINEERING compliance
+//     (S44 = 1/G directly), not the Mandel compliance divided by 2 -- this is
+//     a property of the Voigt convention's shear-strain factor of 2, which
+//     cancels exactly against the factor of 2 on the corresponding stiffness
+//     term, and is why Sv can be gotten by a plain matrix inverse at all.
+//   * The stiffness-matrix "eigenvalues" reported below are eigenvalues of Cv
+//     ITSELF, not of the (rotationally invariant) Mandel matrix -- e.g. a
+//     cubic crystal's shear eigenvalue here is c44, not 2*c44. This basis is
+//     not rotationally invariant in general, but it is what ELATE reports and
+//     what every reference worked example is stated in.
+// ----------------------------------------------------------------------------
+
+/// Voigt / Reuss / Hill polycrystalline elastic averages, reduced to Young's
+/// modulus and Poisson's ratio via the standard isotropic relations. Hill is
+/// the arithmetic mean of Voigt and Reuss (Hill 1952) -- not a third
+/// independent bound.
+struct VRHAverages {
+    double KV = 0, KR = 0, KH = 0;     ///< bulk modulus [GPa]
+    double GV = 0, GR = 0, GH = 0;     ///< shear modulus [GPa]
+    double EV = 0, ER = 0, EH = 0;     ///< Young's modulus [GPa]
+    double nuV = 0, nuR = 0, nuH = 0;  ///< Poisson's ratio [-]
+};
+
+/// Isotropic E(K, G) = 9KG / (3K + G).
+inline double youngFromKG(double K, double G)
+{
+    const double denom = 3.0 * K + G;
+    return (std::abs(denom) > 1e-300) ? 9.0 * K * G / denom : 0.0;
+}
+
+/// Isotropic nu(K, G) = (3K - 2G) / (2 * (3K + G)).
+inline double poissonFromKG(double K, double G)
+{
+    const double denom = 2.0 * (3.0 * K + G);
+    return (std::abs(denom) > 1e-300) ? (3.0 * K - 2.0 * G) / denom : 0.0;
+}
+
+/// Classical Voigt-Reuss-Hill bounds for a fully anisotropic (21-constant)
+/// stiffness, given in the plain Voigt convention (Cv) together with its
+/// matrix inverse (Sv, the engineering compliance -- see the section comment).
+/// Cv and Sv must both be symmetric and use the same GPa-like unit; the result
+/// is in that unit for K/G/E and dimensionless for nu.
+inline VRHAverages voigtReussHill(const Mat6& Cv, const Mat6& Sv)
+{
+    VRHAverages r;
+
+    r.KV = (Cv[0][0] + Cv[1][1] + Cv[2][2]
+            + 2.0 * (Cv[0][1] + Cv[0][2] + Cv[1][2])) / 9.0;
+    const double srSum = Sv[0][0] + Sv[1][1] + Sv[2][2]
+                        + 2.0 * (Sv[0][1] + Sv[0][2] + Sv[1][2]);
+    r.KR = (std::abs(srSum) > 1e-300) ? 1.0 / srSum : 0.0;
+    r.KH = 0.5 * (r.KV + r.KR);
+
+    r.GV = ((Cv[0][0] + Cv[1][1] + Cv[2][2]) - (Cv[0][1] + Cv[0][2] + Cv[1][2])
+            + 3.0 * (Cv[3][3] + Cv[4][4] + Cv[5][5])) / 15.0;
+    const double grDenom = 4.0 * (Sv[0][0] + Sv[1][1] + Sv[2][2])
+                          - 4.0 * (Sv[0][1] + Sv[0][2] + Sv[1][2])
+                          + 3.0 * (Sv[3][3] + Sv[4][4] + Sv[5][5]);
+    r.GR = (std::abs(grDenom) > 1e-300) ? 15.0 / grDenom : 0.0;
+    r.GH = 0.5 * (r.GV + r.GR);
+
+    r.EV = youngFromKG(r.KV, r.GV);  r.nuV = poissonFromKG(r.KV, r.GV);
+    r.ER = youngFromKG(r.KR, r.GR);  r.nuR = poissonFromKG(r.KR, r.GR);
+    r.EH = youngFromKG(r.KH, r.GH);  r.nuH = poissonFromKG(r.KH, r.GH);
+    return r;
+}
+
+/// Eigenvalues of a symmetric 6x6 matrix, ascending. Cyclic Jacobi, the same
+/// scheme as eigenSym3 generalized to six dimensions; eigenvectors are not
+/// needed here (only the spectrum is diagnostic: all six eigenvalues positive
+/// is equivalent to positive-definiteness, i.e. a mechanically stable
+/// material), so they are not accumulated.
+inline std::array<double, 6> eigenvaluesSym6(const Mat6& A)
+{
+    double a[6][6];
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 6; ++j) a[i][j] = A[i][j];
+
+    for (int sweep = 0; sweep < 60; ++sweep) {
+        double off = 0.0, diag = 0.0;
+        for (int i = 0; i < 6; ++i) {
+            diag += a[i][i] * a[i][i];
+            for (int j = i + 1; j < 6; ++j) off += a[i][j] * a[i][j];
+        }
+        if (off <= 1e-30 * (diag + 1e-300)) break;
+
+        for (int p = 0; p < 5; ++p) {
+            for (int q = p + 1; q < 6; ++q) {
+                if (std::abs(a[p][q]) < 1e-300) continue;
+
+                const double theta = (a[q][q] - a[p][p]) / (2.0 * a[p][q]);
+                const double t = (theta >= 0.0 ? 1.0 : -1.0) /
+                                 (std::abs(theta) + std::sqrt(theta * theta + 1.0));
+                const double c = 1.0 / std::sqrt(t * t + 1.0);
+                const double s = t * c;
+
+                const double app = a[p][p], aqq = a[q][q], apq = a[p][q];
+                a[p][p] = app - t * apq;
+                a[q][q] = aqq + t * apq;
+                a[p][q] = a[q][p] = 0.0;
+
+                for (int r = 0; r < 6; ++r) {
+                    if (r == p || r == q) continue;
+                    const double arp = a[r][p], arq = a[r][q];
+                    a[r][p] = a[p][r] = c * arp - s * arq;
+                    a[r][q] = a[q][r] = s * arp + c * arq;
+                }
+            }
+        }
+    }
+
+    std::array<double, 6> eig;
+    for (int i = 0; i < 6; ++i) eig[i] = a[i][i];
+    std::sort(eig.begin(), eig.end());
+    return eig;
+}
+
 } // namespace mvt
