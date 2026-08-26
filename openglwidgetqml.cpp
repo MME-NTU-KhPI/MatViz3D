@@ -23,9 +23,7 @@ OpenGLWidgetQML::OpenGLWidgetQML(QQuickItem *parent) : QQuickFramebufferObject(p
     setAcceptedMouseButtons(Qt::AllButtons);
     setTextureFollowsItemSize(true);
 
-    xRot = 0;
-    yRot = 0;
-    zRot = 0;
+    setDimetricDownView();
     distance = 2.0f;
     numCubes = 1;
     voxels = nullptr;
@@ -64,6 +62,7 @@ QQuickFramebufferObject::Renderer *OpenGLWidgetQML::createRenderer() const
     m_render = new RenderOpenGL();
     m_render->resizeGL(this->width(), this->height());
     m_render->setDevicePixelRatio(window() ? window()->devicePixelRatio() : 1.0f);
+    m_render->setRotations(xRot, yRot, zRot);
 
     // A fresh renderer starts with default overlay state and an empty glyph
     // buffer, so anything the user had switched on has to be restored -- the
