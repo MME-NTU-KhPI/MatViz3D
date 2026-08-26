@@ -689,6 +689,9 @@ Window {
                         MouseArea {
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
+                            hoverEnabled: true
+                            ToolTip.visible: containsMouse
+                            ToolTip.text: qsTr("Toggle sidebar panels")
                             onClicked: {
                                 parent.widgetsHidden = !parent.widgetsHidden
                                 _itemData.visible = !parent.widgetsHidden
@@ -705,7 +708,14 @@ Window {
                         Layout.preferredHeight: 26
                         source: "qrc:/img/toolBar/saveIcon.svg"
                         fillMode: Image.PreserveAspectFit
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: exportController.exportToHDF5(); }
+                        MouseArea { 
+                            anchors.fill: parent; 
+                            cursorShape: Qt.PointingHandCursor; 
+                            hoverEnabled: true
+                            ToolTip.visible: containsMouse
+                            ToolTip.text: qsTr("Export structure to HDF5")
+                            onClicked: exportController.exportToHDF5(); 
+                        }
                     }
 
                     Image {
@@ -720,6 +730,9 @@ Window {
                         MouseArea {
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
+                            hoverEnabled: true
+                            ToolTip.visible: containsMouse
+                            ToolTip.text: qsTr("Toggle GIF recording")
                             onClicked: {
                                 gifToggle.isActive = !gifToggle.isActive;
                                 Parameters.setIsGifRecording(gifToggle.isActive);
@@ -733,7 +746,14 @@ Window {
                         source: "qrc:/img/toolBar/screenIcon.svg"
                         fillMode: Image.PreserveAspectFit
                         scale: 1.2
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: exportController.copyToClipboard(glWidget); }
+                        MouseArea { 
+                            anchors.fill: parent; 
+                            cursorShape: Qt.PointingHandCursor; 
+                            hoverEnabled: true
+                            ToolTip.visible: containsMouse
+                            ToolTip.text: qsTr("Copy screenshot to clipboard")
+                            onClicked: exportController.copyToClipboard(glWidget); 
+                        }
                     }
 
                     Image {
@@ -742,7 +762,14 @@ Window {
                         source: "qrc:/img/toolBar/zoom-inIcon.svg"
                         fillMode: Image.PreserveAspectFit
                         scale: 1.2
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: glWidget.zoomIn(); }
+                        MouseArea { 
+                            anchors.fill: parent; 
+                            cursorShape: Qt.PointingHandCursor; 
+                            hoverEnabled: true
+                            ToolTip.visible: containsMouse
+                            ToolTip.text: qsTr("Zoom in")
+                            onClicked: glWidget.zoomIn(); 
+                        }
                     }
 
                     Image {
@@ -751,7 +778,14 @@ Window {
                         source: "qrc:/img/toolBar/zoom-outIcon.svg"
                         fillMode: Image.PreserveAspectFit
                         scale: 1.2
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: glWidget.zoomOut(); }
+                        MouseArea { 
+                            anchors.fill: parent; 
+                            cursorShape: Qt.PointingHandCursor; 
+                            hoverEnabled: true
+                            ToolTip.visible: containsMouse
+                            ToolTip.text: qsTr("Zoom out")
+                            onClicked: glWidget.zoomOut(); 
+                        }
                     }
 
                     Item {
@@ -766,6 +800,9 @@ Window {
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
+                                hoverEnabled: true
+                                ToolTip.visible: containsMouse
+                                ToolTip.text: qsTr("Standard views")
                                 onClicked: cubeMenu.popup()
                             }
                         }
@@ -856,6 +893,9 @@ Window {
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
+                                hoverEnabled: true
+                                ToolTip.visible: containsMouse
+                                ToolTip.text: qsTr("Toggle animation")
                                 onClicked: {
                                     animToggle.isActive = !animToggle.isActive;
                                     Parameters.setIsAnimation(animToggle.isActive);
@@ -874,6 +914,15 @@ Window {
                             Layout.preferredHeight: 26
                             visible: animToggle.isActive
 
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                hoverEnabled: true
+                                ToolTip.visible: containsMouse
+                                ToolTip.text: qsTr("Animation speed")
+                                onClicked: speedPopup.visible ? speedPopup.close() : speedPopup.open()
+                            }
+
                             Text {
                                 anchors.centerIn: parent
                                 text: (animationSpeedSlider.value / 250).toFixed(1) + "x"
@@ -881,12 +930,6 @@ Window {
                                 font.pixelSize: 13
                                 font.bold: true
                                 color: speedPopup.visible ? "#00897b" : "#CFCECE"
-                            }
-
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: speedPopup.visible ? speedPopup.close() : speedPopup.open()
                             }
 
                             Popup {
@@ -947,6 +990,9 @@ Window {
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
+                                hoverEnabled: true
+                                ToolTip.visible: containsMouse
+                                ToolTip.text: qsTr("Toggle wireframe")
                                 onClicked: {
                                     wireframeToggle.isActive = !wireframeToggle.isActive;
                                     glWidget.setPlotWireFrame(wireframeToggle.isActive);
@@ -969,6 +1015,9 @@ Window {
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
+                                hoverEnabled: true
+                                ToolTip.visible: containsMouse
+                                ToolTip.text: qsTr("Toggle grain orientations")
                                 onClicked: {
                                     orientationToggle.isActive = !orientationToggle.isActive;
                                     glWidget.setShowOrientations(orientationToggle.isActive);
@@ -1006,6 +1055,9 @@ Window {
                         MouseArea {
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
+                            hoverEnabled: true
+                            ToolTip.visible: containsMouse
+                            ToolTip.text: qsTr("Toggle exploded view")
                             onClicked: explodedPopup.visible ? explodedPopup.close() : explodedPopup.open()
                         }
 
