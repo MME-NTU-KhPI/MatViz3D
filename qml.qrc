@@ -34,6 +34,7 @@
         <file>img/toolBar/viewIconHidden.svg</file>
         <file>img/toolBar/zoom-inIcon.svg</file>
         <file>img/toolBar/zoom-outIcon.svg</file>
+        <file>img/toolBar/zoom-fitIcon.svg</file>
         <file>MaterialDatabaseView.qml</file>
         <file>MaterialMatrixEditor.qml</file>
         <file>AnisotropySurfacePanel.qml</file>

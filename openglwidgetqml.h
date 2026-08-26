@@ -291,6 +291,7 @@ public:
 
     Q_INVOKABLE void zoomIn();
     Q_INVOKABLE void zoomOut();
+    Q_INVOKABLE void zoomToFit();
 signals:
     // signaling rotation from mouse movement
     void xRotationChanged(int angle);

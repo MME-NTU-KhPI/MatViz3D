@@ -21,6 +21,7 @@ public:
     Q_INVOKABLE void bottomViewButton();
     Q_INVOKABLE void leftViewButton();
     Q_INVOKABLE void rightViewButton();
+    Q_INVOKABLE void zoomToFit();
 
 private:
     MainWindowAlgorithmHandler algoManager;

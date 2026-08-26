@@ -101,3 +101,12 @@ void MainWindowWrapper::rightViewButton()
         ogl->setRightView();
     }
 }
+
+void MainWindowWrapper::zoomToFit()
+{
+    OpenGLWidgetQML *ogl = OpenGLWidgetQML::getInstance();
+    if (ogl)
+    {
+        ogl->zoomToFit();
+    }
+}

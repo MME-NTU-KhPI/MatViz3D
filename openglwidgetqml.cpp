@@ -411,6 +411,16 @@ void OpenGLWidgetQML::zoomOut()
     zoomStep(-1);
 }
 
+void OpenGLWidgetQML::zoomToFit()
+{
+    zoomFactor = 1.0f;
+    distance = 2.0f * (numCubes > 0 ? numCubes : 1);
+    if (m_render) {
+        m_render->setDistZoomFactor(distance, zoomFactor);
+    }
+    update();
+}
+
 void OpenGLWidgetQML::zoomStep(int numSteps)
 {
     if (numSteps > 0) {

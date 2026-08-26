@@ -788,6 +788,22 @@ Window {
                         }
                     }
 
+                    Image {
+                        Layout.preferredWidth: 26
+                        Layout.preferredHeight: 26
+                        source: "qrc:/img/toolBar/zoom-fitIcon.svg"
+                        fillMode: Image.PreserveAspectFit
+                        scale: 1.2
+                        MouseArea { 
+                            anchors.fill: parent; 
+                            cursorShape: Qt.PointingHandCursor; 
+                            hoverEnabled: true
+                            ToolTip.visible: containsMouse
+                            ToolTip.text: qsTr("Zoom to fit")
+                            onClicked: glWidget.zoomToFit(); 
+                        }
+                    }
+
                     Item {
                         Layout.preferredWidth: 26
                         Layout.preferredHeight: 26
