@@ -319,7 +319,10 @@ protected:
 
     float distance;
     float zoomFactor = 1.0f;
+    float panX = 0.0f;
+    float panY = 0.0f;
     void zoomStep(int numSteps);
+    float calculateFitDistance() const;
 
     QColor bgColor;
 

@@ -39,6 +39,7 @@ public:
     void setRotations(int xRot, int yRot, int zRot);
     void setNumCubes(int numCubes);
     void setDistZoomFactor(float distance, float zoomFactor);
+    void setPan(float panX, float panY);
     void resizeGL(int width, int height);
     void toggleDebugMode();
     void toggleFaceCulling();
@@ -102,6 +103,8 @@ protected:
 
     float distance;
     float zoomFactor = 1.0f;
+    float panX = 0.0f;
+    float panY = 0.0f;
 
     QColor bgColor;
 

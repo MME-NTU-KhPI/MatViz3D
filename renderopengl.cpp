@@ -18,6 +18,8 @@ RenderOpenGL::RenderOpenGL()
     xRot = 0;
     yRot = 0;
     zRot = 0;
+    panX = 0.0f;
+    panY = 0.0f;
     distance = 2.0f;
     numCubes = 1;
     width = 300;
@@ -819,7 +821,7 @@ void RenderOpenGL::paintGL()
 
     QMatrix4x4 view;
     view.setToIdentity();
-    view.translate(0.0f, 0.0f, -distance);
+    view.translate(panX, panY, -distance);
     view.rotate(xRot / 16.0f, 1.0f, 0.0f, 0.0f);
     view.rotate(yRot / 16.0f, 0.0f, 1.0f, 0.0f);
     view.rotate(zRot / 16.0f, 0.0f, 0.0f, 1.0f);
@@ -1014,6 +1016,13 @@ void RenderOpenGL::setDistZoomFactor(float distance, float zoomFactor)
     update();
 }
 
+void RenderOpenGL::setPan(float panX, float panY)
+{
+    this->panX = panX;
+    this->panY = panY;
+    update();
+}
+
 void RenderOpenGL::setPlotWireFrame(bool status)
 {
     plotWireFrame = status;
@@ -1202,7 +1211,7 @@ void RenderOpenGL::drawOrientationGlyphs()
     // Build the same MVP as paintGL so glyphs align with voxels
     QMatrix4x4 view;
     view.setToIdentity();
-    view.translate(0.0f, 0.0f, -distance);
+    view.translate(panX, panY, -distance);
     view.rotate(xRot / 16.0f, 1.0f, 0.0f, 0.0f);
     view.rotate(yRot / 16.0f, 0.0f, 1.0f, 0.0f);
     view.rotate(zRot / 16.0f, 0.0f, 0.0f, 1.0f);
@@ -1260,7 +1269,7 @@ void RenderOpenGL::drawOrientationGlyphs()
     // ── Build MVP (same as paintGL) ───────────────────────────────────────
     QMatrix4x4 view;
     view.setToIdentity();
-    view.translate(0.0f, 0.0f, -distance);
+    view.translate(panX, panY, -distance);
     view.rotate(xRot / 16.0f, 1.0f, 0.0f, 0.0f);
     view.rotate(yRot / 16.0f, 0.0f, 1.0f, 0.0f);
     view.rotate(zRot / 16.0f, 0.0f, 0.0f, 1.0f);

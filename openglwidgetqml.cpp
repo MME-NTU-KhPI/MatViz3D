@@ -9,6 +9,7 @@
 #include <QtConcurrent>
 #include <QImage>
 #include <QThread>
+#include <QtMath>
 #include <algorithm>
 
 // QQuickFramebufferObject hands its FBO texture to the scene graph flipped
@@ -23,9 +24,11 @@ OpenGLWidgetQML::OpenGLWidgetQML(QQuickItem *parent) : QQuickFramebufferObject(p
     setAcceptedMouseButtons(Qt::AllButtons);
     setTextureFollowsItemSize(true);
 
-    setDimetricDownView();
-    distance = 2.0f;
     numCubes = 1;
+    panX = 0.0f;
+    panY = 0.0f;
+    distance = calculateFitDistance();
+    setDimetricDownView();
     voxels = nullptr;
     timer = new QTimer(this);
     delayAnimation = 0;
@@ -63,6 +66,9 @@ QQuickFramebufferObject::Renderer *OpenGLWidgetQML::createRenderer() const
     m_render->resizeGL(this->width(), this->height());
     m_render->setDevicePixelRatio(window() ? window()->devicePixelRatio() : 1.0f);
     m_render->setRotations(xRot, yRot, zRot);
+    m_render->setPan(panX, panY);
+    m_render->setDistZoomFactor(distance, zoomFactor);
+    m_render->setNumCubes(numCubes);
 
     // A fresh renderer starts with default overlay state and an empty glyph
     // buffer, so anything the user had switched on has to be restored -- the
@@ -279,13 +285,17 @@ void OpenGLWidgetQML::setDimetricDownView()
 
 void OpenGLWidgetQML::setNumCubes(int numCubes)
 {
-    distance = 2 * numCubes;
     this->numCubes = numCubes;
+    distance = calculateFitDistance();
+    panX = 0.0f;
+    panY = 0.0f;
     this->fieldMode = FieldMode::None;
     this->ansysField.reset();
     this->fftField.reset();
     if (m_render) {
+        m_render->setPan(panX, panY);
         m_render->setNumCubes(numCubes);
+        m_render->setDistZoomFactor(distance, zoomFactor);
     }
     update();
 }
@@ -411,12 +421,35 @@ void OpenGLWidgetQML::zoomOut()
     zoomStep(-1);
 }
 
+float OpenGLWidgetQML::calculateFitDistance() const
+{
+    const float n = (numCubes > 0) ? static_cast<float>(numCubes) : 1.0f;
+    const float sceneRadius = n * 0.8660254f; // sqrt(3)/2 * n
+    const float fovY = 45.0f;
+    const float fovYRad = qDegreesToRadians(fovY / 2.0f);
+    const float tanHalfFovY = std::tan(fovYRad); // ~0.41421356
+
+    float aspect = 1.0f;
+    if (this->height() > 0 && this->width() > 0) {
+        aspect = static_cast<float>(this->width()) / static_cast<float>(this->height());
+    }
+
+    const float tanHalfFov = (aspect < 1.0f && aspect > 0.01f) ? (tanHalfFovY * aspect) : tanHalfFovY;
+    // (d - R) * tanHalfFov >= R => d >= R * (1 + 1/tanHalfFov)
+    // Ensures all corners are within the frustum under any 3D rotation, plus 15% margin.
+    return sceneRadius * (1.0f + 1.0f / tanHalfFov) * 1.15f;
+}
+
 void OpenGLWidgetQML::zoomToFit()
 {
+    panX = 0.0f;
+    panY = 0.0f;
     zoomFactor = 1.0f;
-    distance = 2.0f * (numCubes > 0 ? numCubes : 1);
+    distance = calculateFitDistance();
     if (m_render) {
+        m_render->setPan(panX, panY);
         m_render->setDistZoomFactor(distance, zoomFactor);
+        m_render->resizeGL(this->width(), this->height());
     }
     update();
 }
@@ -450,8 +483,15 @@ void OpenGLWidgetQML::mouseMoveEvent(QMouseEvent *event)
         setXRotation(xRot + 8 * dy);
         setYRotation(yRot + 8 * dx);
     } else if (event->buttons() & Qt::RightButton) {
-        setXRotation(xRot + 8 * dy);
-        setZRotation(zRot + 8 * dx);
+        // Pan the cube center: convert screen pixel delta to world units at current distance.
+        const float h = std::max(1.0f, static_cast<float>(this->height()));
+        const float worldPerPixel = (0.8284f * distance) / h;
+        panX += dx * worldPerPixel;
+        panY += dy * worldPerPixel;
+        if (m_render) {
+            m_render->setPan(panX, panY);
+        }
+        update();
     }
 
     lastPos = event->pos();
