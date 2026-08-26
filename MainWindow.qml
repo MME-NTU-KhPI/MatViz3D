@@ -816,6 +816,8 @@ Window {
                                     source: "qrc:/img/toolBar/views3d/isometric_cube.svg"
                                     fillMode: Image.PreserveAspectFit
                                 }
+                                ToolTip.visible: hovered
+                                ToolTip.text: qsTr("Isometric view")
                                 onClicked: mainWindowWrapper.isometricViewButton()
                             }
                             MenuItem {
@@ -823,13 +825,35 @@ Window {
                                     source: "qrc:/img/toolBar/views3d/dimetric_cube.svg"
                                     fillMode: Image.PreserveAspectFit
                                 }
+                                ToolTip.visible: hovered
+                                ToolTip.text: qsTr("Dimetric view")
                                 onClicked: mainWindowWrapper.dimetricViewButton()
+                            }
+                            MenuItem {
+                                contentItem: Image {
+                                    source: "qrc:/img/toolBar/views3d/isometric_down_cube.svg"
+                                    fillMode: Image.PreserveAspectFit
+                                }
+                                ToolTip.visible: hovered
+                                ToolTip.text: qsTr("Isometric view (down)")
+                                onClicked: mainWindowWrapper.isometricDownViewButton()
+                            }
+                            MenuItem {
+                                contentItem: Image {
+                                    source: "qrc:/img/toolBar/views3d/dimetric_down_cube.svg"
+                                    fillMode: Image.PreserveAspectFit
+                                }
+                                ToolTip.visible: hovered
+                                ToolTip.text: qsTr("Dimetric view (down)")
+                                onClicked: mainWindowWrapper.dimetricDownViewButton()
                             }
                             MenuItem {
                                 contentItem: Image {
                                     source: "qrc:/img/toolBar/views3d/front_Cube.svg"
                                     fillMode: Image.PreserveAspectFit
                                 }
+                                ToolTip.visible: hovered
+                                ToolTip.text: qsTr("Front view")
                                 onClicked: mainWindowWrapper.frontViewButton()
                             }
                             MenuItem {
@@ -837,6 +861,8 @@ Window {
                                     source: "qrc:/img/toolBar/views3d/back_cube.svg"
                                     fillMode: Image.PreserveAspectFit
                                 }
+                                ToolTip.visible: hovered
+                                ToolTip.text: qsTr("Back view")
                                 onClicked: mainWindowWrapper.backViewButton()
                             }
                             MenuItem {
@@ -844,6 +870,8 @@ Window {
                                     source: "qrc:/img/toolBar/views3d/top_cube.svg"
                                     fillMode: Image.PreserveAspectFit
                                 }
+                                ToolTip.visible: hovered
+                                ToolTip.text: qsTr("Top view")
                                 onClicked: mainWindowWrapper.topViewButton()
                             }
                             MenuItem {
@@ -851,6 +879,8 @@ Window {
                                     source: "qrc:/img/toolBar/views3d/bottom_cube.svg"
                                     fillMode: Image.PreserveAspectFit
                                 }
+                                ToolTip.visible: hovered
+                                ToolTip.text: qsTr("Bottom view")
                                 onClicked: mainWindowWrapper.bottomViewButton()
                             }
                             MenuItem {
@@ -858,6 +888,8 @@ Window {
                                     source: "qrc:/img/toolBar/views3d/left_cube.svg"
                                     fillMode: Image.PreserveAspectFit
                                 }
+                                ToolTip.visible: hovered
+                                ToolTip.text: qsTr("Left view")
                                 onClicked: mainWindowWrapper.leftViewButton()
                             }
                             MenuItem {
@@ -865,6 +897,8 @@ Window {
                                     source: "qrc:/img/toolBar/views3d/rigft_cube.svg"
                                     fillMode: Image.PreserveAspectFit
                                 }
+                                ToolTip.visible: hovered
+                                ToolTip.text: qsTr("Right view")
                                 onClicked: mainWindowWrapper.rightViewButton()
                             }
                         }

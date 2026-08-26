@@ -256,6 +256,28 @@ void OpenGLWidgetQML::setDimetricView()
     pushRotations();
 }
 
+/**
+ * Set the view to isometric projection looking from below (X and Z axis tilted down).
+ */
+void OpenGLWidgetQML::setIsometricDownView()
+{
+    xRot = -35.26 * 16;
+    yRot = -45.00 * 16;
+    zRot =  0;
+    pushRotations();
+}
+
+/**
+ * Set the view to dimetric projection looking from below (X and Z axis tilted down).
+ */
+void OpenGLWidgetQML::setDimetricDownView()
+{
+    xRot = -26.57 * 16;
+    yRot = -45.00 * 16;
+    zRot =  0;
+    pushRotations();
+}
+
 void OpenGLWidgetQML::setNumCubes(int numCubes)
 {
     distance = 2 * numCubes;

@@ -271,6 +271,8 @@ public:
     void setRightView();
     void setIsometricView();
     void setDimetricView();
+    void setIsometricDownView();
+    void setDimetricDownView();
 
     void setNumCubes(int numCubes);
     void setNumColors(int numColors);

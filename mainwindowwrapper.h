@@ -13,6 +13,8 @@ public:
     Q_INVOKABLE void onStartButton();
     Q_INVOKABLE void isometricViewButton();
     Q_INVOKABLE void dimetricViewButton();
+    Q_INVOKABLE void isometricDownViewButton();
+    Q_INVOKABLE void dimetricDownViewButton();
     Q_INVOKABLE void frontViewButton();
     Q_INVOKABLE void backViewButton();
     Q_INVOKABLE void topViewButton();

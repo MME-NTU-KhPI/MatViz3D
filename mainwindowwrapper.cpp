@@ -30,6 +30,24 @@ void MainWindowWrapper::dimetricViewButton()
     }
 }
 
+void MainWindowWrapper::isometricDownViewButton()
+{
+    OpenGLWidgetQML *ogl = OpenGLWidgetQML::getInstance();
+    if (ogl)
+    {
+        ogl->setIsometricDownView();
+    }
+}
+
+void MainWindowWrapper::dimetricDownViewButton()
+{
+    OpenGLWidgetQML *ogl = OpenGLWidgetQML::getInstance();
+    if (ogl)
+    {
+        ogl->setDimetricDownView();
+    }
+}
+
 void MainWindowWrapper::frontViewButton()
 {
     OpenGLWidgetQML *ogl = OpenGLWidgetQML::getInstance();
