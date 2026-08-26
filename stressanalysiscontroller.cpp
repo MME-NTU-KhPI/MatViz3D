@@ -8,9 +8,12 @@
 #include "openglwidgetqml.h"
 
 #include <QDebug>
+#include <QFileDialog>
 #include <QtConcurrent/QtConcurrent>
 #include <cmath>
 #include <algorithm>
+
+StressAnalysisController* StressAnalysisController::s_instance = nullptr;
 
 namespace {
 bool isAnsys(const QString& solver) { return solver.compare("ansys", Qt::CaseInsensitive) == 0; }
@@ -35,6 +38,7 @@ constexpr int kDefaultComponentIndex = 6; // SEQV, in both lists
 StressAnalysisController::StressAnalysisController(QObject* parent)
     : QObject(parent)
 {
+    s_instance = this;
     connect(&m_singleShotWatcher, &QFutureWatcher<SingleShotResult>::finished,
             this, &StressAnalysisController::onSingleShotFinished);
     connect(&m_datasetWatcher, &QFutureWatcher<void>::finished,
@@ -532,4 +536,89 @@ void StressAnalysisController::saveSingleShotResult()
 
     LoadStepManager::getInstance().LoadFromHDF5(filename);
     emit savedToHDF5(filename);
+}
+
+bool StressAnalysisController::loadFromHDF5(const QString& filePath)
+{
+    if (filePath.isEmpty()) return false;
+
+    LoadStepManager& lsm = LoadStepManager::getInstance();
+    lsm.LoadFromHDF5(filePath);
+
+    HDF5Wrapper hdf5(filePath.toStdString());
+    int last_set = hdf5.readInt("/", "last_set");
+    if (last_set < 1) last_set = 1;
+
+    std::string prefix = "/" + std::to_string(last_set);
+    if (hdf5.datasetExists(prefix, "C_matrix")) {
+        auto mat_C = hdf5.readVectorVectorFloat(prefix, "C_matrix");
+        auto mat_S = hdf5.readVectorVectorFloat(prefix, "S_matrix");
+        auto mat_P = hdf5.readVectorVectorFloat(prefix, "P_matrix");
+        auto moduli = hdf5.readVectorFloat(prefix, "Effective_Moduli");
+
+        if (mat_C.size() == 6 && mat_S.size() == 6 && mat_P.size() == 6) {
+            for (int i = 0; i < 6; ++i) {
+                for (int j = 0; j < 6; ++j) {
+                    m_lastStiffness.C[i][j] = mat_C[i][j];
+                    m_lastStiffness.S[i][j] = mat_S[i][j];
+                    m_lastStiffness.P[i][j] = mat_P[i][j];
+                }
+            }
+            if (moduli.size() >= 6) {
+                for (int i = 0; i < 6; ++i) m_lastStiffness.moduli[i] = moduli[i];
+            }
+            m_lastStiffness.isFFT = (hdf5.readQString(prefix, "solver").compare("fft", Qt::CaseInsensitive) == 0);
+            m_lastStiffness.totalIterations = hdf5.readInt(prefix, "iterations_total");
+            m_lastStiffness.ok = true;
+            m_hasStiffness = true;
+            emit stiffnessChanged();
+            qDebug() << "[StressAnalysisController] Loaded stiffness matrix from HDF5:" << filePath;
+        }
+    }
+
+    if (lsm.hasLoadStepData()) {
+        auto wr = std::make_shared<ansysWrapper>(true);
+        wr->local_cs = lsm.getLocalCS();
+        wr->loadstep_results = lsm.getLoadStepResults();
+        wr->loadstep_results_avg = lsm.getLoadStepResultsAvg();
+        wr->loadstep_results_max = lsm.getLoadStepResultsMax();
+        wr->loadstep_results_min = lsm.getLoadStepResultsMin();
+        const auto& eps_load = lsm.getEpsAsLoading();
+        if (!eps_load.empty()) {
+            wr->eps_as_loading = {eps_load};
+            for (size_t i = 0; i < std::min<size_t>(6, eps_load.size()); ++i) {
+                m_lastEps[i] = eps_load[i];
+            }
+        }
+        wr->createResultNodesHash();
+
+        m_lastResult = SingleShotResult{};
+        m_lastResult.ansysField = wr;
+        if (!wr->loadstep_results_avg.empty() && SEQV < (int)wr->loadstep_results_avg.size()) {
+            m_lastResult.von_mises = wr->loadstep_results_avg[SEQV];
+            if (SX < (int)wr->loadstep_results_avg.size())  m_lastResult.macro_stress[0] = wr->loadstep_results_avg[SX];
+            if (SY < (int)wr->loadstep_results_avg.size())  m_lastResult.macro_stress[1] = wr->loadstep_results_avg[SY];
+            if (SZ < (int)wr->loadstep_results_avg.size())  m_lastResult.macro_stress[2] = wr->loadstep_results_avg[SZ];
+            if (SXY < (int)wr->loadstep_results_avg.size()) m_lastResult.macro_stress[3] = wr->loadstep_results_avg[SXY];
+            if (SYZ < (int)wr->loadstep_results_avg.size()) m_lastResult.macro_stress[4] = wr->loadstep_results_avg[SYZ];
+            if (SXZ < (int)wr->loadstep_results_avg.size()) m_lastResult.macro_stress[5] = wr->loadstep_results_avg[SXZ];
+        }
+        m_lastResult.ok = true;
+        m_hasResult = true;
+        pushResultToView();
+        emit resultChanged();
+        qDebug() << "[StressAnalysisController] Loaded stress/strain field visualization from HDF5:" << filePath;
+    }
+
+    return true;
+}
+
+void StressAnalysisController::openHDF5File()
+{
+    QString fileName = QFileDialog::getOpenFileName(
+        nullptr, tr("Open HDF5 Result"), "",
+        tr("HDF5 Files (*.h5 *.hdf5 *.hdf);;All Files (*.*)"));
+    if (!fileName.isEmpty()) {
+        loadFromHDF5(fileName);
+    }
 }

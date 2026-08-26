@@ -93,6 +93,7 @@ public:
      * Index 0 = grain ID 1, etc.  Pass an empty vector to clear.
      */
     void setGrainOrientations(const std::vector<std::array<float,3>>& orientations);
+    const std::vector<std::array<float,3>>& getGrainOrientations() const { return grainOrientations; }
 
     Q_INVOKABLE void setShowOrientations(bool show);
 

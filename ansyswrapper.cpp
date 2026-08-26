@@ -1914,6 +1914,19 @@ float ansysWrapper::getValByCoord(n3d::node3d &key, int component)
     return 0;
 }
 
+void ansysWrapper::createResultNodesHash()
+{
+    this->result_nodes.clear();
+    for (size_t i = 0; i < this->loadstep_results.size(); i++)
+    {
+        n3d::node3d key;
+        key.data[0] = this->loadstep_results[i][X];
+        key.data[1] = this->loadstep_results[i][Y];
+        key.data[2] = this->loadstep_results[i][Z];
+        this->result_nodes.insert(key, static_cast<int>(i));
+    }
+}
+
 ansysWrapper::ElasticProperties ansysWrapper::calculateElasticProperties()
 {
     ElasticProperties res = {0};

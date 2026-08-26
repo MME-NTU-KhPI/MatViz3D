@@ -65,17 +65,18 @@ class StressAnalysisController : public QObject
 
 public:
     explicit StressAnalysisController(QObject* parent = nullptr);
+    static StressAnalysisController* getInstance() { return s_instance; }
 
     // solver: "fft" or "ansys" (case-insensitive).
     Q_INVOKABLE void runSingleShot(const QString& solver, const QVariantList& eps);
     Q_INVOKABLE void runDataset(const QString& solver);
     Q_INVOKABLE void runStiffnessMatrix(const QString& solver);
     Q_INVOKABLE void saveSingleShotResult();
-
-    // Stiffness-matrix counterpart of saveSingleShotResult(). Without it the
-    // matrix mode only ever existed on screen -- the headless CLI path wrote
-    // HDF5 but the GUI (and GUI-mode --stress_mode stiffness) did not.
     Q_INVOKABLE void saveStiffnessResult();
+    Q_INVOKABLE bool loadFromHDF5(const QString& filePath);
+    Q_INVOKABLE void openHDF5File();
+
+    const StiffnessMatrixResult& lastStiffness() const { return m_lastStiffness; }
 
     bool   isRunning()  const { return m_isRunning; }
     bool   hasResult()  const { return m_hasResult; }
@@ -163,6 +164,7 @@ private:
     // safely no-ops if this controller is destroyed before the call runs.
     void appendConvergencePoint(int loadIndex, int iteration, double error);
 
+    static StressAnalysisController* s_instance;
     bool   m_isRunning = false;
     bool   m_hasResult = false;
     SingleShotResult m_lastResult;

@@ -33,6 +33,14 @@ public:
 
     void calculateVonMisesStressAndStrain();
 
+    const std::vector<std::vector<float>>& getLocalCS() const { return local_cs; }
+    const std::vector<std::vector<float>>& getLoadStepResults() const { return loadstepResults; }
+    const std::vector<float>& getLoadStepResultsAvg() const { return loadstepResultsAvg; }
+    const std::vector<float>& getLoadStepResultsMax() const { return loadstepResultsMax; }
+    const std::vector<float>& getLoadStepResultsMin() const { return loadstepResultsMin; }
+    const std::vector<float>& getEpsAsLoading() const { return eps_as_loading; }
+    bool hasLoadStepData() const { return !loadstepResults.empty(); }
+
 private:
     LoadStepManager(); // Private constructor
     LoadStepManager(const LoadStepManager&) = delete; // Delete copy constructor

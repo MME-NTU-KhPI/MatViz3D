@@ -245,6 +245,11 @@ Window {
                         onClicked: ctrl.runStiffnessMatrix(currentSolver())
                     }
                     Button {
+                        text: qsTr("Load from HDF5")
+                        enabled: !ctrl.isRunning
+                        onClicked: ctrl.openHDF5File()
+                    }
+                    Button {
                         text: qsTr("Save to HDF5")
                         enabled: ctrl.hasStiffness && !ctrl.isRunning
                         onClicked: ctrl.saveStiffnessResult()

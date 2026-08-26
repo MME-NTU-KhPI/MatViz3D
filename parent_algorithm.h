@@ -26,24 +26,11 @@ struct AlgorithmFlags {
 class Parent_Algorithm
 {
     friend class LoadStepManager;
-    public: struct Coordinate;
-private:
-    /**
-     * @brief Creates a 3D array of size N1 x N2 x N3.
-     * @tparam T Type of array elements.
-     * @param N1 Size along the first dimension.
-     * @param N2 Size along the second dimension.
-     * @param N3 Size along the third dimension.
-     * @return Pointer to the created 3D array.
-     */
-     template <class T> static T*** Create3D(int N1, int N2, int N3);
-
-    /**
-     * @brief Deletes a 3D array.
-     * @tparam T Type of array elements.
-     * @param array Pointer to the 3D array.
-     */
+    public:
+    struct Coordinate;
+    template <class T> static T*** Create3D(int N1, int N2, int N3);
     template <class T> static void Delete3D(T*** array);
+private:
     void Random_Generate_Points(int currentPoints);
     void Grid_Generate_Points(int currentPoints);
 

@@ -84,10 +84,12 @@ protected:
     unsigned int seed;
 
 public:
-    ansysWrapper(bool isBatch);
+    ansysWrapper(bool isBatch = true);
 
     void setWorkingDirectory(QString path);
     void setSeed(unsigned int seed);
+    void createResultNodesHash();
+    void setResultNodes(const QHash<n3d::node3d, int>& nodes) { result_nodes = nodes; }
 
     std::vector<int> ansys_to_voxel_map;
     double m_solid_fraction = 1.0; // solid phase fraction (based on voxels)

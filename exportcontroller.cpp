@@ -2,6 +2,9 @@
 #include "openglwidgetqml.h"
 #include "parameters.h"
 #include "hdf5wrapper.h"
+#include "loadstepmanager.h"
+#include "parent_algorithm.h"
+#include "stressanalysiscontroller.h"
 #include <QQuickItem>
 #include <QQuickItemGrabResult>
 #include <QFileDialog>
@@ -340,7 +343,19 @@ void ExportController::exportToVRML()
 
 void ExportController::exportToHDF5()
 {
-    HDF5Wrapper hdf5Wrapper("hdf5_save.hdf");
+    QString fileName = QFileDialog::getSaveFileName(
+        nullptr, tr("Save HDF5 Project"), "",
+        tr("HDF5 Files (*.h5 *.hdf5 *.hdf);;All Files (*.*)"));
+    if (fileName.isEmpty())
+        return;
+
+    if (!fileName.endsWith(".h5", Qt::CaseInsensitive) &&
+        !fileName.endsWith(".hdf5", Qt::CaseInsensitive) &&
+        !fileName.endsWith(".hdf", Qt::CaseInsensitive)) {
+        fileName += ".hdf5";
+    }
+
+    HDF5Wrapper hdf5Wrapper(fileName.toStdString());
 
     int last_set = hdf5Wrapper.readInt("/", "last_set");
     if (last_set == -1)
@@ -358,66 +373,94 @@ void ExportController::exportToHDF5()
 
     if (Parameters::voxels)
     {
-        hdf5Wrapper.write(prefix, "voxels", Parameters::voxels, Parameters::instance()->getSize());
-        hdf5Wrapper.write(prefix, "cubeSize", Parameters::instance()->getSize());
-        hdf5Wrapper.write(prefix, "numPoints", Parameters::instance()->getPoints());
+        const int size = Parameters::instance()->getSize();
+        const int points = Parameters::instance()->getPoints();
+        hdf5Wrapper.write(prefix, "voxels", Parameters::voxels, size);
+        hdf5Wrapper.write(prefix, "cubeSize", size);
+        hdf5Wrapper.write(prefix, "numPoints", points);
+        hdf5Wrapper.write(prefix, "seed", int(Parameters::seed));
+
+        if (OpenGLWidgetQML* ogl = OpenGLWidgetQML::getInstance()) {
+            const auto& orientations = ogl->getGrainOrientations();
+            if (!orientations.empty()) {
+                std::vector<std::vector<float>> local_cs;
+                local_cs.reserve(orientations.size());
+                for (const auto& arr : orientations) {
+                    local_cs.push_back({arr[0], arr[1], arr[2]});
+                }
+                hdf5Wrapper.write(prefix, "local_cs", local_cs);
+            }
+        }
     }
+
+    if (StressAnalysisController* sa = StressAnalysisController::getInstance()) {
+        if (sa->hasStiffness()) {
+            saveStiffnessMatrixToHDF5(fileName, sa->lastStiffness(), sa->stiffnessIsFFT() ? "fft" : "ansys", Parameters::seed);
+        }
+    }
+
+    Parameters::filename = fileName;
+    qDebug() << "HDF5 project saved:" << fileName;
+    emit exportFinished(fileName);
 }
 
 void ExportController::openHDF5()
 {
-    // QString fileName = QFileDialog::getOpenFileName(this , "Choose MatViz3d HDF5 file" , "" ,"MV3D HDF5 (*.hdf5)");
-    // if (fileName.length() == 0)
-    // {
-    //     qDebug() << "OpenHDF: no file selected";
-    //     return;
-    // }
-    // LoadStepManager& lsm = LoadStepManager::getInstance();
-    // if (lsm.LoadFromHDF5(fileName))
-    // {
-    //     ui->backgrAnim_2->show();
+    QString fileName = QFileDialog::getOpenFileName(
+        nullptr, tr("Open MatViz3D HDF5 Project"), "",
+        tr("HDF5 Files (*.h5 *.hdf5 *.hdf);;All Files (*.*)"));
+    if (fileName.isEmpty()) {
+        qDebug() << "OpenHDF: no file selected";
+        return;
+    }
 
-    //     ui->geom_ID->blockSignals(true);
-    //     ui->geom_sub_ID->blockSignals(true);
+    LoadStepManager& lsm = LoadStepManager::getInstance();
+    if (!lsm.LoadFromHDF5(fileName)) {
+        emit exportFailed(tr("Failed to load HDF5 file: ") + fileName);
+        return;
+    }
 
-    //     ui->geom_ID->clear();
-    //     ui->geom_ID->addItems(lsm.getGeomSetList());
+    int cubeSize = lsm.getCubeSize();
+    int numPoints = lsm.getNumPoints();
+    int32_t*** vox = lsm.getVoxelPtr();
 
-    //     ui->geom_sub_ID->clear();
-    //     ui->geom_sub_ID->addItems(lsm.getGeomSetSubList());
+    if (cubeSize > 0 && vox) {
+        Parameters* p = Parameters::instance();
+        p->setSize(cubeSize);
+        p->setPoints(numPoints);
+        Parameters::filename = fileName;
 
-    //     ui->geom_ID->blockSignals(false);
-    //     ui->geom_sub_ID->blockSignals(false);
+        if (Parameters::voxels) {
+            Parent_Algorithm::Delete3D<int32_t>(Parameters::voxels);
+        }
+        Parameters::voxels = Parent_Algorithm::Create3D<int32_t>(cubeSize, cubeSize, cubeSize);
+        for (int i = 0; i < cubeSize; i++)
+            for (int j = 0; j < cubeSize; j++)
+                for (int k = 0; k < cubeSize; k++)
+                    Parameters::voxels[i][j][k] = vox[i][j][k];
 
-    //     auto cmap = ui->myGLWidget->getColorMap(9);
-    //     int comp = ui->geom_ID->currentIndex();
+        if (OpenGLWidgetQML* ogl = OpenGLWidgetQML::getInstance()) {
+            ogl->setNumColors(numPoints);
+            ogl->setVoxels(Parameters::voxels, cubeSize);
 
-    //     float maxv = lsm.getMaxVal(comp);
-    //     float minv = lsm.getMinVal(comp);
+            const auto& local_cs = lsm.getLocalCS();
+            if (!local_cs.empty()) {
+                std::vector<std::array<float, 3>> orientations;
+                orientations.reserve(local_cs.size());
+                for (const auto& row : local_cs) {
+                    if (row.size() >= 3) {
+                        orientations.push_back({row[0], row[1], row[2]});
+                    }
+                }
+                ogl->setGrainOrientations(orientations);
+            }
+        }
+    }
 
-    //     if (!this->scene)
-    //     {
-    //         qDebug() << "LegendView is not initialized!";
-    //         return;
-    //     }
+    if (StressAnalysisController* sa = StressAnalysisController::getInstance()) {
+        sa->loadFromHDF5(fileName);
+    }
 
-    //     qDebug() << "Min/Max values:" << minv << maxv;
-    //     qDebug() << "ColorMap size:" << cmap.size();
-
-    //     if (minv == maxv) {
-    //         minv -= 0.01f;
-    //         maxv += 0.01f;
-    //     }
-
-    //     this->scene->setMinMax(minv, maxv);
-    //     this->scene->setCmap(cmap);
-    //     this->scene->draw();
-
-    //     ui->LegendView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
-    //     ui->LegendView->viewport()->update();
-    //     ui->LegendView->show();
-    //     ui->myGLWidget->setNumColors(lsm.getNumPoints());
-    //     ui->myGLWidget->setVoxels(lsm.getVoxelPtr(), lsm.getCubeSize());
-    //     ui->myGLWidget->update();
-    // }
+    qDebug() << "HDF5 project opened successfully:" << fileName;
+    emit exportFinished(fileName);
 }
