@@ -405,8 +405,13 @@ QImage OpenGLWidgetQML::captureScreenshotWithWhiteBackground()
 
 void OpenGLWidgetQML::wheelEvent(QWheelEvent *event)
 {
-    int numDegrees = event->angleDelta().y() / 8;
-    int numSteps = numDegrees / 10;
+    const int deltaY = event->angleDelta().y();
+    if (deltaY == 0) return;
+
+    int numSteps = deltaY / 120;
+    if (numSteps == 0) {
+        numSteps = (deltaY > 0) ? 1 : -1;
+    }
 
     zoomStep(numSteps);
 }
@@ -456,13 +461,23 @@ void OpenGLWidgetQML::zoomToFit()
 
 void OpenGLWidgetQML::zoomStep(int numSteps)
 {
+    if (numSteps == 0) return;
+
+    const float n = (numCubes > 0) ? static_cast<float>(numCubes) : 1.0f;
+    const float minDistance = n * 0.3f;
+    const float maxDistance = n * 30.0f;
+
+    // Multiplicative zoom: step by ~8% per notch, smooth across all zoom levels
+    const float factor = std::pow(0.92f, static_cast<float>(numSteps));
+    distance *= factor;
+    distance = std::clamp(distance, minDistance, maxDistance);
+
     if (numSteps > 0) {
         zoomFactor *= 1.1f;
-        distance -= numSteps * numCubes * 0.1f;
-    } else if (numSteps < 0) {
+    } else {
         zoomFactor /= 1.1f;
-        distance += -numSteps * numCubes * 0.1f;
     }
+
     if (m_render) {
         m_render->setDistZoomFactor(distance, zoomFactor);
     }

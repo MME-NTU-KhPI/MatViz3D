@@ -1003,7 +1003,6 @@ void RenderOpenGL::setRotations(int xRot, int yRot, int zRot)
 void RenderOpenGL::setNumCubes(int numCubes)
 {
     this->numCubes = numCubes;
-    this->distance = 2 * numCubes;
     updateProjection();
     update();
 }
