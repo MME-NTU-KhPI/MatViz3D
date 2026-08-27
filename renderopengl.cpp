@@ -150,12 +150,17 @@ void RenderOpenGL::debugCallback(GLenum source, GLenum type, GLuint id, GLenum s
                                GLsizei length, const GLchar* message, const void* userParam) {
     Q_UNUSED(length);
     Q_UNUSED(userParam);
-    static int num_line_width_waring;
 
-    if (num_line_width_waring && type == GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR)
+    // Ignore driver performance hints (e.g. Qt Quick internal uniform buffer updates)
+    // and low-priority notification messages
+    if (type == GL_DEBUG_TYPE_PERFORMANCE || severity == GL_DEBUG_SEVERITY_NOTIFICATION)
         return;
-    else
-        num_line_width_waring++;
+
+    static int num_deprecated_warnings = 0;
+    if (type == GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR) {
+        if (num_deprecated_warnings++ > 0)
+            return;
+    }
 
     QString sourceStr;
     switch (source) {
