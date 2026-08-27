@@ -107,8 +107,6 @@ SOURCES += \
         parameters.cpp \
         parent_algorithm.cpp \
         probability_algorithm.cpp \
-        probability_circle.cpp \
-        probability_ellipse.cpp \
         radial.cpp \
         renderopengl.cpp \
         schemacontroller.cpp \
@@ -176,8 +174,6 @@ HEADERS += \
     parent_algorithm.h \
     phasematerial.h \
     probability_algorithm.h \
-    probability_circle.h \
-    probability_ellipse.h \
     radial.h \
     renderopengl.h \
     schemacontroller.h \

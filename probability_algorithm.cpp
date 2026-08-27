@@ -1,6 +1,7 @@
 #include "probability_algorithm.h"
-//#include "ui_probability_algorithm.h"
+#include "algorithmplugin.h"
 #include "parameters.h"
+#include "grain_analyzer.h"
 #include <random>
 #include <cmath>
 #include <omp.h>
@@ -8,49 +9,53 @@
 #include <QTextStream>
 #include <QFile>
 #include <QDir>
+#include <QDebug>
+#include <algorithm>
 
-Probability_Algorithm::Probability_Algorithm(QWidget *parent) :
-    QWidget(parent), Parent_Algorithm()//,
-//    ui(new Ui::Probability_Algorithm)
+const std::array<std::array<int32_t, 3>, 26> PROBABILITY_OFFSETS = {{
+    {-1, -1, -1}, {-1, -1, 0}, {-1, -1, 1},
+    {-1, 0, -1},  {-1, 0, 0},  {-1, 0, 1},
+    {-1, 1, -1},  {-1, 1, 0},  {-1, 1, 1},
+    {0, -1, -1},  {0, -1, 0},  {0, -1, 1},
+    {0, 0, -1},                {0, 0, 1},
+    {0, 1, -1},   {0, 1, 0},   {0, 1, 1},
+    {1, -1, -1},  {1, -1, 0},  {1, -1, 1},
+    {1, 0, -1},   {1, 0, 0},   {1, 0, 1},
+    {1, 1, -1},   {1, 1, 0},   {1, 1, 1}
+}};
+
+// Deterministic 64-bit integer hash mapped to [0.0, 1.0)
+// Guarantees exact reproducibility independent of thread count and thread scheduling.
+static inline double hashDice(uint32_t seed, uint32_t step, int32_t x, int32_t y, int32_t z, int32_t offset_idx)
 {
-//     ui->setupUi(this);
-//     connect(ui->applyPushButton,&QPushButton::clicked,this,&Probability_Algorithm::setHalfAxis);
-//     connect(ui->applyPushButton,&QPushButton::clicked,this,&QWidget::close);
-//     connect(ui->cancelPushButton,&QPushButton::clicked,this,&QWidget::close);
+    uint64_t h = seed;
+    h ^= (static_cast<uint64_t>(step) * 0x9e3779b97f4a7c15ULL);
+    h ^= (static_cast<uint64_t>(x) + (static_cast<uint64_t>(y) << 10) + (static_cast<uint64_t>(z) << 20));
+    h ^= (static_cast<uint64_t>(offset_idx) * 0x517cc1b727220a95ULL);
+    h = (h ^ (h >> 30)) * 0xbf58476d1ce4e5b9ULL;
+    h = (h ^ (h >> 27)) * 0x94d049bb133111ebULL;
+    h ^= (h >> 31);
+    return (h & 0xFFFFFFFFFFFFULL) * (1.0 / static_cast<double>(0x1000000000000ULL));
 }
 
-Probability_Algorithm::Probability_Algorithm(short int numCubes, int numColors, QWidget *parent)
-    : QWidget(parent)//, ui(new Ui::Probability_Algorithm)
+Probability_Algorithm::Probability_Algorithm()
+    : Parent_Algorithm()
 {
-    // ui->setupUi(this);
-    // connect(ui->applyPushButton,&QPushButton::clicked,this,&Probability_Algorithm::setHalfAxis);
-    // connect(ui->applyPushButton,&QPushButton::clicked,this,&QWidget::close);
-    // connect(ui->cancelPushButton,&QPushButton::clicked,this,&QWidget::close);
+}
 
-    setNumCubes(numCubes);
-    setNumColors(numColors);
-    processProbabilities(ProbabilityMode::VolumeSampling);
+Probability_Algorithm::Probability_Algorithm(short int numCubes, int numColors)
+    : Parent_Algorithm()
+{
+    this->numCubes = numCubes;
+    this->numColors = numColors;
 }
 
 Probability_Algorithm::~Probability_Algorithm()
 {
-//    delete ui;
-}
-
-void Probability_Algorithm::setHalfAxis()
-{
-    // Parameters::halfaxis_a = ui->axisALineEdit->text().toFloat();
-    // Parameters::halfaxis_b = ui->axisBLineEdit->text().toFloat();
-    // Parameters::halfaxis_c = ui->axisCLineEdit->text().toFloat();
-    // Parameters::orientation_angle_a = ui->orintationAngleLineEdit->text().toFloat();
-    // Parameters::orientation_angle_b = ui->lineEdit->text().toFloat();
-    // Parameters::orientation_angle_c = ui->lineEdit_2->text().toFloat();
-}
-
-bool Probability_Algorithm::isPointIn(double x, double y, double z)
-{
-    rotatePoint(x,y,z);
-    return (pow((x - 1.5) / Parameters::halfaxis_a, 2) + pow((y-1.5)  / Parameters::halfaxis_b, 2) + pow((z-1.5) / Parameters::halfaxis_c, 2)) <= 1.0;
+    if (m_claimGrid) {
+        Delete3D(m_claimGrid);
+        m_claimGrid = nullptr;
+    }
 }
 
 void Probability_Algorithm::setNumCubes(short int size)
@@ -65,40 +70,37 @@ void Probability_Algorithm::setNumColors(int points)
 
 double Probability_Algorithm::toRadians(double degrees)
 {
-    return degrees * (M_PI/180) ;
+    return degrees * (M_PI / 180.0);
 }
-
-const std::array<std::array<int32_t, 3>, 26> PROBABILITY_OFFSETS = {{
-    {-1, -1, -1}, {-1, -1, 0}, {-1, -1, 1},
-    {-1, 0, -1},  {-1, 0, 0},  {-1, 0, 1},
-    {-1, 1, -1},  {-1, 1, 0},  {-1, 1, 1},
-    {0, -1, -1},  {0, -1, 0},  {0, -1, 1},
-    {0, 0, -1},                {0, 0, 1},
-    {0, 1, -1},   {0, 1, 0},   {0, 1, 1},
-    {1, -1, -1},  {1, -1, 0},  {1, -1, 1},
-    {1, 0, -1},   {1, 0, 0},   {1, 0, 1},
-    {1, 1, -1},   {1, 1, 0},   {1, 1, 1}
-}};
 
 void Probability_Algorithm::rotatePoint(double& x, double& y, double& z)
 {
+    const double rad_a = toRadians(Parameters::orientation_angle_a);
+    const double rad_b = toRadians(Parameters::orientation_angle_b);
+    const double rad_c = toRadians(Parameters::orientation_angle_c);
+
+    if (std::abs(rad_a) < 1e-9 && std::abs(rad_b) < 1e-9 && std::abs(rad_c) < 1e-9) {
+        return;
+    }
+
     double Rx[3][3] = {
         {1, 0, 0},
-        {0, cos(toRadians(Parameters::orientation_angle_a)), -sin(toRadians(Parameters::orientation_angle_a))},
-        {0, sin(toRadians(Parameters::orientation_angle_a)), cos(toRadians(Parameters::orientation_angle_a))}
+        {0, cos(rad_a), -sin(rad_a)},
+        {0, sin(rad_a), cos(rad_a)}
     };
 
     double Ry[3][3] = {
-        {cos(toRadians(Parameters::orientation_angle_b)), 0, sin(toRadians(Parameters::orientation_angle_b))},
+        {cos(rad_b), 0, sin(rad_b)},
         {0, 1, 0},
-        {-sin(toRadians(Parameters::orientation_angle_b)), 0, cos(toRadians(Parameters::orientation_angle_b))}
+        {-sin(rad_b), 0, cos(rad_b)}
     };
 
     double Rz[3][3] = {
-        {cos(toRadians(Parameters::orientation_angle_c)), -sin(toRadians(Parameters::orientation_angle_c)), 0},
-        {sin(toRadians(Parameters::orientation_angle_c)), cos(toRadians(Parameters::orientation_angle_c)), 0},
+        {cos(rad_c), -sin(rad_c), 0},
+        {sin(rad_c), cos(rad_c), 0},
         {0, 0, 1}
     };
+
     double x1 = Rx[0][0] * x + Rx[0][1] * y + Rx[0][2] * z;
     double y1 = Rx[1][0] * x + Rx[1][1] * y + Rx[1][2] * z;
     double z1 = Rx[2][0] * x + Rx[2][1] * y + Rx[2][2] * z;
@@ -107,36 +109,37 @@ void Probability_Algorithm::rotatePoint(double& x, double& y, double& z)
     double y2 = Ry[1][0] * x1 + Ry[1][1] * y1 + Ry[1][2] * z1;
     double z2 = Ry[2][0] * x1 + Ry[2][1] * y1 + Ry[2][2] * z1;
 
-    double x3 = Rz[0][0] * x2 + Rz[0][1] * y2 + Rz[0][2] * z2;
-    double y3 = Rz[1][0] * x2 + Rz[1][1] * y2 + Rz[1][2] * z2;
-    double z3 = Rz[2][0] * x2 + Rz[2][1] * y2 + Rz[2][2] * z2;
-
-    x = x3;
-    y = y3;
-    z = z3;
+    x = Rz[0][0] * x2 + Rz[0][1] * y2 + Rz[0][2] * z2;
+    y = Rz[1][0] * x2 + Rz[1][1] * y2 + Rz[1][2] * z2;
+    z = Rz[2][0] * x2 + Rz[2][1] * y2 + Rz[2][2] * z2;
 }
 
-// Unified entry point to switch between algorithms
-void Probability_Algorithm::processProbabilities(ProbabilityMode mode)
+bool Probability_Algorithm::isPointIn(double x, double y, double z)
 {
-    if (mode == ProbabilityMode::VolumeSampling) {
-        qDebug() << "Calculating probabilities proportional to VOLUME...";
-        calculateVolumeProbabilities();
+    double dx = x - 1.5;
+    double dy = y - 1.5;
+    double dz = z - 1.5;
+    rotatePoint(dx, dy, dz);
+
+    const double a = std::max(0.01f, Parameters::halfaxis_a);
+    const double b = std::max(0.01f, Parameters::halfaxis_b);
+    const double c = std::max(0.01f, Parameters::halfaxis_c);
+    const double p = std::max(0.1, Parameters::ellipse_order);
+
+    if (std::abs(p - 2.0) < 1e-6) {
+        return (std::pow(dx / a, 2.0) + std::pow(dy / b, 2.0) + std::pow(dz / c, 2.0)) <= 1.0;
     } else {
-        qDebug() << "Calculating probabilities proportional to SURFACE AREA (Lambertian)...";
-        calculateSurfaceFluxProbabilities();
+        return (std::pow(std::abs(dx / a), p) + std::pow(std::abs(dy / b), p) + std::pow(std::abs(dz / c), p)) <= 1.0;
     }
 }
 
-// --- ALGORITHM A: VOLUMETRIC SAMPLING (Your original logic) ---
 void Probability_Algorithm::calculateVolumeProbabilities()
 {
-    const uint64_t N = pow(102, 3);
-    const uint64_t n = std::round(std::cbrt(N));
+    const uint64_t n = 60;
     const double step = 3.0 / n;
-    const double num_points_per_voxel = pow(1.0 / step, 3);
+    const double num_points_per_voxel = std::pow(1.0 / step, 3);
 
-    uint64_t fileld_in_local[3][3][3] = {{{0}}};
+    uint64_t filed_in_local[3][3][3] = {{{0}}};
 
     for (uint64_t i = 0; i < n; ++i) {
         for (uint64_t j = 0; j < n; ++j) {
@@ -146,33 +149,44 @@ void Probability_Algorithm::calculateVolumeProbabilities()
                 double z = (k + 0.5) * step;
 
                 if (isPointIn(x, y, z)) {
-                    int k_voxel = std::min(std::max((int)floor(x), 0), 2);
-                    int l_voxel = std::min(std::max((int)floor(y), 0), 2);
-                    int m_voxel = std::min(std::max((int)floor(z), 0), 2);
-                    fileld_in_local[k_voxel][l_voxel][m_voxel]++;
+                    int k_voxel = std::clamp((int)floor(x), 0, 2);
+                    int l_voxel = std::clamp((int)floor(y), 0, 2);
+                    int m_voxel = std::clamp((int)floor(z), 0, 2);
+                    filed_in_local[k_voxel][l_voxel][m_voxel]++;
                 }
             }
         }
     }
 
-    for (int i = 0; i < 3; i++)
-        for (int j = 0; j < 3; j++)
-            for (int k = 0; k < 3; k++)
-                this->probability[i][j][k] = (double)fileld_in_local[i][j][k] / num_points_per_voxel;
+    double maxProb = 0.0;
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            for (int k = 0; k < 3; k++) {
+                this->probability[i][j][k] = static_cast<double>(filed_in_local[i][j][k]) / num_points_per_voxel;
+                if (i != 1 || j != 1 || k != 1) {
+                    maxProb = std::max(maxProb, this->probability[i][j][k]);
+                }
+            }
+        }
+    }
 
-    this->probability[1][1][1] = 0.0; // Ensure center is 0
-    prettyPrint3DArray(this->probability);
-    writeProbabilitiesToCSV(QCoreApplication::applicationDirPath(), N);
+    if (maxProb > 0.0) {
+        for (int i = 0; i < 3; i++)
+            for (int j = 0; j < 3; j++)
+                for (int k = 0; k < 3; k++)
+                    this->probability[i][j][k] /= maxProb;
+    }
+
+    this->probability[1][1][1] = 0.0;
 }
 
-// --- ALGORITHM B: SURFACE FLUX SAMPLING (Pasted logic) ---
 void Probability_Algorithm::calculateSurfaceFluxProbabilities()
 {
-    const uint64_t N_surface = 500000;
-    const double a = Parameters::halfaxis_a;
-    const double b = Parameters::halfaxis_b;
-    const double c = Parameters::halfaxis_c;
-    const double p = Parameters::instance()->getEllipseOrder();
+    const uint64_t N_surface = 100000;
+    const double a = std::max(0.01f, Parameters::halfaxis_a);
+    const double b = std::max(0.01f, Parameters::halfaxis_b);
+    const double c = std::max(0.01f, Parameters::halfaxis_c);
+    const double p = std::max(0.1, Parameters::ellipse_order);
 
     double flux[3][3][3] = {{{0.0}}};
     std::mt19937_64 rng(Parameters::seed);
@@ -230,154 +244,104 @@ void Probability_Algorithm::calculateSurfaceFluxProbabilities()
                 this->probability[i][j][k] = flux[i][j][k] / maxFlux;
 
     this->probability[1][1][1] = 0.0;
-    prettyPrint3DArray(this->probability);
-    writeProbabilitiesToCSV(QCoreApplication::applicationDirPath(), N_surface);
 }
 
-
-
-
-void Probability_Algorithm::prettyPrint3DArray(double arr[3][3][3])
+void Probability_Algorithm::processProbabilities(ProbabilityMode mode)
 {
-    QString output;
-
-    // Header
-    output += "Probability Array [3][3][3]:\n";
-    output += "==================\n";
-
-    // Print the 3D array
-    for (int i = 0; i < 3; i++) {
-        output += QString("Layer %1:\n").arg(i);
-        for (int j = 0; j < 3; j++) {
-            output += "  [";
-            for (int k = 0; k < 3; k++) {
-                output += QString("%1").arg(arr[i][j][k], 5, 'f', 3);
-                if (k < 2) output += ", ";
-            }
-            output += "]\n";
-        }
-        if (i < 2) output += "\n";
+    if (mode == ProbabilityMode::SurfaceFlux) {
+        calculateSurfaceFluxProbabilities();
+    } else {
+        calculateVolumeProbabilities();
     }
-
-    // Calculate directional probabilities
-    output += "\n==================\n";
-    output += "Directional Probabilities:\n";
-    output += "==================\n";
-
-    output += QString("+X direction: %1\n").arg(arr[2][1][1], 6, 'f', 3);
-    output += QString("-X direction: %1\n").arg(arr[0][1][1], 6, 'f', 3);
-    output += QString("+Y direction: %1\n").arg(arr[1][2][1], 6, 'f', 3);
-    output += QString("-Y direction: %1\n").arg(arr[1][0][1], 6, 'f', 3);
-    output += QString("+Z direction: %1\n").arg(arr[1][1][2], 6, 'f', 3);
-    output += QString("-Z direction: %1\n").arg(arr[1][1][0], 6, 'f', 3);
-
-    // Single qDebug call at the end
-    qDebug().noquote() << output;
 }
 
-
-// ---------------------------------------------------------------------------
-// Private helpers
-// ---------------------------------------------------------------------------
-
-// --- Thermodynamic cap -------------------------------------------------
-// Returns max voxels that may crystallize this iteration.
-unsigned int Probability_Algorithm::computeThermodynamicCap(
-    unsigned int counter_max) const
+void Probability_Algorithm::Initialization(bool isWaveGeneration)
 {
-    // Constant cooling: external heat flux is fixed.
-    // Stefan condition at the interface:
-    //   ρ·L·v_n  =  k · ∇T  →  integrated over RVE:
-    //   ΔN_max  =  Q_ext / (ρ·L·V_voxel)
-    //           =  N_total · ΔT_per_iter · (cp/L)
-    //           =  N_total / St
-    //
-    // N_total — cap is CONSTANT under constant flux BC.
-    // It decreases only if the external flux decreases (e.g. convective
-    // cooling where Q ~ T - T_env, not relevant for furnace cooling).
-    //
-    // St = L / (cp · ΔT_per_iteration)
-    //   St >> 1  →  small cap  (slow solidification, high latent heat)
-    //   St ~ 1   →  large cap  (fast quench, latent heat ~ sensible heat)
-    //
-    // Typical metals: St = 50–400.
+    Parent_Algorithm::Initialization(isWaveGeneration);
+    run_start = std::chrono::steady_clock::now();
+    m_history.clear();
+    IterationNumber = 0;
 
+    if (m_claimGrid) {
+        Delete3D(m_claimGrid);
+        m_claimGrid = nullptr;
+    }
+    m_claimGrid = Create3D<int32_t>(numCubes, numCubes, numCubes);
+#pragma omp parallel for collapse(3)
+    for (int i = 0; i < numCubes; ++i)
+        for (int j = 0; j < numCubes; ++j)
+            for (int k = 0; k < numCubes; ++k)
+                m_claimGrid[i][j][k] = 0;
+
+    calculateVolumeProbabilities();
+
+    qDebug().noquote()
+        << QString("[Probability] %1^3 grid (%2 voxels), %3 seeds, preset: '%4' (a=%5, b=%6, c=%7, order=%8, St=%9)%10")
+               .arg(numCubes)
+               .arg(static_cast<uint64_t>(numCubes) * numCubes * numCubes)
+               .arg(seedPoints.size())
+               .arg(Parameters::prob_preset)
+               .arg(Parameters::halfaxis_a, 0, 'g', 3)
+               .arg(Parameters::halfaxis_b, 0, 'g', 3)
+               .arg(Parameters::halfaxis_c, 0, 'g', 3)
+               .arg(Parameters::ellipse_order, 0, 'g', 3)
+               .arg(Parameters::stefan_number, 0, 'g', 3)
+               .arg(flags.isPeriodicStructure ? ", periodic" : "");
+}
+
+unsigned int Probability_Algorithm::computeThermodynamicCap(unsigned int counter_max) const
+{
     const float St = Parameters::stefan_number;
-    if (St <= 0.0f) return counter_max;  // disabled
-
-    // Optional sensible heat correction (negligible for most metals
-    // since cp_s ≈ cp_l):
-    //   ΔN_correction = (N_solid * (cp_s - cp_l) / L) * ΔT_per_iter
-    // Omitted here — add if cp_s/cp_l differ significantly.
+    if (St <= 0.0f) return counter_max;
 
     const unsigned int cap = static_cast<unsigned int>(
         std::max(1.0f, std::floor(static_cast<float>(counter_max) / St)));
-
-    return cap;  // constant every iteration
+    return cap;
 }
 
-// --- CA growth step ----------------------------------------------------
-// ---------------------------------------------------------------------------
-// growFrontier
-//
-// Parameters:
-//   maxCaptures  — thermodynamic cap: how many voxels may be crystallized
-//                  in this iteration (N_total / St).
-//   active_size  — how many frontier elements participate in growth.
-//                  The remainder grains[active_size..end] is "passive": kept
-//                  active automatically without any processing.
-//
-// Parallelism strategies:
-//   1. Per-thread budget  — each thread receives a quota of cap/nthreads,
-//      eliminating the hot global atomic capture counter.
-//   2. Active subset      — when cap << frontier, only the first active_size
-//      elements are processed (after shuffle they form a random sample).
-//
-// Returns: number of voxels actually captured this iteration.
-// ---------------------------------------------------------------------------
-unsigned int Probability_Algorithm::growFrontier(unsigned int maxCaptures,
-                                                 size_t       active_size)
+void Probability_Algorithm::partialShuffle(size_t active_size)
 {
-    // --- Active and passive partition sizes ----------------------------
+    const size_t fs = grains.size();
+    if (fs <= 1 || active_size == 0) return;
+    active_size = std::min(active_size, fs);
+
+    std::mt19937 rng(Parameters::seed ^ (IterationNumber * 2246822519u));
+
+    for (size_t i = 0; i < active_size; ++i)
+    {
+        const size_t range = fs - i;
+        const size_t j     = i + (static_cast<size_t>(rng()) % range);
+        if (i != j)
+            std::swap(grains[i], grains[j]);
+    }
+}
+
+unsigned int Probability_Algorithm::growFrontier(unsigned int maxCaptures, size_t active_size)
+{
+    Q_UNUSED(maxCaptures);
     const size_t frontier_size = grains.size();
     active_size = std::min(active_size, frontier_size);
-    const size_t passive_begin = active_size;   // [passive_begin..frontier_size) left untouched
 
-    // --- Per-thread budget --------------------------------------------
-    // Ceiling division: the sum of quotas slightly exceeds cap, which is
-    // safe — the true total is bounded by the reduction over thread_captures.
     const int nthreads = std::max(1, omp_get_max_threads());
-    const unsigned int per_thread_budget =
-        (maxCaptures + static_cast<unsigned int>(nthreads) - 1)
-        / static_cast<unsigned int>(nthreads);
 
-    // --- Result buffer ------------------------------------------------
-    // Final newGrains = [newly captured] + [keep_active from active]
-    //                  + [passive, unchanged]
-    std::vector<Coordinate> newGrains;
-    newGrains.reserve(frontier_size * 2);
+    std::vector<std::vector<Coordinate>> threadNewGrains(nthreads);
+    std::vector<std::vector<Coordinate>> threadActiveGrains(nthreads);
+    std::vector<unsigned int> threadCaptures(nthreads, 0);
 
-    unsigned int total_captured = 0;   // OMP reduction accumulator
+    for (int t = 0; t < nthreads; ++t) {
+        threadNewGrains[t].reserve(active_size * 4 / nthreads + 16);
+        threadActiveGrains[t].reserve(active_size * 2 / nthreads + 16);
+    }
 
-    // =================================================================
-#pragma omp parallel reduction(+:total_captured)
+#pragma omp parallel
     {
         const int tid = omp_get_thread_num();
+        unsigned int local_captures = 0;
+        auto& newFrontier = threadNewGrains[tid];
+        auto& keepActive  = threadActiveGrains[tid];
 
-        // Thread-private RNG — no sharing between threads
-        std::mt19937 rng(Parameters::seed
-                         + static_cast<unsigned>(tid)
-                         + IterationNumber * 1000003u);
-        std::uniform_real_distribution<double> dice(0.0, 1.0);
-
-        // Local capture counter for this thread (not atomic)
-        unsigned int thread_captures = 0;
-
-        std::vector<Coordinate> privateGrains;
-        privateGrains.reserve(active_size * 2 / nthreads + 16);
-
-// ----- Active frontier slice [0 .. active_size) --------------
-#pragma omp for schedule(dynamic, 4) nowait
+        // Phase 1: Record deterministic atomic claims on empty neighbour voxels
+#pragma omp for schedule(static)
         for (size_t i = 0; i < active_size; i++)
         {
             const Coordinate& cell     = grains[i];
@@ -386,19 +350,9 @@ unsigned int Probability_Algorithm::growFrontier(unsigned int maxCaptures,
             const int32_t     z        = cell.z;
             const int32_t     grain_id = voxels[x][y][z];
 
-            // Thread quota exhausted — keep grain active but skip the
-            // neighbour loop entirely, no point iterating all 26 offsets.
-            if (thread_captures >= per_thread_budget)
+            for (size_t off_idx = 0; off_idx < PROBABILITY_OFFSETS.size(); ++off_idx)
             {
-                privateGrains.push_back(cell);
-                continue;
-            }
-
-            bool keep_active = false;
-
-            for (const auto& offset : PROBABILITY_OFFSETS)
-            {
-                // --- Neighbour coordinates ---
+                const auto& offset = PROBABILITY_OFFSETS[off_idx];
                 int32_t nx = x + offset[0];
                 int32_t ny = y + offset[1];
                 int32_t nz = z + offset[2];
@@ -415,435 +369,141 @@ unsigned int Probability_Algorithm::growFrontier(unsigned int maxCaptures,
                     continue;
 
                 if (voxels[nx][ny][nz] != 0)
-                    continue;   // already occupied
+                    continue;
 
                 const double prob =
                     probability[1 + offset[0]][1 + offset[1]][1 + offset[2]];
 
-                // Zero-probability direction — does not affect grain liveness
                 if (prob < 1e-12)
                     continue;
 
-                // Quota just ran out: neighbour is reachable but cannot be
-                // captured this iteration — mark grain active and stop scanning.
-                if (thread_captures >= per_thread_budget)
-                {
-                    keep_active = true;
-                    break;   // remaining neighbours would be skipped anyway
-                }
-
-                // --- Probability dice roll ---
-                if (dice(rng) >= prob)
-                {
-                    // Capture attempt failed this iteration, but the neighbour
-                    // is still empty — grain may capture it next iteration.
-                    keep_active = true;
+                const double roll = hashDice(Parameters::seed, IterationNumber, x, y, z, static_cast<int32_t>(off_idx));
+                if (roll >= prob)
                     continue;
+
+                // Deterministic lowest grain ID atomic resolution:
+                int32_t cur = m_claimGrid[nx][ny][nz];
+                while (cur == 0 || grain_id < cur)
+                {
+                    if (__sync_bool_compare_and_swap(&m_claimGrid[nx][ny][nz], cur, grain_id))
+                        break;
+                    cur = m_claimGrid[nx][ny][nz];
+                }
+            }
+        }
+
+#pragma omp barrier
+
+        // Phase 2: Apply winning claims and assemble next active frontier
+#pragma omp for schedule(static)
+        for (size_t i = 0; i < active_size; i++)
+        {
+            const Coordinate& cell     = grains[i];
+            const int32_t     x        = cell.x;
+            const int32_t     y        = cell.y;
+            const int32_t     z        = cell.z;
+            const int32_t     grain_id = voxels[x][y][z];
+
+            bool has_empty_neighbor = false;
+
+            for (size_t off_idx = 0; off_idx < PROBABILITY_OFFSETS.size(); ++off_idx)
+            {
+                const auto& offset = PROBABILITY_OFFSETS[off_idx];
+                int32_t nx = x + offset[0];
+                int32_t ny = y + offset[1];
+                int32_t nz = z + offset[2];
+
+                if (flags.isPeriodicStructure)
+                {
+                    nx = (nx + numCubes) % numCubes;
+                    ny = (ny + numCubes) % numCubes;
+                    nz = (nz + numCubes) % numCubes;
                 }
 
-                // --- Atomic capture attempt (CAS) ---------------------
-                // Retries are needed only when two threads race on the same
-                // voxel simultaneously.
-                bool captured = false;
-                for (int attempt = 0; attempt < 3; ++attempt)
+                if (nx < 0 || ny < 0 || nz < 0 ||
+                    nx >= numCubes || ny >= numCubes || nz >= numCubes)
+                    continue;
+
+                if (voxels[nx][ny][nz] == 0)
                 {
-                    if (__sync_bool_compare_and_swap(
-                            &voxels[nx][ny][nz], 0, grain_id))
+                    const int32_t winning_grain = m_claimGrid[nx][ny][nz];
+                    if (winning_grain == 0)
                     {
-                        captured = true;
-                        break;
+                        has_empty_neighbor = true;
                     }
-                    // Another thread already wrote here — stop retrying
-                    if (voxels[nx][ny][nz] != 0)
-                        break;
+                    else if (winning_grain == grain_id)
+                    {
+                        if (__sync_bool_compare_and_swap(&voxels[nx][ny][nz], 0, winning_grain))
+                        {
+                            newFrontier.push_back({nx, ny, nz});
+                            ++local_captures;
+                        }
+                    }
                 }
-
-                if (captured)
-                {
-                    // thread_captures is a local variable — no atomic needed
-                    ++thread_captures;
-                    total_captured++;   // reduced across threads at barrier
-                    privateGrains.push_back({nx, ny, nz});
-                }
-                // CAS lost to another thread — neighbour is no longer empty,
-                // so keep_active is not set for this neighbour.
             }
 
-            if (keep_active)
-                privateGrains.push_back(cell);
+            if (has_empty_neighbor)
+                keepActive.push_back(cell);
         }
-        // ----- End of parallel loop over active frontier -------------
 
-// Merge per-thread buffers into the shared result vector
-#pragma omp critical
+#pragma omp barrier
+
+        // Phase 3: Reset claim grid for next step
+#pragma omp for schedule(static)
+        for (size_t i = 0; i < active_size; i++)
         {
-            newGrains.insert(newGrains.end(),
-                             std::make_move_iterator(privateGrains.begin()),
-                             std::make_move_iterator(privateGrains.end()));
+            const Coordinate& cell = grains[i];
+            for (const auto& offset : PROBABILITY_OFFSETS)
+            {
+                int32_t nx = cell.x + offset[0];
+                int32_t ny = cell.y + offset[1];
+                int32_t nz = cell.z + offset[2];
+
+                if (flags.isPeriodicStructure)
+                {
+                    nx = (nx + numCubes) % numCubes;
+                    ny = (ny + numCubes) % numCubes;
+                    nz = (nz + numCubes) % numCubes;
+                }
+
+                if (nx >= 0 && nx < numCubes &&
+                    ny >= 0 && ny < numCubes &&
+                    nz >= 0 && nz < numCubes)
+                {
+                    m_claimGrid[nx][ny][nz] = 0;
+                }
+            }
         }
-    }
-    // =================================================================
 
-    // --- Passive slice [active_size .. frontier_size) ----------------
-    // These grains did not participate in growth this iteration but remain
-    // candidates for the next one — copy them as-is.
-    if (passive_begin < frontier_size)
-    {
-        newGrains.insert(newGrains.end(),
-                         grains.begin() + passive_begin,
-                         grains.end());
+        threadCaptures[tid] = local_captures;
     }
 
-    grains = std::move(newGrains);
+    std::vector<Coordinate> nextGrains;
+    nextGrains.reserve(frontier_size * 2);
+
+    unsigned int total_captured = 0;
+    for (int t = 0; t < nthreads; ++t) {
+        nextGrains.insert(nextGrains.end(),
+                          std::make_move_iterator(threadNewGrains[t].begin()),
+                          std::make_move_iterator(threadNewGrains[t].end()));
+        nextGrains.insert(nextGrains.end(),
+                          std::make_move_iterator(threadActiveGrains[t].begin()),
+                          std::make_move_iterator(threadActiveGrains[t].end()));
+        total_captured += threadCaptures[t];
+    }
+
+    std::sort(nextGrains.begin(), nextGrains.end(), [](const Coordinate& a, const Coordinate& b) {
+        if (a.x != b.x) return a.x < b.x;
+        if (a.y != b.y) return a.y < b.y;
+        return a.z < b.z;
+    });
+    nextGrains.erase(std::unique(nextGrains.begin(), nextGrains.end(), [](const Coordinate& a, const Coordinate& b) {
+        return a.x == b.x && a.y == b.y && a.z == b.z;
+    }), nextGrains.end());
+
+    grains = std::move(nextGrains);
     return total_captured;
 }
-
-// ---------------------------------------------------------------------------
-// partialShuffle
-//
-// Partial Fisher-Yates: moves `active_size` randomly-chosen elements to
-// grains[0..active_size) in O(active_size) swaps.
-//
-// Replaces full O(N) shuffle — critical when cap << frontier (e.g. St=100
-// means only 1% of the frontier needs to be touched each iteration).
-//
-// Seed is mixed with IterationNumber so successive iterations produce
-// independent permutations even with the same Parameters::seed.
-// ---------------------------------------------------------------------------
-void Probability_Algorithm::partialShuffle(size_t active_size)
-{
-    const size_t fs = grains.size();
-    if (active_size == 0 || fs <= 1)
-        return;
-
-    active_size = std::min(active_size, fs);
-
-    std::mt19937 rng(Parameters::seed ^ (IterationNumber * 2246822519u));
-
-    for (size_t i = 0; i < active_size; ++i)
-    {
-        // Uniform pick from [i, fs) without constructing a distribution
-        // object each iteration. Slight modulo bias is negligible for CA.
-        const size_t range = fs - i;
-        const size_t j     = i + (static_cast<size_t>(rng()) % range);
-        if (i != j)
-            std::swap(grains[i], grains[j]);
-    }
-}
-
-bool Probability_Algorithm::getDone() const
-{
-    return grains.empty() && IterationNumber > 0;
-}
-
-// ---------------------------------------------------------------------------
-// Next_Iteration — partial Fisher-Yates replaces full shuffle (O(active) vs O(N))
-// ---------------------------------------------------------------------------
-void Probability_Algorithm::Next_Iteration()
-{
-    if (getDone()) return;
-
-    const unsigned int counter_max =
-        static_cast<unsigned int>(std::pow(numCubes, 3));
-
-    using Clock = std::chrono::steady_clock;
-
-    if (total_nucleated_so_far == -1)
-    {
-        total_nucleated_so_far = static_cast<int>(grains.size());
-        run_start = Clock::now();
-    }
-
-    auto iter_start = Clock::now();
-
-    const unsigned int cap        = computeThermodynamicCap(counter_max);
-    const size_t       frontier_size = grains.size();
-
-    // --- Active subset size -----------------------------------------
-    constexpr float alpha = 3.0f;
-    const size_t active_size =
-        (cap < frontier_size / 4)
-            ? std::min(frontier_size,
-                       static_cast<size_t>(std::ceil(alpha * cap)))
-            : frontier_size;
-
-    // Shuffle only the active prefix
-    partialShuffle(active_size);
-
-    // --- Grow frontier ----------------------------------------------
-    const unsigned int captured = growFrontier(cap, active_size);
-    filled_voxels += captured;
-
-    // Wave nucleation
-    QString nucleationLog;
-    int nucleated_this_iter = 0;
-    if (flags.isWaveGeneration)
-    {
-        nucleated_this_iter     = nucleateWave(total_nucleated_so_far, nucleationLog);
-        total_nucleated_so_far += nucleated_this_iter;
-    }
-    this->IterationNumber++;
-
-    // Record history entry for CSV export / statistics analysis
-    recordIteration(counter_max, cap, captured,
-                    active_size, nucleated_this_iter, total_nucleated_so_far);
-
-
-    // --- Progress output --------------------------------------------
-    const double iter_dt =
-        std::chrono::duration<double>(Clock::now() - iter_start).count();
-    const double elapsed =
-        std::chrono::duration<double>(Clock::now() - run_start).count();
-
-    const bool shouldLog =
-        (this->IterationNumber <= 10) ||
-        (this->IterationNumber <= 100 && this->IterationNumber % 5  == 0) ||
-        (this->IterationNumber % 20 == 0);
-
-    if (shouldLog)
-        logIteration(counter_max, cap, captured, active_size,
-                     frontier_size, iter_dt, elapsed, nucleationLog);
-
-    if (grains.empty())
-    {
-        fillIsolatedVoxels();
-    }
-}
-
-
-void Probability_Algorithm::CleanUp()
-{
-    writeHistoryToCSV(Parameters::working_directory);
-    auto stats = GrainAnalyzer::analyze3D(voxels, numCubes);
-    GrainAnalyzer::writeToCSV3D(stats,
-                                Parameters::working_directory + "/grain_size_distribution.csv");
-    IterationNumber = 0;
-    m_history.clear();
-    Parent_Algorithm::CleanUp();  // resets filled_voxels, isDone
-}
-
-
-// --- Wave nucleation step ----------------------------------------------
-// Adds new nuclei according to the cumulative Gaussian schedule.
-// Returns the number of new nuclei placed; appends a log token to `logInfo`.
-int Probability_Algorithm::nucleateWave(int totalNucleatedSoFar, QString& logInfo)
-{
-    const int N_gr = numColors;
-
-    if (totalNucleatedSoFar >= N_gr || filled_voxels >= static_cast<unsigned int>(std::pow(numCubes, 3)))
-        return 0;
-
-    // Cumulative Gaussian nucleation schedule
-    double cumulative_fraction = 0.0;
-    if (this->IterationNumber > 1)
-    {
-        const double arg = (IterationNumber - Parameters::wave_coefficient / 2.0)
-        / (Parameters::wave_spread * std::sqrt(2.0));
-        cumulative_fraction = 0.5 * (1.0 + std::erf(arg));
-    }
-
-    const int target    = Parameters::initial_nuclei_count
-                       + static_cast<int>(std::floor(
-                           cumulative_fraction * (N_gr - Parameters::initial_nuclei_count)));
-    const int toCreate  = target - totalNucleatedSoFar;
-
-    if (toCreate <= 0)
-        return 0;
-
-    // Use a seeded mt19937 drop std::rand() which is unseeded and not thread-safe.
-    std::mt19937 rng(Parameters::seed ^ (IterationNumber * 2654435761u));
-    std::uniform_int_distribution<int> coord(0, numCubes - 1);
-
-    int placed = 0;
-    for (int p = 0; p < toCreate; ++p)
-    {
-        bool success = false;
-        for (int retry = 0; retry < 10; ++retry)
-        {
-            int rx = coord(rng), ry = coord(rng), rz = coord(rng);
-            if (voxels[rx][ry][rz] == 0)
-            {
-                birthGrain(rx, ry, rz);
-                placed++;
-                success = true;
-                break;
-            }
-        }
-        if (!success)
-        {
-            // Fallback to Add_New_Points for the remainder
-            grains = Add_New_Points(grains, toCreate - placed);
-            placed = toCreate;
-            break;
-        }
-    }
-
-    logInfo = QString(" | [Nucl] phi=%1 added=%2 tot=%3")
-                  .arg(cumulative_fraction, 0, 'f', 4)
-                  .arg(placed)
-                  .arg(totalNucleatedSoFar + placed);
-    return placed;
-}
-
-// --- Isolated voxel cleanup --------------------------------------------
-// After the frontier collapses, flood-fills any remaining empty voxels
-// by assigning them the color of the nearest crystallized neighbor.
-// This can only leave voxels unfilled if probability = 0 in all directions
-// (e.g. isolated pockets with the current ellipsoid settings).
-void Probability_Algorithm::fillIsolatedVoxels()
-{
-    if (filled_voxels == static_cast<unsigned int>(std::pow(numCubes, 3)))
-        return;
-
-    int resolved = 0;
-    for (int x = 0; x < numCubes; ++x)
-        for (int y = 0; y < numCubes; ++y)
-            for (int z = 0; z < numCubes; ++z)
-            {
-                if (voxels[x][y][z] != 0) continue;
-
-                for (const auto& off : PROBABILITY_OFFSETS)
-                {
-                    int nx = x + off[0], ny = y + off[1], nz = z + off[2];
-                    if (nx < 0 || ny < 0 || nz < 0 ||
-                        nx >= numCubes || ny >= numCubes || nz >= numCubes)
-                        continue;
-                    if (voxels[nx][ny][nz] == 0) continue;
-
-                    voxels[x][y][z] = voxels[nx][ny][nz];
-                    filled_voxels++;
-                    resolved++;
-                    break;
-                }
-            }
-
-    if (resolved > 0)
-        qDebug() << "fillIsolatedVoxels: resolved" << resolved << "orphan voxels";
-
-
-}
-
-// ---------------------------------------------------------------------------
-// logIteration — visual progress bar with capture efficiency, rate, ETA
-// ---------------------------------------------------------------------------
-// Example output:
-//   iter=0042  [==========>         ]  45.32%  cap=512  got=498(97%)  front=28.4k  2.1kvx/s  ETA=38s
-// ---------------------------------------------------------------------------
-void Probability_Algorithm::logIteration(unsigned int counter_max,
-                                         unsigned int cap,
-                                         unsigned int captured,
-                                         size_t       active_size,
-                                         size_t       frontier_before,
-                                         double       iter_dt_s,
-                                         double       elapsed_s,
-                                         const QString& extra) const
-{
-    const double fill     = static_cast<double>(filled_voxels) / counter_max;
-    const double pct      = fill * 100.0;
-    const unsigned remaining = counter_max - filled_voxels;
-
-    // --- Visual bar [20 chars] ------------------------------------------
-    constexpr int BAR_W = 20;
-    const int filled_chars = static_cast<int>(fill * BAR_W);
-    QString bar(filled_chars,      '=');
-    if (filled_chars < BAR_W) bar += '>';
-    bar = bar.leftJustified(BAR_W, ' ');
-
-    // --- Capture efficiency ---------------------------------------------
-    const int cap_pct = (cap > 0)
-                            ? static_cast<int>(100.0 * captured / cap)
-                            : 0;
-
-    // --- Throughput & ETA -----------------------------------------------
-    // Use this-iteration time so the number reacts immediately to speed changes.
-    const double rate    = (iter_dt_s > 1e-9) ? captured / iter_dt_s : 0.0;
-    const double eta_s   = (rate > 0.0)       ? remaining / rate     : 0.0;
-
-    auto fmtK = [](double v) -> QString {
-        if (v >= 1e6) return QString::number(v / 1e6, 'f', 1) + "M";
-        if (v >= 1e3) return QString::number(v / 1e3, 'f', 1) + "k";
-        return QString::number(static_cast<int>(v));
-    };
-
-    auto fmtTime = [](double s) -> QString {
-        if (s <= 0) return "?";
-        if (s <= 30) return QString::number(static_cast<int>(s * 1000)) + "ms";
-        if (s < 60)  return QString::number(static_cast<int>(s)) + "s";
-        if (s < 3600) return QString::number(static_cast<int>(s / 60)) + "m"
-                   + QString::number(static_cast<int>(s) % 60) + "s";
-        return QString::number(static_cast<int>(s / 3600)) + "h"
-               + QString::number(static_cast<int>(s / 60) % 60) + "m";
-    };
-
-    QString line = QString(
-                       "iter=%1  [%2]  %3%"
-                       "  cap=%4  got=%5(%6%)"
-                       "  front=%7  active=%8"
-                       "  %9vx/s  ETA=%10  t=%11")
-                       .arg(this->IterationNumber,  4, 10, QChar('0'))
-                       .arg(bar)
-                       .arg(pct,         5, 'f', 2)
-                       .arg(cap)
-                       .arg(captured)
-                       .arg(cap_pct,     3)
-                       .arg(fmtK(static_cast<double>(grains.size())))
-                       .arg(fmtK(static_cast<double>(active_size)))
-                       .arg(fmtK(rate))
-                       .arg(fmtTime(eta_s))
-                       .arg(fmtTime(elapsed_s));
-
-    if (!extra.isEmpty())
-        line += "  " + extra;
-
-    qDebug().noquote() << line;
-}
-
-void Probability_Algorithm::writeProbabilitiesToCSV(const QString& filePath, uint64_t N)
-{
-    QString tempFileName = filePath + QDir::separator() + "temp_N_" + QString::number(N) + ".csv";
-
-    QFile tempFile(tempFileName);
-
-    if (!tempFile.open(QIODevice::WriteOnly | QIODevice::Text))
-    {
-        qDebug() << "Error opening a temporary file for writing.";
-        return;
-    }
-
-    QTextStream out(&tempFile);
-    out << "X,Y,Z,Probability\n";
-
-    for (int i = 0; i < 3; i++)
-    {
-        for (int j = 0; j < 3; j++)
-        {
-            for (int k = 0; k < 3; k++)
-            {
-                out << i << "," << j << "," << k << "," << probability[i][j][k] << "\n";
-            }
-        }
-    }
-
-    tempFile.close();
-
-    QString finalFileName = filePath + QDir::separator() + "N_" + QString::number(N) + ".csv";
-
-    QFile::remove(finalFileName);
-
-    if (QFile::rename(tempFileName, finalFileName))
-    {
-        qDebug() << "The file has been successfully written to: " << finalFileName;
-    }
-    else
-    {
-        qDebug() << "Temporary file renaming error.";
-    }
-}
-
-
-// ---------------------------------------------------------------------------
-// Crystallisation history — collection
-// ---------------------------------------------------------------------------
 
 void Probability_Algorithm::recordIteration(unsigned int counter_max,
                                             unsigned int cap,
@@ -853,13 +513,11 @@ void Probability_Algorithm::recordIteration(unsigned int counter_max,
                                             int          total_nucleated)
 {
     CrystallizationRecord rec;
-    rec.iteration           = IterationNumber;
+    rec.iteration           = this->IterationNumber;
     rec.fill_fraction       = static_cast<double>(filled_voxels) / counter_max;
     rec.captured            = captured;
     rec.cap                 = cap;
-    rec.cap_utilization     = (cap > 0)
-                              ? static_cast<float>(captured) / cap
-                              : 0.0f;
+    rec.cap_utilization     = (cap > 0) ? (static_cast<float>(captured) / cap) : 1.0f;
     rec.frontier_size       = grains.size();
     rec.active_size         = active_size;
     rec.nucleated_this_iter = nucleated_this_iter;
@@ -867,56 +525,201 @@ void Probability_Algorithm::recordIteration(unsigned int counter_max,
     m_history.push_back(rec);
 }
 
-// ---------------------------------------------------------------------------
-// Crystallisation history — CSV export
-// ---------------------------------------------------------------------------
+void Probability_Algorithm::fillIsolatedVoxels()
+{
+    unsigned int cleaned = 0;
+    for (int32_t x = 0; x < numCubes; ++x)
+    {
+        for (int32_t y = 0; y < numCubes; ++y)
+        {
+            for (int32_t z = 0; z < numCubes; ++z)
+            {
+                if (voxels[x][y][z] != 0) continue;
+
+                int32_t neighbor_grain = 0;
+                for (const auto& off : PROBABILITY_OFFSETS)
+                {
+                    int32_t nx = x + off[0];
+                    int32_t ny = y + off[1];
+                    int32_t nz = z + off[2];
+
+                    if (flags.isPeriodicStructure)
+                    {
+                        nx = (nx + numCubes) % numCubes;
+                        ny = (ny + numCubes) % numCubes;
+                        nz = (nz + numCubes) % numCubes;
+                    }
+
+                    if (nx >= 0 && nx < numCubes &&
+                        ny >= 0 && ny < numCubes &&
+                        nz >= 0 && nz < numCubes &&
+                        voxels[nx][ny][nz] != 0)
+                    {
+                        neighbor_grain = voxels[nx][ny][nz];
+                        break;
+                    }
+                }
+
+                if (neighbor_grain != 0)
+                {
+                    voxels[x][y][z] = neighbor_grain;
+                    ++cleaned;
+                }
+            }
+        }
+    }
+    filled_voxels += cleaned;
+}
+
+void Probability_Algorithm::Next_Iteration()
+{
+    if (getDone()) return;
+
+    const unsigned int counter_max =
+        static_cast<unsigned int>(std::pow(numCubes, 3));
+
+    if (total_nucleated_so_far == -1)
+    {
+        total_nucleated_so_far = static_cast<int>(grains.size());
+        run_start = std::chrono::steady_clock::now();
+    }
+
+    const unsigned int cap = computeThermodynamicCap(counter_max);
+    const size_t frontier_size = grains.size();
+
+    partialShuffle(frontier_size);
+
+    const unsigned int captured = growFrontier(cap, frontier_size);
+    filled_voxels += captured;
+    this->IterationNumber++;
+
+    recordIteration(counter_max, cap, captured,
+                    frontier_size, 0, total_nucleated_so_far);
+
+    const double fraction = (counter_max > 0) ? (static_cast<double>(filled_voxels) / counter_max) : 1.0;
+    const double pct = fraction * 100.0;
+
+    const bool isFinished = getDone();
+    const bool shouldLog = isFinished ||
+                           (IterationNumber <= 5) ||
+                           (IterationNumber <= 50 && IterationNumber % 10 == 0) ||
+                           (IterationNumber % 25 == 0);
+
+    if (shouldLog) {
+        if (isFinished) {
+            qDebug().noquote()
+                << QString("[Probability] Step %1: filled %2/%3 (%4%) | growth complete")
+                       .arg(IterationNumber, 2)
+                       .arg(filled_voxels)
+                       .arg(counter_max)
+                       .arg(pct, 5, 'f', 1);
+        } else {
+            qDebug().noquote()
+                << QString("[Probability] Step %1: filled %2/%3 (%4%) | active front: %5 voxels")
+                       .arg(IterationNumber, 2)
+                       .arg(filled_voxels)
+                       .arg(counter_max)
+                       .arg(pct, 5, 'f', 1)
+                       .arg(grains.size());
+        }
+    }
+
+    if (grains.empty())
+    {
+        fillIsolatedVoxels();
+    }
+}
+
+bool Probability_Algorithm::getDone() const
+{
+    return (grains.empty() && IterationNumber > 0) || Parent_Algorithm::getDone();
+}
+
+void Probability_Algorithm::CleanUp()
+{
+    if (numCubes > 0 && filled_voxels > 0) {
+        auto stats = GrainAnalyzer::analyze3D(voxels, numCubes);
+        const QString dir = Parameters::working_directory.isEmpty() ? "." : Parameters::working_directory;
+        GrainAnalyzer::writeToCSV3D(stats, dir + "/grain_size_distribution.csv");
+    }
+    if (m_claimGrid) {
+        Delete3D(m_claimGrid);
+        m_claimGrid = nullptr;
+    }
+    IterationNumber = 0;
+    m_history.clear();
+    Parent_Algorithm::CleanUp();
+}
 
 void Probability_Algorithm::writeHistoryToCSV(const QString& dirPath) const
 {
+    if (m_history.empty()) return;
 
-    if (m_history.empty())
-    {
-        qWarning() << "writeHistoryToCSV: history is empty, nothing to write";
+    QDir dir(dirPath.isEmpty() ? "." : dirPath);
+    QString fullPath = dir.filePath("crystallization_history.csv");
+
+    QFile file(fullPath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
         return;
-    }
 
-    const QString path =
-        dirPath + QDir::separator() + "crystallization_history.csv";
-
-    qDebug() << "Write crystaliztion log to:" << path;
-
-    QFile f(path);
-    if (!f.open(QIODevice::WriteOnly | QIODevice::Text))
-    {
-        qWarning() << "writeHistoryToCSV: cannot open" << path;
-        return;
-    }
-
-    QTextStream out(&f);
-    out << "iteration;"
-        << "fill_fraction;"
-        << "captured;"
-        << "cap;"
-        << "cap_utilization;"
-        << "frontier_size;"
-        << "active_size;"
-        << "nucleated_this_iter;"
-        << "total_nucleated\n";
+    QTextStream out(&file);
+    out << "iteration,fill_fraction,captured,cap,cap_utilization,frontier_size,active_size,nucleated_this_iter,total_nucleated\n";
 
     for (const auto& r : m_history)
     {
-        out << r.iteration           << ";"
-            << r.fill_fraction       << ";"
-            << r.captured            << ";"
-            << r.cap                 << ";"
-            << r.cap_utilization     << ";"
-            << r.frontier_size       << ";"
-            << r.active_size         << ";"
-            << r.nucleated_this_iter << ";"
+        out << r.iteration           << ","
+            << r.fill_fraction       << ","
+            << r.captured            << ","
+            << r.cap                 << ","
+            << r.cap_utilization     << ","
+            << r.frontier_size       << ","
+            << r.active_size         << ","
+            << r.nucleated_this_iter << ","
             << r.total_nucleated     << "\n";
     }
-
-    f.close();
-    qDebug() << "Crystallization history written to" << path
-             << "(" << m_history.size() << "iterations)";
+    file.close();
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Plugin registration
+// ─────────────────────────────────────────────────────────────────────────────
+
+static std::vector<ParamField> probabilitySchema()
+{
+    std::vector<ParamField> s = {
+        { "size",        "Cube size",     ParamField::Int,        10, 1, 500, {}, "main" },
+        { "points",      "Points",        ParamField::PointsMode, 10, 1, 100000,
+         { "Size", "Concentration" }, "main" },
+        { "seed",        "Random seed",   ParamField::Int,        0, 0, 2147483647, {}, "main" },
+        { "is_periodic", "Periodic cell", ParamField::Bool,       true, {}, {}, {}, "main" },
+        { "prob_preset", "Shape preset",  ParamField::Enum,       "Sphere (Circle)", {}, {},
+         { "Sphere (Circle)", "Prolate (Needle)", "Oblate (Disc)", "Triaxial Ellipsoid", "Superellipsoid (Cube)", "Custom" },
+         "main", /*invokeMethod=*/ "setProbPreset" },
+        { "halfaxis_a",          "Half-axis a",           ParamField::Double, 1.5, 0.1, 100.0, {}, "main" },
+        { "halfaxis_b",          "Half-axis b",           ParamField::Double, 1.5, 0.1, 100.0, {}, "main" },
+        { "halfaxis_c",          "Half-axis c",           ParamField::Double, 1.5, 0.1, 100.0, {}, "main" },
+        { "ellipse_order",       "Superellipsoid order",  ParamField::Double, 2.0, 0.5, 10.0,  {}, "main" },
+        { "orientation_angle_a", "Angle X (deg)",         ParamField::Double, 0.0, 0.0, 360.0, {}, "main" },
+        { "orientation_angle_b", "Angle Y (deg)",         ParamField::Double, 0.0, 0.0, 360.0, {}, "main" },
+        { "orientation_angle_c", "Angle Z (deg)",         ParamField::Double, 0.0, 0.0, 360.0, {}, "main" },
+        { "stefan_number",       "Stefan number (cooling)", ParamField::Double, 100.0, 1.0, 1000.0, {}, "main" },
+    };
+
+    s.push_back(materialParamField());
+
+    const std::vector<ParamField> tex = textureParamFields();
+    s.insert(s.end(), tex.begin(), tex.end());
+
+    return s;
+}
+
+MATVIZ_REGISTER_ALGORITHM(AlgorithmPlugin{
+    "Probability",
+    "Stochastic cellular automaton with anisotropic superellipsoidal shape kernels, "
+    "thermodynamic Stefan cooling limit, periodic boundaries, material and texture selection.",
+    /*order=*/ 6,
+    probabilitySchema(),
+    [](const Parameters& p) {
+        return std::make_shared<Probability_Algorithm>(static_cast<short int>(p.getSize()), p.getPoints());
+    }
+});

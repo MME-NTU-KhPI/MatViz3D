@@ -144,7 +144,7 @@ public:
     Parent_Algorithm();
 
     /** @brief Class destructor. */
-    ~Parent_Algorithm();
+    virtual ~Parent_Algorithm();
 
     /** @brief Generates the filling of the structure. */
     virtual void Next_Iteration() = 0;

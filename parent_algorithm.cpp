@@ -101,11 +101,18 @@ void Parent_Algorithm::CleanUp()
 
 void Parent_Algorithm::Random_Generate_Points(int currentPoints)
 {
-    for (int i = 0; i < currentPoints; i++)
+    const int maxVoxels = numCubes * numCubes * numCubes;
+    const int target = std::min(currentPoints, maxVoxels);
+    int placed = 0;
+    int maxRetries = target * 100 + 1000;
+    while (placed < target && maxRetries-- > 0)
     {
         Coordinate a = randomCoord();
         if (voxels[a.x][a.y][a.z] == 0)
+        {
             birthGrain(a.x, a.y, a.z);
+            placed++;
+        }
     }
 }
 

@@ -53,12 +53,24 @@ public:
         auto it = plugins.find(name);
         if (it != plugins.end())
             return it->second.plugin.schema;
+        if (name.compare("Probability Circle", Qt::CaseInsensitive) == 0 ||
+            name.compare("Probability Ellipse", Qt::CaseInsensitive) == 0 ||
+            name.compare("Probability Algorithm", Qt::CaseInsensitive) == 0) {
+            return schemaFor("Probability");
+        }
         return {};
     }
 
     const AlgorithmPlugin* pluginFor(const QString& name) const {
         auto it = plugins.find(name);
-        return (it != plugins.end()) ? &it->second.plugin : nullptr;
+        if (it != plugins.end())
+            return &it->second.plugin;
+        if (name.compare("Probability Circle", Qt::CaseInsensitive) == 0 ||
+            name.compare("Probability Ellipse", Qt::CaseInsensitive) == 0 ||
+            name.compare("Probability Algorithm", Qt::CaseInsensitive) == 0) {
+            return pluginFor("Probability");
+        }
+        return nullptr;
     }
 
     // Registered algorithms, ordered by the plugin's `order` then by
@@ -85,6 +97,17 @@ public:
         auto it = plugins.find(name);
         if (it != plugins.end() && it->second.plugin.create) {
             return it->second.plugin.create(params);
+        }
+        if (name.compare("Probability Circle", Qt::CaseInsensitive) == 0) {
+            Parameters::instance()->setProbPreset("Sphere (Circle)");
+            return createAlgorithm("Probability", params);
+        }
+        if (name.compare("Probability Ellipse", Qt::CaseInsensitive) == 0) {
+            Parameters::instance()->setProbPreset("Triaxial Ellipsoid");
+            return createAlgorithm("Probability", params);
+        }
+        if (name.compare("Probability Algorithm", Qt::CaseInsensitive) == 0) {
+            return createAlgorithm("Probability", params);
         }
         return nullptr;
     }

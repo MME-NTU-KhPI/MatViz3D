@@ -1,14 +1,11 @@
 #ifndef PROBABILITY_ALGORITHM_H
 #define PROBABILITY_ALGORITHM_H
 
-#include <QWidget>
-#include <chrono>
-#include <QCoreApplication>
 #include "parent_algorithm.h"
-
-namespace Ui {
-class Probability_Algorithm;
-}
+#include <chrono>
+#include <vector>
+#include <array>
+#include <QString>
 
 struct CrystallizationRecord
 {
@@ -17,27 +14,27 @@ struct CrystallizationRecord
     unsigned int captured;             // voxels crystallised this iteration (dN)
     unsigned int cap;                  // thermodynamic cap (N_total / St)
     float        cap_utilization;      // captured / cap  [0..1]
-    //   < 1.0 => frontier is the bottleneck
-    //   = 1.0 => thermodynamics is the bottleneck
     size_t       frontier_size;        // active boundary cells after growth
     size_t       active_size;          // frontier subset actually processed
     int          nucleated_this_iter;  // new nuclei added by wave nucleation
     int          total_nucleated;      // cumulative nuclei count
 };
 
-
-class Probability_Algorithm : public QWidget, public Parent_Algorithm
+/**
+ * @brief Stochastic cellular automaton with superellipsoid probability kernels,
+ *        thermodynamic Stefan growth cap, periodic boundary wrapping, and presets.
+ */
+class Probability_Algorithm : public Parent_Algorithm
 {
-    Q_OBJECT
-
 public:
-    explicit Probability_Algorithm(QWidget *parent = nullptr);
-    Probability_Algorithm(short int numCubes, int numColors, QWidget *parent = nullptr);
-    ~Probability_Algorithm();
+    Probability_Algorithm();
+    Probability_Algorithm(short int numCubes, int numColors);
+    ~Probability_Algorithm() override;
 
-    void setHalfAxis();
+    void Initialization(bool isWaveGeneration) override;
     void Next_Iteration() override;
     bool getDone() const override;
+    void CleanUp() override;
 
     enum class ProbabilityMode {
         VolumeSampling,
@@ -48,30 +45,22 @@ public:
     void calculateVolumeProbabilities();
     void calculateSurfaceFluxProbabilities();
 
-    void writeProbabilitiesToCSV(const QString& filePath, uint64_t N);
     void setNumCubes(short int numCubes);
     void setNumColors(int numColors);
-    const std::vector<CrystallizationRecord>& getHistory() const
-    {
-        return m_history;
-    }
 
+    const std::vector<CrystallizationRecord>& getHistory() const { return m_history; }
     void clearHistory() { m_history.clear(); }
-
     void writeHistoryToCSV(const QString& dirPath) const;
 
-
 private:
-    Ui::Probability_Algorithm *ui;
     std::chrono::time_point<std::chrono::steady_clock> run_start;
-    void CleanUp() override;
-    bool isPointIn(double x,double y,double z);
+    bool isPointIn(double x, double y, double z);
     void rotatePoint(double& x, double& y, double& z);
-    double toRadians(double degress);
-    int pointsinvoxel;
-    double probability[3][3][3];
-    void prettyPrint3DArray(double arr[3][3][3]);
+    static double toRadians(double degrees);
+    double probability[3][3][3]{{{0.0}}};
+    int32_t*** m_claimGrid = nullptr;
     std::vector<CrystallizationRecord> m_history;
+
     void partialShuffle(size_t active_size);
     void recordIteration(unsigned int counter_max,
                          unsigned int cap,
@@ -82,16 +71,7 @@ private:
 
     unsigned int computeThermodynamicCap(unsigned int counter_max) const;
     unsigned int growFrontier(unsigned int maxCaptures, size_t active_size);
-    int          nucleateWave(int totalNucleatedSoFar, QString& logInfo);
-    void         fillIsolatedVoxels();
-    void logIteration(unsigned int counter_max,
-                      unsigned int cap,
-                      unsigned int captured,
-                      size_t       active_size,
-                      size_t       frontier_before,
-                      double       iter_dt_s,
-                      double       elapsed_s,
-                      const QString& extra) const;
+    void fillIsolatedVoxels();
 };
 
 #endif // PROBABILITY_ALGORITHM_H

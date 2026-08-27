@@ -18,10 +18,10 @@ float Parameters::wave_coefficient = 0.0f;
 float Parameters::wave_spread;
 int Parameters::initial_nuclei_count = 1;
 unsigned int Parameters::num_rnd_loads = 0;
-
-float Parameters::halfaxis_a = 0.0f;
-float Parameters::halfaxis_b = 0.0f;
-float Parameters::halfaxis_c = 0.0f;
+QString Parameters::prob_preset = "Sphere (Circle)";
+float Parameters::halfaxis_a = 1.5f;
+float Parameters::halfaxis_b = 1.5f;
+float Parameters::halfaxis_c = 1.5f;
 
 float Parameters::orientation_angle_a = 0.0f;
 float Parameters::orientation_angle_b = 0.0f;
@@ -173,6 +173,56 @@ void Parameters::setWaveCoefficient(float value) {
         wave_coefficient = value;
         emit waveCoefficientChanged();
     }
+}
+
+void Parameters::setProbPreset(const QString& value)
+{
+    QString v = value.trimmed();
+    prob_preset = v;
+
+    if (v.contains("Sphere", Qt::CaseInsensitive) || v.contains("Circle", Qt::CaseInsensitive)) {
+        setHalfAxisA(1.5f);
+        setHalfAxisB(1.5f);
+        setHalfAxisC(1.5f);
+        setOrientationAngleA(0.0f);
+        setOrientationAngleB(0.0f);
+        setOrientationAngleC(0.0f);
+        setEllipseOrder(2.0);
+    } else if (v.contains("Prolate", Qt::CaseInsensitive) || v.contains("Needle", Qt::CaseInsensitive)) {
+        setHalfAxisA(3.0f);
+        setHalfAxisB(1.0f);
+        setHalfAxisC(1.0f);
+        setOrientationAngleA(0.0f);
+        setOrientationAngleB(0.0f);
+        setOrientationAngleC(0.0f);
+        setEllipseOrder(2.0);
+    } else if (v.contains("Oblate", Qt::CaseInsensitive) || v.contains("Disc", Qt::CaseInsensitive)) {
+        setHalfAxisA(1.0f);
+        setHalfAxisB(3.0f);
+        setHalfAxisC(3.0f);
+        setOrientationAngleA(0.0f);
+        setOrientationAngleB(0.0f);
+        setOrientationAngleC(0.0f);
+        setEllipseOrder(2.0);
+    } else if (v.contains("Triaxial", Qt::CaseInsensitive) || v.contains("Ellipse", Qt::CaseInsensitive)) {
+        setHalfAxisA(3.0f);
+        setHalfAxisB(2.0f);
+        setHalfAxisC(1.0f);
+        setOrientationAngleA(0.0f);
+        setOrientationAngleB(0.0f);
+        setOrientationAngleC(0.0f);
+        setEllipseOrder(2.0);
+    } else if (v.contains("Superellipsoid", Qt::CaseInsensitive) || v.contains("Cube", Qt::CaseInsensitive)) {
+        setHalfAxisA(1.5f);
+        setHalfAxisB(1.5f);
+        setHalfAxisC(1.5f);
+        setOrientationAngleA(0.0f);
+        setOrientationAngleB(0.0f);
+        setOrientationAngleC(0.0f);
+        setEllipseOrder(4.0);
+    }
+
+    emit probPresetChanged();
 }
 
 void Parameters::setHalfAxisA(float value) {

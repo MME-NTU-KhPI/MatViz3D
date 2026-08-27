@@ -19,6 +19,7 @@ class Parameters : public QObject
     Q_PROPERTY(QString working_directory READ getWorkingDirectory WRITE setWorkingDirectory NOTIFY workingDirectoryChanged)
     Q_PROPERTY(float wave_coefficient READ getWaveCoefficient WRITE setWaveCoefficient NOTIFY waveCoefficientChanged)
 
+    Q_PROPERTY(QString prob_preset READ getProbPreset WRITE setProbPreset NOTIFY probPresetChanged)
     Q_PROPERTY(float halfaxis_a READ getHalfAxisA WRITE setHalfAxisA NOTIFY halfAxisAChanged)
     Q_PROPERTY(float halfaxis_b READ getHalfAxisB WRITE setHalfAxisB NOTIFY halfAxisBChanged)
     Q_PROPERTY(float halfaxis_c READ getHalfAxisC WRITE setHalfAxisC NOTIFY halfAxisCChanged)
@@ -117,6 +118,9 @@ public:
 
     float getWaveCoefficient() const { return wave_coefficient; }
     Q_INVOKABLE void setWaveCoefficient(float value);
+
+    QString getProbPreset() const { return prob_preset; }
+    Q_INVOKABLE void setProbPreset(const QString& value);
 
     float getHalfAxisA() const { return halfaxis_a; }
     Q_INVOKABLE void setHalfAxisA(float value);
@@ -291,6 +295,7 @@ public:
     static float wave_coefficient;
     static float wave_spread;
     static int initial_nuclei_count;
+    static QString prob_preset;
     static float halfaxis_a;
     static float halfaxis_b;
     static float halfaxis_c;
@@ -298,6 +303,7 @@ public:
     static float orientation_angle_b;
     static float orientation_angle_c;
     static float stefan_number;
+    static double ellipse_order;
 
     static std::vector<TextureLibrary::Component> textureComponents;
 
@@ -331,6 +337,7 @@ signals:
     void workingDirectoryChanged();
     void waveCoefficientChanged();
 
+    void probPresetChanged();
     void halfAxisAChanged();
     void halfAxisBChanged();
     void halfAxisCChanged();
@@ -387,7 +394,6 @@ private:
     static bool isAnimation;
     static bool isGifRecording;
     static bool hasProbParameters;
-    static double ellipse_order;
     static unsigned int num_rnd_loads;
 
     static QString stressSolver;      // "ansys" | "fft"
