@@ -690,7 +690,6 @@ static std::vector<ParamField> probabilitySchema()
         { "size",        "Cube size",     ParamField::Int,        10, 1, 500, {}, "main" },
         { "points",      "Points",        ParamField::PointsMode, 10, 1, 100000,
          { "Size", "Concentration" }, "main" },
-        { "seed",        "Random seed",   ParamField::Int,        0, 0, 2147483647, {}, "main" },
         { "is_periodic", "Periodic cell", ParamField::Bool,       true, {}, {}, {}, "main" },
         { "prob_preset", "Shape preset",  ParamField::Enum,       "Sphere (Circle)", {}, {},
          { "Sphere (Circle)", "Prolate (Needle)", "Oblate (Disc)", "Triaxial Ellipsoid", "Superellipsoid (Cube)", "Custom" },
