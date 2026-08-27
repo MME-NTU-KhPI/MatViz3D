@@ -3,19 +3,14 @@
 #include "probability_algorithm.h"
 #include "probability_circle.h"
 #include "probability_ellipse.h"
-#include "dlca.h"
 
 // Legacy half-registration for the algorithms that have not been converted to
 // self-registering AlgorithmPlugins yet. Plugin-based algorithms (voronoi.cpp,
-// composite.cpp, moore.cpp, neumann.cpp, radial.cpp) are already in the factory
+// composite.cpp, moore.cpp, neumann.cpp, radial.cpp, dlca.cpp) are already in the factory
 // before main() runs and are not listed here.
 void registerAlgorithms() {
     auto& factory = AlgorithmFactory::instance();
     Parameters& params = *Parameters::instance();
-
-    factory.registerAlgorithm("DLCA", [&params](const Parameters&) {
-        return std::make_shared<DLCA>(params.getSize(), params.getPoints());
-    });
 
     factory.registerAlgorithm("Probability Algorithm", [&params](const Parameters&) {
         return std::make_shared<Probability_Algorithm>(params.getSize(), params.getPoints());
@@ -36,18 +31,11 @@ void registerSchemas()
 
     // Algorithms that have been migrated to AlgorithmPlugin carry their own
     // schema and are absent from this function entirely -- see voronoi.cpp,
-    // composite.cpp, moore.cpp, neumann.cpp, radial.cpp.
+    // composite.cpp, moore.cpp, neumann.cpp, radial.cpp, dlca.cpp.
     std::vector<ParamField> base = baseAlgorithmSchema();
 
     factory.registerSchema("Probability Circle", base);
     factory.registerSchema("Probability Ellipse", base);
-
-    // DLCA — base + material
-    auto dlca = base;
-    dlca.push_back(
-        { "material", "Material", ParamField::Enum, "bcc", {}, {}, { "fcc", "bcc" }, "main" }
-        );
-    factory.registerSchema("DLCA", dlca);
 
     // Probability Algorithm — base + advanced
     auto probAlg = base;                        // Cube size, Points, Wave* → main → block Data

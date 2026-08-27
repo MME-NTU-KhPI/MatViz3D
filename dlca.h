@@ -36,14 +36,15 @@ public:
     void saveSeeds() override;
     void Next_Iteration() override;
     void Generate_To_End() override;
-    void Generate_Filling_With_Spatial_Hashing();
     void Initialization(bool isWaveGeneration) override;
     bool getDone() const override { return this->aggregates.size() <= 1; };
+    void CleanUp() override;
     void random_walk();
     std::vector<DLCA_Aggregate> aggregates;
     bool check_collision(size_t i, size_t j);
     void join_aggregates(size_t _i, size_t _j);
-
+private:
+    size_t m_prevClusters = 0;
 };
 
 #endif // DLCA_H
