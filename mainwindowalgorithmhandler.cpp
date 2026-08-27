@@ -159,13 +159,13 @@ void MainWindowAlgorithmHandler::executeAlgorithm(Parent_Algorithm& algorithm, c
     }
 
     auto end = std::chrono::high_resolution_clock::now();
-    qDebug() << "Algorithm execution time: " << std::chrono::duration<double>(end - start).count() << " seconds";
+    const double elapsedSec = std::chrono::duration<double>(end - start).count();
+    qInfo().noquote() << QString("[%1] Structure generation completed in %2 s").arg(algorithmName).arg(elapsedSec, 0, 'f', 4);
 
     algorithm.saveSeeds();
 
     updateScene();
     algorithm.CleanUp();
-    qDebug() << algorithmName;
 }
 
 void MainWindowAlgorithmHandler::setAlgorithmFlags(Parent_Algorithm& algorithm)

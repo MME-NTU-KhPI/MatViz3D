@@ -22,6 +22,23 @@ std::vector<ParamField> baseAlgorithmSchema()
     };
 }
 
+std::vector<ParamField> standardGrainGrowthSchema()
+{
+    std::vector<ParamField> s = {
+        { "size",        "Cube size",     ParamField::Int, 10, 1, 500, {}, "main" },
+        { "points",      "Points",        ParamField::PointsMode, 10, 1, 100000,
+         { "Size", "Concentration" }, "main" },
+        { "is_periodic", "Periodic cell", ParamField::Bool, false, {}, {}, {}, "main" },
+    };
+
+    s.push_back(materialParamField());
+
+    const std::vector<ParamField> tex = textureParamFields();
+    s.insert(s.end(), tex.begin(), tex.end());
+
+    return s;
+}
+
 ParamField materialParamField()
 {
     ParamField f{ "db_material", "Material", ParamField::Enum, "Cu", {}, {}, {}, "main" };

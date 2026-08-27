@@ -1,17 +1,31 @@
+#include "moore.h"
+#include "algorithmplugin.h"
+#include "parameters.h"
 #include <ctime>
 #include <cmath>
-#include "parent_algorithm.h"
-#include "moore.h"
+#include <QDebug>
+#include <omp.h>
+#include <array>
 
 Moore::Moore()
 {
-
 }
 
 Moore::Moore(short int numCubes, int numColors)
 {
     this->numCubes = numCubes;
     this->numColors = numColors;
+}
+
+void Moore::Initialization(bool isWaveGeneration)
+{
+    Parent_Algorithm::Initialization(isWaveGeneration);
+    qDebug().noquote()
+        << QString("[Moore] %1^3 grid (%2 voxels), %3 seeds, 26-neighbor (Moore)%4")
+               .arg(numCubes)
+               .arg(static_cast<uint64_t>(numCubes) * numCubes * numCubes)
+               .arg(seedPoints.size())
+               .arg(flags.isPeriodicStructure ? ", periodic" : "");
 }
 
 const std::array<std::array<int32_t, 3>, 26> MOORE_OFFSETS = {{
@@ -31,11 +45,6 @@ void Moore::Next_Iteration()
     if (getDone()) return;
 
     const unsigned int counter_max = pow(numCubes, 3);
-    const int N_gr = numColors;
-
-    if (total_nucleated_so_far == -1) {
-        total_nucleated_so_far = static_cast<int>(grains.size());
-    }
 
     const size_t current_size = grains.size();
     std::vector<Coordinate> newGrains;
@@ -92,68 +101,43 @@ void Moore::Next_Iteration()
     grains = std::move(newGrains);
     IterationNumber++;
 
-    QString nuclLogInfo = "";
+    const double fraction = (counter_max > 0) ? (static_cast<double>(filled_voxels) / counter_max) : 1.0;
+    const double pct = fraction * 100.0;
 
-    if (flags.isWaveGeneration && total_nucleated_so_far < N_gr && filled_voxels < counter_max)
-    {
-        double cumulative_fraction = 0.0;
-        int wave_contribution = 0;
-
-        if (IterationNumber > 1)
-        {
-            double arg = (IterationNumber - (Parameters::wave_coefficient / 2.0)) / (Parameters::wave_spread * std::sqrt(2.0));
-            cumulative_fraction = 0.5 * (1.0 + std::erf(arg));
-            int remaining_to_nucleate = N_gr - Parameters::initial_nuclei_count;
-            wave_contribution = static_cast<int>(std::floor(cumulative_fraction * remaining_to_nucleate));
-        }
-
-        int total_should_be_now = Parameters::initial_nuclei_count + wave_contribution;
-        int pointsToCreate = total_should_be_now - total_nucleated_so_far;
-
-        if (pointsToCreate > 0)
-        {
-            int placedRandomly = 0;
-            for (int p = 0; p < pointsToCreate; ++p) {
-                bool success = false;
-                for (int retry = 0; retry < 10; ++retry) {
-                    Coordinate c = randomCoord();
-                    if (voxels[c.x][c.y][c.z] == 0) {
-                        birthGrain(c.x, c.y, c.z);
-                        success = true;
-                        placedRandomly++;
-                        break;
-                    }
-                }
-                if (!success) break;
-            }
-
-            int leftToPlace = pointsToCreate - placedRandomly;
-            if (leftToPlace > 0) {
-                grains = Add_New_Points(grains, leftToPlace);
-            }
-
-            total_nucleated_so_far += pointsToCreate;
-        }
-        nuclLogInfo = QString(" | [Nucl] N(n): %1 | Added: %2 | Tot: %3")
-                          .arg(cumulative_fraction, -8, 'f', 4)
-                          .arg(pointsToCreate, -6)
-                          .arg(total_nucleated_so_far, -6);
+    if (getDone()) {
+        qDebug().noquote()
+            << QString("[Moore] Step %1: filled %2/%3 (%4%) | growth complete")
+                   .arg(IterationNumber, 2)
+                   .arg(filled_voxels)
+                   .arg(counter_max)
+                   .arg(pct, 5, 'f', 1);
+    } else {
+        qDebug().noquote()
+            << QString("[Moore] Step %1: filled %2/%3 (%4%) | active front: %5 voxels")
+                   .arg(IterationNumber, 2)
+                   .arg(filled_voxels)
+                   .arg(counter_max)
+                   .arg(pct, 5, 'f', 1)
+                   .arg(grains.size());
     }
-
-    double o = static_cast<double>(filled_voxels) / counter_max;
-    QString logLine = QString("%1 %2 %3")
-                          .arg(o, -12, 'g', 6)
-                          .arg(IterationNumber, -6)
-                          .arg((int)grains.size(), -10);
-
-    if (!nuclLogInfo.isEmpty()) {
-        logLine += nuclLogInfo;
-    }
-
-    qDebug().noquote() << logLine;
 }
 
 bool Moore::getDone() const
 {
     return grains.empty() || Parent_Algorithm::getDone();
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Plugin registration
+// ─────────────────────────────────────────────────────────────────────────────
+
+MATVIZ_REGISTER_ALGORITHM(AlgorithmPlugin{
+    "Moore",
+    "Cellular automaton grain growth with 26-neighbor Moore neighborhood, "
+    "with material and texture selection.",
+    /*order=*/ 2,
+    standardGrainGrowthSchema(),
+    [](const Parameters& p) {
+        return std::make_shared<Moore>(static_cast<short int>(p.getSize()), p.getPoints());
+    }
+});

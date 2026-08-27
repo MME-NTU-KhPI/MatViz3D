@@ -57,6 +57,13 @@ public:
 std::vector<ParamField> baseAlgorithmSchema();
 
 /**
+ * @brief The fields standard single-phase cellular-automata / grain-growth
+ *        algorithms need (cube size, seed count, periodic cell, material,
+ *        and crystallographic texture).
+ */
+std::vector<ParamField> standardGrainGrowthSchema();
+
+/**
  * @brief Material picked from material_properties.db.
  *
  * Options are resolved at panel-build time via the "materials" provider; the
