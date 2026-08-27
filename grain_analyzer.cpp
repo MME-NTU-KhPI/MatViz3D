@@ -1,4 +1,5 @@
 #include "grain_analyzer.h"
+#include "tensormath.hpp"
 #include <QFile>
 #include <QTextStream>
 #include <QDebug>
@@ -8,13 +9,29 @@
 #include <tuple>
 #include <unordered_map>
 
+namespace {
+
+struct GrainAccumulator {
+    int64_t sum_x = 0;
+    int64_t sum_y = 0;
+    int64_t sum_z = 0;
+    int64_t sum_xx = 0;
+    int64_t sum_yy = 0;
+    int64_t sum_zz = 0;
+    int64_t sum_xy = 0;
+    int64_t sum_xz = 0;
+    int64_t sum_yz = 0;
+};
+
+} // namespace
+
 std::map<int32_t, GrainAnalyzer::GrainStats3D>
 GrainAnalyzer::analyze3D(int32_t*** voxels, int numCubes)
 {
     std::map<int32_t, GrainStats3D> result;
+    std::unordered_map<int32_t, GrainAccumulator> accum;
 
-    // ── Прохід 1: об'єм + поверхня ────────────────────────────────────────
-    // 6 напрямків для перевірки меж зерна
+    // ── Pass 1: Volume, surface area, and spatial coordinate moments ─────
     const int dx[] = { 1,-1, 0, 0, 0, 0 };
     const int dy[] = { 0, 0, 1,-1, 0, 0 };
     const int dz[] = { 0, 0, 0, 0, 1,-1 };
@@ -29,7 +46,17 @@ GrainAnalyzer::analyze3D(int32_t*** voxels, int numCubes)
                 GrainStats3D& s = result[id];
                 s.volume++;
 
-                // Поверхня: рахуємо грані що межують з іншим зерном або межею
+                auto& acc = accum[id];
+                acc.sum_x += x;
+                acc.sum_y += y;
+                acc.sum_z += z;
+                acc.sum_xx += static_cast<int64_t>(x) * x;
+                acc.sum_yy += static_cast<int64_t>(y) * y;
+                acc.sum_zz += static_cast<int64_t>(z) * z;
+                acc.sum_xy += static_cast<int64_t>(x) * y;
+                acc.sum_xz += static_cast<int64_t>(x) * z;
+                acc.sum_yz += static_cast<int64_t>(y) * z;
+
                 for (int d = 0; d < 6; ++d)
                 {
                     const int nx = x + dx[d];
@@ -46,22 +73,68 @@ GrainAnalyzer::analyze3D(int32_t*** voxels, int numCubes)
                 }
             }
 
-    // ── Прохід 2: похідні метрики ──────────────────────────────────────────
-    // Знаходимо максимальний об'єм для нормування
+    // ── Pass 2: Derived geometric & 3D inertia tensor metrics ────────────
     double max_vol = 0.0;
     for (const auto& [id, s] : result)
         if (s.volume > max_vol) max_vol = s.volume;
 
     for (auto& [id, s] : result)
     {
-        // ESR: еквівалентний радіус сфери з тим самим об'ємом
         s.esr = std::cbrt((3.0 * s.volume) / (4.0 * M_PI));
-
-        // Нормований об'єм
         s.norm_volume = (max_vol > 0.0) ? s.volume / max_vol : 0.0;
 
-        // Момент інерції однорідної кулі радіуса ESR
-        s.moment_inertia = (2.0 / 5.0) * s.esr * s.esr;
+        const auto& acc = accum[id];
+        const double V = static_cast<double>(s.volume);
+        const double cx = static_cast<double>(acc.sum_x) / V;
+        const double cy = static_cast<double>(acc.sum_y) / V;
+        const double cz = static_cast<double>(acc.sum_z) / V;
+
+        // Central second moments
+        const double mu_xx = static_cast<double>(acc.sum_xx) - V * cx * cx;
+        const double mu_yy = static_cast<double>(acc.sum_yy) - V * cy * cy;
+        const double mu_zz = static_cast<double>(acc.sum_zz) - V * cz * cz;
+        const double mu_xy = static_cast<double>(acc.sum_xy) - V * cx * cy;
+        const double mu_xz = static_cast<double>(acc.sum_xz) - V * cx * cz;
+        const double mu_yz = static_cast<double>(acc.sum_yz) - V * cy * cz;
+
+        // Inertia tensor components (I = Tr(mu)*E - mu)
+        s.Ixx = mu_yy + mu_zz;
+        s.Iyy = mu_xx + mu_zz;
+        s.Izz = mu_xx + mu_yy;
+        s.Ixy = -mu_xy;
+        s.Ixz = -mu_xz;
+        s.Iyz = -mu_yz;
+
+        // Symmetric 3x3 eigensolver from tensormath.hpp (cyclic Jacobi method)
+        const mvt::Sym3 inertiaTensor{ s.Ixx, s.Iyy, s.Izz, s.Ixy, s.Iyz, s.Ixz };
+        const mvt::Eig3 eig = mvt::eigenSym3(inertiaTensor);
+
+        s.I1 = std::max(0.0, eig.lambda[0]);
+        s.I2 = std::max(0.0, eig.lambda[1]);
+        s.I3 = std::max(0.0, eig.lambda[2]);
+
+        s.moment_inertia = (s.I1 + s.I2 + s.I3) / 3.0;
+
+        // Equivalent ellipsoid semi-axes
+        const double a2 = (5.0 / (2.0 * V)) * (s.I2 + s.I3 - s.I1);
+        const double b2 = (5.0 / (2.0 * V)) * (s.I1 + s.I3 - s.I2);
+        const double c2 = (5.0 / (2.0 * V)) * (s.I1 + s.I2 - s.I3);
+
+        s.semi_a = std::sqrt(std::max(0.01, a2));
+        s.semi_b = std::sqrt(std::max(0.01, b2));
+        s.semi_c = std::sqrt(std::max(0.01, c2));
+
+        if (s.semi_a < s.semi_b) std::swap(s.semi_a, s.semi_b);
+        if (s.semi_b < s.semi_c) std::swap(s.semi_b, s.semi_c);
+        if (s.semi_a < s.semi_b) std::swap(s.semi_a, s.semi_b);
+
+        s.aspect_ratio = s.semi_a / std::max(1e-4, s.semi_c);
+        s.sphericity_inertia = s.semi_c / std::max(1e-4, s.semi_a);
+
+        const double I_mean = s.moment_inertia;
+        const double num_fa = std::pow(s.I1 - I_mean, 2) + std::pow(s.I2 - I_mean, 2) + std::pow(s.I3 - I_mean, 2);
+        const double den_fa = s.I1 * s.I1 + s.I2 * s.I2 + s.I3 * s.I3;
+        s.fractional_anisotropy = (den_fa > 1e-12) ? std::sqrt(1.5 * num_fa / den_fa) : 0.0;
     }
 
     return result;
@@ -185,7 +258,7 @@ void GrainAnalyzer::writeToCSV3D(
     }
 
     QTextStream out(&f);
-    out << "grain_id;volume;esr;norm_volume;surface_area;moment_inertia\n";
+    out << "grain_id;volume;esr;norm_volume;surface_area;moment_inertia;Ixx;Iyy;Izz;Ixy;Ixz;Iyz;I1;I2;I3;semi_a;semi_b;semi_c;aspect_ratio;sphericity_inertia;fractional_anisotropy\n";
 
     for (const auto& [id, s] : stats)
     {
@@ -194,7 +267,22 @@ void GrainAnalyzer::writeToCSV3D(
             << s.esr          << ";"
             << s.norm_volume  << ";"
             << s.surface_area << ";"
-            << s.moment_inertia << "\n";
+            << s.moment_inertia << ";"
+            << s.Ixx          << ";"
+            << s.Iyy          << ";"
+            << s.Izz          << ";"
+            << s.Ixy          << ";"
+            << s.Ixz          << ";"
+            << s.Iyz          << ";"
+            << s.I1           << ";"
+            << s.I2           << ";"
+            << s.I3           << ";"
+            << s.semi_a       << ";"
+            << s.semi_b       << ";"
+            << s.semi_c       << ";"
+            << s.aspect_ratio << ";"
+            << s.sphericity_inertia << ";"
+            << s.fractional_anisotropy << "\n";
     }
 
     f.close();

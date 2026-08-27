@@ -24,7 +24,16 @@ public:
         double esr          = 0.0;  // Equivalent Sphere Radius = (3V/4π)^(1/3)
         double norm_volume  = 0.0;  // volume / max_volume  [0..1]
         double surface_area = 0.0;  // exposed faces [voxels^2]
-        double moment_inertia = 0.0; // (2/5) * ESR^2
+        double moment_inertia = 0.0; // Mean principal moment of inertia = (I1+I2+I3)/3
+
+        // 3D Inertia Tensor & Principal Components
+        double Ixx = 0.0, Iyy = 0.0, Izz = 0.0;
+        double Ixy = 0.0, Ixz = 0.0, Iyz = 0.0;
+        double I1 = 0.0, I2 = 0.0, I3 = 0.0; // Principal moments (I1 >= I2 >= I3)
+        double semi_a = 0.0, semi_b = 0.0, semi_c = 0.0; // Equivalent ellipsoid semi-axes (a >= b >= c)
+        double aspect_ratio = 1.0; // a / c (Elongation index)
+        double sphericity_inertia = 1.0; // c / a (Inertial sphericity)
+        double fractional_anisotropy = 0.0; // FA [0..1]
     };
 
     // ── 2D per-layer grain metrics ──────────────────────────────────────

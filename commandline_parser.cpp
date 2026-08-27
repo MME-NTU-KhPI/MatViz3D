@@ -31,6 +31,8 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
     parser.addOption(QCommandLineOption("orientation_angle_b", "Rotation angle of the y-axis for the Probability algorithm", "value"));
     parser.addOption(QCommandLineOption("orientation_angle_c", "Rotation angle of the z-axis for the Probability algorithm", "value"));
     parser.addOption(QCommandLineOption("ellipse_order", "The degree of the superellipse equation", "value"));
+    parser.addOption(QCommandLineOption("stefan_number", "Thermodynamic Stefan number (cooling limit) for Probability algorithm", "value"));
+    parser.addOption(QCommandLineOption("prob_preset", "Shape preset for Probability algorithm (e.g. 'Sphere (Circle)', 'Prolate (Needle)', 'Oblate (Disc)', 'Triaxial Ellipsoid', 'Superellipsoid (Cube)')", "preset"));
     parser.addOption(QCommandLineOption("minkowski_p",
                                         "Minkowski exponent p for the Voronoi algorithm: 1 = Manhattan "
                                         "(octahedral grains), 2 = Euclidean, large = Chebyshev (cuboidal). "
@@ -257,6 +259,8 @@ void Commandline_Parser::processOptions(const QCommandLineParser& parser)
 
     // ── Algorithm options ─────────────────────────────────────────────────
     parseDouble("ellipse_order",    [&](double v) { params->setEllipseOrder(v); });
+    parseFloat("stefan_number",     [&](float v)  { params->setStefanNumber(v); });
+    parseString("prob_preset",      [&](const QString& v) { params->setProbPreset(v); });
     parseDouble("minkowski_p",      [&](double v) {
         if (v <= 0.0)
             qFatal("Option --minkowski_p expects a positive value; got %s",

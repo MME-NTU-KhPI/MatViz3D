@@ -261,6 +261,7 @@ void Probability_Algorithm::Initialization(bool isWaveGeneration)
     run_start = std::chrono::steady_clock::now();
     m_history.clear();
     IterationNumber = 0;
+    m_coolingPool = 0.0;
 
     if (m_claimGrid) {
         Delete3D(m_claimGrid);
@@ -274,6 +275,7 @@ void Probability_Algorithm::Initialization(bool isWaveGeneration)
                 m_claimGrid[i][j][k] = 0;
 
     calculateVolumeProbabilities();
+    printProbabilityKernel();
 
     qDebug().noquote()
         << QString("[Probability] %1^3 grid (%2 voxels), %3 seeds, preset: '%4' (a=%5, b=%6, c=%7, order=%8, St=%9)%10")
@@ -289,13 +291,16 @@ void Probability_Algorithm::Initialization(bool isWaveGeneration)
                .arg(flags.isPeriodicStructure ? ", periodic" : "");
 }
 
-unsigned int Probability_Algorithm::computeThermodynamicCap(unsigned int counter_max) const
+unsigned int Probability_Algorithm::computeThermodynamicCap(unsigned int counter_max)
 {
     const float St = Parameters::stefan_number;
     if (St <= 0.0f) return counter_max;
 
+    const double deltaQ = static_cast<double>(counter_max) / static_cast<double>(St);
+    m_coolingPool += deltaQ;
+
     const unsigned int cap = static_cast<unsigned int>(
-        std::max(1.0f, std::floor(static_cast<float>(counter_max) / St)));
+        std::max(1.0, std::floor(m_coolingPool)));
     return cap;
 }
 
@@ -492,6 +497,11 @@ unsigned int Probability_Algorithm::growFrontier(unsigned int maxCaptures, size_
         total_captured += threadCaptures[t];
     }
 
+    // Retain passive (unprocessed) frontier cells when cap was applied
+    for (size_t i = active_size; i < frontier_size; ++i) {
+        nextGrains.push_back(grains[i]);
+    }
+
     std::sort(nextGrains.begin(), nextGrains.end(), [](const Coordinate& a, const Coordinate& b) {
         if (a.x != b.x) return a.x < b.x;
         if (a.y != b.y) return a.y < b.y;
@@ -587,14 +597,27 @@ void Probability_Algorithm::Next_Iteration()
     const unsigned int cap = computeThermodynamicCap(counter_max);
     const size_t frontier_size = grains.size();
 
-    partialShuffle(frontier_size);
+    // Option A: Active subset size selection when cap is smaller than frontier
+    constexpr float alpha = 3.0f;
+    const size_t active_size = (Parameters::stefan_number > 0.0f && cap < frontier_size / 4)
+        ? std::min(frontier_size, static_cast<size_t>(std::ceil(alpha * cap)))
+        : frontier_size;
 
-    const unsigned int captured = growFrontier(cap, frontier_size);
+    partialShuffle(active_size);
+
+    const unsigned int captured = growFrontier(cap, active_size);
     filled_voxels += captured;
+
+    // Option B: Deduct captured latent heat from enthalpy/cooling pool
+    if (Parameters::stefan_number > 0.0f)
+    {
+        m_coolingPool = std::max(0.0, m_coolingPool - static_cast<double>(captured));
+    }
+
     this->IterationNumber++;
 
     recordIteration(counter_max, cap, captured,
-                    frontier_size, 0, total_nucleated_so_far);
+                    active_size, 0, total_nucleated_so_far);
 
     const double fraction = (counter_max > 0) ? (static_cast<double>(filled_voxels) / counter_max) : 1.0;
     const double pct = fraction * 100.0;
@@ -615,11 +638,14 @@ void Probability_Algorithm::Next_Iteration()
                        .arg(pct, 5, 'f', 1);
         } else {
             qDebug().noquote()
-                << QString("[Probability] Step %1: filled %2/%3 (%4%) | active front: %5 voxels")
+                << QString("[Probability] Step %1: filled %2/%3 (%4%) | cap=%5, got=%6 | active front: %7/%8")
                        .arg(IterationNumber, 2)
                        .arg(filled_voxels)
                        .arg(counter_max)
                        .arg(pct, 5, 'f', 1)
+                       .arg(cap)
+                       .arg(captured)
+                       .arg(active_size)
                        .arg(grains.size());
         }
     }
@@ -637,18 +663,72 @@ bool Probability_Algorithm::getDone() const
 
 void Probability_Algorithm::CleanUp()
 {
+    const QString dir = Parameters::working_directory.isEmpty() ? "." : Parameters::working_directory;
     if (numCubes > 0 && filled_voxels > 0) {
         auto stats = GrainAnalyzer::analyze3D(voxels, numCubes);
-        const QString dir = Parameters::working_directory.isEmpty() ? "." : Parameters::working_directory;
         GrainAnalyzer::writeToCSV3D(stats, dir + "/grain_size_distribution.csv");
+        writeHistoryToCSV(dir);
+        writeProbabilitiesToCSV(dir);
     }
     if (m_claimGrid) {
         Delete3D(m_claimGrid);
         m_claimGrid = nullptr;
     }
     IterationNumber = 0;
+    m_coolingPool = 0.0;
     m_history.clear();
     Parent_Algorithm::CleanUp();
+}
+
+void Probability_Algorithm::printProbabilityKernel() const
+{
+    qDebug().noquote() << "=== Probability Algorithm: 3x3x3 Growth Probability Kernel ===";
+    for (int k = 0; k < 3; ++k)
+    {
+        const int dz = k - 1;
+        const QString sliceName = (dz == -1) ? "Z = -1 (Bottom slice)" : (dz == 0) ? "Z =  0 (Center slice)" : "Z = +1 (Top slice)";
+        qDebug().noquote() << QString("  --- %1 ---").arg(sliceName);
+
+        for (int i = 0; i < 3; ++i)
+        {
+            QString row = "    [";
+            for (int j = 0; j < 3; ++j)
+            {
+                row += QString(" %1").arg(probability[i][j][k], 6, 'f', 4);
+            }
+            row += " ]";
+            qDebug().noquote() << row;
+        }
+    }
+    qDebug().noquote() << "==============================================================";
+}
+
+void Probability_Algorithm::writeProbabilitiesToCSV(const QString& dirPath) const
+{
+    QDir dir(dirPath.isEmpty() ? "." : dirPath);
+    QString fullPath = dir.filePath("probability_kernel.csv");
+
+    QFile file(fullPath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+        return;
+
+    QTextStream out(&file);
+    out << "dx,dy,dz,probability\n";
+
+    for (int i = 0; i < 3; i++)
+    {
+        for (int j = 0; j < 3; j++)
+        {
+            for (int k = 0; k < 3; k++)
+            {
+                out << (i - 1) << ","
+                    << (j - 1) << ","
+                    << (k - 1) << ","
+                    << QString::number(probability[i][j][k], 'g', 6) << "\n";
+            }
+        }
+    }
+    file.close();
 }
 
 void Probability_Algorithm::writeHistoryToCSV(const QString& dirPath) const

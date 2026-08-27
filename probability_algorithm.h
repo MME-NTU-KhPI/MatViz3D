@@ -51,6 +51,8 @@ public:
     const std::vector<CrystallizationRecord>& getHistory() const { return m_history; }
     void clearHistory() { m_history.clear(); }
     void writeHistoryToCSV(const QString& dirPath) const;
+    void printProbabilityKernel() const;
+    void writeProbabilitiesToCSV(const QString& dirPath) const;
 
 private:
     std::chrono::time_point<std::chrono::steady_clock> run_start;
@@ -59,6 +61,7 @@ private:
     static double toRadians(double degrees);
     double probability[3][3][3]{{{0.0}}};
     int32_t*** m_claimGrid = nullptr;
+    double m_coolingPool = 0.0;
     std::vector<CrystallizationRecord> m_history;
 
     void partialShuffle(size_t active_size);
@@ -69,7 +72,7 @@ private:
                          int          nucleated_this_iter,
                          int          total_nucleated);
 
-    unsigned int computeThermodynamicCap(unsigned int counter_max) const;
+    unsigned int computeThermodynamicCap(unsigned int counter_max);
     unsigned int growFrontier(unsigned int maxCaptures, size_t active_size);
     void fillIsolatedVoxels();
 };

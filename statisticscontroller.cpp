@@ -50,7 +50,28 @@ QStringList StatisticsController::availableProperties() const
     if (m_mode == "2D")
         return { "Area", "Norm Area", "Perimeter", "ECR", "Shape factor" };
 
-    return { "Volume", "Norm Volume", "Surface Area", "ESR", "Inertia Moment" };
+    return {
+        "Volume",
+        "Norm Volume",
+        "Surface Area",
+        "ESR",
+        "Inertia Moment (Mean)",
+        "Principal Moment I1",
+        "Principal Moment I2",
+        "Principal Moment I3",
+        "Semi-axis a",
+        "Semi-axis b",
+        "Semi-axis c",
+        "Aspect Ratio (a/c)",
+        "Inertial Sphericity (c/a)",
+        "Fractional Anisotropy",
+        "Inertia Ixx",
+        "Inertia Iyy",
+        "Inertia Izz",
+        "Inertia Ixy",
+        "Inertia Ixz",
+        "Inertia Iyz"
+    };
 }
 
 QVector<float> StatisticsController::collectValues(const QString& prop,
@@ -96,9 +117,69 @@ QVector<float> StatisticsController::collectValues(const QString& prop,
         titleOut = "Distribution of ESR";
         for (const auto& [id, s] : m_stats3D) values.push_back((float)s.esr);
 
-    } else if (prop == "Inertia Moment") {
-        titleOut = "Distribution of grain inertia moment";
+    } else if (prop == "Inertia Moment" || prop == "Inertia Moment (Mean)") {
+        titleOut = "Distribution of mean principal moment of inertia";
         for (const auto& [id, s] : m_stats3D) values.push_back((float)s.moment_inertia);
+
+    } else if (prop == "Principal Moment I1") {
+        titleOut = "Distribution of maximum principal moment of inertia (I1)";
+        for (const auto& [id, s] : m_stats3D) values.push_back((float)s.I1);
+
+    } else if (prop == "Principal Moment I2") {
+        titleOut = "Distribution of intermediate principal moment of inertia (I2)";
+        for (const auto& [id, s] : m_stats3D) values.push_back((float)s.I2);
+
+    } else if (prop == "Principal Moment I3") {
+        titleOut = "Distribution of minimum principal moment of inertia (I3)";
+        for (const auto& [id, s] : m_stats3D) values.push_back((float)s.I3);
+
+    } else if (prop == "Semi-axis a") {
+        titleOut = "Distribution of equivalent ellipsoid major semi-axis (a)";
+        for (const auto& [id, s] : m_stats3D) values.push_back((float)s.semi_a);
+
+    } else if (prop == "Semi-axis b") {
+        titleOut = "Distribution of equivalent ellipsoid intermediate semi-axis (b)";
+        for (const auto& [id, s] : m_stats3D) values.push_back((float)s.semi_b);
+
+    } else if (prop == "Semi-axis c") {
+        titleOut = "Distribution of equivalent ellipsoid minor semi-axis (c)";
+        for (const auto& [id, s] : m_stats3D) values.push_back((float)s.semi_c);
+
+    } else if (prop == "Aspect Ratio (a/c)") {
+        titleOut = "Distribution of grain elongation aspect ratio (a/c)";
+        for (const auto& [id, s] : m_stats3D) values.push_back((float)s.aspect_ratio);
+
+    } else if (prop == "Inertial Sphericity (c/a)") {
+        titleOut = "Distribution of inertial sphericity index (c/a)";
+        for (const auto& [id, s] : m_stats3D) values.push_back((float)s.sphericity_inertia);
+
+    } else if (prop == "Fractional Anisotropy") {
+        titleOut = "Distribution of grain fractional anisotropy (FA)";
+        for (const auto& [id, s] : m_stats3D) values.push_back((float)s.fractional_anisotropy);
+
+    } else if (prop == "Inertia Ixx") {
+        titleOut = "Distribution of inertia tensor component Ixx";
+        for (const auto& [id, s] : m_stats3D) values.push_back((float)s.Ixx);
+
+    } else if (prop == "Inertia Iyy") {
+        titleOut = "Distribution of inertia tensor component Iyy";
+        for (const auto& [id, s] : m_stats3D) values.push_back((float)s.Iyy);
+
+    } else if (prop == "Inertia Izz") {
+        titleOut = "Distribution of inertia tensor component Izz";
+        for (const auto& [id, s] : m_stats3D) values.push_back((float)s.Izz);
+
+    } else if (prop == "Inertia Ixy") {
+        titleOut = "Distribution of inertia tensor off-diagonal component Ixy";
+        for (const auto& [id, s] : m_stats3D) values.push_back((float)s.Ixy);
+
+    } else if (prop == "Inertia Ixz") {
+        titleOut = "Distribution of inertia tensor off-diagonal component Ixz";
+        for (const auto& [id, s] : m_stats3D) values.push_back((float)s.Ixz);
+
+    } else if (prop == "Inertia Iyz") {
+        titleOut = "Distribution of inertia tensor off-diagonal component Iyz";
+        for (const auto& [id, s] : m_stats3D) values.push_back((float)s.Iyz);
 
     } else {
         titleOut = "Choose a grain property";
@@ -106,7 +187,7 @@ QVector<float> StatisticsController::collectValues(const QString& prop,
 
     values.erase(
         std::remove_if(values.begin(), values.end(),
-                       [](float v) { return std::isinf(v) || std::isnan(v) || v == 0.0f; }),
+                       [](float v) { return std::isinf(v) || std::isnan(v); }),
         values.end());
 
     return values;
@@ -149,16 +230,63 @@ void StatisticsController::buildHistogram(const QVector<float>& values)
     }
     if (bins < 1) bins = 1;
 
-    const float binWidth = (maxV - minV) / bins;
-    if (binWidth <= 0.0f) {
-        m_points.append(QVariantMap{ {"x", minV}, {"y", values.size()} });
-        m_axisXMin = minV - 1.0;
-        m_axisXMax = maxV + 1.0;
+    // Case 1: All values are identical
+    if (std::abs(maxV - minV) < 1e-12f) {
+        m_points.append(QVariantMap{ {"x", (double)minV - 0.5}, {"y", values.size()} });
+        m_points.append(QVariantMap{ {"x", (double)minV + 0.5}, {"y", values.size()} });
+        if (minV == 0.0f) {
+            m_axisXMin = -1.0;
+            m_axisXMax = 1.0;
+        } else if (minV > 0.0f) {
+            m_axisXMin = 0.0;
+            m_axisXMax = minV + 1.0;
+        } else {
+            m_axisXMin = minV - 1.0;
+            m_axisXMax = 0.0;
+        }
         m_axisYMax = values.size();
         m_histPeak = values.size();
         return;
     }
 
+    // Case 2: Range spans negative and positive values (e.g. Ixy, Ixz, Iyz) -> Strict 0 point
+    if (minV < 0.0f && maxV > 0.0f)
+    {
+        const double maxAbs = std::max(std::abs(minV), std::abs(maxV));
+        const int halfBins = std::max(2, (bins + 1) / 2);
+        const double binWidth = maxAbs / halfBins;
+        const int totalBins = halfBins * 2;
+
+        QVector<int> binCounts(totalBins, 0);
+        for (float v : values) {
+            int idx = (int)std::floor(v / binWidth) + halfBins;
+            if (idx < 0) idx = 0;
+            if (idx >= totalBins) idx = totalBins - 1;
+            binCounts[idx]++;
+        }
+
+        int maxCount = 0;
+        for (int i = 0; i < totalBins; ++i) {
+            const double xStart = (i - halfBins) * binWidth;
+            const double xEnd   = xStart + binWidth;
+            const int    c      = binCounts[i];
+
+            m_points.append(QVariantMap{ {"x", xStart}, {"y", c} });
+            m_points.append(QVariantMap{ {"x", xEnd},   {"y", c} });
+
+            if (c > maxCount) maxCount = c;
+        }
+
+        const double axisExtent = (halfBins + 1) * binWidth;
+        m_axisXMin = -axisExtent;
+        m_axisXMax = +axisExtent;
+        m_axisYMax = (maxCount / 10 + 1) * 10 + 10;
+        m_histPeak = maxCount;
+        return;
+    }
+
+    // Case 3: Strictly non-negative or strictly non-positive
+    const float binWidth = (maxV - minV) / bins;
     QVector<int> binCounts(bins, 0);
     for (float v : values) {
         int idx = (int)((v - minV) / binWidth);
@@ -178,8 +306,13 @@ void StatisticsController::buildHistogram(const QVector<float>& values)
         if (c > maxCount) maxCount = c;
     }
 
-    m_axisXMin = std::max(0.0, (double)minV - binWidth);
-    m_axisXMax = (double)maxV + binWidth;
+    if (minV >= 0.0f) {
+        m_axisXMin = std::max(0.0, (double)minV - binWidth);
+        m_axisXMax = (double)maxV + binWidth;
+    } else {
+        m_axisXMin = (double)minV - binWidth;
+        m_axisXMax = std::min(0.0, (double)maxV + binWidth);
+    }
     m_axisYMax = (maxCount / 10 + 1) * 10 + 10;
     m_histPeak = maxCount;
 }
@@ -283,7 +416,9 @@ QString n2(double v, int prec = 2) { return QString::number(v, 'f', prec); }
 // Same rule as StatisticsView.qml's fmt().
 QString fmtAxis(double v)
 {
-    if (std::abs(v) >= 10000.0 || (std::abs(v) < 0.001 && v != 0.0))
+    if (std::abs(v) < 1e-9)
+        return QStringLiteral("0");
+    if (std::abs(v) >= 10000.0 || std::abs(v) < 0.001)
         return QString::number(v, 'e', 2);
     return QString::number(QString::number(v, 'g', 4).toDouble());
 }
@@ -337,7 +472,7 @@ QString StatisticsController::svgHistogram(bool dark, bool withStats) const
     }
     out += "</g>\n";
 
-    // ticks + labels
+    // ticks
     out += QString("<g stroke=\"%1\" stroke-width=\"1\">\n").arg(p.tick);
     for (int i = 0; i <= xTicks; ++i) {
         const double x = left + plotW * i / xTicks;
@@ -348,6 +483,13 @@ QString StatisticsController::svgHistogram(bool dark, bool withStats) const
         const double y = top + plotH - plotH * i / yTicks;
         out += QString("<line x1=\"%1\" y1=\"%2\" x2=\"%3\" y2=\"%2\"/>\n")
                    .arg(n2(left - 6.0), n2(y), n2(left));
+    }
+
+    // Zero reference line if range spans 0
+    if (m_axisXMin < 0.0 && m_axisXMax > 0.0) {
+        const double xZero = left + (-m_axisXMin / (m_axisXMax - m_axisXMin)) * plotW;
+        out += QString("<line x1=\"%1\" y1=\"%2\" x2=\"%1\" y2=\"%3\" stroke=\"%4\" stroke-width=\"1.5\"/>\n")
+                   .arg(n2(xZero), n2(top), n2(top + plotH), p.tick);
     }
     out += "</g>\n";
 

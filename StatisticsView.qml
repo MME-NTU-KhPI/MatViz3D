@@ -31,7 +31,9 @@ Window {
     ChartTheme { id: chartTheme }
 
     function fmt(v) {
-        if (Math.abs(v) >= 10000 || (Math.abs(v) < 0.001 && v !== 0))
+        if (Math.abs(v) < 1e-9)
+            return "0"
+        if (Math.abs(v) >= 10000 || Math.abs(v) < 0.001)
             return v.toExponential(2)
         return parseFloat(v.toPrecision(4)).toString()
     }
@@ -113,7 +115,7 @@ Window {
 
             ComboBox {
                 id: propertyBox
-                Layout.preferredWidth: 175
+                Layout.preferredWidth: 235
                 Layout.alignment: Qt.AlignVCenter
                 model: ctrl.availableProperties
                 currentIndex: 0
@@ -133,6 +135,25 @@ Window {
                     leftPadding: 12
                     verticalAlignment: Text.AlignVCenter
                     elide: Text.ElideRight
+                }
+                popup: Popup {
+                    y: propertyBox.height + 4
+                    width: Math.max(propertyBox.width, 250)
+                    implicitHeight: contentItem.implicitHeight
+                    padding: 4
+                    contentItem: ListView {
+                        clip: true
+                        implicitHeight: Math.min(contentHeight, 350)
+                        model: propertyBox.popup.visible ? propertyBox.delegateModel : null
+                        currentIndex: propertyBox.highlightedIndex
+                        ScrollIndicator.vertical: ScrollIndicator { }
+                    }
+                    background: Rectangle {
+                        color: chartTheme.controlBackground
+                        radius: 8
+                        border.color: chartTheme.controlBorder
+                        border.width: 1
+                    }
                 }
                 onActivated: ctrl.selectProperty(currentText)
             }
@@ -359,6 +380,18 @@ Window {
                 color: chartTheme.plotBackground
                 border.color: chartTheme.plotBorder
                 border.width: 1
+            }
+
+            // Highlighted zero reference line when the range spans 0
+            Rectangle {
+                visible: ctrl.axisXMin < 0 && ctrl.axisXMax > 0
+                readonly property real xRange: ctrl.axisXMax - ctrl.axisXMin
+                x: xRange > 0 ? (-ctrl.axisXMin / xRange) * plotArea.width : 0
+                y: 0
+                width: 1.5
+                height: plotArea.height
+                color: chartTheme.tickMark
+                z: 1
             }
 
             Repeater {
