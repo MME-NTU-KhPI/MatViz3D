@@ -9,10 +9,10 @@
 //  that read the surface would not refresh when a cell is edited. Same trick as
 //  the colormap legend in MainWindow.qml.
 // ============================================================================
-import QtQuick 6.5
-import QtQuick.Controls 6.5
-import QtQuick.Layouts 1.15
-import QtQuick.Controls.Material 2.15
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import QtQuick.Controls.Material
 
 import OpenGLUnderQML 1.0
 

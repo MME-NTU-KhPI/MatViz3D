@@ -1,9 +1,9 @@
-import QtQuick 6.5
-import QtQuick.Controls 6.5
+import QtQuick
+import QtQuick.Controls
 
-import QtQuick.Layouts 1.15
-import QtQuick.Controls.Basic 6.2
-import QtQuick.Controls.Material 2.15
+import QtQuick.Layouts
+import QtQuick.Controls.Basic
+import QtQuick.Controls.Material
 
 Window {
     id: materialDatabaseView

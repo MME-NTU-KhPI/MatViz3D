@@ -14,10 +14,10 @@
 //  matrix, via dbManager.elasticSummary() (see tensormath.hpp for the maths
 //  and its unit test against ELATE's own FAU-zeolite worked example).
 // ============================================================================
-import QtQuick 6.5
-import QtQuick.Controls 6.5
-import QtQuick.Layouts 1.15
-import QtQuick.Controls.Material 2.15
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import QtQuick.Controls.Material
 
 Window {
     id: editor
