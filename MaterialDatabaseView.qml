@@ -165,7 +165,7 @@ Window {
                 implicitWidth: materialDatabaseView.columnWidth(column)
                 implicitHeight: 40
                 visible: !materialDatabaseView.columnHidden(column)
-                color: "transparent"
+                color: selectedRow === row ? (theme.dark ? "#353535" : "#e0e0e0") : "transparent"
                 border.color: theme.border
 
                 // Comment column (3): show with clickable links, not editable inline
@@ -173,6 +173,9 @@ Window {
                     id: commentText
                     anchors.fill: parent
                     anchors.margins: 4
+                    leftPadding: 4
+                    rightPadding: 4
+                    verticalAlignment: Text.AlignVCenter
                     visible: column === 3
                     textFormat: Text.RichText
                     // Guard: only call linkify for column 3; otherwise the
@@ -184,7 +187,7 @@ Window {
                     wrapMode: Text.WordWrap
                     clip: true
 
-                    onLinkActivated: Qt.openUrlExternally(link)
+                    onLinkActivated: function(link) { Qt.openUrlExternally(link) }
                 }
 
                 // All other columns: editable TextField
@@ -192,11 +195,31 @@ Window {
                     id: textField
                     anchors.fill: parent
                     anchors.margins: 4
-                    text: model.display
+                    padding: 0
+                    topPadding: 0
+                    bottomPadding: 0
+                    leftPadding: 6
+                    rightPadding: 6
+                    verticalAlignment: TextInput.AlignVCenter
+                    font.family: inter.name
+                    font.pixelSize: 13
+                    text: (model.display !== undefined && model.display !== null) ? model.display : ""
                     readOnly: !(selectedRow === row && editingColumn === column)
                     visible: column !== 3
+                    selectByMouse: true
+                    selectionColor: theme.accent
+                    selectedTextColor: "#ffffff"
 
-                    background: Rectangle { color: "transparent" }
+                    background: Rectangle {
+                        color: (selectedRow === row && editingColumn === column)
+                               ? (theme.dark ? "#3a4a48" : "#d0ebe7")
+                               : "transparent"
+                        border.color: (selectedRow === row && editingColumn === column)
+                                      ? theme.accent
+                                      : "transparent"
+                        border.width: 1
+                        radius: 3
+                    }
                     color: theme.textStrong
 
                     onEditingFinished: {
@@ -221,9 +244,11 @@ Window {
                         selectedRow = row
                         matrixEditor.openForRow(row)
                     }
-                    // Still select the row on single click
+                    // Still select the row on single click, or click a cell to edit
                     onPressed: {
-                        if (!(selectedRow === row && editingColumn === column)) {
+                        if (selectedRow === row) {
+                            editingColumn = column
+                        } else {
                             selectedRow = row
                             editingColumn = -1
                         }

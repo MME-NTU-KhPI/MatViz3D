@@ -231,8 +231,15 @@ Window {
                 id: nameField
                 Layout.fillWidth: true
                 text: editor.materialName
+                font.family: interFont.name
                 font.pixelSize: 13
                 color: theme.textStrong
+                padding: 0
+                topPadding: 4
+                bottomPadding: 4
+                leftPadding: 8
+                rightPadding: 8
+                verticalAlignment: TextInput.AlignVCenter
                 background: Rectangle {
                     radius: 6
                     color: theme.headerBg
@@ -295,8 +302,15 @@ Window {
                     id: commentField
                     Layout.fillWidth: true
                     text: editor.materialComment
+                    font.family: interFont.name
                     font.pixelSize: 13
                     color: theme.textStrong
+                    padding: 0
+                    topPadding: 4
+                    bottomPadding: 4
+                    leftPadding: 8
+                    rightPadding: 8
+                    verticalAlignment: TextInput.AlignVCenter
                     background: Rectangle {
                         radius: 6
                         color: theme.headerBg
@@ -393,6 +407,10 @@ Window {
                             TextField {
                                 anchors.fill: parent
                                 anchors.margins: 2
+                                padding: 0
+                                topPadding: 0
+                                bottomPadding: 0
+                                verticalAlignment: TextInput.AlignVCenter
                                 horizontalAlignment: TextInput.AlignHCenter
                                 font.family: interFont.name
                                 font.pixelSize: 12
