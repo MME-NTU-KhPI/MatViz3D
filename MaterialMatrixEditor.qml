@@ -63,8 +63,8 @@ Window {
 
         /// Wraps URLs (http/https) in a string with <a href=...> tags for RichText.
         function linkify(text) {
-            if (!text) return "";
-            return text.replace(/(https?:\/\/[^\s]+)/g, "<a href=\"$1\" style=\"color: #0E8E80;\">$1</a>");
+            if (text === undefined || text === null) return "";
+            return String(text).replace(/(https?:\/\/[^\s]+)/g, "<a href=\"$1\" style=\"color: #0E8E80;\">$1</a>");
         }
     }
 

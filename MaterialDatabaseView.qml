@@ -49,8 +49,8 @@ Window {
     /// Wraps URLs (http/https) in a string with <a href=...> tags for RichText.
     /// Simple regex-based, good enough for our manually-written comments.
     function linkify(text) {
-        if (!text) return "";
-        return text.replace(/(https?:\/\/[^\s]+)/g, "<a href=\"$1\" style=\"color: #0E8E80;\">$1</a>");
+        if (text === undefined || text === null) return "";
+        return String(text).replace(/(https?:\/\/[^\s]+)/g, "<a href=\"$1\" style=\"color: #0E8E80;\">$1</a>");
     }
 
     // Columns hidden while the anisotropy panel is open: everything the
