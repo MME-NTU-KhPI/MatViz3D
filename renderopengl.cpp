@@ -846,7 +846,8 @@ void RenderOpenGL::paintGL()
         // Reuse the exact on-screen MVP -> SVG matches the viewport 1:1.
         svgx::writeVoxelSVG(m_svgExportPath,
                             svgx::facesFromQuadBuffer(voxelScene),
-                            mvp, width, height, Qt::white);
+                            mvp, width, height, Qt::white,
+                            /*drawAxes=*/ true, numCubes);   // numCubes is a member
         m_svgExportRequested = false;
     }
 
