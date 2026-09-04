@@ -157,7 +157,8 @@ Window {
                             {
                                 text: qsTr("Save as SVG");
                                 icon.source: "qrc:/img/fileMenu/save_svg.svg"
-                                onTriggered: exportController.saveAsSVG(glWidget)
+                                //onTriggered: exportController.saveAsSVG(glWidget)
+                                onTriggered: exportController.saveAsVectorSVG(glWidget)
                             }
                             Action
                             {

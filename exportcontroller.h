@@ -29,6 +29,7 @@ public:
     Q_INVOKABLE void saveAsImage(QQuickItem* item);
     Q_INVOKABLE void copyToClipboard(QQuickItem* item);
     Q_INVOKABLE void saveAsSVG(QQuickItem* item);
+    Q_INVOKABLE void saveAsVectorSVG(QQuickItem* item);  // true-vector, not raster
 
     Q_INVOKABLE void exportToCSV();
     Q_INVOKABLE void exportToVRML();
