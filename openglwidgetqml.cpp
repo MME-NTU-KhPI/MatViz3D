@@ -64,6 +64,7 @@ QQuickFramebufferObject::Renderer *OpenGLWidgetQML::createRenderer() const
     m_render->setPan(panX, panY);
     m_render->setDistZoomFactor(distance, zoomFactor);
     m_render->setNumCubes(numCubes);
+    m_render->setShowCornerAxes(m_showCornerAxes);
 
     // A fresh renderer starts with default overlay state and an empty glyph
     // buffer, so anything the user had switched on has to be restored -- the
@@ -349,16 +350,34 @@ void OpenGLWidgetQML::setPlotWireFrame(bool status)
     }
 }
 
+void OpenGLWidgetQML::setShowCornerAxes(bool show)
+{
+    if (m_showCornerAxes != show) {
+        m_showCornerAxes = show;
+        if (m_render) {
+            m_render->setShowCornerAxes(show);
+        }
+        update();
+        emit showCornerAxesChanged();
+    }
+}
+
+bool OpenGLWidgetQML::showCornerAxes() const
+{
+    return m_showCornerAxes;
+}
+
 /**
  * Capture a screenshot of the OpenGL widget and store it in a buffer.
+ * @param includeGizmo If false (default), captures the 3D scene without corner orientation arrows.
  * @return A QImage containing the screenshot.
  */
-QImage OpenGLWidgetQML::captureScreenshot()
+QImage OpenGLWidgetQML::captureScreenshot(bool includeGizmo)
 {
     QImage screenshot;
     if (m_render)
     {
-        screenshot = m_render->captureScreenshot();
+        screenshot = m_render->captureScreenshot(includeGizmo);
     }
 
     return screenshot;
@@ -367,9 +386,9 @@ QImage OpenGLWidgetQML::captureScreenshot()
 /**
  * Capture a screenshot and copy it to the system clipboard.
  */
-void OpenGLWidgetQML::captureScreenshotToClipboard()
+void OpenGLWidgetQML::captureScreenshotToClipboard(bool includeGizmo)
 {
-    QImage screenshot = captureScreenshotWithWhiteBackground();
+    QImage screenshot = captureScreenshotWithWhiteBackground(includeGizmo);
     QClipboard *clipboard = QGuiApplication::clipboard();
     clipboard->setImage(screenshot);
 }
@@ -378,9 +397,9 @@ void OpenGLWidgetQML::captureScreenshotToClipboard()
  * Capture a screenshot of the OpenGL widget, replace the background with white, and store it in a buffer.
  * @return A QImage containing the modified screenshot.
  */
-QImage OpenGLWidgetQML::captureScreenshotWithWhiteBackground()
+QImage OpenGLWidgetQML::captureScreenshotWithWhiteBackground(bool includeGizmo)
 {
-    QImage screenshot = captureScreenshot();
+    QImage screenshot = captureScreenshot(includeGizmo);
     return ExportController::processScreenshot(screenshot, true, true, false, 300, this);
 }
 

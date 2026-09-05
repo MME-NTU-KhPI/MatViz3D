@@ -50,11 +50,13 @@ public:
     void createTestScene();
 
     void updateVoxelData(std::vector<Voxel>& voxelScene);
-    QImage captureScreenshot();
+    QImage captureScreenshot(bool includeGizmo = false);
 
     QOpenGLFramebufferObject* createFramebufferObject(const QSize &size) override;
     void updateVBO();
     void drawCornerAxes();
+    void setShowCornerAxes(bool show) { m_showCornerAxes = show; }
+    bool showCornerAxes() const { return m_showCornerAxes; }
 
     void setDevicePixelRatio(float dpr);
 
@@ -171,4 +173,5 @@ protected:
     std::vector<float> orientationColors;
     bool   showOrientations          = false;
     bool   orientationVBOdirty       = false;
+    bool   m_showCornerAxes          = true;
 };

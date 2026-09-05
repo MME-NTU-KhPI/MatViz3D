@@ -166,20 +166,6 @@ Window {
                                 icon.source: "qrc:/img/fileMenu/make_screenshot.svg"
                                 onTriggered: exportController.copyToClipboard(glWidget, _itemFieldView.legendVertical, _itemFieldView.visible)
                             }
-                            Action
-                            {
-                                text: qsTr("Auto-crop empty borders");
-                                checkable: true;
-                                checked: exportController.autoCrop;
-                                onTriggered: exportController.autoCrop = checked;
-                            }
-                            Action
-                            {
-                                text: qsTr("High DPI (300 DPI)");
-                                checkable: true;
-                                checked: exportController.highDpi;
-                                onTriggered: exportController.highDpi = checked;
-                            }
                             MenuSeparator { }
                             Action
                             {
@@ -470,6 +456,7 @@ Window {
                 // would only pin them to a fixed corner, not to the axes.
                 Item {
                     id: axisLabelOverlay
+                    objectName: "axisLabelOverlay"
                     anchors.fill: parent
 
                     Text {
@@ -710,7 +697,7 @@ Window {
                 anchors.top: parent.top
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.margins: 20
-                width: 434
+                width: 450
                 height: 26
                 visible: true
 
@@ -779,19 +766,179 @@ Window {
                         }
                     }
 
-                    Image {
-                        Layout.preferredWidth: 26
+                    Item {
+                        id: screenshotGroup
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.preferredWidth: 42
                         Layout.preferredHeight: 26
-                        source: "qrc:/img/toolBar/screenIcon.svg"
-                        fillMode: Image.PreserveAspectFit
-                        scale: 1.2
-                        MouseArea { 
-                            anchors.fill: parent; 
-                            cursorShape: Qt.PointingHandCursor; 
-                            hoverEnabled: true
-                            ToolTip.visible: containsMouse
-                            ToolTip.text: qsTr("Copy screenshot to clipboard (300 DPI, auto-cropped)")
-                            onClicked: exportController.copyToClipboard(glWidget, _itemFieldView.legendVertical, _itemFieldView.visible); 
+
+                        Row {
+                            anchors.fill: parent
+                            spacing: 1
+
+                            Item {
+                                width: 26
+                                height: 26
+
+                                Image {
+                                    anchors.fill: parent
+                                    source: "qrc:/img/toolBar/screenIcon.svg"
+                                    fillMode: Image.PreserveAspectFit
+                                    scale: 1.2
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    hoverEnabled: true
+                                    ToolTip.visible: containsMouse
+                                    ToolTip.text: qsTr("Copy screenshot to clipboard")
+                                    onClicked: exportController.copyToClipboard(glWidget, _itemFieldView.legendVertical, _itemFieldView.visible)
+                                }
+                            }
+
+                            Item {
+                                id: screenshotDropdownBtn
+                                width: 15
+                                height: 26
+
+                                Canvas {
+                                    id: dropdownChevron
+                                    anchors.centerIn: parent
+                                    width: 8
+                                    height: 5
+                                    onPaint: {
+                                        var ctx = getContext("2d");
+                                        ctx.reset();
+                                        ctx.beginPath();
+                                        ctx.moveTo(1, 1);
+                                        ctx.lineTo(4, 4);
+                                        ctx.lineTo(7, 1);
+                                        ctx.strokeStyle = (screenshotDropdownArea.containsMouse || screenshotPopup.visible) ? "#00897b" : "#CFCECE";
+                                        ctx.lineWidth = 1.5;
+                                        ctx.lineCap = "round";
+                                        ctx.lineJoin = "round";
+                                        ctx.stroke();
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: screenshotDropdownArea
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    hoverEnabled: true
+                                    ToolTip.visible: containsMouse
+                                    ToolTip.text: qsTr("Screenshot settings")
+                                    onEntered: dropdownChevron.requestPaint()
+                                    onExited: dropdownChevron.requestPaint()
+                                    onClicked: screenshotPopup.visible ? screenshotPopup.close() : screenshotPopup.open()
+                                }
+                            }
+                        }
+
+                        Popup {
+                            id: screenshotPopup
+                            x: (screenshotGroup.width - width) / 2
+                            y: screenshotGroup.height + 8
+                            width: 210
+                            padding: 10
+                            modal: false
+                            focus: false
+                            closePolicy: Popup.CloseOnPressOutside | Popup.CloseOnEscape
+                            onVisibleChanged: dropdownChevron.requestPaint()
+
+                            background: Rectangle {
+                                color: "#E6282828"
+                                radius: 8
+                                border.color: "#5A5A5A"
+                                border.width: 1
+                            }
+
+                            contentItem: Column {
+                                spacing: 4
+
+                                CheckBox {
+                                    id: autoCropCheck
+                                    text: qsTr("Auto-crop empty borders")
+                                    checked: exportController.autoCrop
+                                    font.family: montserrat.name
+                                    font.pixelSize: 11
+                                    spacing: 8
+                                    padding: 4
+                                    hoverEnabled: true
+
+                                    indicator: Rectangle {
+                                        implicitWidth: 15
+                                        implicitHeight: 15
+                                        x: autoCropCheck.leftPadding
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        radius: 3
+                                        color: autoCropCheck.checked ? "#00897b" : (autoCropCheck.hovered ? "#383838" : "#2A2A2A")
+                                        border.color: autoCropCheck.checked ? "#00897b" : (autoCropCheck.hovered ? "#808080" : "#555555")
+                                        border.width: 1.5
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "✓"
+                                            font.pixelSize: 10
+                                            font.bold: true
+                                            color: "#ffffff"
+                                            visible: autoCropCheck.checked
+                                        }
+                                    }
+
+                                    contentItem: Text {
+                                        text: autoCropCheck.text
+                                        font: autoCropCheck.font
+                                        color: autoCropCheck.hovered ? "#ffffff" : "#d0d0d0"
+                                        verticalAlignment: Text.AlignVCenter
+                                        leftPadding: autoCropCheck.indicator.width + autoCropCheck.spacing
+                                    }
+
+                                    onToggled: exportController.autoCrop = checked
+                                }
+
+                                CheckBox {
+                                    id: highDpiCheck
+                                    text: qsTr("High DPI (300 DPI)")
+                                    checked: exportController.highDpi
+                                    font.family: montserrat.name
+                                    font.pixelSize: 11
+                                    spacing: 8
+                                    padding: 4
+                                    hoverEnabled: true
+
+                                    indicator: Rectangle {
+                                        implicitWidth: 15
+                                        implicitHeight: 15
+                                        x: highDpiCheck.leftPadding
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        radius: 3
+                                        color: highDpiCheck.checked ? "#00897b" : (highDpiCheck.hovered ? "#383838" : "#2A2A2A")
+                                        border.color: highDpiCheck.checked ? "#00897b" : (highDpiCheck.hovered ? "#808080" : "#555555")
+                                        border.width: 1.5
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "✓"
+                                            font.pixelSize: 10
+                                            font.bold: true
+                                            color: "#ffffff"
+                                            visible: highDpiCheck.checked
+                                        }
+                                    }
+
+                                    contentItem: Text {
+                                        text: highDpiCheck.text
+                                        font: highDpiCheck.font
+                                        color: highDpiCheck.hovered ? "#ffffff" : "#d0d0d0"
+                                        verticalAlignment: Text.AlignVCenter
+                                        leftPadding: highDpiCheck.indicator.width + highDpiCheck.spacing
+                                    }
+
+                                    onToggled: exportController.highDpi = checked
+                                }
+                            }
                         }
                     }
 

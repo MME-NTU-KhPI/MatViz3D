@@ -990,7 +990,9 @@ void RenderOpenGL::paintGL()
 
 
     // ── Corner orientation gizmo ─────────────────────────────────────
-    drawCornerAxes();
+    if (m_showCornerAxes) {
+        drawCornerAxes();
+    }
 
     // Restore full viewport for next frame
     f->glViewport(0, 0,
@@ -1072,7 +1074,7 @@ void RenderOpenGL::toggleDepthTest()
     update();
 }
 
-QImage RenderOpenGL::captureScreenshot()
+QImage RenderOpenGL::captureScreenshot(bool includeGizmo)
 {
     QOpenGLContext *ctx = QOpenGLContext::currentContext();
     if (!ctx) {
@@ -1081,14 +1083,34 @@ QImage RenderOpenGL::captureScreenshot()
 
     QOpenGLFunctions *f = ctx->functions();
 
-    int width = this->width;
-    int height = this->height;
+    // If caller wants a screenshot without the gizmo, temporarily suppress it
+    // and render a clean pass of the 3D scene.
+    const bool needCleanPass = (!includeGizmo && m_showCornerAxes);
+    if (needCleanPass) {
+        m_showCornerAxes = false;
+        paintGL();
+        m_showCornerAxes = true;
+    }
 
-    QImage screenshot(width, height, QImage::Format_RGBA8888);
+    int readW = this->width;
+    int readH = this->height;
+    if (m_dpr > 1.0f) {
+        readW = static_cast<int>(this->width * m_dpr);
+        readH = static_cast<int>(this->height * m_dpr);
+    }
 
-    f->glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, screenshot.bits());
+    QImage screenshot(readW, readH, QImage::Format_RGBA8888);
+
+    f->glReadPixels(0, 0, readW, readH, GL_RGBA, GL_UNSIGNED_BYTE, screenshot.bits());
 
     screenshot = screenshot.mirrored();
+
+    // If we suppressed the gizmo for the capture, restore it on the current FBO
+    // so the on-screen display remains completely intact and seamless.
+    if (needCleanPass) {
+        drawCornerAxes();
+        f->glViewport(0, 0, readW, readH);
+    }
 
     return screenshot;
 }

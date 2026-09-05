@@ -315,123 +315,96 @@ void drawOrientationGizmo(QPainter& p, const QPointF& origin, qreal scale, OpenG
     drawLabel(endZ, vZ, colZ, QStringLiteral("Z"));
 }
 
-} // anonymous namespace
-
-// ═══════════════════════════════════════════════════════════════════
-//  Colorbar Overlay for Stress/Strain Screenshots
-// ═══════════════════════════════════════════════════════════════════
-void ExportController::overlayColorBar(QImage& img, bool vertical, QQuickItem* item)
-{
-    if (img.isNull()) return;
-
-    OpenGLWidgetQML* ogl = qobject_cast<OpenGLWidgetQML*>(item);
-    if (!ogl) ogl = OpenGLWidgetQML::getInstance();
-
-    bool hasField = (ogl && ogl->hasField());
-    if (!hasField) {
-        LoadStepManager& lsm = LoadStepManager::getInstance();
-        if (lsm.hasLoadStepData()) {
-            hasField = true;
-        } else if (StressAnalysisController* sa = StressAnalysisController::getInstance()) {
-            if (sa->hasResult() || sa->showField()) hasField = true;
-        } else if (Hdf5ProjectController* hpc = Hdf5ProjectController::getInstance()) {
-            if (hpc->isOpen() && !hpc->loadSteps().isEmpty()) hasField = true;
-        }
-    }
-
-    if (!hasField) {
-        qDebug() << "[overlayColorBar] No active stress/strain field detected";
-        return;
-    }
-
-    double vmin = 0.0;
-    double vmax = 0.0;
-    QString compName = QStringLiteral("von Mises (SEQV)");
-
-    if (ogl && ogl->hasField()) {
-        vmin = ogl->getFieldMin();
-        vmax = ogl->getFieldMax();
-        compName = ogl->getFieldComponentName();
-    }
-
-    if (vmin == 0.0 && vmax == 0.0) {
-        LoadStepManager& lsm = LoadStepManager::getInstance();
-        if (lsm.hasLoadStepData()) {
-            StressAnalysisController* sa = StressAnalysisController::getInstance();
-            int compEnum = (sa && sa->currentComponentEnum() >= 0) ? sa->currentComponentEnum() : SEQV;
-            const auto& minVec = lsm.getLoadStepResultsMin();
-            const auto& maxVec = lsm.getLoadStepResultsMax();
-            if (compEnum >= 0 && compEnum < (int)minVec.size() && compEnum < (int)maxVec.size()) {
-                vmin = minVec[compEnum];
-                vmax = maxVec[compEnum];
-            }
-            if (sa) {
-                const QStringList comps = sa->fieldComponents();
-                if (sa->fieldComponentIndex() >= 0 && sa->fieldComponentIndex() < comps.size())
-                    compName = comps[sa->fieldComponentIndex()];
-            }
-        } else if (StressAnalysisController* sa = StressAnalysisController::getInstance()) {
-            vmin = sa->fieldMin();
-            vmax = sa->fieldMax();
-            const QStringList comps = sa->fieldComponents();
-            if (sa->fieldComponentIndex() >= 0 && sa->fieldComponentIndex() < comps.size())
-                compName = comps[sa->fieldComponentIndex()];
-        }
-    }
-
-    QVector<QColor> colors;
-    if (ogl) {
-        colors = ogl->getColorMap(9);
-    }
-    if (colors.size() < 9) {
-        auto palette = ogl ? ogl->getColorMapPalette() : OpenGLWidgetQML::ColorMapPalette::Rainbow;
-        auto rawMap = matviz_cmap::createColorMap(9, palette);
-        colors.resize(9);
-        for (int i = 0; i < 9; ++i) colors[i] = QColor(rawMap[i][0], rawMap[i][1], rawMap[i][2]);
-    }
-
-    const qreal imgW = img.width();
-    const qreal imgH = img.height();
-    if (imgW < 120 || imgH < 120) return;
-
-    const qreal scale = std::clamp(imgW / 1280.0, 0.75, 5.0);
-
-    qreal cardW = 0, cardH = 0;
-    if (!vertical) {
-        cardW = std::min(400.0 * scale, imgW - 40.0 * scale);
-        cardH = 68.0 * scale;
-    } else {
-        cardW = std::min(180.0 * scale, imgW - 40.0 * scale);
-        cardH = 175.0 * scale;
-    }
-
-    const qreal cardX = 20.0 * scale;
-    const qreal cardY = imgH - cardH - 20.0 * scale;
-
-    QPainter p(&img);
-    p.setRenderHint(QPainter::Antialiasing, true);
-    p.setRenderHint(QPainter::TextAntialiasing, true);
-
-    drawColorBarCard(p, QRectF(cardX, cardY, cardW, cardH), scale, vertical,
-                     compName, vmin, vmax, colors, false);
-}
-
-// ═══════════════════════════════════════════════════════════════════
-//  Process Screenshot: Background, Crop to Useful Content & Colorbar
-// ═══════════════════════════════════════════════════════════════════
-QImage ExportController::processScreenshot(const QImage& rawImg, bool replaceWhiteBg, bool autoCrop,
-                                           bool verticalLegend, int targetDpi, QQuickItem* item,
-                                           bool fieldActive)
+// ── Step 1 Helper: Obtain and prepare scene image from OGL ─────────
+QImage obtainSceneImage(const QImage& rawImg, bool replaceWhiteBg, QQuickItem* item, qreal scale, QColor& outBgColor)
 {
     if (rawImg.isNull()) return rawImg;
 
     QImage img = replaceWhiteBg ? makeWhiteBackground(rawImg) : rawImg.convertToFormat(QImage::Format_RGB32);
+    outBgColor = replaceWhiteBg ? QColor(255, 255, 255) : img.pixelColor(0, 0);
 
-    // 1. Determine active OpenGLWidgetQML
     OpenGLWidgetQML* ogl = qobject_cast<OpenGLWidgetQML*>(item);
     if (!ogl) ogl = OpenGLWidgetQML::getInstance();
 
-    // 2. Check if stress/strain field is active across all controllers
+    // Erase bottom-right corner if corner axes were enabled, otherwise keep pristine
+    if (!ogl || ogl->showCornerAxes()) {
+        const int imgW = img.width();
+        const int imgH = img.height();
+        const qreal sx = (item && item->width() > 0) ? (qreal)imgW / item->width() : scale;
+        const qreal sy = (item && item->height() > 0) ? (qreal)imgH / item->height() : scale;
+        const int exclW = qRound(160.0 * sx);
+        const int exclH = qRound(160.0 * sy);
+        const QRect cornerExclRect(std::max(0, imgW - exclW), std::max(0, imgH - exclH), exclW, exclH);
+
+        {
+            QPainter pClear(&img);
+            pClear.fillRect(cornerExclRect, outBgColor);
+        }
+    }
+
+    qDebug() << "[obtainSceneImage] Raw size:" << rawImg.size()
+             << "-> Processed size:" << img.size()
+             << "bgColor:" << outBgColor.name();
+
+    return img;
+}
+
+// ── Step 2 Helper: Crop image to useful 3D content ──────────────────
+QImage cropToUsefulSize(const QImage& src, const QColor& bgColor, qreal scale, QRect* outCropRect = nullptr)
+{
+    if (src.isNull()) return src;
+
+    const int imgW = src.width();
+    const int imgH = src.height();
+    const int br = bgColor.red(), bg_g = bgColor.green(), bb = bgColor.blue();
+    const int tol = 8;
+    auto isBg = [&](QRgb p) {
+        return std::abs(qRed(p)   - br)   <= tol &&
+               std::abs(qGreen(p) - bg_g) <= tol &&
+               std::abs(qBlue(p)  - bb)   <= tol;
+    };
+
+    int minX = imgW, maxX = -1, minY = imgH, maxY = -1;
+    for (int y = 0; y < imgH; ++y) {
+        const QRgb* line = reinterpret_cast<const QRgb*>(src.constScanLine(y));
+        for (int x = 0; x < imgW; ++x) {
+            if (!isBg(line[x])) {
+                minX = std::min(minX, x); maxX = std::max(maxX, x);
+                minY = std::min(minY, y); maxY = std::max(maxY, y);
+            }
+        }
+    }
+
+    // Fallback if no non-background pixels found
+    if (maxX < minX || maxY < minY) {
+        minX = 0; maxX = imgW - 1;
+        minY = 0; maxY = imgH - 1;
+    }
+
+    const int pad = qRound(16.0 * scale);
+    const int mx1 = std::max(0, minX - pad);
+    const int my1 = std::max(0, minY - pad);
+    const int mx2 = std::min(imgW - 1, maxX + pad);
+    const int my2 = std::min(imgH - 1, maxY + pad);
+    const int cropW = mx2 - mx1 + 1;
+    const int cropH = my2 - my1 + 1;
+
+    const QRect cropRect(mx1, my1, cropW, cropH);
+    if (outCropRect) {
+        *outCropRect = cropRect;
+    }
+
+    qDebug() << "[cropToUsefulSize] Non-bg bounds:" << QRect(minX, minY, maxX - minX + 1, maxY - minY + 1)
+             << "cropRect (with padding):" << cropRect << "crop size:" << QSize(cropW, cropH);
+
+    return src.copy(cropRect);
+}
+
+// ── Step 3 Helper: Generate standalone image of colorbar (legend) ───
+QImage generateColorBarImage(OpenGLWidgetQML* ogl, bool verticalLegend, qreal scale,
+                             bool darkTheme, bool fieldActive, qreal maxAllowedW = -1.0)
+{
+    // Check if stress/strain field is active across all controllers
     bool hasField = fieldActive;
     if (!hasField && ogl && ogl->hasField()) hasField = true;
     if (!hasField) {
@@ -447,6 +420,11 @@ QImage ExportController::processScreenshot(const QImage& rawImg, bool replaceWhi
     if (!hasField) {
         LoadStepManager& lsm = LoadStepManager::getInstance();
         if (lsm.hasLoadStepData()) hasField = true;
+    }
+
+    if (!hasField) {
+        qDebug() << "[generateColorBarImage] No active field detected, returning empty image";
+        return QImage();
     }
 
     double vmin = 0.0;
@@ -492,121 +470,257 @@ QImage ExportController::processScreenshot(const QImage& rawImg, bool replaceWhi
         for (int i = 0; i < 9; ++i) colors[i] = QColor(rawMap[i][0], rawMap[i][1], rawMap[i][2]);
     }
 
-    const int imgW = img.width();
-    const int imgH = img.height();
-    const qreal baseScale = imgW / 1280.0;
-    const qreal scale = std::clamp(baseScale, 0.75, 5.0);
-
-    const QColor bgColor = replaceWhiteBg ? QColor(255, 255, 255) : img.pixelColor(0, 0);
-    const bool darkTheme = (bgColor.lightness() < 128);
-
-    const qreal cardW = (!verticalLegend) ? 380.0 * scale : 180.0 * scale;
+    qreal cardW = (!verticalLegend) ? 380.0 * scale : 180.0 * scale;
     const qreal cardH = (!verticalLegend) ? 68.0 * scale : 175.0 * scale;
+    if (maxAllowedW > 0 && cardW > maxAllowedW) {
+        cardW = maxAllowedW;
+    }
 
-    // If autoCrop is disabled, overlay gizmo at bottom-right and colorbar on bottom-left
-    if (!autoCrop) {
-        QPainter p(&img);
+    const int imgW = qMax(1, qCeil(cardW));
+    const int imgH = qMax(1, qCeil(cardH));
+
+    QImage cardImg(imgW, imgH, QImage::Format_ARGB32_Premultiplied);
+    cardImg.fill(Qt::transparent);
+
+    {
+        QPainter p(&cardImg);
         p.setRenderHint(QPainter::Antialiasing, true);
         p.setRenderHint(QPainter::TextAntialiasing, true);
-
-        // Draw orientation gizmo at bottom-right
-        const qreal gx = imgW - 55.0 * scale;
-        const qreal gy = imgH - 50.0 * scale;
-        drawOrientationGizmo(p, QPointF(gx, gy), scale, ogl, darkTheme);
-
-        // Draw legend at bottom-left
-        if (hasField) {
-            const qreal cardX = 20.0 * scale;
-            const qreal cardY = imgH - cardH - 20.0 * scale;
-            drawColorBarCard(p, QRectF(cardX, cardY, cardW, cardH), scale, verticalLegend,
-                             compName, vmin, vmax, colors, darkTheme);
-        }
-        p.end();
-        setDpiMetadata(img, targetDpi);
-        return img;
-    }
-
-    // ── STEP 1: CROP SCENE TO 3D MODEL ──────────────────────────────────────
-    const int br = bgColor.red(), bg_g = bgColor.green(), bb = bgColor.blue();
-    const int tol = 8;
-    auto isBg = [&](QRgb p) {
-        return std::abs(qRed(p)   - br)  <= tol &&
-               std::abs(qGreen(p) - bg_g) <= tol &&
-               std::abs(qBlue(p)  - bb)  <= tol;
-    };
-
-    // Exclude bottom-right corner region where raw OpenGL triad might have rendered
-    const int cornerExclW = qRound(120.0 * scale);
-    const int cornerExclH = qRound(120.0 * scale);
-    const QRect cornerExclRect(imgW - cornerExclW, imgH - cornerExclH, cornerExclW, cornerExclH);
-
-    int minX = imgW, maxX = -1, minY = imgH, maxY = -1;
-    for (int y = 0; y < imgH; ++y) {
-        const QRgb* line = reinterpret_cast<const QRgb*>(img.constScanLine(y));
-        for (int x = 0; x < imgW; ++x) {
-            if (cornerExclRect.contains(x, y)) continue;
-            if (!isBg(line[x])) {
-                minX = std::min(minX, x); maxX = std::max(maxX, x);
-                minY = std::min(minY, y); maxY = std::max(maxY, y);
-            }
-        }
-    }
-
-    // Fallback if no non-background pixels found outside corner
-    if (maxX < minX || maxY < minY) {
-        minX = 0; maxX = imgW - 1;
-        minY = 0; maxY = imgH - 1;
-    }
-
-    const int pad = qRound(25.0 * scale);
-    const qreal gizmoSize = 85.0 * scale;
-    const int extraBottom = qRound((hasField ? std::max(cardH, gizmoSize) : gizmoSize) + 20.0 * scale);
-
-    int x1 = std::max(0, minX - pad);
-    int y1 = std::max(0, minY - pad);
-    int x2 = std::min(imgW - 1, maxX + pad);
-    int y2 = std::min(imgH - 1, maxY + extraBottom);
-
-    const int reqW = qRound((hasField ? cardW : 0) + gizmoSize + 60.0 * scale);
-    if (x2 - x1 + 1 < reqW) {
-        int diff = reqW - (x2 - x1 + 1);
-        x1 = std::max(0, x1 - diff / 2);
-        x2 = std::min(imgW - 1, x1 + reqW - 1);
-        x1 = std::max(0, x2 - reqW + 1);
-    }
-
-    QImage resultImg = img.copy(x1, y1, x2 - x1 + 1, y2 - y1 + 1);
-
-    const int neededH = (maxY - y1) + extraBottom;
-    if (resultImg.height() < neededH) {
-        QImage expanded(resultImg.width(), neededH, resultImg.format());
-        expanded.fill(bgColor);
-        QPainter expP(&expanded);
-        expP.drawImage(0, 0, resultImg);
-        expP.end();
-        resultImg = expanded;
-    }
-
-    // ── STEP 2: DRAW GIZMO AXIS PLOT & LEGEND AFTER CROP ────────────────────
-    QPainter p(&resultImg);
-    p.setRenderHint(QPainter::Antialiasing, true);
-    p.setRenderHint(QPainter::TextAntialiasing, true);
-
-    // 1. Draw orientation gizmo at bottom-right
-    const qreal gx = resultImg.width() - 55.0 * scale;
-    const qreal gy = resultImg.height() - 50.0 * scale;
-    drawOrientationGizmo(p, QPointF(gx, gy), scale, ogl, darkTheme);
-
-    // 2. Draw legend at bottom-left
-    if (hasField) {
-        const qreal cardX = 15.0 * scale;
-        const qreal cardY = resultImg.height() - cardH - 15.0 * scale;
-        drawColorBarCard(p, QRectF(cardX, cardY, cardW, cardH), scale, verticalLegend,
+        drawColorBarCard(p, QRectF(0, 0, cardW, cardH), scale, verticalLegend,
                          compName, vmin, vmax, colors, darkTheme);
     }
 
-    p.end();
+    qDebug() << "[generateColorBarImage] Rendered colorbar image:" << cardImg.size()
+             << "vertical:" << verticalLegend << "component:" << compName
+             << "range: [" << vmin << "," << vmax << "]";
+
+    return cardImg;
+}
+
+// ── Step 4 Helper: Generate standalone image of orientation gizmo ───
+QImage generateGizmoImage(OpenGLWidgetQML* ogl, qreal scale, bool darkTheme)
+{
+    const qreal gizmoSize = 110.0 * scale;
+    const int imgW = qMax(1, qCeil(gizmoSize));
+    const int imgH = qMax(1, qCeil(gizmoSize));
+
+    QImage gizmoImg(imgW, imgH, QImage::Format_ARGB32_Premultiplied);
+    gizmoImg.fill(Qt::transparent);
+
+    {
+        QPainter p(&gizmoImg);
+        p.setRenderHint(QPainter::Antialiasing, true);
+        p.setRenderHint(QPainter::TextAntialiasing, true);
+
+        const QPointF origin(imgW / 2.0, imgH / 2.0);
+        drawOrientationGizmo(p, origin, scale, ogl, darkTheme);
+    }
+
+    qDebug() << "[generateGizmoImage] Rendered gizmo image:" << gizmoImg.size() << "scale:" << scale;
+
+    return gizmoImg;
+}
+
+} // anonymous namespace
+
+// ═══════════════════════════════════════════════════════════════════
+//  Colorbar Overlay for Stress/Strain Screenshots
+// ═══════════════════════════════════════════════════════════════════
+void ExportController::overlayColorBar(QImage& img, bool vertical, QQuickItem* item)
+{
+    if (img.isNull()) return;
+
+    OpenGLWidgetQML* ogl = qobject_cast<OpenGLWidgetQML*>(item);
+    if (!ogl) ogl = OpenGLWidgetQML::getInstance();
+
+    const qreal imgW = img.width();
+    const qreal imgH = img.height();
+    if (imgW < 120 || imgH < 120) return;
+
+    const qreal imgDpi = (img.dotsPerMeterX() > 0) ? (img.dotsPerMeterX() * 0.0254) : 96.0;
+    const qreal scale = std::clamp(imgDpi / 96.0, 0.75, 8.0);
+    const bool darkTheme = (img.pixelColor(0, 0).lightness() < 128);
+
+    const qreal maxW = imgW - 40.0 * scale;
+    QImage colorbar = generateColorBarImage(ogl, vertical, scale, darkTheme, false, maxW);
+    if (colorbar.isNull()) {
+        qDebug() << "[overlayColorBar] No active stress/strain field detected";
+        return;
+    }
+
+    const qreal cardX = 20.0 * scale;
+    const qreal cardY = imgH - colorbar.height() - 20.0 * scale;
+
+    QPainter p(&img);
+    p.setRenderHint(QPainter::Antialiasing, true);
+    p.drawImage(QPointF(cardX, cardY), colorbar);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Process Screenshot: Background, Crop to Useful Content & Colorbar
+// ═══════════════════════════════════════════════════════════════════
+QImage ExportController::processScreenshot(const QImage& rawImg, bool replaceWhiteBg, bool autoCrop,
+                                           bool verticalLegend, int targetDpi, QQuickItem* item,
+                                           bool fieldActive)
+{
+    qDebug() << "==================================================";
+    qDebug() << "[processScreenshot] START: rawImg size =" << rawImg.size()
+             << "replaceWhiteBg =" << replaceWhiteBg
+             << "autoCrop =" << autoCrop
+             << "verticalLegend =" << verticalLegend
+             << "targetDpi =" << targetDpi
+             << "fieldActive =" << fieldActive;
+
+    if (rawImg.isNull()) {
+        qWarning() << "[processScreenshot] rawImg is null, aborting";
+        return rawImg;
+    }
+
+    // Scale is strictly DPI-proportional: 96 DPI = 1.0, 300 DPI = 3.125
+    const qreal scale = (targetDpi > 0) ? std::clamp((qreal)targetDpi / 96.0, 0.75, 8.0)
+                                        : std::clamp(rawImg.width() / 1280.0, 0.75, 5.0);
+    qDebug() << "[processScreenshot] Calculated scale factor:" << scale;
+
+    OpenGLWidgetQML* ogl = qobject_cast<OpenGLWidgetQML*>(item);
+    if (!ogl) ogl = OpenGLWidgetQML::getInstance();
+
+    // ── STEP 1: OBTAIN IMAGE FROM OGL ───────────────────────────────
+    QColor bgColor;
+    QImage sceneImg = obtainSceneImage(rawImg, replaceWhiteBg, item, scale, bgColor);
+    const bool darkTheme = (bgColor.lightness() < 128);
+    qDebug() << "[processScreenshot] Step 1 (Obtain Image from OGL):"
+             << "sceneImg size =" << sceneImg.size()
+             << "bgColor =" << bgColor.name()
+             << "darkTheme =" << darkTheme;
+
+    // ── STEP 2: CROP IT TO USEFUL SIZE ──────────────────────────────
+    QRect cropRect(0, 0, sceneImg.width(), sceneImg.height());
+    QImage croppedModel;
+    if (autoCrop) {
+        croppedModel = cropToUsefulSize(sceneImg, bgColor, scale, &cropRect);
+        qDebug() << "[processScreenshot] Step 2 (Crop to Useful Size):"
+                 << "autoCrop = true, cropRect =" << cropRect
+                 << "croppedModel size =" << croppedModel.size();
+    } else {
+        croppedModel = sceneImg;
+        qDebug() << "[processScreenshot] Step 2 (Crop to Useful Size):"
+                 << "autoCrop = false, retaining full size =" << croppedModel.size();
+    }
+
+    // ── STEP 3: GENERATE IMAGE OF COLORBAR (LEGEND) ─────────────────
+    QImage colorbarImg = generateColorBarImage(ogl, verticalLegend, scale, darkTheme, fieldActive);
+    if (!colorbarImg.isNull()) {
+        qDebug() << "[processScreenshot] Step 3 (Generate ColorBar):"
+                 << "colorbar image generated, size =" << colorbarImg.size()
+                 << "vertical =" << verticalLegend;
+    } else {
+        qDebug() << "[processScreenshot] Step 3 (Generate ColorBar):"
+                 << "no active stress/strain field, colorbar omitted";
+    }
+
+    // ── STEP 4: GENERATE IMAGE OF GIZMO ─────────────────────────────
+    QImage gizmoImg = generateGizmoImage(ogl, scale, darkTheme);
+    qDebug() << "[processScreenshot] Step 4 (Generate Gizmo):"
+             << "gizmo image generated, size =" << gizmoImg.size();
+
+    // ── STEP 5: ADD EMPTY SPACE FOR COLORBAR & GIZMO ────────────────
+    int finalW = croppedModel.width();
+    int finalH = croppedModel.height();
+    QPoint modelPos(0, 0);
+    QPoint colorbarPos(0, 0);
+    QPoint gizmoPos(0, 0);
+
+    const bool hasColorBar = !colorbarImg.isNull();
+    const qreal marginL = 16.0 * scale;
+    const qreal marginR = 16.0 * scale;
+    const qreal bottomPad = 14.0 * scale;
+    const qreal gapAbove = 14.0 * scale;
+
+    if (autoCrop) {
+        // Extra bottom space is ONLY needed when a colorbar card is present.
+        // When there is no colorbar, the gizmo overlays in the bottom-right corner of the
+        // cropped model canvas without allocating an empty bottom strip.
+        int extraBottom = 0;
+        if (hasColorBar) {
+            const qreal bottomItemH = std::max((qreal)colorbarImg.height(), 80.0 * scale);
+            extraBottom = qRound(gapAbove + bottomItemH + bottomPad);
+        }
+
+        const qreal gizmoBoxW = 85.0 * scale;
+        const qreal minReqW = (hasColorBar ? (marginL + colorbarImg.width() + 20.0 * scale) : marginL)
+                            + gizmoBoxW + marginR;
+
+        finalW = std::max(croppedModel.width(), qRound(minReqW));
+        finalH = croppedModel.height() + extraBottom;
+
+        // Center model horizontally if canvas was widened to accommodate bottom controls
+        modelPos = QPoint((finalW - croppedModel.width()) / 2, 0);
+
+        if (hasColorBar) {
+            colorbarPos = QPoint(qRound(marginL), qRound(finalH - bottomPad - colorbarImg.height()));
+        }
+
+        const qreal gx = finalW - marginR - 45.0 * scale;
+        const qreal gy = finalH - bottomPad - 42.0 * scale;
+        gizmoPos = QPoint(qRound(gx - gizmoImg.width() / 2.0),
+                          qRound(gy - gizmoImg.height() / 2.0));
+
+        qDebug() << "[processScreenshot] Step 5 (Add Empty Space & Layout): autoCrop = true,"
+                 << "hasColorBar =" << hasColorBar
+                 << "extraBottom =" << extraBottom
+                 << "final canvas size =" << QSize(finalW, finalH)
+                 << "modelPos =" << modelPos
+                 << "colorbarPos =" << colorbarPos
+                 << "gizmoPos =" << gizmoPos;
+    } else {
+        finalW = sceneImg.width();
+        finalH = sceneImg.height();
+        modelPos = QPoint(0, 0);
+
+        if (!colorbarImg.isNull()) {
+            colorbarPos = QPoint(qRound(20.0 * scale),
+                                 qRound(finalH - colorbarImg.height() - 20.0 * scale));
+        }
+
+        const qreal gx = finalW - 60.0 * scale;
+        const qreal gy = finalH - 55.0 * scale;
+        gizmoPos = QPoint(qRound(gx - gizmoImg.width() / 2.0),
+                          qRound(gy - gizmoImg.height() / 2.0));
+
+        qDebug() << "[processScreenshot] Step 5 (Add Empty Space & Layout): autoCrop = false (overlay mode),"
+                 << "canvas size =" << QSize(finalW, finalH)
+                 << "colorbarPos =" << colorbarPos
+                 << "gizmoPos =" << gizmoPos;
+    }
+
+    // ── STEP 6: JOIN ALL IMAGES TOGETHER ────────────────────────────
+    QImage resultImg(finalW, finalH, sceneImg.format());
+    resultImg.fill(bgColor);
+
+    {
+        QPainter p(&resultImg);
+        p.setRenderHint(QPainter::Antialiasing, true);
+        p.setRenderHint(QPainter::SmoothPixmapTransform, true);
+
+        // 1. Draw cropped model image
+        p.drawImage(modelPos, croppedModel);
+
+        // 2. Draw colorbar image (if present)
+        if (!colorbarImg.isNull()) {
+            p.drawImage(colorbarPos, colorbarImg);
+        }
+
+        // 3. Draw gizmo image (if present)
+        if (!gizmoImg.isNull()) {
+            p.drawImage(gizmoPos, gizmoImg);
+        }
+    }
+
     setDpiMetadata(resultImg, targetDpi);
+    qDebug() << "[processScreenshot] Step 6 (Join Images): Composite completed successfully, final size ="
+             << resultImg.size() << "DPI =" << targetDpi;
+    qDebug() << "==================================================";
+
     return resultImg;
 }
 
@@ -644,15 +758,27 @@ void ExportController::saveAsImage(QQuickItem* item, bool verticalLegend, bool f
         }
     }
 
+    QQuickItem* axisOverlay = item ? item->findChild<QQuickItem*>("axisLabelOverlay") : nullptr;
+    if (axisOverlay) axisOverlay->setVisible(false);
+
+    OpenGLWidgetQML* oglWidget = qobject_cast<OpenGLWidgetQML*>(item);
+    if (!oglWidget) oglWidget = OpenGLWidgetQML::getInstance();
+    const bool prevAxes = oglWidget ? oglWidget->showCornerAxes() : true;
+    if (oglWidget) oglWidget->setShowCornerAxes(false);
+
     auto grab = (!targetSize.isEmpty()) ? item->grabToImage(targetSize) : item->grabToImage();
     if (!grab) {
+        if (axisOverlay) axisOverlay->setVisible(true);
+        if (oglWidget) oglWidget->setShowCornerAxes(prevAxes);
         emit exportFailed(tr("grabToImage() failed — item has no window"));
         return;
     }
 
     connect(grab.data(), &QQuickItemGrabResult::ready, this,
-            [this, grab, fileName, verticalLegend, fieldActive, item]()
+            [this, grab, fileName, verticalLegend, fieldActive, item, axisOverlay, oglWidget, prevAxes]()
             {
+                if (axisOverlay) axisOverlay->setVisible(true);
+                if (oglWidget) oglWidget->setShowCornerAxes(prevAxes);
                 QImage rawImg = grab->image();
                 if (rawImg.isNull()) {
                     emit exportFailed(tr("Captured image is empty"));
@@ -693,15 +819,27 @@ void ExportController::copyToClipboard(QQuickItem* item, bool verticalLegend, bo
         }
     }
 
+    QQuickItem* axisOverlay = item ? item->findChild<QQuickItem*>("axisLabelOverlay") : nullptr;
+    if (axisOverlay) axisOverlay->setVisible(false);
+
+    OpenGLWidgetQML* oglWidget = qobject_cast<OpenGLWidgetQML*>(item);
+    if (!oglWidget) oglWidget = OpenGLWidgetQML::getInstance();
+    const bool prevAxes = oglWidget ? oglWidget->showCornerAxes() : true;
+    if (oglWidget) oglWidget->setShowCornerAxes(false);
+
     auto grab = (!targetSize.isEmpty()) ? item->grabToImage(targetSize) : item->grabToImage();
     if (!grab) {
+        if (axisOverlay) axisOverlay->setVisible(true);
+        if (oglWidget) oglWidget->setShowCornerAxes(prevAxes);
         emit exportFailed(tr("grabToImage() failed — item has no window"));
         return;
     }
 
     connect(grab.data(), &QQuickItemGrabResult::ready, this,
-            [this, grab, verticalLegend, fieldActive, item]()
+            [this, grab, verticalLegend, fieldActive, item, axisOverlay, oglWidget, prevAxes]()
             {
+                if (axisOverlay) axisOverlay->setVisible(true);
+                if (oglWidget) oglWidget->setShowCornerAxes(prevAxes);
                 QImage rawImg = grab->image();
                 if (rawImg.isNull()) {
                     emit exportFailed(tr("Captured image is empty"));

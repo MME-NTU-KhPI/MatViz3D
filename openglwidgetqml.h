@@ -24,6 +24,8 @@ class OpenGLWidgetQML : public QQuickFramebufferObject {
     Q_OBJECT
 
     QML_ELEMENT
+    Q_PROPERTY(bool showCornerAxes READ showCornerAxes WRITE setShowCornerAxes NOTIFY showCornerAxesChanged)
+
 protected:
     static RenderOpenGL* m_render;
     static OpenGLWidgetQML* instance;
@@ -46,9 +48,11 @@ public:
      */
     int32_t*** getVoxels();
 
-    QImage captureScreenshot();
-    QImage captureScreenshotWithWhiteBackground();
-    void captureScreenshotToClipboard();
+    Q_INVOKABLE QImage captureScreenshot(bool includeGizmo = false);
+    Q_INVOKABLE QImage captureScreenshotWithWhiteBackground(bool includeGizmo = false);
+    Q_INVOKABLE void captureScreenshotToClipboard(bool includeGizmo = false);
+    Q_INVOKABLE void setShowCornerAxes(bool show);
+    bool showCornerAxes() const;
     // header, public:
     Q_INVOKABLE void requestSvgExport(const QString& path);
 
@@ -310,6 +314,7 @@ signals:
     void colorMapPaletteChanged();
     void tensorStateChanged();
     void axisLabelsChanged();
+    void showCornerAxesChanged();
 
 private:
     QTimer* timer;
@@ -354,6 +359,7 @@ protected:
     std::vector<RenderOpenGL::Voxel> voxelScene;
 
     bool plotWireFrame = false;
+    bool m_showCornerAxes = true;
 
     void handleResize();
 
