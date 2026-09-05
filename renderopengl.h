@@ -14,6 +14,7 @@
 #include <QOpenGLContext>
 #include "cornergizmo.hpp"
 #include "glvertex.hpp"
+#include "svgexporter.hpp"
 
 class RenderOpenGL : public QQuickFramebufferObject::Renderer, protected QOpenGLFunctions, public QObject
 {
@@ -33,6 +34,8 @@ public:
 private:
     static void debugCallback(GLenum source, GLenum type, GLuint id, GLenum severity,
                                GLsizei length, const GLchar* message, const void* userParam);
+    bool    m_svgExportRequested = false;
+    QString m_svgExportPath;
 
 public:
     void setPlotWireFrame(bool status);
@@ -72,6 +75,8 @@ public:
     /// Alpha multiplier applied to the voxel block only, so overlay geometry
     /// inside it stays visible. 1.0 == opaque, the previous behaviour.
     void setVoxelOpacity(float opacity);
+
+    void requestSvgExport(const QString& path);  // GUI thread -> served next frame
 
 protected:
 

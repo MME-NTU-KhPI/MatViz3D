@@ -381,6 +381,12 @@ void RenderOpenGL::drawAxis()
     qDebug() << "RenderOpenGL::drawAxis() - END (immediate mode test)";
 }
 
+void RenderOpenGL::requestSvgExport(const QString& path)
+{
+    m_svgExportPath = path;        // remembered until the next paintGL
+    m_svgExportRequested = true;   // same idiom as isVBOupdateRequired
+    update();                      // force a frame so the request is served
+}
 
 void RenderOpenGL::drawCornerAxes()
 {
@@ -835,6 +841,15 @@ void RenderOpenGL::paintGL()
     model.setToIdentity();
 
     QMatrix4x4 mvp = m_projection * view * model;
+
+    if (m_svgExportRequested) {
+        // Reuse the exact on-screen MVP -> SVG matches the viewport 1:1.
+        svgx::writeVoxelSVG(m_svgExportPath,
+                            svgx::facesFromQuadBuffer(voxelScene),
+                            mvp, width, height, Qt::white,
+                            /*drawAxes=*/ true, numCubes);   // numCubes is a member
+        m_svgExportRequested = false;
+    }
 
     drawAxisWithMVP(mvp);
 

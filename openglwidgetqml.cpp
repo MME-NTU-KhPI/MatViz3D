@@ -113,6 +113,13 @@ void OpenGLWidgetQML::qNormalizeAngle(int &angle)
         angle -= 360 * 16;
 }
 
+// cpp — mirror exactly how your other setters reach m_render:
+void OpenGLWidgetQML::requestSvgExport(const QString& path)
+{
+    if (m_render) m_render->requestSvgExport(path);  // guard like the other setters
+    update();                                        // force a frame to serve it
+}
+
 QPointF OpenGLWidgetQML::projectAxisLabel(const QVector3D& dir) const
 {
     // Same view matrix as RenderOpenGL::drawCornerAxes(): rotation only, no

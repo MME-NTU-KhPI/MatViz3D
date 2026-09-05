@@ -49,6 +49,8 @@ public:
     QImage captureScreenshot();
     QImage captureScreenshotWithWhiteBackground();
     void captureScreenshotToClipboard();
+    // header, public:
+    Q_INVOKABLE void requestSvgExport(const QString& path);
 
 
     std::vector<std::array<GLubyte, 4>> generateDistinctColors();

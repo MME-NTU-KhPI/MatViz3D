@@ -189,6 +189,7 @@ HEADERS += \
     stressanalysis_fft.h \
     stressanalysiscontroller.h \
     stressresult.h \
+    svgexporter.hpp \
     tensorfieldsnapshot.h \
     tensorglyphbuilder.h \
     tensormath.hpp \

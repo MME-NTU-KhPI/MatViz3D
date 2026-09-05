@@ -202,6 +202,20 @@ void ExportController::saveAsSVG(QQuickItem* item)
             });
 }
 
+void ExportController::saveAsVectorSVG(QQuickItem* /*item*/)
+{
+    OpenGLWidgetQML* ogl = OpenGLWidgetQML::getInstance();
+    if (!ogl) { emit exportFailed(tr("Renderer is not available")); return; }
+
+    QString fileName = QFileDialog::getSaveFileName(
+        nullptr, tr("Save as vector SVG"), "", tr("SVG Files (*.svg)"));
+    if (fileName.isEmpty()) return;
+    if (!fileName.endsWith(".svg", Qt::CaseInsensitive)) fileName += ".svg";
+
+    ogl->requestSvgExport(fileName);  // queued; written on the render thread next frame
+    emit exportFinished(fileName);    // optimistic — see note below
+}
+
 // ═══════════════════════════════════════════════════════════════════
 //  Shared access to voxels
 // ═══════════════════════════════════════════════════════════════════
