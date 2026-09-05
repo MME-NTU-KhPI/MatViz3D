@@ -8,6 +8,8 @@
 #include <array>
 #include <random>
 #include <memory>
+#include <limits>
+#include <algorithm>
 #include <QDebug>
 #include "ansyswrapper.h"   // tensor_components enum, ansysWrapper (kept alive for field visualization)
 #include "phasematerial.h"  // PhaseAssignment, PhaseMaterial, cubicVoigt()
@@ -187,6 +189,80 @@ inline double eqvStrainPipeline(const double e[6])
 {
     const double a = e[0] - e[1], b = e[1] - e[2], c = e[2] - e[0];
     return std::sqrt(2.0 / 9.0 * (a * a + b * b + c * c) + 1.0 / 3.0 * (e[3] * e[3] + e[4] * e[4] + e[5] * e[5]));
+}
+
+// Converts a dense N^3 per-voxel result table (from FFT or voxel-based HDF5 datasets)
+// into FieldVisualizationData for 3D flat-shaded rendering without nodal lookups.
+inline std::shared_ptr<FieldVisualizationData> buildFieldFromResults(
+    int N, const std::vector<std::vector<float>>& results, const std::vector<float>& eps_load)
+{
+    if (N <= 0 || results.empty()) return nullptr;
+
+    const size_t denseN = static_cast<size_t>(N) * N * N;
+    auto field = std::make_shared<FieldVisualizationData>();
+    field->numCubes = N;
+
+    static const int stressComp[6] = {SX, SY, SZ, SXY, SYZ, SXZ};
+    static const int strainComp[6] = {EpsX, EpsY, EpsZ, EpsXY, EpsYZ, EpsXZ};
+
+    auto initComp = [&](int comp) {
+        field->componentValid[comp] = true;
+        field->perVoxel[comp].assign(denseN, 0.0f);
+        field->componentMin[comp] = std::numeric_limits<float>::max();
+        field->componentMax[comp] = -std::numeric_limits<float>::max();
+    };
+    for (int c : stressComp) initComp(c);
+    for (int c : strainComp) initComp(c);
+    initComp(SEQV);
+    initComp(EpsEQV);
+
+    auto setVal = [&](int comp, int denseIdx, float val) {
+        field->perVoxel[comp][denseIdx] = val;
+        field->componentMin[comp] = std::min(field->componentMin[comp], val);
+        field->componentMax[comp] = std::max(field->componentMax[comp], val);
+    };
+
+    for (size_t rowIdx = 0; rowIdx < results.size(); ++rowIdx) {
+        const auto& row = results[rowIdx];
+        int ix = 0, iy = 0, iz = 0;
+        if (X < (int)row.size() && Y < (int)row.size() && Z < (int)row.size()) {
+            ix = std::clamp(static_cast<int>(std::round(row[X])), 0, N - 1);
+            iy = std::clamp(static_cast<int>(std::round(row[Y])), 0, N - 1);
+            iz = std::clamp(static_cast<int>(std::round(row[Z])), 0, N - 1);
+        } else {
+            iz = int(rowIdx / (N * N));
+            iy = int((rowIdx / N) % N);
+            ix = int(rowIdx % N);
+        }
+        const int denseIdx = field->denseIndex(ix, iy, iz);
+
+        for (int c : stressComp) {
+            if (c < (int)row.size()) setVal(c, denseIdx, row[c]);
+        }
+        for (int c : strainComp) {
+            if (c < (int)row.size()) setVal(c, denseIdx, row[c]);
+        }
+        if (SEQV < (int)row.size()) {
+            setVal(SEQV, denseIdx, row[SEQV]);
+        } else if (SXZ < (int)row.size()) {
+            const double s[6] = {row[SX], row[SY], row[SZ], row[SXY], row[SYZ], row[SXZ]};
+            setVal(SEQV, denseIdx, float(vonMisesPipeline(s)));
+        }
+        if (EpsEQV < (int)row.size()) {
+            setVal(EpsEQV, denseIdx, row[EpsEQV]);
+        } else if (EpsXZ < (int)row.size()) {
+            const double e[6] = {row[EpsX], row[EpsY], row[EpsZ], row[EpsXY], row[EpsYZ], row[EpsXZ]};
+            setVal(EpsEQV, denseIdx, float(eqvStrainPipeline(e)));
+        }
+    }
+
+    if (!eps_load.empty()) {
+        for (size_t i = 0; i < std::min<size_t>(6, eps_load.size()); ++i) {
+            field->macroStrain[i] = eps_load[i];
+        }
+    }
+
+    return field;
 }
 
 // Uniform-random SO(3) orientations as Bunge ZXZ Euler angles (radians), one

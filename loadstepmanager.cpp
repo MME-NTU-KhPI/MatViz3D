@@ -53,9 +53,9 @@ void LoadStepManager::calculateVonMisesStressAndStrain()
     }
 
     // Update avg, max, and min arrays
-    loadstepResultsAvg.resize(numColumns + num_new_rows, 0.0f);
-    loadstepResultsMax.resize(numColumns + num_new_rows, -FLT_MAX);
-    loadstepResultsMin.resize(numColumns + num_new_rows, FLT_MAX);
+    loadstepResultsAvg.assign(numColumns + num_new_rows, 0.0f);
+    loadstepResultsMax.assign(numColumns + num_new_rows, -FLT_MAX);
+    loadstepResultsMin.assign(numColumns + num_new_rows, FLT_MAX);
 
     for (const auto& row : loadstepResults) {
         for (int j = 0; j < numColumns + num_new_rows; j++) {
@@ -65,15 +65,20 @@ void LoadStepManager::calculateVonMisesStressAndStrain()
         }
     }
 
-    for (int j = 0; j < numColumns + num_new_rows; j++) {
-        loadstepResultsAvg[j] /= static_cast<float>(loadstepResults.size());
+    if (!loadstepResults.empty()) {
+        for (int j = 0; j < numColumns + num_new_rows; j++) {
+            loadstepResultsAvg[j] /= static_cast<float>(loadstepResults.size());
+        }
     }
 }
 
 float LoadStepManager::scaleValue01(float val, int component) const
 {
-    if (fabs(loadstepResultsMax[component] - loadstepResultsMin[component]) > 0) {
-        return (val - loadstepResultsMin[component]) / (loadstepResultsMax[component] - loadstepResultsMin[component]);
+    if (component < 0 || component >= static_cast<int>(loadstepResultsMax.size()) || component >= static_cast<int>(loadstepResultsMin.size()))
+        return 1.0f;
+    float range = loadstepResultsMax[component] - loadstepResultsMin[component];
+    if (std::fabs(range) > 1e-12f) {
+        return (val - loadstepResultsMin[component]) / range;
     }
     return 1.0f;
 }
@@ -88,24 +93,30 @@ float LoadStepManager::getValByCoord(float x, float y, float z, int component) c
 
 float LoadStepManager::getValByCoord(const n3d::node3d& key, int component) const
 {
-    if (resultNodes.contains(key)) {
-        int lineId = resultNodes[key];
-        return loadstepResults[lineId][component];
+    auto it = resultNodes.constFind(key);
+    if (it != resultNodes.constEnd()) {
+        int lineId = it.value();
+        if (lineId >= 0 && lineId < static_cast<int>(loadstepResults.size())) {
+            const auto& row = loadstepResults[lineId];
+            if (component >= 0 && component < static_cast<int>(row.size())) {
+                return row[component];
+            }
+        }
     }
-    qDebug() << "Coordinate not found:" << key[0] << key[1] << key[2];
     return 0.0f;
 }
 
 
 void LoadStepManager::createNodesHash()
 {
+    resultNodes.clear();
     n3d::node3d key;
     for (size_t i = 0; i < loadstepResults.size(); i++)
     {
         key.data[0] = loadstepResults[i][X];
         key.data[1] = loadstepResults[i][Y];
         key.data[2] = loadstepResults[i][Z];
-        resultNodes.insert(key, i);
+        resultNodes.insert(key, static_cast<int>(i));
     }
 }
 
@@ -113,6 +124,8 @@ void LoadStepManager::createNodesHash()
 void LoadStepManager::clearData()
 {
     m_isValid = false;
+    current_geom_set_num = 0;
+    current_sub_set_num = 0;
     loadstepResults.clear();
     loadstepResultsAvg.clear();
     loadstepResultsMax.clear();
@@ -120,6 +133,14 @@ void LoadStepManager::clearData()
     resultNodes.clear();
     geom_list.clear();
     geom_sub_list.clear();
+    local_cs.clear();
+    voxels_vector.clear();
+    if (voxels) {
+        Parent_Algorithm::Delete3D<int32_t>(voxels);
+        voxels = nullptr;
+    }
+    cubeSize = 0;
+    numPoints = 0;
 }
 
 
@@ -151,7 +172,23 @@ bool LoadStepManager::LoadFromHDF5(const QString& filePath)
         }
     }
 
-    bool res = LoadGeomSet(1, hdf5);
+    // Sort geom_list numerically if names are integers
+    std::sort(geom_list.begin(), geom_list.end(), [](const QString& a, const QString& b) {
+        bool okA = false, okB = false;
+        int intA = a.toInt(&okA);
+        int intB = b.toInt(&okB);
+        if (okA && okB) return intA < intB;
+        return a < b;
+    });
+
+    int firstSet = 1;
+    if (!geom_list.isEmpty()) {
+        bool ok = false;
+        int parsed = geom_list.first().toInt(&ok);
+        if (ok) firstSet = parsed;
+    }
+
+    bool res = LoadGeomSet(firstSet, hdf5);
     m_isValid = res;
     return res;
 }
@@ -201,7 +238,9 @@ bool LoadStepManager::LoadGeomSet(int geom_set_num, HDF5Wrapper& hdf5)
                 voxels[i][j][k] = voxels_vector[i][j][k];
             }
 
-    return LoadGeomSubStep(geom_set_num, 1, hdf5);
+    LoadGeomSubStep(geom_set_num, 1, hdf5);
+    m_isValid = (cubeSize > 0 && voxels != nullptr);
+    return m_isValid;
 }
 
 bool LoadStepManager::LoadGeomSubStep(int sub_set_num)
@@ -210,45 +249,77 @@ bool LoadStepManager::LoadGeomSubStep(int sub_set_num)
     return this->LoadGeomSubStep(current_geom_set_num, sub_set_num, hdf5);
 }
 
+bool LoadStepManager::LoadGeomSubStep(int geom_set_num, int sub_set_num)
+{
+    HDF5Wrapper hdf5(m_filePath.toStdString());
+    return this->LoadGeomSubStep(geom_set_num, sub_set_num, hdf5);
+}
+
 bool LoadStepManager::LoadGeomSubStep(int geom_set_num, int sub_set_num, HDF5Wrapper& hdf5)
 {
     qDebug() << "Loading geom sub step. Geom id = " << geom_set_num << "; Sub_set id " << sub_set_num;
+    current_geom_set_num = geom_set_num;
+    current_sub_set_num = sub_set_num;
     std::string set_prefix = "/" + std::to_string(geom_set_num);
-    // Iterate through load steps
-    std::vector<std::string> loadSteps = hdf5.listDataGroups(set_prefix);
+    std::string ls_name = "ls_" + std::to_string(sub_set_num);
+    std::string ls_prefix = set_prefix + "/" + ls_name;
+
     bool res = false;
-    geom_sub_list.clear();
-    for (const auto& group : loadSteps)
+    if (hdf5.datasetExists(ls_prefix, "results"))
     {
-        std::string ls_name = "ls_" + std::to_string(sub_set_num);
-        if (group == ls_name) // Check if the group is a load step
+        this->loadstepResultsAvg = hdf5.readVectorFloat(ls_prefix, "results_avg");
+        this->loadstepResultsMax = hdf5.readVectorFloat(ls_prefix, "results_max");
+        this->loadstepResultsMin = hdf5.readVectorFloat(ls_prefix, "results_min");
+        this->loadstepResults = hdf5.readVectorVectorFloat(ls_prefix, "results");
+        this->eps_as_loading = hdf5.readVectorFloat(ls_prefix, "eps_as_loading");
+
+        this->createNodesHash();
+        res = true;
+        calculateVonMisesStressAndStrain();
+    }
+
+    if (geom_sub_list.isEmpty() || !res)
+    {
+        std::vector<std::string> loadSteps = hdf5.listDataGroups(set_prefix);
+        if (!res)
         {
-            std::string ls_prefix = set_prefix + "/" + group;
+            for (const auto& group : loadSteps)
+            {
+                if (group == ls_name)
+                {
+                    std::string group_prefix = set_prefix + "/" + group;
+                    this->loadstepResultsAvg = hdf5.readVectorFloat(group_prefix, "results_avg");
+                    this->loadstepResultsMax = hdf5.readVectorFloat(group_prefix, "results_max");
+                    this->loadstepResultsMin = hdf5.readVectorFloat(group_prefix, "results_min");
+                    this->loadstepResults = hdf5.readVectorVectorFloat(group_prefix, "results");
+                    this->eps_as_loading = hdf5.readVectorFloat(group_prefix, "eps_as_loading");
 
-            this->loadstepResultsAvg = hdf5.readVectorFloat(ls_prefix, "results_avg");
-            this->loadstepResultsMax = hdf5.readVectorFloat(ls_prefix, "results_max");
-            this->loadstepResultsMin = hdf5.readVectorFloat(ls_prefix, "results_min");
-            this->loadstepResults = hdf5.readVectorVectorFloat(ls_prefix, "results");
-            this->eps_as_loading = hdf5.readVectorFloat(ls_prefix, "eps_as_loading");
-
-            qDebug() << "\tLoad Step:" << group.c_str();
-            qDebug() << "\tResults Avg:" << loadstepResultsAvg.size() << "elements";
-            qDebug() << "\tResults Max:" << loadstepResultsMax.size() << "elements";
-            qDebug() << "\tResults Min:" << loadstepResultsMin.size() << "elements";
-            qDebug() << "\tResults:" << loadstepResults.size() << "rows";
-            qDebug() << "\tEps as Loading:" << eps_as_loading.size() << "elements";
-
-            this->createNodesHash();
-
-            res =  true;
-            calculateVonMisesStressAndStrain();
+                    this->createNodesHash();
+                    res = true;
+                    calculateVonMisesStressAndStrain();
+                    break;
+                }
+            }
         }
 
-        if (group.find("ls_") != std::string::npos)
+        if (geom_sub_list.isEmpty())
         {
-            geom_sub_list.push_back(QString::fromStdString(group));
+            for (const auto& group : loadSteps)
+            {
+                if (group.find("ls_") != std::string::npos)
+                {
+                    geom_sub_list.push_back(QString::fromStdString(group));
+                }
+            }
+            std::sort(geom_sub_list.begin(), geom_sub_list.end(), [](const QString& a, const QString& b) {
+                int numA = 0, numB = 0;
+                if (a.startsWith("ls_")) numA = a.mid(3).toInt();
+                if (b.startsWith("ls_")) numB = b.mid(3).toInt();
+                return numA < numB;
+            });
         }
     }
+
     return res;
 }
 

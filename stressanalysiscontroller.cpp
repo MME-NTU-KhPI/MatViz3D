@@ -577,33 +577,46 @@ bool StressAnalysisController::loadFromHDF5(const QString& filePath)
     }
 
     if (lsm.hasLoadStepData()) {
-        auto wr = std::make_shared<ansysWrapper>(true);
-        wr->local_cs = lsm.getLocalCS();
-        wr->loadstep_results = lsm.getLoadStepResults();
-        wr->loadstep_results_avg = lsm.getLoadStepResultsAvg();
-        wr->loadstep_results_max = lsm.getLoadStepResultsMax();
-        wr->loadstep_results_min = lsm.getLoadStepResultsMin();
-        const auto& eps_load = lsm.getEpsAsLoading();
-        if (!eps_load.empty()) {
-            wr->eps_as_loading = {eps_load};
-            for (size_t i = 0; i < std::min<size_t>(6, eps_load.size()); ++i) {
-                m_lastEps[i] = eps_load[i];
-            }
-        }
-        wr->createResultNodesHash();
+        const auto& results = lsm.getLoadStepResults();
+        const int numCubes = (int)Parameters::instance()->getSize();
+        const size_t expectedVoxelCount = static_cast<size_t>(numCubes) * numCubes * numCubes;
+        const bool isPerVoxel = (results.size() == expectedVoxelCount);
 
         m_lastResult = SingleShotResult{};
-        m_lastResult.ansysField = wr;
-        if (!wr->loadstep_results_avg.empty() && SEQV < (int)wr->loadstep_results_avg.size()) {
-            m_lastResult.von_mises = wr->loadstep_results_avg[SEQV];
-            if (SX < (int)wr->loadstep_results_avg.size())  m_lastResult.macro_stress[0] = wr->loadstep_results_avg[SX];
-            if (SY < (int)wr->loadstep_results_avg.size())  m_lastResult.macro_stress[1] = wr->loadstep_results_avg[SY];
-            if (SZ < (int)wr->loadstep_results_avg.size())  m_lastResult.macro_stress[2] = wr->loadstep_results_avg[SZ];
-            if (SXY < (int)wr->loadstep_results_avg.size()) m_lastResult.macro_stress[3] = wr->loadstep_results_avg[SXY];
-            if (SYZ < (int)wr->loadstep_results_avg.size()) m_lastResult.macro_stress[4] = wr->loadstep_results_avg[SYZ];
-            if (SXZ < (int)wr->loadstep_results_avg.size()) m_lastResult.macro_stress[5] = wr->loadstep_results_avg[SXZ];
-        }
         m_lastResult.ok = true;
+
+        if (isPerVoxel) {
+            auto field = buildFieldFromResults(numCubes, results, lsm.getEpsAsLoading());
+            m_lastResult.fftField = field;
+        } else {
+            auto wr = std::make_shared<ansysWrapper>(true, false);
+            wr->local_cs = lsm.getLocalCS();
+            wr->loadstep_results = lsm.getLoadStepResults();
+            wr->loadstep_results_avg = lsm.getLoadStepResultsAvg();
+            wr->loadstep_results_max = lsm.getLoadStepResultsMax();
+            wr->loadstep_results_min = lsm.getLoadStepResultsMin();
+            const auto& eps_load = lsm.getEpsAsLoading();
+            if (!eps_load.empty()) {
+                wr->eps_as_loading = {eps_load};
+                for (size_t i = 0; i < std::min<size_t>(6, eps_load.size()); ++i) {
+                    m_lastEps[i] = eps_load[i];
+                }
+            }
+            wr->createResultNodesHash();
+            m_lastResult.ansysField = wr;
+        }
+
+        const auto& avg = lsm.getLoadStepResultsAvg();
+        if (!avg.empty() && SEQV < (int)avg.size()) {
+            m_lastResult.von_mises = avg[SEQV];
+            if (SX < (int)avg.size())  m_lastResult.macro_stress[0] = avg[SX];
+            if (SY < (int)avg.size())  m_lastResult.macro_stress[1] = avg[SY];
+            if (SZ < (int)avg.size())  m_lastResult.macro_stress[2] = avg[SZ];
+            if (SXY < (int)avg.size()) m_lastResult.macro_stress[3] = avg[SXY];
+            if (SYZ < (int)avg.size()) m_lastResult.macro_stress[4] = avg[SYZ];
+            if (SXZ < (int)avg.size()) m_lastResult.macro_stress[5] = avg[SXZ];
+        }
+
         m_hasResult = true;
         pushResultToView();
         emit resultChanged();
@@ -622,3 +635,60 @@ void StressAnalysisController::openHDF5File()
         loadFromHDF5(fileName);
     }
 }
+
+void StressAnalysisController::updateFromWrapper(const std::shared_ptr<ansysWrapper>& wr)
+{
+    if (!wr) return;
+    m_lastResult = SingleShotResult{};
+    m_lastResult.ansysField = wr;
+    m_lastResult.ok = true;
+    if (!wr->loadstep_results_avg.empty() && SEQV < (int)wr->loadstep_results_avg.size()) {
+        m_lastResult.von_mises = wr->loadstep_results_avg[SEQV];
+        if (SX < (int)wr->loadstep_results_avg.size())  m_lastResult.macro_stress[0] = wr->loadstep_results_avg[SX];
+        if (SY < (int)wr->loadstep_results_avg.size())  m_lastResult.macro_stress[1] = wr->loadstep_results_avg[SY];
+        if (SZ < (int)wr->loadstep_results_avg.size())  m_lastResult.macro_stress[2] = wr->loadstep_results_avg[SZ];
+        if (SXY < (int)wr->loadstep_results_avg.size()) m_lastResult.macro_stress[3] = wr->loadstep_results_avg[SXY];
+        if (SYZ < (int)wr->loadstep_results_avg.size()) m_lastResult.macro_stress[4] = wr->loadstep_results_avg[SYZ];
+        if (SXZ < (int)wr->loadstep_results_avg.size()) m_lastResult.macro_stress[5] = wr->loadstep_results_avg[SXZ];
+    }
+    m_hasResult = true;
+    emit resultChanged();
+    emit fieldComponentChanged();
+}
+
+void StressAnalysisController::updateFromFFT(const std::shared_ptr<FieldVisualizationData>& field,
+                                             const std::vector<float>& avg,
+                                             double vonMises)
+{
+    if (!field) return;
+    m_lastResult = SingleShotResult{};
+    m_lastResult.fftField = field;
+    m_lastResult.ok = true;
+    m_lastResult.von_mises = vonMises;
+    if (!avg.empty()) {
+        if (m_lastResult.von_mises <= 0.0 && SEQV < (int)avg.size()) {
+            m_lastResult.von_mises = avg[SEQV];
+        }
+        if (SX < (int)avg.size())  m_lastResult.macro_stress[0] = avg[SX];
+        if (SY < (int)avg.size())  m_lastResult.macro_stress[1] = avg[SY];
+        if (SZ < (int)avg.size())  m_lastResult.macro_stress[2] = avg[SZ];
+        if (SXY < (int)avg.size()) m_lastResult.macro_stress[3] = avg[SXY];
+        if (SYZ < (int)avg.size()) m_lastResult.macro_stress[4] = avg[SYZ];
+        if (SXZ < (int)avg.size()) m_lastResult.macro_stress[5] = avg[SXZ];
+    }
+    m_hasResult = true;
+    emit resultChanged();
+    emit fieldComponentChanged();
+}
+
+void StressAnalysisController::clearResult()
+{
+    m_lastResult = SingleShotResult{};
+    m_hasResult = false;
+    m_showField = false;
+    m_showDeformed = false;
+    emit resultChanged();
+    emit showFieldChanged();
+    emit showDeformedChanged();
+}
+

@@ -93,6 +93,7 @@ SOURCES += \
         algorithmplugin.cpp \
         ansyswrapper.cpp \
         composite.cpp \
+        deformed_state_analyzer.cpp \
         dlca.cpp \
         legendview.cpp \
         loadstepmanager.cpp \
@@ -117,6 +118,7 @@ SOURCES += \
         stressanalysis.cpp \
         stressanalysis_fft.cpp \
         stressanalysiscontroller.cpp \
+        hdf5projectcontroller.cpp \
         tensorfieldsnapshot.cpp \
         tensorglyphbuilder.cpp \
         tensorstreamlinebuilder.cpp \
@@ -146,12 +148,14 @@ HEADERS += \
     consolelogger.h \
     cpuinfo.hpp \
     dbmanager.h \
+    deformed_state_analyzer.h \
     exportcontroller.h \
     fft_homog.hpp \
     fft_solver_session.hpp \
     glshaders.hpp \
     glvertex.hpp \
     grain_analyzer.h \
+    hdf5projectcontroller.h \
     hdf5wrapper.h \
     hillcriterion.h \
     algorithmfactory.h \

@@ -17,6 +17,7 @@
 #include "exportcontroller.h"
 #include "stressanalysiscontroller.h"
 #include "texturecontroller.h"
+#include "hdf5projectcontroller.h"
 #include "tensormath_selftest.hpp"
 
 #ifdef _WIN32
@@ -118,6 +119,7 @@ int main(int argc, char *argv[])
     MainWindowWrapper mainWindowWrapper;
     MaterialDatabaseViewWrapper materialDatabaseViewWrapper;
     SchemaController schemaController;
+    Hdf5ProjectController hdf5ProjectController;
     StatisticsController statisticsController;
     ExportController exportController;
     StressAnalysisController stressAnalysisController;
@@ -144,6 +146,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("exportController", &exportController);
     engine.rootContext()->setContextProperty("stressAnalysisController", &stressAnalysisController);
     engine.rootContext()->setContextProperty("textureController", &textureController);
+    engine.rootContext()->setContextProperty("hdf5ProjectController", &hdf5ProjectController);
 
     const QUrl url(QStringLiteral("qrc:/main.qml"));
     QObject::connect(

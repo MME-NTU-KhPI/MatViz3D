@@ -13,6 +13,7 @@ public:
     static LoadStepManager& getInstance(); // Singleton accessor
 
     bool LoadGeomSubStep(int sub_set_num);
+    bool LoadGeomSubStep(int geom_set_num, int sub_set_num);
     bool LoadGeomSet(int geom_set_num);
     float scaleValue01(float val, int component) const;
     float getValByCoord(float x, float y, float z, int component) const;
@@ -32,6 +33,10 @@ public:
     int32_t *** getVoxelPtr();
 
     void calculateVonMisesStressAndStrain();
+
+    int getCurrentGeomSetNum() const { return current_geom_set_num; }
+    int getCurrentSubSetNum() const { return current_sub_set_num; }
+    const QString& getFilePath() const { return m_filePath; }
 
     const std::vector<std::vector<float>>& getLocalCS() const { return local_cs; }
     const std::vector<std::vector<float>>& getLoadStepResults() const { return loadstepResults; }
@@ -63,6 +68,7 @@ protected:
     QString m_filePath;
 
     int current_geom_set_num = 0;
+    int current_sub_set_num = 0;
 
     int32_t ***voxels = nullptr;
     std::vector<std::vector<std::vector<int32_t>>> voxels_vector;

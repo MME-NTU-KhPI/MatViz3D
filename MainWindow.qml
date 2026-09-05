@@ -47,17 +47,17 @@ Window {
     }
 
     Loader {
-            id: stressAnalysisLoader
-            source: "StressAnalysisView.qml"
-            active: false
-        }
+        id: stressAnalysisLoader
+        source: "StressAnalysisView.qml"
+        active: false
+    }
 
     Loader
     {
-            id: textureLoader
-            source: "TextureView.qml"
-            active: false
-            onLoaded: item.visible = true
+        id: textureLoader
+        source: "TextureView.qml"
+        active: false
+        onLoaded: item.visible = true
     }
 
     function openTextureEditor() {
@@ -188,7 +188,7 @@ Window {
                             {
                                 text: qsTr("Open project");
                                 icon.source: "qrc:/img/fileMenu/open_project.svg"
-                                onTriggered: exportController.openHDF5()
+                                onTriggered: hdf5ProjectController.openFileDialog()
                             }
                             MenuSeparator { }
                             Action {
@@ -1206,9 +1206,9 @@ Window {
         id: _itemFieldView
         x: parent.width - (_itemFieldView.width + 30)
         y: menuBar_rec.height + 20
-        width: mainWindow.width < 1250 ? 310 : 350
-        height: 250
-        visible: stressAnalysisController.hasResult
+        width: mainWindow.width < 1250 ? 320 : 360
+        height: fieldViewCol.implicitHeight + 30
+        visible: stressAnalysisController.hasResult || (hdf5ProjectController.isOpen && hdf5ProjectController.loadSteps.length > 0)
 
         function fieldFmt(v) {
             if (v === undefined || v === null) return "0";
@@ -1224,6 +1224,7 @@ Window {
             anchors.fill: parent
 
             Column {
+                id: fieldViewCol
                 anchors.fill: parent
                 anchors.margins: 15
                 spacing: 12
@@ -1233,6 +1234,210 @@ Window {
                     text: qsTr("Field view")
                     font.pixelSize: 14
                     font.family: montserrat.name
+                }
+
+                // Load Step Navigation (visible when HDF5 project with load steps is open)
+                Column {
+                    width: parent.width
+                    spacing: 6
+                    visible: hdf5ProjectController.isOpen && hdf5ProjectController.loadSteps.length > 0
+
+                    // Row with Geometry selector if multiple geometries
+                    Row {
+                        width: parent.width
+                        spacing: 8
+                        visible: hdf5ProjectController.geomSets.length > 1
+                        Text {
+                            text: qsTr("Geometry:")
+                            color: "#c6c6c6"
+                            font.pixelSize: 13
+                            font.family: inter.name
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        ComboBox {
+                            width: 140
+                            model: hdf5ProjectController.geomSets
+                            currentIndex: hdf5ProjectController.currentGeomIndex
+                            onActivated: hdf5ProjectController.selectGeometry(currentIndex)
+                        }
+                    }
+
+                    // Stepper row with vector chevrons, step readout, and sleek stats button
+                    Row {
+                        width: parent.width
+                        spacing: 8
+
+                        // Vector Prev Button (<)
+                        Rectangle {
+                            id: fieldPrevStepBtn
+                            width: 26; height: 26
+                            radius: 6
+                            color: fieldPrevMouse.pressed ? "#161616" : (fieldPrevMouse.containsMouse ? "#3a3a3a" : "#262626")
+                            border.color: fieldPrevMouse.containsMouse ? "#666666" : "#404040"
+                            border.width: 1
+                            opacity: hdf5ProjectController.currentLoadStepIndex > 0 ? 1.0 : 0.35
+
+                            Canvas {
+                                anchors.centerIn: parent
+                                width: 8; height: 12
+                                onPaint: {
+                                    var ctx = getContext("2d");
+                                    ctx.reset();
+                                    ctx.beginPath();
+                                    ctx.moveTo(6.5, 1);
+                                    ctx.lineTo(1.5, 6);
+                                    ctx.lineTo(6.5, 11);
+                                    ctx.strokeStyle = "#e0e0e0";
+                                    ctx.lineWidth = 2.0;
+                                    ctx.lineCap = "round";
+                                    ctx.lineJoin = "round";
+                                    ctx.stroke();
+                                }
+                            }
+
+                            ToolTip.visible: fieldPrevMouse.containsMouse
+                            ToolTip.text: qsTr("Previous load step")
+
+                            MouseArea {
+                                id: fieldPrevMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: parent.opacity > 0.5 ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                onClicked: {
+                                    if (hdf5ProjectController.currentLoadStepIndex > 0)
+                                        hdf5ProjectController.prevStep();
+                                }
+                            }
+                        }
+
+                        Text {
+                            width: parent.width - 150
+                            text: hdf5ProjectController.currentLoadStepName + " (" + (hdf5ProjectController.currentLoadStepIndex + 1) + "/" + hdf5ProjectController.loadSteps.length + ")"
+                            color: "#4fc3f7"
+                            font.pixelSize: 12
+                            font.family: montserrat.name
+                            font.bold: true
+                            elide: Text.ElideRight
+                            anchors.verticalCenter: parent.verticalCenter
+                            horizontalAlignment: Text.AlignHCenter
+                        }
+
+                        // Vector Next Button (>)
+                        Rectangle {
+                            id: fieldNextStepBtn
+                            width: 26; height: 26
+                            radius: 6
+                            color: fieldNextMouse.pressed ? "#161616" : (fieldNextMouse.containsMouse ? "#3a3a3a" : "#262626")
+                            border.color: fieldNextMouse.containsMouse ? "#666666" : "#404040"
+                            border.width: 1
+                            opacity: hdf5ProjectController.currentLoadStepIndex < hdf5ProjectController.loadSteps.length - 1 ? 1.0 : 0.35
+
+                            Canvas {
+                                anchors.centerIn: parent
+                                width: 8; height: 12
+                                onPaint: {
+                                    var ctx = getContext("2d");
+                                    ctx.reset();
+                                    ctx.beginPath();
+                                    ctx.moveTo(1.5, 1);
+                                    ctx.lineTo(6.5, 6);
+                                    ctx.lineTo(1.5, 11);
+                                    ctx.strokeStyle = "#e0e0e0";
+                                    ctx.lineWidth = 2.0;
+                                    ctx.lineCap = "round";
+                                    ctx.lineJoin = "round";
+                                    ctx.stroke();
+                                }
+                            }
+
+                            ToolTip.visible: fieldNextMouse.containsMouse
+                            ToolTip.text: qsTr("Next load step")
+
+                            MouseArea {
+                                id: fieldNextMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: parent.opacity > 0.5 ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                onClicked: {
+                                    if (hdf5ProjectController.currentLoadStepIndex < hdf5ProjectController.loadSteps.length - 1)
+                                        hdf5ProjectController.nextStep();
+                                }
+                            }
+                        }
+
+                        // Sleek Statistics Button
+                        Rectangle {
+                            id: fieldStatsBtn
+                            height: 26
+                            width: fieldStatsRow.implicitWidth + 16
+                            radius: 6
+                            color: fieldStatsMouse.pressed ? "#18242c" : (fieldStatsMouse.containsMouse ? "#273946" : "#1f2e38")
+                            border.color: fieldStatsMouse.containsMouse ? "#4fc3f7" : "#37474f"
+                            border.width: 1
+
+                            Row {
+                                id: fieldStatsRow
+                                anchors.centerIn: parent
+                                spacing: 5
+
+                                Canvas {
+                                    width: 12; height: 11
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    onPaint: {
+                                        var ctx = getContext("2d");
+                                        ctx.reset();
+                                        ctx.fillStyle = "#4fc3f7";
+                                        ctx.fillRect(0, 5, 2.5, 6);
+                                        ctx.fillRect(4.5, 0, 2.5, 11);
+                                        ctx.fillRect(9, 3, 2.5, 8);
+                                    }
+                                }
+
+                                Text {
+                                    text: qsTr("Statistics")
+                                    font.family: inter.name
+                                    font.pixelSize: 11
+                                    font.bold: true
+                                    color: fieldStatsMouse.containsMouse ? "#ffffff" : "#cbe4f2"
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+
+                            ToolTip.visible: fieldStatsMouse.containsMouse
+                            ToolTip.text: qsTr("View statistics for this load step")
+
+                            MouseArea {
+                                id: fieldStatsMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    statisticsLoader.active = true;
+                                    if (statisticsLoader.item) {
+                                        statisticsLoader.item.visible = true;
+                                        statisticsLoader.item.raise();
+                                    }
+                                    statisticsController.setMode("Deformed");
+                                }
+                            }
+                        }
+                    }
+
+                    // Scrubber slider
+                    Slider {
+                        width: parent.width
+                        from: 0
+                        to: Math.max(0, hdf5ProjectController.loadSteps.length - 1)
+                        stepSize: 1
+                        value: hdf5ProjectController.currentLoadStepIndex
+                        onMoved: hdf5ProjectController.selectLoadStep(Math.round(value))
+                    }
+
+                    Rectangle {
+                        width: parent.width
+                        height: 1
+                        color: "#40ffffff"
+                    }
                 }
 
                 Row {
@@ -1406,5 +1611,219 @@ Window {
         titleFont: montserrat.name
         bodyFont: inter.name
         gridSize: Parameters.size
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  Bottom Load Step Timeline Scrubber (Suggestion C)
+    // ═══════════════════════════════════════════════════════════════════
+    Rectangle {
+        id: _itemLoadStepTimeline
+        visible: hdf5ProjectController.isOpen && hdf5ProjectController.loadSteps.length > 1
+        anchors {
+            bottom: parent.bottom
+            bottomMargin: (_itemConsole.visible ? _itemConsole.height : 0) + 14
+            horizontalCenter: parent.horizontalCenter
+        }
+        height: 46
+        width: Math.min(parent.width - 80, timelineRow.implicitWidth + 36)
+        color: "#d9202020"
+        radius: 12
+        border.color: "#444444"
+        border.width: 1
+
+        RowLayout {
+            id: timelineRow
+            anchors.fill: parent
+            anchors.leftMargin: 14
+            anchors.rightMargin: 14
+            spacing: 12
+
+            Text {
+                text: qsTr("Load Step:")
+                color: "#c6c6c6"
+                font.pixelSize: 12
+                font.bold: true
+                font.family: montserrat.name
+            }
+
+            // Vector Prev Button (<)
+            Rectangle {
+                id: timelinePrevBtn
+                Layout.preferredWidth: 28
+                Layout.preferredHeight: 28
+                radius: 6
+                color: tlPrevMouse.pressed ? "#161616" : (tlPrevMouse.containsMouse ? "#3a3a3a" : "#262626")
+                border.color: tlPrevMouse.containsMouse ? "#666666" : "#404040"
+                border.width: 1
+                opacity: hdf5ProjectController.currentLoadStepIndex > 0 ? 1.0 : 0.35
+
+                Canvas {
+                    anchors.centerIn: parent
+                    width: 8; height: 12
+                    onPaint: {
+                        var ctx = getContext("2d");
+                        ctx.reset();
+                        ctx.beginPath();
+                        ctx.moveTo(6.5, 1);
+                        ctx.lineTo(1.5, 6);
+                        ctx.lineTo(6.5, 11);
+                        ctx.strokeStyle = "#e0e0e0";
+                        ctx.lineWidth = 2.0;
+                        ctx.lineCap = "round";
+                        ctx.lineJoin = "round";
+                        ctx.stroke();
+                    }
+                }
+
+                ToolTip.visible: tlPrevMouse.containsMouse
+                ToolTip.text: qsTr("Previous load step")
+
+                MouseArea {
+                    id: tlPrevMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: parent.opacity > 0.5 ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked: {
+                        if (hdf5ProjectController.currentLoadStepIndex > 0)
+                            hdf5ProjectController.prevStep();
+                    }
+                }
+            }
+
+            // Timeline Slider
+            Slider {
+                id: timelineSlider
+                Layout.preferredWidth: Math.min(320, mainWindow.width * 0.28)
+                Layout.alignment: Qt.AlignVCenter
+                from: 0
+                to: Math.max(0, hdf5ProjectController.loadSteps.length - 1)
+                stepSize: 1
+                value: hdf5ProjectController.currentLoadStepIndex
+                onMoved: hdf5ProjectController.selectLoadStep(Math.round(value))
+            }
+
+            // Vector Next Button (>)
+            Rectangle {
+                id: timelineNextBtn
+                Layout.preferredWidth: 28
+                Layout.preferredHeight: 28
+                radius: 6
+                color: tlNextMouse.pressed ? "#161616" : (tlNextMouse.containsMouse ? "#3a3a3a" : "#262626")
+                border.color: tlNextMouse.containsMouse ? "#666666" : "#404040"
+                border.width: 1
+                opacity: hdf5ProjectController.currentLoadStepIndex < hdf5ProjectController.loadSteps.length - 1 ? 1.0 : 0.35
+
+                Canvas {
+                    anchors.centerIn: parent
+                    width: 8; height: 12
+                    onPaint: {
+                        var ctx = getContext("2d");
+                        ctx.reset();
+                        ctx.beginPath();
+                        ctx.moveTo(1.5, 1);
+                        ctx.lineTo(6.5, 6);
+                        ctx.lineTo(1.5, 11);
+                        ctx.strokeStyle = "#e0e0e0";
+                        ctx.lineWidth = 2.0;
+                        ctx.lineCap = "round";
+                        ctx.lineJoin = "round";
+                        ctx.stroke();
+                    }
+                }
+
+                ToolTip.visible: tlNextMouse.containsMouse
+                ToolTip.text: qsTr("Next load step")
+
+                MouseArea {
+                    id: tlNextMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: parent.opacity > 0.5 ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked: {
+                        if (hdf5ProjectController.currentLoadStepIndex < hdf5ProjectController.loadSteps.length - 1)
+                            hdf5ProjectController.nextStep();
+                    }
+                }
+            }
+
+            Text {
+                text: hdf5ProjectController.currentLoadStepName + " (" + (hdf5ProjectController.currentLoadStepIndex + 1) + " / " + hdf5ProjectController.loadSteps.length + ")"
+                color: "#4fc3f7"
+                font.pixelSize: 12
+                font.bold: true
+                font.family: "monospace"
+            }
+
+            Rectangle {
+                width: 1
+                height: 22
+                color: "#555555"
+            }
+
+            // Macro von Mises stress readout
+            Text {
+                text: qsTr("σ_vm: ") + (hdf5ProjectController.macroVonMises > 0 ? (hdf5ProjectController.macroVonMises >= 1e5 || hdf5ProjectController.macroVonMises < 1e-3 ? hdf5ProjectController.macroVonMises.toExponential(2) : hdf5ProjectController.macroVonMises.toFixed(2)) + " Pa" : "0")
+                color: "#ffb74d"
+                font.pixelSize: 11
+                font.family: inter.name
+            }
+
+            // Direct Statistics shortcut
+            Rectangle {
+                id: timelineStatsBtn
+                Layout.preferredHeight: 28
+                Layout.preferredWidth: tlStatsRow.implicitWidth + 20
+                radius: 6
+                color: tlStatsMouse.pressed ? "#18242c" : (tlStatsMouse.containsMouse ? "#273946" : "#1f2e38")
+                border.color: tlStatsMouse.containsMouse ? "#4fc3f7" : "#37474f"
+                border.width: 1
+
+                Row {
+                    id: tlStatsRow
+                    anchors.centerIn: parent
+                    spacing: 6
+
+                    Canvas {
+                        width: 13; height: 12
+                        anchors.verticalCenter: parent.verticalCenter
+                        onPaint: {
+                            var ctx = getContext("2d");
+                            ctx.reset();
+                            ctx.fillStyle = "#4fc3f7";
+                            ctx.fillRect(0, 5, 3, 7);
+                            ctx.fillRect(5, 0, 3, 12);
+                            ctx.fillRect(10, 3, 3, 9);
+                        }
+                    }
+
+                    Text {
+                        text: qsTr("Statistics")
+                        font.family: inter.name
+                        font.pixelSize: 12
+                        font.bold: true
+                        color: tlStatsMouse.containsMouse ? "#ffffff" : "#cbe4f2"
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+
+                ToolTip.visible: tlStatsMouse.containsMouse
+                ToolTip.text: qsTr("Open Statistics window in Deformed State mode")
+
+                MouseArea {
+                    id: tlStatsMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        statisticsLoader.active = true;
+                        if (statisticsLoader.item) {
+                            statisticsLoader.item.visible = true;
+                            statisticsLoader.item.raise();
+                        }
+                        statisticsController.setMode("Deformed");
+                    }
+                }
+            }
+        }
     }
 }

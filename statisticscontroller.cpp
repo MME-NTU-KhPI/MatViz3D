@@ -1,5 +1,8 @@
 #include "statisticscontroller.h"
 #include "parameters.h"
+#include "loadstepmanager.h"
+#include "deformed_state_analyzer.h"
+#include "hdf5projectcontroller.h"
 #include <QDebug>
 #include <QFile>
 #include <QTextStream>
@@ -9,6 +12,32 @@
 StatisticsController::StatisticsController(QObject* parent)
     : QObject(parent)
 {
+    if (Hdf5ProjectController* hpc = Hdf5ProjectController::getInstance()) {
+        connect(hpc, &Hdf5ProjectController::loadStepChanged, this, [this]() {
+            emit deformedDataChanged();
+            if (m_mode == "Deformed" && !m_lastProperty.isEmpty()) {
+                selectProperty(m_lastProperty);
+            }
+        });
+        connect(hpc, &Hdf5ProjectController::projectChanged, this, [this]() {
+            emit deformedDataChanged();
+        });
+    }
+}
+
+bool StatisticsController::hasDeformedData() const
+{
+    return LoadStepManager::getInstance().hasLoadStepData();
+}
+
+void StatisticsController::setDeformStatMode(const QString& mode)
+{
+    if (m_deformStatMode == mode) return;
+    m_deformStatMode = mode;
+    emit deformStatModeChanged();
+    if (m_mode == "Deformed" && !m_lastProperty.isEmpty()) {
+        selectProperty(m_lastProperty);
+    }
 }
 
 void StatisticsController::analyze()
@@ -37,9 +66,12 @@ void StatisticsController::setMode(const QString& mode)
     m_mode = mode;
 
     m_points.clear();
+    m_kdePoints.clear();
+    m_kdeMax = 0.0;
     m_title.clear();
     m_descStats.clear();
     m_axisXLabel.clear();
+    m_lastProperty.clear();
 
     emit modeChanged();
     emit histogramChanged();
@@ -49,6 +81,8 @@ QStringList StatisticsController::availableProperties() const
 {
     if (m_mode == "2D")
         return { "Area", "Norm Area", "Perimeter", "ECR", "Shape factor" };
+    if (m_mode == "Deformed")
+        return DeformedStateAnalyzer::availableProperties();
 
     return {
         "Volume",
@@ -78,6 +112,22 @@ QVector<float> StatisticsController::collectValues(const QString& prop,
                                                    QString& titleOut) const
 {
     QVector<float> values;
+
+    if (m_mode == "Deformed") {
+        auto allProps = DeformedStateAnalyzer::availableProperties();
+        int idx = allProps.indexOf(prop);
+        if (idx < 0) idx = 0;
+        auto propEnum = static_cast<DeformedStateAnalyzer::Property>(idx);
+        titleOut = DeformedStateAnalyzer::propertyTitle(propEnum);
+
+        DeformedStateAnalyzer::StatMode sm = (m_deformStatMode == "PerGrain")
+            ? DeformedStateAnalyzer::StatMode::PerGrainMean
+            : DeformedStateAnalyzer::StatMode::FullVolume;
+
+        LoadStepManager& lsm = LoadStepManager::getInstance();
+        return DeformedStateAnalyzer::extractValues(
+            lsm.getLoadStepResults(), lsm.getVoxelPtr(), lsm.getCubeSize(), propEnum, sm);
+    }
 
     // ── 2D ──
     if (prop == "Area") {
@@ -195,6 +245,7 @@ QVector<float> StatisticsController::collectValues(const QString& prop,
 
 void StatisticsController::selectProperty(const QString& propertyName)
 {
+    m_lastProperty = propertyName;
     QString title;
     QVector<float> values = collectValues(propertyName, title);
 
@@ -211,6 +262,20 @@ void StatisticsController::buildHistogram(const QVector<float>& values)
 {
     m_points.clear();
     m_histPeak = 0;
+
+    if (m_mode == "Deformed") {
+        auto res = DeformedStateAnalyzer::computeHistogramAndKDE(values, m_binCount);
+        m_points = res.barPoints;
+        m_kdePoints = res.kdePoints;
+        m_kdeMax = res.kdeMax;
+        m_axisXMin = res.axisXMin;
+        m_axisXMax = res.axisXMax;
+        m_axisYMax = res.axisYMax;
+        m_histPeak = res.histPeak;
+        return;
+    }
+    m_kdePoints.clear();
+    m_kdeMax = 0.0;
 
     if (values.isEmpty()) {
         m_axisXMin = 0.0;
@@ -333,6 +398,16 @@ QString fmtNum(double v)
 void StatisticsController::computeDescriptiveStats(const QVector<float>& values)
 {
     m_descStats.clear();
+
+    if (m_mode == "Deformed") {
+        auto allProps = DeformedStateAnalyzer::availableProperties();
+        int idx = allProps.indexOf(m_lastProperty);
+        if (idx < 0) idx = 0;
+        auto propEnum = static_cast<DeformedStateAnalyzer::Property>(idx);
+        auto stats = DeformedStateAnalyzer::computeStats(values);
+        m_descStats = DeformedStateAnalyzer::statsToVariantList(stats, propEnum);
+        return;
+    }
 
     const int n = values.size();
     if (n == 0)
@@ -526,6 +601,19 @@ QString StatisticsController::svgHistogram(bool dark, bool withStats) const
         out += "</g>\n";
     }
 
+    // KDE curve overlay
+    if (!m_kdePoints.isEmpty() && m_axisYMax > 0 && rx > 0.0) {
+        out += QString("<path d=\"");
+        for (int i = 0; i < m_kdePoints.size(); ++i) {
+            const QVariantMap pt = m_kdePoints[i].toMap();
+            const double px = left + (pt["x"].toDouble() - m_axisXMin) / rx * plotW;
+            const double py = top + plotH - (pt["y"].toDouble() / m_axisYMax) * plotH;
+            out += QString("%1%2,%3 ").arg((i == 0) ? "M " : "L ", n2(px), n2(py));
+        }
+        out += QString("\" fill=\"none\" stroke=\"%1\" stroke-width=\"2.5\" stroke-linecap=\"round\"/>\n")
+                   .arg(dark ? "#4fc3f7" : "#0288d1");
+    }
+
     // axis titles
     out += svgTxt(left + plotW / 2.0, H - 24.0,
                   m_axisXLabel.isEmpty() ? QStringLiteral("Value") : m_axisXLabel,
@@ -589,7 +677,10 @@ void StatisticsController::exportCSV(const QString& filePath)
 {
     if (m_mode == "2D")
         GrainAnalyzer::writeToCSV2D(m_stats2D, filePath);
-    else
+    else if (m_mode == "Deformed") {
+        LoadStepManager& lsm = LoadStepManager::getInstance();
+        DeformedStateAnalyzer::exportToCsv(filePath, lsm.getLoadStepResults(), lsm.getVoxelPtr(), lsm.getCubeSize());
+    } else
         GrainAnalyzer::writeToCSV3D(m_stats3D, filePath);
 }
 

@@ -77,9 +77,9 @@ public:
     // Show a field from an ANSYS single-shot solve. wr is kept alive (its
     // per-node result table is what getValByCoord()/scaleValue01() read) for
     // as long as the field stays displayed.
-    void showAnsysField(std::shared_ptr<ansysWrapper> wr, int component);
+    void showAnsysField(std::shared_ptr<ansysWrapper> wr, int component, bool deformed = false, float scale = 1.0f);
     // Show a field from an FFT single-shot solve (dense per-voxel arrays).
-    void showFFTField(std::shared_ptr<FieldVisualizationData> data, int component);
+    void showFFTField(std::shared_ptr<FieldVisualizationData> data, int component, bool deformed = false, float scale = 1.0f);
 
     /** Switch which component of the currently-shown field is plotted, without re-solving. */
     Q_INVOKABLE void setFieldComponent(int component);

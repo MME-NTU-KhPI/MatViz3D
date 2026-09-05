@@ -50,7 +50,8 @@ Window {
 
     function exportBaseName() {
         var prop = ctrl.axisXLabel.length > 0 ? ctrl.axisXLabel : "histogram"
-        return (ctrl.mode + "_" + prop).replace(/\s+/g, "_").toLowerCase()
+        var prefix = (ctrl.mode === "Deformed") ? ("deformed_" + ctrl.deformStatMode) : ctrl.mode
+        return (prefix + "_" + prop).replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase()
     }
 
     Component.onCompleted: selectFirstProperty()
@@ -80,6 +81,15 @@ Window {
         onAccepted: ctrl.exportSvg(selectedFile, chartTheme.dark, statisticsView.showSummary)
     }
 
+    FileDialog {
+        id: csvDialog
+        title: qsTr("Export statistics to CSV")
+        fileMode: FileDialog.SaveFile
+        nameFilters: [qsTr("CSV Files (*.csv)")]
+        defaultSuffix: "csv"
+        onAccepted: ctrl.exportCSV(ctrl.toLocalFile(selectedFile))
+    }
+
     Rectangle {
         id: controlBar
         anchors { top: parent.top; left: parent.left; right: parent.right }
@@ -97,7 +107,7 @@ Window {
             RadioButton {
                 id: radio3D
                 text: qsTr("3D")
-                checked: true
+                checked: ctrl.mode === "3D"
                 Layout.alignment: Qt.AlignVCenter
                 font.pixelSize: 15
                 font.family: montserrat.name
@@ -107,15 +117,52 @@ Window {
             RadioButton {
                 id: radio2D
                 text: qsTr("2D")
+                checked: ctrl.mode === "2D"
                 Layout.alignment: Qt.AlignVCenter
                 font.pixelSize: 15
                 font.family: montserrat.name
                 onClicked: { ctrl.setMode("2D"); statisticsView.selectFirstProperty() }
             }
 
+            RadioButton {
+                id: radioDeformed
+                text: qsTr("Deformed")
+                checked: ctrl.mode === "Deformed"
+                visible: ctrl.hasDeformedData
+                Layout.alignment: Qt.AlignVCenter
+                font.pixelSize: 15
+                font.family: montserrat.name
+                onClicked: { ctrl.setMode("Deformed"); statisticsView.selectFirstProperty() }
+            }
+
+            Row {
+                visible: ctrl.mode === "Deformed"
+                spacing: 2
+                Layout.alignment: Qt.AlignVCenter
+
+                RadioButton {
+                    text: qsTr("Full")
+                    checked: ctrl.deformStatMode === "FullVolume"
+                    font.pixelSize: 12
+                    font.family: montserrat.name
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Full Volume: voxel-level field distribution")
+                    onClicked: { ctrl.setDeformStatMode("FullVolume"); statisticsView.selectFirstProperty() }
+                }
+                RadioButton {
+                    text: qsTr("Grain")
+                    checked: ctrl.deformStatMode === "PerGrain"
+                    font.pixelSize: 12
+                    font.family: montserrat.name
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Per-Grain Mean: grain-averaged distribution")
+                    onClicked: { ctrl.setDeformStatMode("PerGrain"); statisticsView.selectFirstProperty() }
+                }
+            }
+
             ComboBox {
                 id: propertyBox
-                Layout.preferredWidth: 235
+                Layout.preferredWidth: ctrl.mode === "Deformed" ? 255 : 220
                 Layout.alignment: Qt.AlignVCenter
                 model: ctrl.availableProperties
                 currentIndex: 0
@@ -260,7 +307,7 @@ Window {
                 Layout.alignment: Qt.AlignVCenter
                 text: qsTr("CSV")
                 ToolTip.visible: hovered
-                ToolTip.text: qsTr("Export all grain statistics to grain_statistics.csv")
+                ToolTip.text: qsTr("Export statistics to CSV file")
 
                 background: Rectangle {
                     radius: 10
@@ -277,7 +324,11 @@ Window {
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
-                onClicked: ctrl.exportCSV("grain_statistics.csv")
+                onClicked: {
+                    csvDialog.selectedFile = csvDialog.currentFolder + "/"
+                                             + statisticsView.exportBaseName() + ".csv"
+                    csvDialog.open()
+                }
             }
 
             Button {
@@ -499,10 +550,49 @@ Window {
                 }
             }
 
+            // Smooth Gaussian KDE Curve Overlay for Deformed Mode
+            Canvas {
+                id: kdeCanvas
+                anchors.fill: parent
+                z: 2
+                visible: ctrl.mode === "Deformed" && ctrl.kdePoints.length > 1
+
+                Connections {
+                    target: ctrl
+                    function onHistogramChanged() { kdeCanvas.requestPaint(); }
+                }
+
+                onPaint: {
+                    var ctx = getContext("2d");
+                    ctx.reset();
+
+                    var pts = ctrl.kdePoints;
+                    if (!pts || pts.length < 2 || ctrl.axisYMax <= 0) return;
+
+                    var rx = ctrl.axisXMax - ctrl.axisXMin;
+                    if (rx <= 0) return;
+
+                    ctx.lineWidth = 2.5;
+                    ctx.strokeStyle = chartTheme.dark ? "#4fc3f7" : "#0288d1";
+                    ctx.beginPath();
+
+                    for (var i = 0; i < pts.length; ++i) {
+                        var pt = pts[i];
+                        var px = (pt.x - ctrl.axisXMin) / rx * width;
+                        var py = height - (pt.y / ctrl.axisYMax) * height;
+                        if (i === 0) ctx.moveTo(px, py);
+                        else ctx.lineTo(px, py);
+                    }
+                    ctx.stroke();
+                }
+            }
+
             Text {
                 anchors.centerIn: parent
                 visible: !ctrl.hasData
-                text: qsTr("Select a grain property to display")
+                text: ctrl.mode === "Deformed"
+                      ? qsTr("No deformed state data available for this load step")
+                      : qsTr("Select a grain property to display")
                 color: chartTheme.placeholder
                 font.pixelSize: 16
                 font.family: inter.name

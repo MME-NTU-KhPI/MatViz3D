@@ -32,26 +32,28 @@ static const int S_MAP[6][6] = {
     {5,  10, 14, 17, 19, 20}
 };
 
-ansysWrapper::ansysWrapper(bool isBatch)
+ansysWrapper::ansysWrapper(bool isBatch, bool initAnsys)
 {
     m_kpid = 1;
     m_apdl = "";
     prep7();
     m_isBatch = isBatch;
-    tempDir.setAutoRemove(true);
-    m_projectPath = tempDir.path();
-    m_projectPath = QDir::toNativeSeparators(m_projectPath);
+    if (initAnsys) {
+        tempDir.setAutoRemove(true);
+        m_projectPath = tempDir.path();
+        m_projectPath = QDir::toNativeSeparators(m_projectPath);
 
-    QDateTime date = QDateTime::currentDateTime();
-    m_jobName = QString("MatViz3D-%1-%2-%3-%4")
-                    .arg(date.date().year())
-                    .arg(date.date().month())
-                    .arg(date.date().day())
-                    .arg(date.time().second());
+        QDateTime date = QDateTime::currentDateTime();
+        m_jobName = QString("MatViz3D-%1-%2-%3-%4")
+                        .arg(date.date().year())
+                        .arg(date.date().month())
+                        .arg(date.date().day())
+                        .arg(date.time().second());
 
-    findNp();
-    findPathVersion();
-    defaultArgs();
+        findNp();
+        findPathVersion();
+        defaultArgs();
+    }
     this->seed = Parameters::instance()->getSeed();
     if (!Parameters::textureComponents.empty()) {
         setTextureComponents(Parameters::textureComponents);
@@ -1882,14 +1884,16 @@ float ansysWrapper::scaleValue01(float val, int component)
 {
     auto &maxVal = this->loadstep_results_max;
     auto &minVal = this->loadstep_results_min;
-    // Scale each value in the vector to the range [0, 1]
+    if (component < 0 || component >= static_cast<int>(maxVal.size()) || component >= static_cast<int>(minVal.size()))
+        return 1.0f;
 
-    if (fabs(maxVal[component] - minVal[component]) > 0)
+    float range = maxVal[component] - minVal[component];
+    if (std::fabs(range) > 1e-12f)
     {
-        return (val - minVal[component]) / (maxVal[component] - minVal[component]);
+        return (val - minVal[component]) / range;
     }
 
-    return 1; // return 1 for case max == min
+    return 1.0f; // return 1 for case max == min
 }
 
 float ansysWrapper::getValByCoord(float x, float y, float z, int component)
@@ -1904,14 +1908,18 @@ float ansysWrapper::getValByCoord(float x, float y, float z, int component)
 
 float ansysWrapper::getValByCoord(n3d::node3d &key, int component)
 {
-    if (this->result_nodes.contains(key))
+    auto it = this->result_nodes.constFind(key);
+    if (it != this->result_nodes.constEnd())
     {
-        int line_id = this->result_nodes[key];
-        float res = this->loadstep_results[line_id][component];
-        return res;
+        int line_id = it.value();
+        if (line_id >= 0 && line_id < static_cast<int>(this->loadstep_results.size())) {
+            const auto& row = this->loadstep_results[line_id];
+            if (component >= 0 && component < static_cast<int>(row.size())) {
+                return row[component];
+            }
+        }
     }
-    qDebug() << "Coord not found : "<< key[0] << key[1] << key[2];
-    return 0;
+    return 0.0f;
 }
 
 void ansysWrapper::createResultNodesHash()

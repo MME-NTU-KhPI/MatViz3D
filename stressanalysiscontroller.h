@@ -75,6 +75,9 @@ public:
     Q_INVOKABLE void saveStiffnessResult();
     Q_INVOKABLE bool loadFromHDF5(const QString& filePath);
     Q_INVOKABLE void openHDF5File();
+    Q_INVOKABLE void clearResult();
+    void updateFromWrapper(const std::shared_ptr<ansysWrapper>& wr);
+    void updateFromFFT(const std::shared_ptr<FieldVisualizationData>& field, const std::vector<float>& avg, double vonMises);
 
     const StiffnessMatrixResult& lastStiffness() const { return m_lastStiffness; }
 

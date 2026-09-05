@@ -16,8 +16,12 @@ class StatisticsController : public QObject
 
     Q_PROPERTY(QStringList availableProperties READ availableProperties NOTIFY modeChanged)
     Q_PROPERTY(QString     mode                READ mode               NOTIFY modeChanged)
+    Q_PROPERTY(bool        hasDeformedData     READ hasDeformedData    NOTIFY deformedDataChanged)
+    Q_PROPERTY(QString     deformStatMode      READ deformStatMode     WRITE setDeformStatMode NOTIFY deformStatModeChanged)
 
     Q_PROPERTY(QVariantList histogramPoints READ histogramPoints NOTIFY histogramChanged)
+    Q_PROPERTY(QVariantList kdePoints       READ kdePoints       NOTIFY histogramChanged)
+    Q_PROPERTY(double       kdeMax          READ kdeMax          NOTIFY histogramChanged)
     Q_PROPERTY(QString      chartTitle      READ chartTitle      NOTIFY histogramChanged)
 
     Q_PROPERTY(double axisXMin    READ axisXMin    NOTIFY histogramChanged)
@@ -56,10 +60,15 @@ public:
     Q_INVOKABLE QString toLocalFile(const QUrl& fileUrl) const;
 
     Q_INVOKABLE void setBinCount(int count);
+    Q_INVOKABLE void setDeformStatMode(const QString& mode);
 
     QStringList  availableProperties() const;
     QString      mode()            const { return m_mode; }
+    bool         hasDeformedData() const;
+    QString      deformStatMode()  const { return m_deformStatMode; }
     QVariantList histogramPoints() const { return m_points; }
+    QVariantList kdePoints()       const { return m_kdePoints; }
+    double       kdeMax()          const { return m_kdeMax; }
     QString      chartTitle()      const { return m_title; }
     double       axisXMin()        const { return m_axisXMin; }
     double       axisXMax()        const { return m_axisXMax; }
@@ -75,6 +84,8 @@ signals:
     void histogramChanged();
     void analysisFinished();
     void binCountChanged();
+    void deformedDataChanged();
+    void deformStatModeChanged();
 
 private:
     QString svgHistogram(bool dark, bool withStats) const;
@@ -89,7 +100,10 @@ private:
     std::vector<GrainAnalyzer::GrainStats2D>       m_stats2D;
 
     QString      m_mode = "3D";
+    QString      m_deformStatMode = "FullVolume";
     QVariantList m_points;
+    QVariantList m_kdePoints;
+    double       m_kdeMax = 0.0;
     QVariantList m_descStats;
     QString      m_axisXLabel;
     QString      m_title;
@@ -99,6 +113,7 @@ private:
     int          m_histPeak = 0;
     int          m_binCount = 0;
     QVector<float> m_lastValues;
+    QString      m_lastProperty;
 };
 
 #endif // STATISTICSCONTROLLER_H

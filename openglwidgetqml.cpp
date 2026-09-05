@@ -576,27 +576,33 @@ void OpenGLWidgetQML::pushSceneToRenderer()
     update();
 }
 
-void OpenGLWidgetQML::showAnsysField(std::shared_ptr<ansysWrapper> wr, int component)
+void OpenGLWidgetQML::showAnsysField(std::shared_ptr<ansysWrapper> wr, int component, bool deformed, float scale)
 {
     this->ansysField    = wr;
     this->fftField.reset();
     this->fieldMode      = FieldMode::Ansys;
     this->fieldComponent = component;
+    this->showDeformed   = deformed;
+    this->deformedScale  = scale;
     invalidateTensorSnapshot();
     this->calculateScene();
     pushSceneToRenderer();
+    if (showGlyphs) scheduleGlyphRebuild();
     emit tensorStateChanged();
 }
 
-void OpenGLWidgetQML::showFFTField(std::shared_ptr<FieldVisualizationData> data, int component)
+void OpenGLWidgetQML::showFFTField(std::shared_ptr<FieldVisualizationData> data, int component, bool deformed, float scale)
 {
     this->fftField       = data;
     this->ansysField.reset();
     this->fieldMode       = FieldMode::FFT;
     this->fieldComponent  = component;
+    this->showDeformed    = deformed;
+    this->deformedScale   = scale;
     invalidateTensorSnapshot();
     this->calculateScene();
     pushSceneToRenderer();
+    if (showGlyphs) scheduleGlyphRebuild();
     emit tensorStateChanged();
 }
 
@@ -1017,6 +1023,7 @@ void OpenGLWidgetQML::calculateScene()
             {1, 1, 0}, // 3
         };
 
+    if (!voxels || numCubes <= 0) return;
     voxelScene.clear();
     float cubeSize = 1.0; // numCubes;
     const auto fieldCmap = (fieldMode != FieldMode::None) ? createColorMap(9, colorMapPalette)
@@ -1120,7 +1127,7 @@ void OpenGLWidgetQML::calculateScene()
                 };
 
                 // Define a direction factor, which can be negative or positive
-                float directionFactor = directionFactors[index];
+                float directionFactor = (index < directionFactors.size()) ? directionFactors[index] : 1.0f;
 
                 GLfloat offset[] = {directionFactor * diff[0] * distanceFactor,
                                     directionFactor * diff[1] * distanceFactor,
@@ -1209,12 +1216,15 @@ void OpenGLWidgetQML::setVoxels(int32_t*** voxels, short int numCubes)
 {
     this->voxels = voxels;
     this->numCubes = numCubes;
+    distance = calculateFitDistance();
+    panX = 0.0f;
+    panY = 0.0f;
     voxelScene.clear();
     invalidateTensorSnapshot();   // new structure: any cached tensor field is stale
     calculateScene();
     if (m_render)
     {
-        this->setNumCubes(numCubes);
+        m_render->setPan(panX, panY);
         m_render->setDevicePixelRatio(window() ? window()->devicePixelRatio() : 1.0f);
         m_render->setDistZoomFactor(distance, zoomFactor);
         m_render->setNumCubes(numCubes);
@@ -1222,6 +1232,7 @@ void OpenGLWidgetQML::setVoxels(int32_t*** voxels, short int numCubes)
         m_render->updateOrientationData(orientationVerts, orientationColors);
         m_render->resizeGL(this->width(), this->height());
     }
+    update();
 }
 
 void OpenGLWidgetQML::drawCube(short cubeSize, RenderOpenGL::Voxel vox, bool* neighbors,

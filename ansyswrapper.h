@@ -84,7 +84,7 @@ protected:
     unsigned int seed;
 
 public:
-    ansysWrapper(bool isBatch = true);
+    ansysWrapper(bool isBatch = true, bool initAnsys = true);
 
     void setWorkingDirectory(QString path);
     void setSeed(unsigned int seed);
