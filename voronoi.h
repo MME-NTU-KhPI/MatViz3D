@@ -7,16 +7,20 @@
 
 /**
  * @brief Reference RVE generator: Voronoi tessellation under a Minkowski
- *        L_p metric.
+ *        L_p metric and 3D Riemannian metric tensor.
  *
  * Every voxel is assigned to the seed that minimises
  *
- *     d_p(v, s) = ( |dx|^p + |dy|^p + |dz|^p )^(1/p)
+ *     d(v, s) = ( sum_k |xi_k|^p )^(1/p),   xi = A * (v - s)
  *
- * with the exponent p supplied by the user (Parameters::minkowski_p):
- * p = 1 gives octahedral grains, p = 2 the classical Euclidean Voronoi
- * tessellation, and large p approaches the Chebyshev metric and cuboidal
- * grains. On a periodic cell the offsets use the minimum-image convention, so
+ * where M = A^T * A is a symmetric positive-definite 3x3 metric tensor
+ * (Parameters::voronoi_mxx .. voronoi_mxz) and p is the Minkowski exponent
+ * (Parameters::minkowski_p). For the standard Euclidean case (p = 2, M = I),
+ * this reproduces classical Voronoi tessellation. A diagonal metric tensor
+ * scales individual axes to produce elongated/columnar grains (e.g. rolled
+ * or extruded microstructures), while off-diagonal components rotate the
+ * principal growth directions arbitrarily.
+ * On a periodic cell the offsets use the minimum-image convention, so
  * grains wrap across faces and the result is a valid homogenization cell.
  *
  * Unlike the cellular-automaton algorithms this is not an iterative process --
@@ -52,6 +56,12 @@ private:
         std::vector<int32_t> items;   ///< seed indices, bucket-major
     };
 
+    /// Symmetric 3x3 metric tensor M for anisotropic Voronoi tessellation.
+    struct MetricTensor {
+        double xx = 1.0, yy = 1.0, zz = 1.0;
+        double xy = 0.0, yz = 0.0, xz = 0.0;
+    };
+
     void   readParameters();
     void   buildPowTable();
     void   buildSeedGrid();
@@ -59,8 +69,11 @@ private:
     /// |d|^p, from the lookup table when possible.
     inline double axisPow(int d) const;
 
+    /// Evaluates metric distance s_p for displacement (dx, dy, dz)
+    inline double distanceSp(int dx, int dy, int dz) const;
+
     /// Grain id (1-based) of the seed nearest to (x,y,z); sum_p is the
-    /// un-rooted |dx|^p + |dy|^p + |dz|^p, which orders identically to d_p.
+    /// un-rooted metric distance, which orders identically to d.
     int32_t nearestSeed(int x, int y, int z, double& sum_p) const;
 
     /// Fills every voxel directly -- no auxiliary per-voxel storage.
@@ -79,6 +92,15 @@ private:
 
     SeedGrid            m_grid;
     std::vector<double> m_pow;        ///< m_pow[d] == d^p for integer offsets
+    std::vector<double> m_powX;       ///< m_pow[d] * Mxx^(p/2) for diagonal metric
+    std::vector<double> m_powY;       ///< m_pow[d] * Myy^(p/2) for diagonal metric
+    std::vector<double> m_powZ;       ///< m_pow[d] * Mzz^(p/2) for diagonal metric
+
+    MetricTensor m_metric;
+    double m_A[3][3] = {{1,0,0},{0,1,0},{0,0,1}}; ///< Coordinate transformation A such that A^T A = M
+    double m_boundScale = 1.0;        ///< Scale factor for the expanding-ring pruning bound
+    bool   m_isDiagonal = true;       ///< True if off-diagonals are zero
+    bool   m_isIsotropic = true;      ///< True if M is identity
 
     double m_p        = 2.0;
     bool   m_periodic = false;

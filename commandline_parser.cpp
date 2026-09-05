@@ -44,6 +44,16 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
                                         "Default 2", "value"));
     parser.addOption(QCommandLineOption("periodic",
                                         "Generate a periodic cell: grains wrap across opposite faces"));
+    parser.addOption(QCommandLineOption("voronoi_metric_preset",
+                                        "Preset for Voronoi shape / metric tensor ('Sphere (Circle)', 'Prolate (Needle)', 'Oblate (Disc)', 'Triaxial Ellipsoid', 'Superellipsoid (Cube)', 'Columnar Z', 'Rolled', 'Sheared')",
+                                        "preset"));
+    parser.addOption(QCommandLineOption("voronoi_mxx", "Metric tensor component M_xx (M11) for Voronoi algorithm (default 1.0)", "value"));
+    parser.addOption(QCommandLineOption("voronoi_myy", "Metric tensor component M_yy (M22) for Voronoi algorithm (default 1.0)", "value"));
+    parser.addOption(QCommandLineOption("voronoi_mzz", "Metric tensor component M_zz (M33) for Voronoi algorithm (default 1.0)", "value"));
+    parser.addOption(QCommandLineOption("voronoi_mxy", "Metric tensor component M_xy (M12) for Voronoi algorithm (default 0.0)", "value"));
+    parser.addOption(QCommandLineOption("voronoi_myz", "Metric tensor component M_yz (M23) for Voronoi algorithm (default 0.0)", "value"));
+    parser.addOption(QCommandLineOption("voronoi_mxz", "Metric tensor component M_xz (M13) for Voronoi algorithm (default 0.0)", "value"));
+    parser.addOption(QCommandLineOption("voronoi_metric", "Metric tensor components: 'mxx,myy,mzz' or 'mxx,myy,mzz,mxy,myz,mxz'", "mxx,myy,mzz..."));
     // ── Composite (fiber-reinforced RVE) ──────────────────────────────────
     parser.addOption(QCommandLineOption("composite_dim",
                                         "Reinforcement dimensionality for the Composite algorithm: "
@@ -273,6 +283,45 @@ void Commandline_Parser::processOptions(const QCommandLineParser& parser)
         params->setMinkowskiP(v);
     });
     params->setIsPeriodic(parser.isSet("periodic"));
+
+    parseString("voronoi_metric_preset", [&](const QString& v) { params->setVoronoiMetricPreset(v); });
+    if (!parser.isSet("voronoi_metric_preset") && parser.isSet("prob_preset") &&
+        parser.value("algorithm").compare("Voronoi", Qt::CaseInsensitive) == 0) {
+        params->setVoronoiMetricPreset(parser.value("prob_preset"));
+    }
+
+    parseDouble("voronoi_mxx", [&](double v) { params->setVoronoiMxx(v); });
+    parseDouble("voronoi_myy", [&](double v) { params->setVoronoiMyy(v); });
+    parseDouble("voronoi_mzz", [&](double v) { params->setVoronoiMzz(v); });
+    parseDouble("voronoi_mxy", [&](double v) { params->setVoronoiMxy(v); });
+    parseDouble("voronoi_myz", [&](double v) { params->setVoronoiMyz(v); });
+    parseDouble("voronoi_mxz", [&](double v) { params->setVoronoiMxz(v); });
+
+    if (parser.isSet("voronoi_metric")) {
+        const QStringList parts = parser.value("voronoi_metric").split(',');
+        if (parts.size() >= 3) {
+            bool ok1 = false, ok2 = false, ok3 = false;
+            double mxx = parts[0].trimmed().toDouble(&ok1);
+            double myy = parts[1].trimmed().toDouble(&ok2);
+            double mzz = parts[2].trimmed().toDouble(&ok3);
+            if (ok1 && ok2 && ok3) {
+                params->setVoronoiMxx(mxx);
+                params->setVoronoiMyy(myy);
+                params->setVoronoiMzz(mzz);
+            }
+            if (parts.size() >= 6) {
+                bool ok4 = false, ok5 = false, ok6 = false;
+                double mxy = parts[3].trimmed().toDouble(&ok4);
+                double myz = parts[4].trimmed().toDouble(&ok5);
+                double mxz = parts[5].trimmed().toDouble(&ok6);
+                if (ok4 && ok5 && ok6) {
+                    params->setVoronoiMxy(mxy);
+                    params->setVoronoiMyz(myz);
+                    params->setVoronoiMxz(mxz);
+                }
+            }
+        }
+    }
 
     // ── Composite (fiber-reinforced RVE) ──────────────────────────────────
     parseString("composite_dim", [&](const QString& v) {

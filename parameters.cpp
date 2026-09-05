@@ -45,6 +45,13 @@ QString Parameters::m_material2  = "bcc";
 
 double  Parameters::minkowski_p = 2.0;   // Euclidean == the classical Voronoi
 bool    Parameters::is_periodic = false;
+QString Parameters::voronoi_metric_preset = "Sphere (Circle)";
+double  Parameters::voronoi_mxx = 1.0;
+double  Parameters::voronoi_myy = 1.0;
+double  Parameters::voronoi_mzz = 1.0;
+double  Parameters::voronoi_mxy = 0.0;
+double  Parameters::voronoi_myz = 0.0;
+double  Parameters::voronoi_mxz = 0.0;
 
 QString Parameters::db_material = "";
 double  Parameters::mat_c11 = 168.40;    // GPa, Cu -- the solvers' historical default
@@ -339,10 +346,16 @@ void Parameters::setMaterial2(const QString& value)
     }
 }
 
+static bool s_inMetricPreset = false;
+
 void Parameters::setMinkowskiP(double value)
 {
     if (minkowski_p != value) {
         minkowski_p = value;
+        if (!s_inMetricPreset && voronoi_metric_preset != "Custom") {
+            voronoi_metric_preset = "Custom";
+            emit voronoiMetricPresetChanged();
+        }
         emit minkowskiPChanged();
     }
 }
@@ -352,6 +365,181 @@ void Parameters::setIsPeriodic(bool value)
     if (is_periodic != value) {
         is_periodic = value;
         emit isPeriodicChanged();
+    }
+}
+
+void Parameters::setVoronoiMetricPreset(const QString& value)
+{
+    QString v = value.trimmed();
+
+    s_inMetricPreset = true;
+    if (v.contains("Sphere", Qt::CaseInsensitive) || v.contains("Circle", Qt::CaseInsensitive) ||
+        v.contains("Isotropic", Qt::CaseInsensitive) || v.contains("Equiaxed", Qt::CaseInsensitive) ||
+        v == "sphere" || v == "isotropic") {
+        voronoi_metric_preset = "Sphere (Circle)";
+        setVoronoiMxx(1.0);
+        setVoronoiMyy(1.0);
+        setVoronoiMzz(1.0);
+        setVoronoiMxy(0.0);
+        setVoronoiMyz(0.0);
+        setVoronoiMxz(0.0);
+        setMinkowskiP(2.0);
+    } else if (v.contains("Prolate", Qt::CaseInsensitive) || v.contains("Needle", Qt::CaseInsensitive) ||
+               v == "prolate" || v == "needle") {
+        voronoi_metric_preset = "Prolate (Needle)";
+        setVoronoiMxx(1.0);
+        setVoronoiMyy(9.0);
+        setVoronoiMzz(9.0);
+        setVoronoiMxy(0.0);
+        setVoronoiMyz(0.0);
+        setVoronoiMxz(0.0);
+        setMinkowskiP(2.0);
+    } else if (v.contains("Oblate", Qt::CaseInsensitive) || v.contains("Disc", Qt::CaseInsensitive) ||
+               v == "oblate" || v == "disc") {
+        voronoi_metric_preset = "Oblate (Disc)";
+        setVoronoiMxx(9.0);
+        setVoronoiMyy(1.0);
+        setVoronoiMzz(1.0);
+        setVoronoiMxy(0.0);
+        setVoronoiMyz(0.0);
+        setVoronoiMxz(0.0);
+        setMinkowskiP(2.0);
+    } else if (v.contains("Triaxial", Qt::CaseInsensitive) || v == "triaxial") {
+        voronoi_metric_preset = "Triaxial Ellipsoid";
+        setVoronoiMxx(1.0);
+        setVoronoiMyy(2.25);
+        setVoronoiMzz(9.0);
+        setVoronoiMxy(0.0);
+        setVoronoiMyz(0.0);
+        setVoronoiMxz(0.0);
+        setMinkowskiP(2.0);
+    } else if (v.contains("Superellipsoid", Qt::CaseInsensitive) || v.contains("Cube", Qt::CaseInsensitive) ||
+               v == "superellipsoid" || v == "cube") {
+        voronoi_metric_preset = "Superellipsoid (Cube)";
+        setVoronoiMxx(1.0);
+        setVoronoiMyy(1.0);
+        setVoronoiMzz(1.0);
+        setVoronoiMxy(0.0);
+        setVoronoiMyz(0.0);
+        setVoronoiMxz(0.0);
+        setMinkowskiP(4.0);
+    } else if (v.contains("Columnar (Z", Qt::CaseInsensitive) || v.contains("Columnar Z", Qt::CaseInsensitive) ||
+               v == "columnar_z") {
+        voronoi_metric_preset = "Columnar (Z-axis)";
+        setVoronoiMxx(4.0);
+        setVoronoiMyy(4.0);
+        setVoronoiMzz(1.0);
+        setVoronoiMxy(0.0);
+        setVoronoiMyz(0.0);
+        setVoronoiMxz(0.0);
+        setMinkowskiP(2.0);
+    } else if (v.contains("Columnar (X", Qt::CaseInsensitive) || v.contains("Columnar X", Qt::CaseInsensitive) ||
+               v == "columnar_x") {
+        voronoi_metric_preset = "Columnar (X-axis)";
+        setVoronoiMxx(1.0);
+        setVoronoiMyy(4.0);
+        setVoronoiMzz(4.0);
+        setVoronoiMxy(0.0);
+        setVoronoiMyz(0.0);
+        setVoronoiMxz(0.0);
+        setMinkowskiP(2.0);
+    } else if (v.contains("Rolled", Qt::CaseInsensitive) || v.contains("Orthotropic", Qt::CaseInsensitive) ||
+               v == "rolled") {
+        voronoi_metric_preset = "Rolled (Orthotropic)";
+        setVoronoiMxx(1.0);
+        setVoronoiMyy(2.0);
+        setVoronoiMzz(5.0);
+        setVoronoiMxy(0.0);
+        setVoronoiMyz(0.0);
+        setVoronoiMxz(0.0);
+        setMinkowskiP(2.0);
+    } else if (v.contains("Sheared", Qt::CaseInsensitive) || v.contains("45", Qt::CaseInsensitive) ||
+               v == "sheared") {
+        voronoi_metric_preset = "Sheared (45° XY)";
+        setVoronoiMxx(2.5);
+        setVoronoiMyy(2.5);
+        setVoronoiMzz(1.0);
+        setVoronoiMxy(1.5);
+        setVoronoiMyz(0.0);
+        setVoronoiMxz(0.0);
+        setMinkowskiP(2.0);
+    } else {
+        voronoi_metric_preset = "Custom";
+    }
+    s_inMetricPreset = false;
+
+    emit voronoiMetricPresetChanged();
+}
+
+void Parameters::setVoronoiMxx(double value)
+{
+    if (voronoi_mxx != value) {
+        voronoi_mxx = value;
+        if (!s_inMetricPreset && voronoi_metric_preset != "Custom") {
+            voronoi_metric_preset = "Custom";
+            emit voronoiMetricPresetChanged();
+        }
+        emit voronoiMetricChanged();
+    }
+}
+
+void Parameters::setVoronoiMyy(double value)
+{
+    if (voronoi_myy != value) {
+        voronoi_myy = value;
+        if (!s_inMetricPreset && voronoi_metric_preset != "Custom") {
+            voronoi_metric_preset = "Custom";
+            emit voronoiMetricPresetChanged();
+        }
+        emit voronoiMetricChanged();
+    }
+}
+
+void Parameters::setVoronoiMzz(double value)
+{
+    if (voronoi_mzz != value) {
+        voronoi_mzz = value;
+        if (!s_inMetricPreset && voronoi_metric_preset != "Custom") {
+            voronoi_metric_preset = "Custom";
+            emit voronoiMetricPresetChanged();
+        }
+        emit voronoiMetricChanged();
+    }
+}
+
+void Parameters::setVoronoiMxy(double value)
+{
+    if (voronoi_mxy != value) {
+        voronoi_mxy = value;
+        if (!s_inMetricPreset && voronoi_metric_preset != "Custom") {
+            voronoi_metric_preset = "Custom";
+            emit voronoiMetricPresetChanged();
+        }
+        emit voronoiMetricChanged();
+    }
+}
+
+void Parameters::setVoronoiMyz(double value)
+{
+    if (voronoi_myz != value) {
+        voronoi_myz = value;
+        if (!s_inMetricPreset && voronoi_metric_preset != "Custom") {
+            voronoi_metric_preset = "Custom";
+            emit voronoiMetricPresetChanged();
+        }
+        emit voronoiMetricChanged();
+    }
+}
+
+void Parameters::setVoronoiMxz(double value)
+{
+    if (voronoi_mxz != value) {
+        voronoi_mxz = value;
+        if (!s_inMetricPreset && voronoi_metric_preset != "Custom") {
+            voronoi_metric_preset = "Custom";
+            emit voronoiMetricPresetChanged();
+        }
+        emit voronoiMetricChanged();
     }
 }
 

@@ -34,6 +34,7 @@ public:
                 Parameters::instance(),
                 method.toUtf8().constData(),
                 Q_ARG(QString, v.toString()));
+            emit schemaChanged();
         } else {
             Parameters::instance()->setProperty(key.toUtf8().constData(), v);
         }

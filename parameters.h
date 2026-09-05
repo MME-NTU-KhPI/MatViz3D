@@ -49,6 +49,16 @@ class Parameters : public QObject
     // opposite one. Required for a periodic homogenization cell.
     Q_PROPERTY(bool is_periodic READ getIsPeriodic WRITE setIsPeriodic NOTIFY isPeriodicChanged)
 
+    // Metric tensor components for anisotropic Voronoi tessellation:
+    // M = [mxx mxy mxz; mxy myy myz; mxz myz mzz], default I (isotropic)
+    Q_PROPERTY(QString voronoi_metric_preset READ getVoronoiMetricPreset WRITE setVoronoiMetricPreset NOTIFY voronoiMetricPresetChanged)
+    Q_PROPERTY(double voronoi_mxx READ getVoronoiMxx WRITE setVoronoiMxx NOTIFY voronoiMetricChanged)
+    Q_PROPERTY(double voronoi_myy READ getVoronoiMyy WRITE setVoronoiMyy NOTIFY voronoiMetricChanged)
+    Q_PROPERTY(double voronoi_mzz READ getVoronoiMzz WRITE setVoronoiMzz NOTIFY voronoiMetricChanged)
+    Q_PROPERTY(double voronoi_mxy READ getVoronoiMxy WRITE setVoronoiMxy NOTIFY voronoiMetricChanged)
+    Q_PROPERTY(double voronoi_myz READ getVoronoiMyz WRITE setVoronoiMyz NOTIFY voronoiMetricChanged)
+    Q_PROPERTY(double voronoi_mxz READ getVoronoiMxz WRITE setVoronoiMxz NOTIFY voronoiMetricChanged)
+
     // Material picked from material_properties.db. Selecting one loads its
     // cubic constants (used by both stress solvers) and its lattice type
     // (used to build the texture presets).
@@ -196,6 +206,27 @@ public:
 
     bool getIsPeriodic() const { return is_periodic; }
     Q_INVOKABLE void setIsPeriodic(bool value);
+
+    QString getVoronoiMetricPreset() const { return voronoi_metric_preset; }
+    Q_INVOKABLE void setVoronoiMetricPreset(const QString& value);
+
+    double getVoronoiMxx() const { return voronoi_mxx; }
+    Q_INVOKABLE void setVoronoiMxx(double value);
+
+    double getVoronoiMyy() const { return voronoi_myy; }
+    Q_INVOKABLE void setVoronoiMyy(double value);
+
+    double getVoronoiMzz() const { return voronoi_mzz; }
+    Q_INVOKABLE void setVoronoiMzz(double value);
+
+    double getVoronoiMxy() const { return voronoi_mxy; }
+    Q_INVOKABLE void setVoronoiMxy(double value);
+
+    double getVoronoiMyz() const { return voronoi_myz; }
+    Q_INVOKABLE void setVoronoiMyz(double value);
+
+    double getVoronoiMxz() const { return voronoi_mxz; }
+    Q_INVOKABLE void setVoronoiMxz(double value);
 
     QString getDbMaterial() const { return db_material; }
     Q_INVOKABLE void setDbMaterial(const QString& value);
@@ -385,6 +416,8 @@ signals:
 
     void minkowskiPChanged();
     void isPeriodicChanged();
+    void voronoiMetricPresetChanged();
+    void voronoiMetricChanged();
     void dbMaterialChanged();
     void textureSettingsChanged();
     void compositeSettingsChanged();
@@ -427,6 +460,13 @@ private:
 
     static double  minkowski_p;
     static bool    is_periodic;
+    static QString voronoi_metric_preset;
+    static double  voronoi_mxx;
+    static double  voronoi_myy;
+    static double  voronoi_mzz;
+    static double  voronoi_mxy;
+    static double  voronoi_myz;
+    static double  voronoi_mxz;
 
     static QString db_material;
     // Cubic constants of db_material in GPa, the unit material_properties.db
