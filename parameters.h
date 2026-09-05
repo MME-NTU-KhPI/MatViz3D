@@ -84,6 +84,9 @@ class Parameters : public QObject
     Q_PROPERTY(float wave_spread          READ getWaveSpread         WRITE setWaveSpread         NOTIFY waveSpreadChanged)
     Q_PROPERTY(float stefan_number        READ getStefanNumber       WRITE setStefanNumber       NOTIFY stefanNumberChanged)
     Q_PROPERTY(int   initial_nuclei_count READ getInitialNucleiCount WRITE setInitialNucleiCount NOTIFY initialNucleiCountChanged)
+    Q_PROPERTY(bool   is_wave_generation  READ getIsWaveGeneration   WRITE setIsWaveGeneration   NOTIFY isWaveGenerationChanged)
+    Q_PROPERTY(double wave_peak_fraction  READ getWavePeakFraction   WRITE setWavePeakFraction   NOTIFY wavePeakFractionChanged)
+    Q_PROPERTY(double wave_end_fraction   READ getWaveEndFraction    WRITE setWaveEndFraction    NOTIFY waveEndFractionChanged)
     Q_PROPERTY(unsigned int num_rnd_loads READ getNumRndLoads        WRITE setNumRndLoads        NOTIFY numRndLoadsChanged)
 
 public:
@@ -277,11 +280,17 @@ public:
     float getWaveSpread()         const { return wave_spread; }
     float getStefanNumber()       const { return stefan_number; }
     int   getInitialNucleiCount() const { return initial_nuclei_count; }
+    bool   getIsWaveGeneration()  const { return is_wave_generation; }
+    double getWavePeakFraction()  const { return wave_peak_fraction; }
+    double getWaveEndFraction()   const { return wave_end_fraction; }
     unsigned int getNumRndLoads() const { return num_rnd_loads; }
 
     Q_INVOKABLE void setWaveSpread(float value);
     Q_INVOKABLE void setStefanNumber(float value);
     Q_INVOKABLE void setInitialNucleiCount(int value);
+    Q_INVOKABLE void setIsWaveGeneration(bool value);
+    Q_INVOKABLE void setWavePeakFraction(double value);
+    Q_INVOKABLE void setWaveEndFraction(double value);
     Q_INVOKABLE void setNumRndLoads(unsigned int value);
 
     static Parameters* m_instance;
@@ -295,6 +304,9 @@ public:
     static float wave_coefficient;
     static float wave_spread;
     static int initial_nuclei_count;
+    static bool is_wave_generation;
+    static double wave_peak_fraction;
+    static double wave_end_fraction;
     static QString prob_preset;
     static float halfaxis_a;
     static float halfaxis_b;
@@ -361,6 +373,9 @@ signals:
     void waveSpreadChanged();
     void stefanNumberChanged();
     void initialNucleiCountChanged();
+    void isWaveGenerationChanged();
+    void wavePeakFractionChanged();
+    void waveEndFractionChanged();
 
     void minkowskiPChanged();
     void isPeriodicChanged();

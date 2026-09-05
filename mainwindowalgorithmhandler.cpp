@@ -95,9 +95,7 @@ void MainWindowAlgorithmHandler::executeAlgorithm(Parent_Algorithm& algorithm, c
     // ids mean something completely different.
     Parameters::phaseAssignment.clear();
 
-    // algorithm.Initialization(isWaveGeneration);
-    algorithm.Initialization(false);
-    algorithm.setRemainingPoints(algorithm.getNumColors() - static_cast<int>(Parameters::wave_coefficient * algorithm.getNumColors()));
+    algorithm.Initialization(params.getIsWaveGeneration());
 
     auto updateScene = [&]() {
         if (!ogl) return;
@@ -170,9 +168,10 @@ void MainWindowAlgorithmHandler::executeAlgorithm(Parent_Algorithm& algorithm, c
 
 void MainWindowAlgorithmHandler::setAlgorithmFlags(Parent_Algorithm& algorithm)
 {
-    algorithm.setAnimation(Parameters::instance()->getIsAnimation());
-    algorithm.setWaveGeneration(false);
-    algorithm.setPeriodicStructure(Parameters::instance()->getIsPeriodic());
+    Parameters& params = *Parameters::instance();
+    algorithm.setAnimation(params.getIsAnimation());
+    algorithm.setWaveGeneration(params.getIsWaveGeneration());
+    algorithm.setPeriodicStructure(params.getIsPeriodic());
 }
 
 void MainWindowAlgorithmHandler::runStressCalculation()

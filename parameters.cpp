@@ -17,6 +17,9 @@ QString Parameters::working_directory = "";
 float Parameters::wave_coefficient = 0.0f;
 float Parameters::wave_spread;
 int Parameters::initial_nuclei_count = 1;
+bool Parameters::is_wave_generation = false;
+double Parameters::wave_peak_fraction = 0.20;
+double Parameters::wave_end_fraction = 0.60;
 unsigned int Parameters::num_rnd_loads = 0;
 QString Parameters::prob_preset = "Sphere (Circle)";
 float Parameters::halfaxis_a = 1.5f;
@@ -641,6 +644,30 @@ void Parameters::setInitialNucleiCount(int value)
     if (initial_nuclei_count != value) {
         initial_nuclei_count = value;
         emit initialNucleiCountChanged();
+    }
+}
+
+void Parameters::setIsWaveGeneration(bool value)
+{
+    if (is_wave_generation != value) {
+        is_wave_generation = value;
+        emit isWaveGenerationChanged();
+    }
+}
+
+void Parameters::setWavePeakFraction(double value)
+{
+    if (std::abs(wave_peak_fraction - value) > 1e-9) {
+        wave_peak_fraction = value;
+        emit wavePeakFractionChanged();
+    }
+}
+
+void Parameters::setWaveEndFraction(double value)
+{
+    if (std::abs(wave_end_fraction - value) > 1e-9) {
+        wave_end_fraction = value;
+        emit waveEndFractionChanged();
     }
 }
 

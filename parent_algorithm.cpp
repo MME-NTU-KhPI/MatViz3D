@@ -199,7 +199,7 @@ void Parent_Algorithm::Initialization(bool isWaveGeneration)
     int currentPoints;
     if (isWaveGeneration)
     {
-        currentPoints = Parameters::initial_nuclei_count;
+        currentPoints = std::clamp(Parameters::initial_nuclei_count, 1, numColors);
     }
     else
     {
@@ -218,7 +218,7 @@ void Parent_Algorithm::Initialization(bool isWaveGeneration)
     //Grid_Generate_Points(currentPoints);
 }
 
-std::vector<Parent_Algorithm::Coordinate> Parent_Algorithm::Add_New_Points(std::vector<Coordinate> grains, int numPoints)
+std::vector<Parent_Algorithm::Coordinate> Parent_Algorithm::Add_New_Points(std::vector<Coordinate> /*unused*/, int numPoints)
 {
     std::mt19937 generator(Parameters::seed);
     std::vector<Coordinate> emptyCoords;
@@ -235,9 +235,9 @@ std::vector<Parent_Algorithm::Coordinate> Parent_Algorithm::Add_New_Points(std::
     }
 
     // 2. Перевірка
-    if (numPoints > emptyCoords.size()) {
+    if (numPoints > static_cast<int>(emptyCoords.size())) {
         qCritical() << "Not enough free voxels to place new points.";
-        return grains; // або abort(), або false
+        return this->grains; // або abort(), або false
     }
 
     // 3. Перемішування
@@ -249,7 +249,7 @@ std::vector<Parent_Algorithm::Coordinate> Parent_Algorithm::Add_New_Points(std::
         birthGrain(a.x, a.y, a.z);
     }
 
-    return grains;
+    return this->grains;
 }
 
 std::vector<Parent_Algorithm::Coordinate> Parent_Algorithm::Delete_Points(std::vector<Coordinate> grains, size_t i)

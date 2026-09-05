@@ -257,11 +257,15 @@ void Probability_Algorithm::processProbabilities(ProbabilityMode mode)
 
 void Probability_Algorithm::Initialization(bool isWaveGeneration)
 {
-    Parent_Algorithm::Initialization(isWaveGeneration);
+    flags.isPeriodicStructure = flags.isPeriodicStructure || Parameters::instance()->getIsPeriodic();
+    flags.isWaveGeneration    = isWaveGeneration || Parameters::is_wave_generation;
+
+    Parent_Algorithm::Initialization(flags.isWaveGeneration);
     run_start = std::chrono::steady_clock::now();
     m_history.clear();
     IterationNumber = 0;
     m_coolingPool = 0.0;
+    total_nucleated_so_far = static_cast<int>(seedPoints.size());
 
     if (m_claimGrid) {
         Delete3D(m_claimGrid);
@@ -278,17 +282,21 @@ void Probability_Algorithm::Initialization(bool isWaveGeneration)
     printProbabilityKernel();
 
     qDebug().noquote()
-        << QString("[Probability] %1^3 grid (%2 voxels), %3 seeds, preset: '%4' (a=%5, b=%6, c=%7, order=%8, St=%9)%10")
+        << QString("[Probability] %1^3 grid (%2 voxels), %3 initial seeds (target: %4), preset: '%5' (a=%6, b=%7, c=%8, order=%9, St=%10)%11%12")
                .arg(numCubes)
                .arg(static_cast<uint64_t>(numCubes) * numCubes * numCubes)
                .arg(seedPoints.size())
+               .arg(numColors)
                .arg(Parameters::prob_preset)
                .arg(Parameters::halfaxis_a, 0, 'g', 3)
                .arg(Parameters::halfaxis_b, 0, 'g', 3)
                .arg(Parameters::halfaxis_c, 0, 'g', 3)
                .arg(Parameters::ellipse_order, 0, 'g', 3)
                .arg(Parameters::stefan_number, 0, 'g', 3)
-               .arg(flags.isPeriodicStructure ? ", periodic" : "");
+               .arg(flags.isPeriodicStructure ? ", periodic" : "")
+               .arg(flags.isWaveGeneration ? QString(", wave nucl (peak=%1, end=%2)")
+                                                 .arg(Parameters::wave_peak_fraction, 0, 'f', 2)
+                                                 .arg(Parameters::wave_end_fraction, 0, 'f', 2) : "");
 }
 
 unsigned int Probability_Algorithm::computeThermodynamicCap(unsigned int counter_max)
@@ -614,10 +622,18 @@ void Probability_Algorithm::Next_Iteration()
         m_coolingPool = std::max(0.0, m_coolingPool - static_cast<double>(captured));
     }
 
+    // Wave nucleation (transformation-fraction controlled)
+    QString nucleationLog;
+    int nucleated_this_iter = 0;
+    if (flags.isWaveGeneration)
+    {
+        nucleated_this_iter = nucleateWave(counter_max, nucleationLog);
+    }
+
     this->IterationNumber++;
 
     recordIteration(counter_max, cap, captured,
-                    active_size, 0, total_nucleated_so_far);
+                    active_size, nucleated_this_iter, total_nucleated_so_far);
 
     const double fraction = (counter_max > 0) ? (static_cast<double>(filled_voxels) / counter_max) : 1.0;
     const double pct = fraction * 100.0;
@@ -626,19 +642,23 @@ void Probability_Algorithm::Next_Iteration()
     const bool shouldLog = isFinished ||
                            (IterationNumber <= 5) ||
                            (IterationNumber <= 50 && IterationNumber % 10 == 0) ||
-                           (IterationNumber % 25 == 0);
+                           (IterationNumber % 25 == 0) ||
+                           (nucleated_this_iter > 0);
 
     if (shouldLog) {
         if (isFinished) {
             qDebug().noquote()
-                << QString("[Probability] Step %1: filled %2/%3 (%4%) | growth complete")
+                << QString("[Probability] Step %1: filled %2/%3 (%4%) | grains: %5/%6 | growth complete%7")
                        .arg(IterationNumber, 2)
                        .arg(filled_voxels)
                        .arg(counter_max)
-                       .arg(pct, 5, 'f', 1);
+                       .arg(pct, 5, 'f', 1)
+                       .arg(total_nucleated_so_far)
+                       .arg(numColors)
+                       .arg(nucleationLog);
         } else {
             qDebug().noquote()
-                << QString("[Probability] Step %1: filled %2/%3 (%4%) | cap=%5, got=%6 | active front: %7/%8")
+                << QString("[Probability] Step %1: filled %2/%3 (%4%) | cap=%5, got=%6 | active front: %7/%8%9")
                        .arg(IterationNumber, 2)
                        .arg(filled_voxels)
                        .arg(counter_max)
@@ -646,7 +666,8 @@ void Probability_Algorithm::Next_Iteration()
                        .arg(cap)
                        .arg(captured)
                        .arg(active_size)
-                       .arg(grains.size());
+                       .arg(grains.size())
+                       .arg(nucleationLog);
         }
     }
 
@@ -656,13 +677,121 @@ void Probability_Algorithm::Next_Iteration()
     }
 }
 
+int Probability_Algorithm::nucleateWave(unsigned int counter_max, QString& logInfo)
+{
+    const int N_total = numColors;
+    if (total_nucleated_so_far >= N_total || filled_voxels >= counter_max)
+        return 0;
+
+    const double X = (counter_max > 0) ? (static_cast<double>(filled_voxels) / counter_max) : 1.0;
+    const double X_peak = std::clamp(static_cast<double>(Parameters::wave_peak_fraction), 0.01, 0.90);
+    double X_end = std::clamp(static_cast<double>(Parameters::wave_end_fraction), 0.05, 0.95);
+    if (X_end <= X_peak) {
+        X_end = std::min(0.95, X_peak + 0.05);
+    }
+
+    const double sigma_X = std::max(0.01, (X_end - X_peak) / 2.5);
+
+    double phi = 0.0;
+    if (X >= X_end || X >= 0.90) {
+        phi = 1.0;
+    } else {
+        auto g = [&](double x_val) {
+            double arg = (x_val - X_peak) / (sigma_X * std::sqrt(2.0));
+            return 0.5 * (1.0 + std::erf(arg));
+        };
+        double g0 = g(0.0);
+        double gEnd = g(X_end);
+        if (gEnd > g0) {
+            phi = (g(X) - g0) / (gEnd - g0);
+        } else {
+            phi = 1.0;
+        }
+        phi = std::clamp(phi, 0.0, 1.0);
+    }
+
+    const int N_initial = std::clamp(Parameters::initial_nuclei_count, 1, N_total);
+    const int target = N_initial + static_cast<int>(std::round(phi * (N_total - N_initial)));
+    int toCreate = target - total_nucleated_so_far;
+
+    // Safety emergency flush if domain is nearly full (>90%) but nuclei remain
+    if (X >= 0.90 && toCreate <= 0 && total_nucleated_so_far < N_total) {
+        toCreate = N_total - total_nucleated_so_far;
+    }
+
+    if (toCreate <= 0)
+        return 0;
+
+    toCreate = std::min(toCreate, N_total - total_nucleated_so_far);
+
+    std::mt19937 rng(Parameters::seed ^ (IterationNumber * 2654435761u));
+    std::uniform_int_distribution<int> dist(0, numCubes - 1);
+
+    int placed = 0;
+    for (int p = 0; p < toCreate; ++p)
+    {
+        bool success = false;
+        for (int retry = 0; retry < 30; ++retry)
+        {
+            int rx = dist(rng);
+            int ry = dist(rng);
+            int rz = dist(rng);
+            if (voxels[rx][ry][rz] == 0)
+            {
+                birthGrain(rx, ry, rz);
+                placed++;
+                success = true;
+                break;
+            }
+        }
+        if (!success)
+        {
+            // Gather all free coordinates
+            std::vector<Coordinate> freeCoords;
+            for (int x = 0; x < numCubes; ++x) {
+                for (int y = 0; y < numCubes; ++y) {
+                    for (int z = 0; z < numCubes; ++z) {
+                        if (voxels[x][y][z] == 0)
+                            freeCoords.push_back({x, y, z});
+                    }
+                }
+            }
+            if (freeCoords.empty()) {
+                qWarning() << "[Probability] No free voxels left to place wave nuclei!";
+                break;
+            }
+            std::shuffle(freeCoords.begin(), freeCoords.end(), rng);
+            int left = std::min<int>(toCreate - placed, static_cast<int>(freeCoords.size()));
+            for (int i = 0; i < left; ++i) {
+                birthGrain(freeCoords[i].x, freeCoords[i].y, freeCoords[i].z);
+                placed++;
+            }
+            break;
+        }
+    }
+
+    total_nucleated_so_far += placed;
+
+    logInfo = QString(" | [WaveNucl] X=%1 phi=%2 added=%3 tot=%4/%5")
+                  .arg(X, 5, 'f', 3)
+                  .arg(phi, 5, 'f', 3)
+                  .arg(placed)
+                  .arg(total_nucleated_so_far)
+                  .arg(N_total);
+
+    return placed;
+}
+
 bool Probability_Algorithm::getDone() const
 {
+    if (flags.isWaveGeneration && total_nucleated_so_far < numColors)
+        return false;
     return (grains.empty() && IterationNumber > 0) || Parent_Algorithm::getDone();
 }
 
 void Probability_Algorithm::CleanUp()
 {
+    saveSeeds();
     const QString dir = Parameters::working_directory.isEmpty() ? "." : Parameters::working_directory;
     if (numCubes > 0 && filled_voxels > 0) {
         auto stats = GrainAnalyzer::analyze3D(voxels, numCubes);
@@ -782,6 +911,10 @@ static std::vector<ParamField> probabilitySchema()
         { "orientation_angle_b", "Angle Y (deg)",         ParamField::Double, 0.0, 0.0, 360.0, {}, "main" },
         { "orientation_angle_c", "Angle Z (deg)",         ParamField::Double, 0.0, 0.0, 360.0, {}, "main" },
         { "stefan_number",       "Stefan number (cooling)", ParamField::Double, 100.0, 1.0, 1000.0, {}, "main" },
+        { "is_wave_generation",  "Wave nucleation",       ParamField::Bool,   false, {}, {}, {}, "main" },
+        { "initial_nuclei_count","Initial nuclei",        ParamField::Int,    1, 1, 100000, {}, "main" },
+        { "wave_peak_fraction",  "Nucl peak (solid frac)", ParamField::Double, 0.20, 0.01, 0.90, {}, "main" },
+        { "wave_end_fraction",   "Nucl end (solid frac)",  ParamField::Double, 0.60, 0.05, 0.95, {}, "main" },
     };
 
     s.push_back(materialParamField());

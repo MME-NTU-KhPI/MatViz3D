@@ -74,6 +74,7 @@ private:
 
     unsigned int computeThermodynamicCap(unsigned int counter_max);
     unsigned int growFrontier(unsigned int maxCaptures, size_t active_size);
+    int nucleateWave(unsigned int counter_max, QString& logInfo);
     void fillIsolatedVoxels();
 };
 

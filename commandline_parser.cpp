@@ -32,6 +32,10 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
     parser.addOption(QCommandLineOption("orientation_angle_c", "Rotation angle of the z-axis for the Probability algorithm", "value"));
     parser.addOption(QCommandLineOption("ellipse_order", "The degree of the superellipse equation", "value"));
     parser.addOption(QCommandLineOption("stefan_number", "Thermodynamic Stefan number (cooling limit) for Probability algorithm", "value"));
+    parser.addOption(QCommandLineOption("wave_generation", "Enable continuous wave nucleation (transformation-fraction controlled)"));
+    parser.addOption(QCommandLineOption("initial_nuclei", "Number of initial nuclei present at step 0 for wave nucleation", "count"));
+    parser.addOption(QCommandLineOption("wave_peak_fraction", "Solid volume fraction where nucleation rate peaks (0..1, default 0.20)", "fraction"));
+    parser.addOption(QCommandLineOption("wave_end_fraction", "Solid volume fraction where 100% of nuclei are placed (0..1, default 0.60)", "fraction"));
     parser.addOption(QCommandLineOption("prob_preset", "Shape preset for Probability algorithm (e.g. 'Sphere (Circle)', 'Prolate (Needle)', 'Oblate (Disc)', 'Triaxial Ellipsoid', 'Superellipsoid (Cube)')", "preset"));
     parser.addOption(QCommandLineOption("minkowski_p",
                                         "Minkowski exponent p for the Voronoi algorithm: 1 = Manhattan "
@@ -317,7 +321,12 @@ void Commandline_Parser::processOptions(const QCommandLineParser& parser)
 
     if (parser.isSet("animate"))
         params->setIsAnimation(true);
-    parseFloat ("wave_coefficient", [&](float  v) { params->setWaveCoefficient(v); });
+    if (parser.isSet("wave_generation"))
+        params->setIsWaveGeneration(true);
+    parseInt   ("initial_nuclei",      [&](int    v) { params->setInitialNucleiCount(v); });
+    parseFloat ("wave_peak_fraction",  [&](float  v) { params->setWavePeakFraction(v); });
+    parseFloat ("wave_end_fraction",   [&](float  v) { params->setWaveEndFraction(v); });
+    parseFloat ("wave_coefficient",    [&](float  v) { params->setWaveCoefficient(v); });
 
     if (!parser.isSet("wave_coefficient"))
         params->setWaveCoefficient(0.1f);
