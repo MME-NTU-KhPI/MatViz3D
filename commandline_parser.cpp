@@ -37,6 +37,7 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
     parser.addOption(QCommandLineOption("wave_peak_fraction", "Solid volume fraction where nucleation rate peaks (0..1, default 0.20)", "fraction"));
     parser.addOption(QCommandLineOption("wave_end_fraction", "Solid volume fraction where 100% of nuclei are placed (0..1, default 0.60)", "fraction"));
     parser.addOption(QCommandLineOption("prob_preset", "Shape preset for Probability algorithm (e.g. 'Sphere (Circle)', 'Prolate (Needle)', 'Oblate (Disc)', 'Triaxial Ellipsoid', 'Superellipsoid (Cube)')", "preset"));
+    parser.addOption(QCommandLineOption("prob_matrix_mode", "Probability matrix calculation method: 'Volume Sampling' (or 'volume') | 'Surface Flux' (or 'surface')", "mode"));
     parser.addOption(QCommandLineOption("minkowski_p",
                                         "Minkowski exponent p for the Voronoi algorithm: 1 = Manhattan "
                                         "(octahedral grains), 2 = Euclidean, large = Chebyshev (cuboidal). "
@@ -330,6 +331,14 @@ void Commandline_Parser::processOptions(const QCommandLineParser& parser)
 
     if (!parser.isSet("wave_coefficient"))
         params->setWaveCoefficient(0.1f);
+
+    if (parser.isSet("prob_matrix_mode")) {
+        const QString m = parser.value("prob_matrix_mode").trimmed().toLower();
+        if (m == "surface" || m == "surface flux" || m == "surface_flux")
+            params->setProbMatrixMode("Surface Flux");
+        else
+            params->setProbMatrixMode("Volume Sampling");
+    }
 
     parseString("algorithm", [&](const QString& v) { params->setAlgorithm(v); });
 

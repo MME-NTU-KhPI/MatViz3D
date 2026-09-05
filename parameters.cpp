@@ -22,6 +22,7 @@ double Parameters::wave_peak_fraction = 0.20;
 double Parameters::wave_end_fraction = 0.60;
 unsigned int Parameters::num_rnd_loads = 0;
 QString Parameters::prob_preset = "Sphere (Circle)";
+QString Parameters::prob_matrix_mode = "Volume Sampling";
 float Parameters::halfaxis_a = 1.5f;
 float Parameters::halfaxis_b = 1.5f;
 float Parameters::halfaxis_c = 1.5f;
@@ -226,6 +227,15 @@ void Parameters::setProbPreset(const QString& value)
     }
 
     emit probPresetChanged();
+}
+
+void Parameters::setProbMatrixMode(const QString& value)
+{
+    QString v = value.trimmed();
+    if (prob_matrix_mode != v) {
+        prob_matrix_mode = v;
+        emit probMatrixModeChanged();
+    }
 }
 
 void Parameters::setHalfAxisA(float value) {

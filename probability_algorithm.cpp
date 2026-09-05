@@ -188,60 +188,85 @@ void Probability_Algorithm::calculateSurfaceFluxProbabilities()
     const double c = std::max(0.01f, Parameters::halfaxis_c);
     const double p = std::max(0.1, Parameters::ellipse_order);
 
-    double flux[3][3][3] = {{{0.0}}};
+    double sum_t[26] = {0.0};
+    uint64_t count[26] = {0};
+
+    // Precalculate normalized neighbor offsets and Euclidean distances
+    double norm_offsets[26][3];
+    double lengths[26];
+    for (size_t o = 0; o < 26; ++o) {
+        double dx = PROBABILITY_OFFSETS[o][0];
+        double dy = PROBABILITY_OFFSETS[o][1];
+        double dz = PROBABILITY_OFFSETS[o][2];
+        lengths[o] = std::sqrt(dx * dx + dy * dy + dz * dz);
+        norm_offsets[o][0] = dx / lengths[o];
+        norm_offsets[o][1] = dy / lengths[o];
+        norm_offsets[o][2] = dz / lengths[o];
+    }
+
     std::mt19937_64 rng(Parameters::seed);
     std::uniform_real_distribution<double> uni(-1.0, 1.0);
 
     for (uint64_t s = 0; s < N_surface; ++s) {
-        double ux, uy, uz, len2;
+        double gx, gy, gz, len2;
         do {
-            ux = uni(rng); uy = uni(rng); uz = uni(rng);
-            len2 = ux*ux + uy*uy + uz*uz;
+            gx = uni(rng); gy = uni(rng); gz = uni(rng);
+            len2 = gx * gx + gy * gy + gz * gz;
         } while (len2 < 1e-12 || len2 > 1.0);
 
         double inv_len = 1.0 / std::sqrt(len2);
-        ux *= inv_len; uy *= inv_len; uz *= inv_len;
+        gx *= inv_len; gy *= inv_len; gz *= inv_len;
 
-        double sum_p = pow(std::abs(ux / a), p) + pow(std::abs(uy / b), p) + pow(std::abs(uz / c), p);
+        // Transform global ray direction into the grain's crystallographic orientation frame
+        double lx = gx, ly = gy, lz = gz;
+        rotatePoint(lx, ly, lz);
+
+        // Radial distance to the boundary of the superellipsoid along this ray
+        double sum_p = std::pow(std::abs(lx / a), p)
+                     + std::pow(std::abs(ly / b), p)
+                     + std::pow(std::abs(lz / c), p);
         if (sum_p < 1e-30) continue;
+        double t = std::pow(sum_p, -1.0 / p);
 
-        double t = pow(sum_p, -1.0 / p);
-        double sx = t * ux;
-        double sy = t * uy;
-        double sz = t * uz;
-
-        double nx = (p / a) * pow(std::abs(sx / a), p - 1.0) * (sx >= 0 ? 1.0 : -1.0);
-        double ny = (p / b) * pow(std::abs(sy / b), p - 1.0) * (sy >= 0 ? 1.0 : -1.0);
-        double nz = (p / c) * pow(std::abs(sz / c), p - 1.0) * (sz >= 0 ? 1.0 : -1.0);
-
-        double nlen = std::sqrt(nx*nx + ny*ny + nz*nz);
-        if (nlen < 1e-30) continue;
-        nx /= nlen; ny /= nlen; nz /= nlen;
-
-        rotatePoint(nx, ny, nz);
-
-        for (const auto& offset : PROBABILITY_OFFSETS) {
-            double dx = offset[0], dy = offset[1], dz = offset[2];
-            double dlen = std::sqrt(dx*dx + dy*dy + dz*dz);
-            double dot = (nx*dx + ny*dy + nz*dz) / dlen;
-            if (dot > 0.0) {
-                flux[1 + offset[0]][1 + offset[1]][1 + offset[2]] += dot;
+        // Find the neighbor offset in global space that aligns best with this ray (Voronoi cone partition)
+        int best_idx = 0;
+        double max_dot = -2.0;
+        for (int o = 0; o < 26; ++o) {
+            double dot = gx * norm_offsets[o][0] + gy * norm_offsets[o][1] + gz * norm_offsets[o][2];
+            if (dot > max_dot) {
+                max_dot = dot;
+                best_idx = o;
             }
+        }
+
+        sum_t[best_idx] += t;
+        count[best_idx]++;
+    }
+
+    double max_prob = 0.0;
+    double raw_prob[26] = {0.0};
+    for (size_t o = 0; o < 26; ++o) {
+        if (count[o] > 0) {
+            // Average radial reach in this direction cone divided by Euclidean distance to neighbor
+            double avg_t = sum_t[o] / count[o];
+            raw_prob[o] = avg_t / lengths[o];
+            max_prob = std::max(max_prob, raw_prob[o]);
         }
     }
 
-    double maxFlux = 0.0;
-    for (int i = 0; i < 3; i++)
-        for (int j = 0; j < 3; j++)
-            for (int k = 0; k < 3; k++)
-                maxFlux = std::max(maxFlux, flux[i][j][k]);
+    if (max_prob < 1e-30) max_prob = 1.0;
 
-    if (maxFlux < 1e-30) maxFlux = 1.0;
+    for (int i = 0; i < 3; ++i)
+        for (int j = 0; j < 3; ++j)
+            for (int k = 0; k < 3; ++k)
+                this->probability[i][j][k] = 0.0;
 
-    for (int i = 0; i < 3; i++)
-        for (int j = 0; j < 3; j++)
-            for (int k = 0; k < 3; k++)
-                this->probability[i][j][k] = flux[i][j][k] / maxFlux;
+    for (size_t o = 0; o < 26; ++o) {
+        int i = 1 + PROBABILITY_OFFSETS[o][0];
+        int j = 1 + PROBABILITY_OFFSETS[o][1];
+        int k = 1 + PROBABILITY_OFFSETS[o][2];
+        this->probability[i][j][k] = raw_prob[o] / max_prob;
+    }
 
     this->probability[1][1][1] = 0.0;
 }
@@ -278,15 +303,21 @@ void Probability_Algorithm::Initialization(bool isWaveGeneration)
             for (int k = 0; k < numCubes; ++k)
                 m_claimGrid[i][j][k] = 0;
 
-    calculateVolumeProbabilities();
+    const QString modeStr = Parameters::prob_matrix_mode.trimmed().toLower();
+    if (modeStr == "surface flux" || modeStr == "surface" || modeStr == "surface_flux") {
+        processProbabilities(ProbabilityMode::SurfaceFlux);
+    } else {
+        processProbabilities(ProbabilityMode::VolumeSampling);
+    }
     printProbabilityKernel();
 
     qDebug().noquote()
-        << QString("[Probability] %1^3 grid (%2 voxels), %3 initial seeds (target: %4), preset: '%5' (a=%6, b=%7, c=%8, order=%9, St=%10)%11%12")
+        << QString("[Probability] %1^3 grid (%2 voxels), %3 initial seeds (target: %4), matrix: '%5', preset: '%6' (a=%7, b=%8, c=%9, order=%10, St=%11)%12%13")
                .arg(numCubes)
                .arg(static_cast<uint64_t>(numCubes) * numCubes * numCubes)
                .arg(seedPoints.size())
                .arg(numColors)
+               .arg(Parameters::prob_matrix_mode)
                .arg(Parameters::prob_preset)
                .arg(Parameters::halfaxis_a, 0, 'g', 3)
                .arg(Parameters::halfaxis_b, 0, 'g', 3)
@@ -900,6 +931,8 @@ static std::vector<ParamField> probabilitySchema()
         { "points",      "Points",        ParamField::PointsMode, 10, 1, 100000,
          { "Size", "Concentration" }, "main" },
         { "is_periodic", "Periodic cell", ParamField::Bool,       true, {}, {}, {}, "main" },
+        { "prob_matrix_mode",    "Matrix mode",   ParamField::Enum,       "Volume Sampling", {}, {},
+         { "Volume Sampling", "Surface Flux" }, "main" },
         { "prob_preset", "Shape preset",  ParamField::Enum,       "Sphere (Circle)", {}, {},
          { "Sphere (Circle)", "Prolate (Needle)", "Oblate (Disc)", "Triaxial Ellipsoid", "Superellipsoid (Cube)", "Custom" },
          "main", /*invokeMethod=*/ "setProbPreset" },
