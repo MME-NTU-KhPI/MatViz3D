@@ -119,6 +119,12 @@ public:
     Q_PROPERTY(bool tensorSourceMissing READ tensorSourceMissing NOTIFY tensorStateChanged)
 
     bool tensorAvailable() const { return fieldMode != FieldMode::None; }
+    bool hasField() const { return fieldMode != FieldMode::None; }
+    FieldMode getFieldMode() const { return fieldMode; }
+    ColorMapPalette getColorMapPalette() const { return colorMapPalette; }
+    double getFieldMin() const;
+    double getFieldMax() const;
+    QString getFieldComponentName() const;
     int  glyphCount() const { return m_glyphCount; }
     bool tensorSourceMissing() const { return m_glyphSourceMissing; }
 
@@ -158,6 +164,7 @@ public:
     QPointF axisLabelX() const { return projectAxisLabel(QVector3D(1, 0, 0)); }
     QPointF axisLabelY() const { return projectAxisLabel(QVector3D(0, 1, 0)); }
     QPointF axisLabelZ() const { return projectAxisLabel(QVector3D(0, 0, 1)); }
+    Q_INVOKABLE QPointF projectAxisLabel(const QVector3D& dir) const;
 
     Q_INVOKABLE void setShowStreamlines(bool show);
     Q_INVOKABLE void setStreamlineSeedStride(int stride);
@@ -201,7 +208,7 @@ protected:
     FieldMode fieldMode = FieldMode::None;
     std::shared_ptr<ansysWrapper>           ansysField;
     std::shared_ptr<FieldVisualizationData> fftField;
-    int   fieldComponent = 0;
+    int   fieldComponent = SEQV;
     bool  showDeformed   = false;
     float deformedScale  = 1.0f;
 
@@ -309,9 +316,6 @@ private:
 
 private:
     GLuint vboIds[3];
-    /// Projects a unit axis direction onto this item, reproducing the
-    /// rotation-only MVP that drawCornerAxes() uses for the triad.
-    QPointF projectAxisLabel(const QVector3D& dir) const;
     void pushRotations();
 
 protected:

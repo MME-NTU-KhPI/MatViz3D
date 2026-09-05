@@ -203,6 +203,16 @@ bool LoadStepManager::LoadGeomSet(int geom_set_num, HDF5Wrapper& hdf5)
 {
     qDebug() << "Loaing geom set" << geom_set_num;
     current_geom_set_num = geom_set_num;
+    geom_sub_list.clear();
+    loadstepResults.clear();
+    loadstepResultsAvg.clear();
+    loadstepResultsMax.clear();
+    loadstepResultsMin.clear();
+    resultNodes.clear();
+    eps_as_loading.clear();
+    local_cs.clear();
+    voxels_vector.clear();
+
     std::string set_prefix = "/" + std::to_string(geom_set_num);
     // Read voxels
     this->cubeSize = hdf5.readInt(set_prefix, "cubeSize");

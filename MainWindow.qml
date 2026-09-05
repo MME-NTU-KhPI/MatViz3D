@@ -151,7 +151,7 @@ Window {
                             {
                                 text: qsTr("Save as PNG");
                                 icon.source: "qrc:/img/fileMenu/save_png.svg"
-                                onTriggered: exportController.saveAsImage(glWidget)
+                                onTriggered: exportController.saveAsImage(glWidget, _itemFieldView.legendVertical, _itemFieldView.visible)
                             }
                             Action
                             {
@@ -164,7 +164,21 @@ Window {
                             {
                                 text: qsTr("Make screenshot");
                                 icon.source: "qrc:/img/fileMenu/make_screenshot.svg"
-                                onTriggered: exportController.copyToClipboard(glWidget)
+                                onTriggered: exportController.copyToClipboard(glWidget, _itemFieldView.legendVertical, _itemFieldView.visible)
+                            }
+                            Action
+                            {
+                                text: qsTr("Auto-crop empty borders");
+                                checkable: true;
+                                checked: exportController.autoCrop;
+                                onTriggered: exportController.autoCrop = checked;
+                            }
+                            Action
+                            {
+                                text: qsTr("High DPI (300 DPI)");
+                                checkable: true;
+                                checked: exportController.highDpi;
+                                onTriggered: exportController.highDpi = checked;
                             }
                             MenuSeparator { }
                             Action
@@ -271,10 +285,34 @@ Window {
                             font.pixelSize: 16
                             font.family: montserrat.name
 
-                            MenuItem { id: checkAll; text: qsTr("All"); checkable: true; checked: true; onTriggered: { checkConsole.checked = checked; checkData.checked = checked; checkToolBar.checked = checked; checkConsole.triggered(); checkData.triggered(); checkToolBar.triggered(); } }
+                            MenuItem {
+                                id: checkAll
+                                text: qsTr("All")
+                                checkable: true
+                                checked: true
+                                onTriggered: {
+                                    checkConsole.checked = checked;
+                                    checkData.checked = checked;
+                                    checkToolBar.checked = checked;
+                                    checkLoadStep.checked = checked;
+                                    checkConsole.triggered();
+                                    checkData.triggered();
+                                    checkToolBar.triggered();
+                                    checkLoadStep.triggered();
+                                }
+                            }
                             MenuItem { id: checkConsole; text: qsTr("Console"); checkable: true; checked: true; onTriggered: { _itemConsole.visible = checked; if (!checked) checkAll.checked = false; } }
                             MenuItem { id: checkData; text: qsTr("Data"); checkable: true; checked: true; onTriggered: { _itemData.visible = checked; if (!checked) checkAll.checked = false; } }
                             MenuItem { id: checkToolBar; text: qsTr("Tool Bar"); checkable: true; checked: true; onTriggered: { _itemToolBar.visible = checked; if (!checked) checkAll.checked = false; } }
+                            MenuItem {
+                                id: checkLoadStep
+                                text: qsTr("Load Step Control")
+                                checkable: true
+                                checked: true
+                                onTriggered: {
+                                    if (!checked) checkAll.checked = false;
+                                }
+                            }
                         }
                     }
 
@@ -752,8 +790,8 @@ Window {
                             cursorShape: Qt.PointingHandCursor; 
                             hoverEnabled: true
                             ToolTip.visible: containsMouse
-                            ToolTip.text: qsTr("Copy screenshot to clipboard")
-                            onClicked: exportController.copyToClipboard(glWidget); 
+                            ToolTip.text: qsTr("Copy screenshot to clipboard (300 DPI, auto-cropped)")
+                            onClicked: exportController.copyToClipboard(glWidget, _itemFieldView.legendVertical, _itemFieldView.visible); 
                         }
                     }
 
@@ -1211,8 +1249,20 @@ Window {
         height: fieldViewCol.implicitHeight + 30
         visible: stressAnalysisController.hasResult || (hdf5ProjectController.isOpen && hdf5ProjectController.loadSteps.length > 0)
 
+        property bool legendVertical: false
+        onLegendVerticalChanged: exportController.legendVertical = legendVertical
+        Component.onCompleted: exportController.legendVertical = legendVertical
+
+        function levelVal(lvl) {
+            var min = stressAnalysisController.fieldMin;
+            var max = stressAnalysisController.fieldMax;
+            if (min === undefined || isNaN(min)) min = 0;
+            if (max === undefined || isNaN(max)) max = 0;
+            return min + (max - min) * (lvl / 8.0);
+        }
+
         function fieldFmt(v) {
-            if (v === undefined || v === null) return "0";
+            if (v === undefined || v === null || isNaN(v)) return "0";
             if (Math.abs(v) >= 10000 || (Math.abs(v) < 0.001 && v !== 0))
                 return v.toExponential(3);
             return parseFloat(v.toPrecision(5)).toString();
@@ -1237,210 +1287,6 @@ Window {
                     font.family: montserrat.name
                 }
 
-                // Load Step Navigation (visible when HDF5 project with load steps is open)
-                Column {
-                    width: parent.width
-                    spacing: 6
-                    visible: hdf5ProjectController.isOpen && hdf5ProjectController.loadSteps.length > 0
-
-                    // Row with Geometry selector if multiple geometries
-                    Row {
-                        width: parent.width
-                        spacing: 8
-                        visible: hdf5ProjectController.geomSets.length > 1
-                        Text {
-                            text: qsTr("Geometry:")
-                            color: "#c6c6c6"
-                            font.pixelSize: 13
-                            font.family: inter.name
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-                        ComboBox {
-                            width: 140
-                            model: hdf5ProjectController.geomSets
-                            currentIndex: hdf5ProjectController.currentGeomIndex
-                            onActivated: hdf5ProjectController.selectGeometry(currentIndex)
-                        }
-                    }
-
-                    // Stepper row with vector chevrons, step readout, and sleek stats button
-                    Row {
-                        width: parent.width
-                        spacing: 8
-
-                        // Vector Prev Button (<)
-                        Rectangle {
-                            id: fieldPrevStepBtn
-                            width: 26; height: 26
-                            radius: 6
-                            color: fieldPrevMouse.pressed ? "#161616" : (fieldPrevMouse.containsMouse ? "#3a3a3a" : "#262626")
-                            border.color: fieldPrevMouse.containsMouse ? "#666666" : "#404040"
-                            border.width: 1
-                            opacity: hdf5ProjectController.currentLoadStepIndex > 0 ? 1.0 : 0.35
-
-                            Canvas {
-                                anchors.centerIn: parent
-                                width: 8; height: 12
-                                onPaint: {
-                                    var ctx = getContext("2d");
-                                    ctx.reset();
-                                    ctx.beginPath();
-                                    ctx.moveTo(6.5, 1);
-                                    ctx.lineTo(1.5, 6);
-                                    ctx.lineTo(6.5, 11);
-                                    ctx.strokeStyle = "#e0e0e0";
-                                    ctx.lineWidth = 2.0;
-                                    ctx.lineCap = "round";
-                                    ctx.lineJoin = "round";
-                                    ctx.stroke();
-                                }
-                            }
-
-                            ToolTip.visible: fieldPrevMouse.containsMouse
-                            ToolTip.text: qsTr("Previous load step")
-
-                            MouseArea {
-                                id: fieldPrevMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: parent.opacity > 0.5 ? Qt.PointingHandCursor : Qt.ArrowCursor
-                                onClicked: {
-                                    if (hdf5ProjectController.currentLoadStepIndex > 0)
-                                        hdf5ProjectController.prevStep();
-                                }
-                            }
-                        }
-
-                        Text {
-                            width: parent.width - 150
-                            text: hdf5ProjectController.currentLoadStepName + " (" + (hdf5ProjectController.currentLoadStepIndex + 1) + "/" + hdf5ProjectController.loadSteps.length + ")"
-                            color: "#4fc3f7"
-                            font.pixelSize: 12
-                            font.family: montserrat.name
-                            font.bold: true
-                            elide: Text.ElideRight
-                            anchors.verticalCenter: parent.verticalCenter
-                            horizontalAlignment: Text.AlignHCenter
-                        }
-
-                        // Vector Next Button (>)
-                        Rectangle {
-                            id: fieldNextStepBtn
-                            width: 26; height: 26
-                            radius: 6
-                            color: fieldNextMouse.pressed ? "#161616" : (fieldNextMouse.containsMouse ? "#3a3a3a" : "#262626")
-                            border.color: fieldNextMouse.containsMouse ? "#666666" : "#404040"
-                            border.width: 1
-                            opacity: hdf5ProjectController.currentLoadStepIndex < hdf5ProjectController.loadSteps.length - 1 ? 1.0 : 0.35
-
-                            Canvas {
-                                anchors.centerIn: parent
-                                width: 8; height: 12
-                                onPaint: {
-                                    var ctx = getContext("2d");
-                                    ctx.reset();
-                                    ctx.beginPath();
-                                    ctx.moveTo(1.5, 1);
-                                    ctx.lineTo(6.5, 6);
-                                    ctx.lineTo(1.5, 11);
-                                    ctx.strokeStyle = "#e0e0e0";
-                                    ctx.lineWidth = 2.0;
-                                    ctx.lineCap = "round";
-                                    ctx.lineJoin = "round";
-                                    ctx.stroke();
-                                }
-                            }
-
-                            ToolTip.visible: fieldNextMouse.containsMouse
-                            ToolTip.text: qsTr("Next load step")
-
-                            MouseArea {
-                                id: fieldNextMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: parent.opacity > 0.5 ? Qt.PointingHandCursor : Qt.ArrowCursor
-                                onClicked: {
-                                    if (hdf5ProjectController.currentLoadStepIndex < hdf5ProjectController.loadSteps.length - 1)
-                                        hdf5ProjectController.nextStep();
-                                }
-                            }
-                        }
-
-                        // Sleek Statistics Button
-                        Rectangle {
-                            id: fieldStatsBtn
-                            height: 26
-                            width: fieldStatsRow.implicitWidth + 16
-                            radius: 6
-                            color: fieldStatsMouse.pressed ? "#18242c" : (fieldStatsMouse.containsMouse ? "#273946" : "#1f2e38")
-                            border.color: fieldStatsMouse.containsMouse ? "#4fc3f7" : "#37474f"
-                            border.width: 1
-
-                            Row {
-                                id: fieldStatsRow
-                                anchors.centerIn: parent
-                                spacing: 5
-
-                                Canvas {
-                                    width: 12; height: 11
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    onPaint: {
-                                        var ctx = getContext("2d");
-                                        ctx.reset();
-                                        ctx.fillStyle = "#4fc3f7";
-                                        ctx.fillRect(0, 5, 2.5, 6);
-                                        ctx.fillRect(4.5, 0, 2.5, 11);
-                                        ctx.fillRect(9, 3, 2.5, 8);
-                                    }
-                                }
-
-                                Text {
-                                    text: qsTr("Statistics")
-                                    font.family: inter.name
-                                    font.pixelSize: 11
-                                    font.bold: true
-                                    color: fieldStatsMouse.containsMouse ? "#ffffff" : "#cbe4f2"
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-                            }
-
-                            ToolTip.visible: fieldStatsMouse.containsMouse
-                            ToolTip.text: qsTr("View statistics for this load step")
-
-                            MouseArea {
-                                id: fieldStatsMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    statisticsLoader.active = true;
-                                    if (statisticsLoader.item) {
-                                        statisticsLoader.item.visible = true;
-                                        statisticsLoader.item.raise();
-                                    }
-                                    statisticsController.setMode("Deformed");
-                                }
-                            }
-                        }
-                    }
-
-                    // Scrubber slider
-                    Slider {
-                        width: parent.width
-                        from: 0
-                        to: Math.max(0, hdf5ProjectController.loadSteps.length - 1)
-                        stepSize: 1
-                        value: hdf5ProjectController.currentLoadStepIndex
-                        onMoved: hdf5ProjectController.selectLoadStep(Math.round(value))
-                    }
-
-                    Rectangle {
-                        width: parent.width
-                        height: 1
-                        color: "#40ffffff"
-                    }
-                }
-
                 Row {
                     width: parent.width
                     spacing: 10
@@ -1454,85 +1300,318 @@ Window {
                     ComboBox {
                         id: fieldComboBox
                         width: 190
+                        height: 28
+                        anchors.verticalCenter: parent.verticalCenter
                         model: stressAnalysisController.fieldComponents
                         currentIndex: stressAnalysisController.fieldComponentIndex
-                        onActivated: stressAnalysisController.fieldComponentIndex = currentIndex
+                        onActivated: (index) => stressAnalysisController.fieldComponentIndex = index
                     }
                 }
 
-                Row {
+                // ── Colormap Legend ───────────────────────────────────────────
+                Item {
+                    id: legendContainer
                     width: parent.width
-                    spacing: 6
-                    Text {
-                        width: 40
-                        text: _itemFieldView.fieldFmt(stressAnalysisController.fieldMin)
-                        color: "#9e9e9e"
-                        font.pixelSize: 11
-                        font.family: inter.name
-                        anchors.verticalCenter: parent.verticalCenter
+                    height: legendCol.implicitHeight
+
+                    property var paletteColors: {
+                        glWidget.colorMapPalette;
+                        return glWidget.getColorMap(9);
                     }
-                    // Item, not Row: needs an anchors.fill'd MouseArea for the
-                    // right-click menu, which Row refuses to lay out.
-                    Item {
-                        id: legendRow
-                        width: parent.width - 96
-                        height: 14
-                        anchors.verticalCenter: parent.verticalCenter
 
-                        // Re-fetched whenever glWidget.colorMapPalette changes -- the
-                        // property read forces this binding to redo the getColorMap()
-                        // call (a plain Q_INVOKABLE call by itself isn't tracked).
-                        property var paletteColors: {
-                            glWidget.colorMapPalette;
-                            return glWidget.getColorMap(9);
-                        }
+                    MouseArea {
+                        anchors.fill: parent
+                        acceptedButtons: Qt.RightButton
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: colorMapMenu.popup()
+                    }
 
-                        Row {
-                            anchors.fill: parent
-                            spacing: 0
-                            Repeater {
-                                model: legendRow.paletteColors
+                    Column {
+                        id: legendCol
+                        width: parent.width
+                        spacing: 8
+
+                        // Header with title, Palette button, and View Mode toggle
+                        Item {
+                            width: parent.width
+                            height: 22
+
+                            Text {
+                                id: legendTitleText
+                                text: qsTr("Colormap Legend")
+                                color: "#d9d9d9"
+                                font.pixelSize: 13
+                                font.family: inter.name
+                                font.weight: Font.Medium
+                                anchors.left: parent.left
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+
+                            Row {
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 6
+
                                 Rectangle {
-                                    width: legendRow.width / 9
-                                    height: 14
-                                    color: modelData
+                                    id: paletteBtn
+                                    width: paletteBtnText.implicitWidth + 12
+                                    height: 20
+                                    radius: 10
+                                    color: palMouse.containsMouse ? "#3a3a3a" : "#2a2a2a"
+                                    border.color: "#50ffffff"
+                                    border.width: 1
+
+                                    Text {
+                                        id: paletteBtnText
+                                        anchors.centerIn: parent
+                                        text: qsTr("Palette...")
+                                        color: "#d0d0d0"
+                                        font.pixelSize: 10
+                                        font.family: inter.name
+                                    }
+
+                                    MouseArea {
+                                        id: palMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: colorMapMenu.popup()
+                                    }
+                                }
+
+                                Rectangle {
+                                    id: legendToggleBtn
+                                    width: legendToggleText.implicitWidth + 12
+                                    height: 20
+                                    radius: 10
+                                    color: toggleMouse.containsMouse ? "#3a3a3a" : "#2a2a2a"
+                                    border.color: "#50ffffff"
+                                    border.width: 1
+
+                                    Text {
+                                        id: legendToggleText
+                                        anchors.centerIn: parent
+                                        text: _itemFieldView.legendVertical ? qsTr("Vertical") : qsTr("Horizontal")
+                                        color: "#d0d0d0"
+                                        font.pixelSize: 10
+                                        font.family: inter.name
+                                    }
+
+                                    MouseArea {
+                                        id: toggleMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        ToolTip.visible: containsMouse
+                                        ToolTip.text: _itemFieldView.legendVertical ? qsTr("Switch to horizontal legend") : qsTr("Switch to vertical (9-level) legend")
+                                        onClicked: _itemFieldView.legendVertical = !_itemFieldView.legendVertical
+                                    }
                                 }
                             }
                         }
 
-                        MouseArea {
-                            anchors.fill: parent
-                            acceptedButtons: Qt.RightButton
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: colorMapMenu.popup()
+                        // Detailed Vertical FEA View (Levels 8 down to 0)
+                        Column {
+                            id: verticalLegend
+                            width: parent.width
+                            visible: _itemFieldView.legendVertical
+                            height: visible ? implicitHeight : 0
+                            spacing: 3
+
+                            Repeater {
+                                model: 9
+                                Item {
+                                    width: parent.width
+                                    height: 15
+                                    property int level: 8 - index
+                                    property real val: _itemFieldView.levelVal(level)
+
+                                    Row {
+                                        anchors.fill: parent
+                                        spacing: 8
+
+                                        Rectangle {
+                                            id: swatchRect
+                                            width: 26
+                                            height: 13
+                                            radius: 2
+                                            color: (legendContainer.paletteColors && legendContainer.paletteColors.length > level)
+                                                   ? legendContainer.paletteColors[level]
+                                                   : "transparent"
+                                            border.color: "#40ffffff"
+                                            border.width: 0.5
+                                            anchors.verticalCenter: parent.verticalCenter
+
+                                            MouseArea {
+                                                id: swatchMouse
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                acceptedButtons: Qt.NoButton
+                                                ToolTip.visible: containsMouse
+                                                ToolTip.text: (level === 8 ? "Max: " : (level === 0 ? "Min: " : "Level " + (level + 1) + ": ")) + _itemFieldView.fieldFmt(val)
+                                            }
+                                        }
+
+                                        Text {
+                                            width: 80
+                                            text: _itemFieldView.fieldFmt(val)
+                                            color: (level === 8 || level === 0) ? "#ffffff" : "#c6c6c6"
+                                            font.pixelSize: 11
+                                            font.family: inter.name
+                                            font.weight: (level === 8 || level === 0) ? Font.DemiBold : Font.Normal
+                                            anchors.verticalCenter: parent.verticalCenter
+                                        }
+
+                                        Text {
+                                            text: level === 8 ? qsTr("(Max)") : (level === 0 ? qsTr("(Min)") : "")
+                                            color: "#7a7a7a"
+                                            font.pixelSize: 10
+                                            font.family: inter.name
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            visible: text !== ""
+                                        }
+                                    }
+                                }
+                            }
                         }
 
-                        Menu {
-                            id: colorMapMenu
-                            title: qsTr("Colormap")
+                        // Compact Horizontal View
+                        Column {
+                            id: horizontalLegend
+                            width: parent.width
+                            visible: !_itemFieldView.legendVertical
+                            height: visible ? implicitHeight : 0
+                            spacing: 5
 
-                            MenuItem { text: qsTr("Rainbow");                     onTriggered: glWidget.colorMapPalette = 0 }
-                            MenuItem { text: qsTr("Cool-Warm (blue-white-red)");  onTriggered: glWidget.colorMapPalette = 1 }
-                            MenuItem { text: qsTr("Red-Blue (red-white-blue)");   onTriggered: glWidget.colorMapPalette = 2 }
-                            MenuItem { text: qsTr("Viridis");                     onTriggered: glWidget.colorMapPalette = 3 }
-                            MenuItem { text: qsTr("Grayscale");                   onTriggered: glWidget.colorMapPalette = 4 }
+                            // Color bar on its own row
+                            Rectangle {
+                                id: hColorBar
+                                width: parent.width
+                                height: 14
+                                radius: 3
+                                clip: true
+                                border.color: "#40ffffff"
+                                border.width: 1
+
+                                Row {
+                                    anchors.fill: parent
+                                    Repeater {
+                                        model: 9
+                                        Rectangle {
+                                            width: hColorBar.width / 9
+                                            height: parent.height
+                                            color: (legendContainer.paletteColors && legendContainer.paletteColors.length > index)
+                                                   ? legendContainer.paletteColors[index]
+                                                   : "transparent"
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Values below the color bar
+                            Item {
+                                width: parent.width
+                                height: 16
+
+                                // Min (0%)
+                                Text {
+                                    anchors.left: parent.left
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: _itemFieldView.fieldFmt(_itemFieldView.levelVal(0))
+                                    color: "#ffffff"
+                                    font.pixelSize: 10
+                                    font.family: inter.name
+                                    font.weight: Font.DemiBold
+                                }
+
+                                // 25% (Level 2)
+                                Text {
+                                    x: Math.round((parent.width * 0.25) - (width / 2))
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: _itemFieldView.fieldFmt(_itemFieldView.levelVal(2))
+                                    color: "#9e9e9e"
+                                    font.pixelSize: 10
+                                    font.family: inter.name
+                                    visible: parent.width >= 310
+                                }
+
+                                // Mid (50% - Level 4)
+                                Text {
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: _itemFieldView.fieldFmt(_itemFieldView.levelVal(4))
+                                    color: "#c6c6c6"
+                                    font.pixelSize: 10
+                                    font.family: inter.name
+                                }
+
+                                // 75% (Level 6)
+                                Text {
+                                    x: Math.round((parent.width * 0.75) - (width / 2))
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: _itemFieldView.fieldFmt(_itemFieldView.levelVal(6))
+                                    color: "#9e9e9e"
+                                    font.pixelSize: 10
+                                    font.family: inter.name
+                                    visible: parent.width >= 310
+                                }
+
+                                // Max (100%)
+                                Text {
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: _itemFieldView.fieldFmt(_itemFieldView.levelVal(8))
+                                    color: "#ffffff"
+                                    font.pixelSize: 10
+                                    font.family: inter.name
+                                    font.weight: Font.DemiBold
+                                }
+                            }
+                        }
+
+                        Text {
+                            text: qsTr("Right-click legend to change colormap palette")
+                            color: "#7a7a7a"
+                            font.pixelSize: 10
+                            font.family: inter.name
                         }
                     }
-                    Text {
-                        width: 40
-                        text: _itemFieldView.fieldFmt(stressAnalysisController.fieldMax)
-                        color: "#9e9e9e"
-                        font.pixelSize: 11
-                        font.family: inter.name
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-                }
 
-                Text {
-                    text: qsTr("Right-click the legend to change colormap")
-                    color: "#7a7a7a"
-                    font.pixelSize: 10
-                    font.family: inter.name
+                    Menu {
+                        id: colorMapMenu
+                        title: qsTr("Colormap")
+
+                        MenuItem {
+                            text: qsTr("Rainbow")
+                            checkable: true
+                            checked: glWidget.colorMapPalette === 0
+                            onTriggered: glWidget.colorMapPalette = 0
+                        }
+                        MenuItem {
+                            text: qsTr("Cool-Warm (blue-white-red)")
+                            checkable: true
+                            checked: glWidget.colorMapPalette === 1
+                            onTriggered: glWidget.colorMapPalette = 1
+                        }
+                        MenuItem {
+                            text: qsTr("Red-Blue (red-white-blue)")
+                            checkable: true
+                            checked: glWidget.colorMapPalette === 2
+                            onTriggered: glWidget.colorMapPalette = 2
+                        }
+                        MenuItem {
+                            text: qsTr("Viridis")
+                            checkable: true
+                            checked: glWidget.colorMapPalette === 3
+                            onTriggered: glWidget.colorMapPalette = 3
+                        }
+                        MenuItem {
+                            text: qsTr("Grayscale")
+                            checkable: true
+                            checked: glWidget.colorMapPalette === 4
+                            onTriggered: glWidget.colorMapPalette = 4
+                        }
+                    }
                 }
 
                 Row {
@@ -1619,7 +1698,7 @@ Window {
     // ═══════════════════════════════════════════════════════════════════
     Rectangle {
         id: _itemLoadStepTimeline
-        visible: hdf5ProjectController.isOpen && hdf5ProjectController.loadSteps.length > 1
+        visible: checkLoadStep.checked && hdf5ProjectController.isOpen && (hdf5ProjectController.loadSteps.length > 1 || hdf5ProjectController.geomSets.length > 1)
         anchors {
             bottom: parent.bottom
             bottomMargin: (_itemConsole.visible ? _itemConsole.height : 0) + 14
@@ -1638,6 +1717,32 @@ Window {
             anchors.leftMargin: 14
             anchors.rightMargin: 14
             spacing: 12
+
+            Text {
+                text: qsTr("Geom:")
+                color: "#c6c6c6"
+                font.pixelSize: 12
+                font.bold: true
+                font.family: montserrat.name
+                visible: hdf5ProjectController.geomSets.length > 1
+            }
+
+            ComboBox {
+                id: timelineGeomCombo
+                Layout.preferredWidth: 65
+                Layout.preferredHeight: 28
+                model: hdf5ProjectController.geomSets
+                currentIndex: hdf5ProjectController.currentGeomIndex
+                onActivated: (index) => hdf5ProjectController.selectGeomSet(index)
+                visible: hdf5ProjectController.geomSets.length > 1
+            }
+
+            Rectangle {
+                width: 1
+                height: 22
+                color: "#555555"
+                visible: hdf5ProjectController.geomSets.length > 1
+            }
 
             Text {
                 text: qsTr("Load Step:")
@@ -1822,6 +1927,47 @@ Window {
                             statisticsLoader.item.raise();
                         }
                         statisticsController.setMode("Deformed");
+                    }
+                }
+            }
+
+            // Close button (x) to hide loadstep control window
+            Rectangle {
+                id: tlCloseBtn
+                Layout.preferredWidth: 20
+                Layout.preferredHeight: 20
+                radius: 10
+                color: tlCloseMouse.pressed ? "#333333" : (tlCloseMouse.containsMouse ? "#2a2a2a" : "transparent")
+                border.color: tlCloseMouse.containsMouse ? "#555555" : "transparent"
+                border.width: 1
+
+                Canvas {
+                    anchors.centerIn: parent
+                    width: 8; height: 8
+                    onPaint: {
+                        var ctx = getContext("2d");
+                        ctx.reset();
+                        ctx.beginPath();
+                        ctx.moveTo(1.5, 1.5); ctx.lineTo(6.5, 6.5);
+                        ctx.moveTo(6.5, 1.5); ctx.lineTo(1.5, 6.5);
+                        ctx.strokeStyle = tlCloseMouse.containsMouse ? "#ffffff" : "#888888";
+                        ctx.lineWidth = 1.6;
+                        ctx.lineCap = "round";
+                        ctx.stroke();
+                    }
+                }
+
+                ToolTip.visible: tlCloseMouse.containsMouse
+                ToolTip.text: qsTr("Hide load step control")
+
+                MouseArea {
+                    id: tlCloseMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        checkLoadStep.checked = false;
+                        checkAll.checked = false;
                     }
                 }
             }

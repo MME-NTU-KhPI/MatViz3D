@@ -142,7 +142,7 @@ Window {
                     visible: ctrl.isOpen && ctrl.geomSets.length > 0
                     model: ctrl.geomSets
                     currentIndex: ctrl.currentGeomIndex
-                    onActivated: ctrl.selectGeomSet(currentIndex)
+                    onActivated: (index) => ctrl.selectGeomSet(index)
                 }
 
                 Rectangle {
@@ -171,7 +171,7 @@ Window {
                         Layout.preferredHeight: 32
                         model: ctrl.loadSteps
                         currentIndex: ctrl.currentLoadStepIndex
-                        onActivated: ctrl.selectLoadStep(currentIndex)
+                        onActivated: (index) => ctrl.selectLoadStep(index)
                     }
 
                     Button {

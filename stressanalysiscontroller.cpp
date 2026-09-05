@@ -235,6 +235,21 @@ void StressAnalysisController::setShowField(bool show)
     emit showFieldChanged();
 }
 
+void StressAnalysisController::syncFieldState(bool showField, bool showDeformed, double scale)
+{
+    const bool changedField = (m_showField != showField);
+    const bool changedDeformed = (m_showDeformed != showDeformed);
+    const bool changedScale = !qFuzzyCompare(m_deformedScale + 1.0, scale + 1.0);
+
+    m_showField = showField;
+    m_showDeformed = showDeformed;
+    m_deformedScale = scale;
+
+    if (changedField) emit showFieldChanged();
+    if (changedDeformed) emit showDeformedChanged();
+    if (changedScale) emit deformedScaleChanged();
+}
+
 // Pushes m_lastResult's field into the 3D view right after a successful
 // single-shot solve, defaulting to SEQV and a deformed-scale that targets
 // ~15% of the model size (real strains are far too small to see un-scaled).
@@ -687,8 +702,10 @@ void StressAnalysisController::clearResult()
     m_hasResult = false;
     m_showField = false;
     m_showDeformed = false;
+    m_fieldComponentIndex = 6;
     emit resultChanged();
     emit showFieldChanged();
     emit showDeformedChanged();
+    emit fieldComponentChanged();
 }
 

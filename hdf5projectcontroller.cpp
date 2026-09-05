@@ -46,6 +46,12 @@ bool Hdf5ProjectController::openFile(const QString& filePath)
     m_currentGeomIndex = -1;
     m_syncedGeomIndex = -1;
 
+    if (StressAnalysisController* sa = StressAnalysisController::getInstance()) {
+        sa->setFieldComponentIndex(6); // default von Mises (SEQV)
+        sa->setShowDeformed(true);
+        sa->setShowField(true);
+    }
+
     emit projectChanged();
 
     if (!m_geomSets.isEmpty()) {
@@ -283,6 +289,10 @@ void Hdf5ProjectController::pushTo3DView()
         const size_t expectedVoxelCount = static_cast<size_t>(m_cubeSize) * m_cubeSize * m_cubeSize;
         const bool isPerVoxel = (results.size() == expectedVoxelCount);
 
+        StressAnalysisController* sa = StressAnalysisController::getInstance();
+        const bool deformed = sa ? sa->showDeformed() : true;
+        const int comp = (sa && sa->currentComponentEnum() >= 0) ? sa->currentComponentEnum() : SEQV;
+
         if (isPerVoxel) {
             auto field = buildFieldFromResults(m_cubeSize, results, lsm.getEpsAsLoading());
             double epsNorm = 0.0;
@@ -290,10 +300,16 @@ void Hdf5ProjectController::pushTo3DView()
             double charDisp = std::max(1e-12, std::sqrt(epsNorm) * m_cubeSize);
             float targetScale = float(0.15 * m_cubeSize / charDisp);
 
-            ogl->showFFTField(field, SEQV, true, targetScale);
+            if (needGeomSync || (sa && sa->deformedScale() <= 0.0)) {
+                if (sa) sa->setDeformedScale(targetScale);
+            }
+            const float scale = (sa && sa->deformedScale() > 0.0) ? float(sa->deformedScale()) : targetScale;
 
-            if (StressAnalysisController* sa = StressAnalysisController::getInstance()) {
+            ogl->showFFTField(field, comp, deformed, scale);
+
+            if (sa) {
                 sa->updateFromFFT(field, lsm.getLoadStepResultsAvg(), m_macroVonMises);
+                sa->syncFieldState(true, deformed, scale);
             }
         } else {
             auto wr = std::make_shared<ansysWrapper>(true, false);
@@ -314,17 +330,23 @@ void Hdf5ProjectController::pushTo3DView()
             }
             float targetScale = float(0.15 * m_cubeSize / charDisp);
 
-            ogl->showAnsysField(wr, SEQV, true, targetScale);
+            if (needGeomSync || (sa && sa->deformedScale() <= 0.0)) {
+                if (sa) sa->setDeformedScale(targetScale);
+            }
+            const float scale = (sa && sa->deformedScale() > 0.0) ? float(sa->deformedScale()) : targetScale;
 
-            if (StressAnalysisController* sa = StressAnalysisController::getInstance()) {
+            ogl->showAnsysField(wr, comp, deformed, scale);
+
+            if (sa) {
                 sa->updateFromWrapper(wr);
+                sa->syncFieldState(true, deformed, scale);
             }
         }
     } else {
         ogl->clearFieldVisualization();
         if (StressAnalysisController* sa = StressAnalysisController::getInstance()) {
             sa->clearResult();
-            sa->setShowField(false);
+            sa->syncFieldState(false, false, 1.0);
         }
     }
 

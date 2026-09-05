@@ -2,6 +2,8 @@
 #include "qquickwindow.h"
 #include "renderopengl.h"
 #include "ansyswrapper.h"
+#include "exportcontroller.h"
+#include "stressanalysiscontroller.h"
 
 #include <QGuiApplication>
 #include <QClipboard>
@@ -40,15 +42,8 @@ OpenGLWidgetQML::OpenGLWidgetQML(QQuickItem *parent) : QQuickFramebufferObject(p
     connect(this, &QQuickItem::widthChanged,  this, &OpenGLWidgetQML::axisLabelsChanged);
     connect(this, &QQuickItem::heightChanged, this, &OpenGLWidgetQML::axisLabelsChanged);
 
-    // Only set instance if null (or warn if multiple instances)
-    if (instance == nullptr)
-    {
-        instance = this;
-    }
-    else
-    {
-        qWarning() << "Multiple OpenGLWidgetQML instances detected";
-    }
+    // Always keep instance pointing to active OpenGLWidgetQML
+    instance = this;
 }
 
 OpenGLWidgetQML* OpenGLWidgetQML::getInstance()
@@ -101,7 +96,10 @@ OpenGLWidgetQML::~OpenGLWidgetQML()
     {
         //delete m_render;
     }
-    instance = nullptr;
+    if (instance == this)
+    {
+        instance = nullptr;
+    }
 }
 
 
@@ -383,31 +381,7 @@ void OpenGLWidgetQML::captureScreenshotToClipboard()
 QImage OpenGLWidgetQML::captureScreenshotWithWhiteBackground()
 {
     QImage screenshot = captureScreenshot();
-
-    // Modify the screenshot to replace gray background with white
-    QImage modifiedScreenshot(screenshot.size(), QImage::Format_RGB32);
-    const float tol = 0.015f;
-    for (int y = 0; y < screenshot.height(); ++y) {
-        for (int x = 0; x < screenshot.width(); ++x) {
-            QColor pixelColor = screenshot.pixelColor(x, y);
-
-            // Replace gray bg color with white
-            if (
-                fabs(pixelColor.redF() - bgColor.redF()) <= tol  &&
-                fabs(pixelColor.greenF() - bgColor.greenF()) <= tol &&
-                fabs(pixelColor.blueF() - bgColor.blueF()) <=tol
-                )
-            {
-                modifiedScreenshot.setPixelColor(x, y, Qt::white);
-            }
-            else
-            {
-                modifiedScreenshot.setPixelColor(x, y, pixelColor);
-            }
-        }
-    }
-
-    return modifiedScreenshot;
+    return ExportController::processScreenshot(screenshot, true, true, false, 300, this);
 }
 
 void OpenGLWidgetQML::wheelEvent(QWheelEvent *event)
@@ -572,6 +546,64 @@ void OpenGLWidgetQML::setColorMapPalette(int palette)
 std::array<GLubyte, 4> OpenGLWidgetQML::scalarToColor(float value, const std::vector<std::array<GLubyte, 4>>& colorMap)
 {
     return matviz_cmap::scalarToColor(value, colorMap);
+}
+
+double OpenGLWidgetQML::getFieldMin() const
+{
+    if (fieldMode == FieldMode::Ansys && ansysField) {
+        if (fieldComponent >= 0 && fieldComponent < (int)ansysField->loadstep_results_min.size())
+            return ansysField->loadstep_results_min[fieldComponent];
+    } else if (fieldMode == FieldMode::FFT && fftField) {
+        if (fieldComponent >= 0 && fieldComponent < (int)fftField->componentMin.size())
+            return fftField->componentMin[fieldComponent];
+    }
+    if (StressAnalysisController* sa = StressAnalysisController::getInstance())
+        return sa->fieldMin();
+    return 0.0;
+}
+
+double OpenGLWidgetQML::getFieldMax() const
+{
+    if (fieldMode == FieldMode::Ansys && ansysField) {
+        if (fieldComponent >= 0 && fieldComponent < (int)ansysField->loadstep_results_max.size())
+            return ansysField->loadstep_results_max[fieldComponent];
+    } else if (fieldMode == FieldMode::FFT && fftField) {
+        if (fieldComponent >= 0 && fieldComponent < (int)fftField->componentMax.size())
+            return fftField->componentMax[fieldComponent];
+    }
+    if (StressAnalysisController* sa = StressAnalysisController::getInstance())
+        return sa->fieldMax();
+    return 0.0;
+}
+
+QString OpenGLWidgetQML::getFieldComponentName() const
+{
+    if (StressAnalysisController* sa = StressAnalysisController::getInstance()) {
+        const QStringList list = sa->fieldComponents();
+        const int idx = sa->fieldComponentIndex();
+        if (idx >= 0 && idx < list.size()) return list[idx];
+    }
+    switch (fieldComponent) {
+        case SX: return QStringLiteral("SX");
+        case SY: return QStringLiteral("SY");
+        case SZ: return QStringLiteral("SZ");
+        case SXY: return QStringLiteral("SXY");
+        case SYZ: return QStringLiteral("SYZ");
+        case SXZ: return QStringLiteral("SXZ");
+        case SEQV: return QStringLiteral("von Mises (SEQV)");
+        case EpsX: return QStringLiteral("EpsX");
+        case EpsY: return QStringLiteral("EpsY");
+        case EpsZ: return QStringLiteral("EpsZ");
+        case EpsXY: return QStringLiteral("EpsXY");
+        case EpsYZ: return QStringLiteral("EpsYZ");
+        case EpsXZ: return QStringLiteral("EpsXZ");
+        case EpsEQV: return QStringLiteral("eqv. strain");
+        case UX: return QStringLiteral("UX");
+        case UY: return QStringLiteral("UY");
+        case UZ: return QStringLiteral("UZ");
+        case USUM: return QStringLiteral("USUM");
+        default: return QStringLiteral("Field");
+    }
 }
 
 void OpenGLWidgetQML::pushSceneToRenderer()

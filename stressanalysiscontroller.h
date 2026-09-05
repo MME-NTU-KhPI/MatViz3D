@@ -111,6 +111,8 @@ public:
     Q_INVOKABLE void setDeformedScale(double scale);
     bool        showField() const { return m_showField; }
     Q_INVOKABLE void setShowField(bool show);
+    void syncFieldState(bool showField, bool showDeformed, double scale);
+    int  currentComponentEnum() const;
 
     bool         hasStiffness()           const { return m_hasStiffness; }
     bool         stiffnessIsFFT()         const { return m_lastStiffness.isFFT; }
@@ -143,9 +145,6 @@ signals:
 private:
     void setRunning(bool running);
     void setError(const QString& message);
-    // Maps m_fieldComponentIndex -> tensor_components enum value, using
-    // whichever solver produced m_lastResult (ANSYS/FFT component lists differ).
-    int  currentComponentEnum() const;
     // Pushes m_lastResult's field into the 3D view and picks a default
     // component/deformed-scale. Called after a successful runSingleShot().
     void pushResultToView();
@@ -190,7 +189,7 @@ private:
     int    m_numCalib   = 150;
     double m_strainVal  = 1e-04;
 
-    int    m_fieldComponentIndex = 0;
+    int    m_fieldComponentIndex = 6; // SEQV (von Mises)
     bool   m_showDeformed        = false;
     double m_deformedScale       = 1.0;
     bool   m_showField           = false;
