@@ -1,6 +1,7 @@
 #include "composite.h"
 #include "algorithmplugin.h"
 #include "parameters.h"
+#include "openglwidgetqml.h"
 #include "matviz_homog.hpp"   // mvh::Mat3, mvh::bunge_from_matrix
 
 #include <QDebug>
@@ -12,7 +13,7 @@
 
 namespace {
 
-constexpr double kPi = 3.14159265358979323846;
+
 
 // The (u, v) axes of the cross-section a fiber running along `axis` lives in:
 //   X -> (y, z),   Y -> (z, x),   Z -> (x, y)
@@ -181,7 +182,7 @@ double Composite::nominalRadius() const
     const double  M   = static_cast<double>(fam.nU) * fam.nV;
     const double  N2  = static_cast<double>(numCubes) * numCubes;
 
-    return std::sqrt(phi * N2 / (M * kPi));
+    return std::sqrt(phi * N2 / (M * M_PI));
 }
 
 double Composite::packingLimitRadius() const
@@ -236,7 +237,7 @@ void Composite::placeFamily(Family& fam, double r)
 {
     const double N          = numCubes;
     const double jitterAmp  = 0.5 * m_jitter * std::min(fam.pitchU, fam.pitchV);
-    const double halfSpread = 0.5 * m_angleScatter * kPi / 180.0;
+    const double halfSpread = 0.5 * m_angleScatter * M_PI / 180.0;
 
     std::uniform_real_distribution<double> unit(-1.0, 1.0);
     std::uniform_real_distribution<double> angle(-halfSpread, halfSpread);
@@ -308,6 +309,10 @@ void Composite::assignIds()
             f.id = next++;
 
     numColors = static_cast<int>(next - 1);
+    Parameters::instance()->setPoints(numColors);
+    if (auto* ogl = OpenGLWidgetQML::getInstance()) {
+        ogl->setNumColors(numColors);
+    }
 }
 
 void Composite::publishPhases()
@@ -639,9 +644,11 @@ void Composite::Initialization(bool /*isWaveGeneration*/)
     publishPhases();
     m_radius = solveRadius();
 
-    // One representative voxel on each fiber axis, so the seed CSV and the
-    // grain bookkeeping describe the fiber layout rather than nothing at all.
+    // One representative voxel for the matrix (grain id 1) plus one on each fiber
+    // axis, so the seed CSV and grain bookkeeping describe the full multi-phase
+    // structure matching grain IDs 1..numColors.
     seedPoints.clear();
+    seedPoints.push_back({ 0, 0, 0 });
     const int mid = numCubes / 2;
     for (const Family& fam : m_families) {
         for (const Fiber& f : fam.fibers) {
@@ -772,6 +779,19 @@ void Composite::Generate_To_End()
 
     rasterize(m_radius);
 
+    if (!seedPoints.empty()) {
+        for (int x = 0; x < numCubes; ++x) {
+            for (int y = 0; y < numCubes; ++y) {
+                for (int z = 0; z < numCubes; ++z) {
+                    if (voxels[x][y][z] == MatrixId) {
+                        seedPoints[0] = { x, y, z };
+                        x = y = z = numCubes;
+                    }
+                }
+            }
+        }
+    }
+
     filled_voxels = static_cast<unsigned int>(
         static_cast<long long>(numCubes) * numCubes * numCubes);
     IterationNumber = 1;
@@ -805,6 +825,18 @@ void Composite::Next_Iteration()
         (m_step >= m_steps) ? total : static_cast<long long>(frac * total));
 
     if (m_step >= m_steps) {
+        if (!seedPoints.empty()) {
+            for (int x = 0; x < numCubes; ++x) {
+                for (int y = 0; y < numCubes; ++y) {
+                    for (int z = 0; z < numCubes; ++z) {
+                        if (voxels[x][y][z] == MatrixId) {
+                            seedPoints[0] = { x, y, z };
+                            x = y = z = numCubes;
+                        }
+                    }
+                }
+            }
+        }
         flags.isDone = true;
         reportVolumeFraction();
     }

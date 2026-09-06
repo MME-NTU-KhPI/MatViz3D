@@ -1170,10 +1170,13 @@ void OpenGLWidgetQML::calculateScene()
 */
                 size_t index = voxels[k][i][j] - 1;
 
-                if (index >= colors.size() || colors.size() == 0)
+                if (colors.empty())
                 {
-                    qCritical() << "Invalid voxel color index:" << index << "size:" << colors.size();
                     continue;
+                }
+                if (index >= colors.size())
+                {
+                    index = index % colors.size();
                 }
                 auto color = colors[index].data();
 
@@ -1274,6 +1277,19 @@ void OpenGLWidgetQML::setVoxels(int32_t*** voxels, short int numCubes)
 {
     this->voxels = voxels;
     this->numCubes = numCubes;
+
+    if (voxels && numCubes > 0) {
+        int maxId = 0;
+        for (int k = 0; k < numCubes; ++k)
+            for (int i = 0; i < numCubes; ++i)
+                for (int j = 0; j < numCubes; ++j)
+                    if (voxels[k][i][j] > maxId) maxId = voxels[k][i][j];
+
+        if (maxId > (int)colors.size()) {
+            setNumColors(maxId);
+        }
+    }
+
     distance = calculateFitDistance();
     panX = 0.0f;
     panY = 0.0f;

@@ -97,6 +97,14 @@ void MainWindowAlgorithmHandler::executeAlgorithm(Parent_Algorithm& algorithm, c
 
     algorithm.Initialization(params.getIsWaveGeneration());
 
+    const int totalColors = algorithm.getNumColors();
+    if (totalColors > 0) {
+        params.setPoints(totalColors);
+        if (ogl) {
+            ogl->setNumColors(totalColors);
+        }
+    }
+
     auto updateScene = [&]() {
         if (!ogl) return;
         ogl->setVoxels(algorithm.getVoxels(), algorithm.getNumCubes());
@@ -107,35 +115,55 @@ void MainWindowAlgorithmHandler::executeAlgorithm(Parent_Algorithm& algorithm, c
 
 
     // Assign orientations to each grain and send to renderer.
-    // Mirrors ansysWrapper::createFEfromArray: same library, same seed, same
-    // sampling order, so orientation index == voxel value == CS id minus 11.
+    // Multi-phase structures (Composite) publish their own per-grain orientations;
+    // single-phase polycrystals sample from the TextureLibrary.
     if (ogl)
     {
-        const int nSeeds = params.getPoints();
-
-        TextureLibrary lib(Parameters::instance()->getSeed());
-        if (!Parameters::textureComponents.empty())
-            lib.setComponents(Parameters::textureComponents);
-        else
-            lib.setMode(TextureLibrary::Mode::Random);
-
-        std::vector<std::array<float,3>> orientations;
-        orientations.reserve(static_cast<size_t>(nSeeds) + 1);
-
-        for (int i = 0; i <= nSeeds; ++i) {   // index 0 == background CS, as in createLocalCS
-            double eu[3] = {0.0, 0.0, 0.0};
-            // Bunge ZXZ (phi1,Phi,phi2), matching buildOrientationGlyphs()'s
-            // bungeZXZ() reconstruction -- NOT the ANSYS Z-X-Y angles that
-            // sampleNext() returns (those two conventions only agree at the
-            // identity, which is why this only showed up on non-Cube textures).
-            lib.sampleNextBunge(eu, /*in_deg=*/true);
-            orientations.push_back({
-                static_cast<float>(eu[0]),
-                static_cast<float>(eu[1]),
-                static_cast<float>(eu[2])
-            });
+        if (!Parameters::phaseAssignment.grainOrientation.empty())
+        {
+            const auto& po = Parameters::phaseAssignment.grainOrientation;
+            std::vector<std::array<float,3>> orientations;
+            orientations.reserve(po.size());
+            const double r2d = 180.0 / M_PI;
+            // po has 1-based indexing: index 1 is matrix, index 2..N are fibers.
+            // ogl->setGrainOrientations expects index 0 = grain 1, etc.
+            for (size_t g = 1; g < po.size(); ++g) {
+                orientations.push_back({
+                    static_cast<float>(po[g][0] * r2d),
+                    static_cast<float>(po[g][1] * r2d),
+                    static_cast<float>(po[g][2] * r2d)
+                });
+            }
+            ogl->setGrainOrientations(orientations);
         }
-        ogl->setGrainOrientations(orientations);
+        else
+        {
+            const int nSeeds = params.getPoints();
+
+            TextureLibrary lib(Parameters::instance()->getSeed());
+            if (!Parameters::textureComponents.empty())
+                lib.setComponents(Parameters::textureComponents);
+            else
+                lib.setMode(TextureLibrary::Mode::Random);
+
+            std::vector<std::array<float,3>> orientations;
+            orientations.reserve(static_cast<size_t>(nSeeds) + 1);
+
+            for (int i = 0; i <= nSeeds; ++i) {   // index 0 == background CS, as in createLocalCS
+                double eu[3] = {0.0, 0.0, 0.0};
+                // Bunge ZXZ (phi1,Phi,phi2), matching buildOrientationGlyphs()'s
+                // bungeZXZ() reconstruction -- NOT the ANSYS Z-X-Y angles that
+                // sampleNext() returns (those two conventions only agree at the
+                // identity, which is why this only showed up on non-Cube textures).
+                lib.sampleNextBunge(eu, /*in_deg=*/true);
+                orientations.push_back({
+                    static_cast<float>(eu[0]),
+                    static_cast<float>(eu[1]),
+                    static_cast<float>(eu[2])
+                });
+            }
+            ogl->setGrainOrientations(orientations);
+        }
     }
 
     updateScene(); // for work with autostart console parameter. idk how to fix that in other way
