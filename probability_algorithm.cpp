@@ -83,35 +83,27 @@ void Probability_Algorithm::rotatePoint(double& x, double& y, double& z)
         return;
     }
 
-    double Rx[3][3] = {
-        {1, 0, 0},
-        {0, cos(rad_a), -sin(rad_a)},
-        {0, sin(rad_a), cos(rad_a)}
-    };
+    // Global-to-local transformation: R^T = R_x(-rad_a) * R_y(-rad_b) * R_z(-rad_c)
+    // 1. Rotate around Z by -rad_c
+    const double cos_c = std::cos(rad_c);
+    const double sin_c = std::sin(rad_c);
+    double x1 =  cos_c * x + sin_c * y;
+    double y1 = -sin_c * x + cos_c * y;
+    double z1 =  z;
 
-    double Ry[3][3] = {
-        {cos(rad_b), 0, sin(rad_b)},
-        {0, 1, 0},
-        {-sin(rad_b), 0, cos(rad_b)}
-    };
+    // 2. Rotate around Y by -rad_b
+    const double cos_b = std::cos(rad_b);
+    const double sin_b = std::sin(rad_b);
+    double x2 =  cos_b * x1 - sin_b * z1;
+    double y2 =  y1;
+    double z2 =  sin_b * x1 + cos_b * z1;
 
-    double Rz[3][3] = {
-        {cos(rad_c), -sin(rad_c), 0},
-        {sin(rad_c), cos(rad_c), 0},
-        {0, 0, 1}
-    };
-
-    double x1 = Rx[0][0] * x + Rx[0][1] * y + Rx[0][2] * z;
-    double y1 = Rx[1][0] * x + Rx[1][1] * y + Rx[1][2] * z;
-    double z1 = Rx[2][0] * x + Rx[2][1] * y + Rx[2][2] * z;
-
-    double x2 = Ry[0][0] * x1 + Ry[0][1] * y1 + Ry[0][2] * z1;
-    double y2 = Ry[1][0] * x1 + Ry[1][1] * y1 + Ry[1][2] * z1;
-    double z2 = Ry[2][0] * x1 + Ry[2][1] * y1 + Ry[2][2] * z1;
-
-    x = Rz[0][0] * x2 + Rz[0][1] * y2 + Rz[0][2] * z2;
-    y = Rz[1][0] * x2 + Rz[1][1] * y2 + Rz[1][2] * z2;
-    z = Rz[2][0] * x2 + Rz[2][1] * y2 + Rz[2][2] * z2;
+    // 3. Rotate around X by -rad_a
+    const double cos_a = std::cos(rad_a);
+    const double sin_a = std::sin(rad_a);
+    x = x2;
+    y =  cos_a * y2 + sin_a * z2;
+    z = -sin_a * y2 + cos_a * z2;
 }
 
 bool Probability_Algorithm::isPointIn(double x, double y, double z)
@@ -135,46 +127,52 @@ bool Probability_Algorithm::isPointIn(double x, double y, double z)
 
 void Probability_Algorithm::calculateVolumeProbabilities()
 {
-    const uint64_t n = 60;
-    const double step = 3.0 / n;
-    const double num_points_per_voxel = std::pow(1.0 / step, 3);
+    const double a = std::max(0.01f, Parameters::halfaxis_a);
+    const double b = std::max(0.01f, Parameters::halfaxis_b);
+    const double c = std::max(0.01f, Parameters::halfaxis_c);
+    const double p = std::max(0.1, Parameters::ellipse_order);
+    const double gamma = 3.0;
 
-    uint64_t filed_in_local[3][3][3] = {{{0}}};
+    double raw_prob[26] = {0.0};
+    double max_prob = 0.0;
 
-    for (uint64_t i = 0; i < n; ++i) {
-        for (uint64_t j = 0; j < n; ++j) {
-            for (uint64_t k = 0; k < n; ++k) {
-                double x = (i + 0.5) * step;
-                double y = (j + 0.5) * step;
-                double z = (k + 0.5) * step;
+    for (size_t o = 0; o < PROBABILITY_OFFSETS.size(); ++o) {
+        double dx = PROBABILITY_OFFSETS[o][0];
+        double dy = PROBABILITY_OFFSETS[o][1];
+        double dz = PROBABILITY_OFFSETS[o][2];
+        double length = std::sqrt(dx * dx + dy * dy + dz * dz);
 
-                if (isPointIn(x, y, z)) {
-                    int k_voxel = std::clamp((int)floor(x), 0, 2);
-                    int l_voxel = std::clamp((int)floor(y), 0, 2);
-                    int m_voxel = std::clamp((int)floor(z), 0, 2);
-                    filed_in_local[k_voxel][l_voxel][m_voxel]++;
-                }
-            }
-        }
+        // Transform global neighbor direction into local grain crystallographic frame
+        double lx = dx, ly = dy, lz = dz;
+        rotatePoint(lx, ly, lz);
+
+        // Radial reach along offset direction to superellipsoid boundary:
+        // |lx/a|^p + |ly/b|^p + |lz/c|^p = (1/r)^p => r = (sum_p)^(-1/p)
+        double sum_p = std::pow(std::abs(lx / a), p)
+                     + std::pow(std::abs(ly / b), p)
+                     + std::pow(std::abs(lz / c), p);
+        if (sum_p < 1e-30) continue;
+        double r = 1.0 / std::pow(sum_p, 1.0 / p);
+
+        // Lattice propagation velocity: r is R_boundary / length.
+        // Effective CA rate = R_boundary / length^2 = r / length.
+        raw_prob[o] = r / length;
+        max_prob = std::max(max_prob, raw_prob[o]);
     }
 
-    double maxProb = 0.0;
-    for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 3; j++) {
-            for (int k = 0; k < 3; k++) {
-                this->probability[i][j][k] = static_cast<double>(filed_in_local[i][j][k]) / num_points_per_voxel;
-                if (i != 1 || j != 1 || k != 1) {
-                    maxProb = std::max(maxProb, this->probability[i][j][k]);
-                }
-            }
-        }
-    }
+    if (max_prob < 1e-30) max_prob = 1.0;
 
-    if (maxProb > 0.0) {
-        for (int i = 0; i < 3; i++)
-            for (int j = 0; j < 3; j++)
-                for (int k = 0; k < 3; k++)
-                    this->probability[i][j][k] /= maxProb;
+    for (int i = 0; i < 3; ++i)
+        for (int j = 0; j < 3; ++j)
+            for (int k = 0; k < 3; ++k)
+                this->probability[i][j][k] = 0.0;
+
+    for (size_t o = 0; o < PROBABILITY_OFFSETS.size(); ++o) {
+        int i = 1 + PROBABILITY_OFFSETS[o][0];
+        int j = 1 + PROBABILITY_OFFSETS[o][1];
+        int k = 1 + PROBABILITY_OFFSETS[o][2];
+        double u_norm = raw_prob[o] / max_prob;
+        this->probability[i][j][k] = std::pow(u_norm, gamma);
     }
 
     this->probability[1][1][1] = 0.0;
@@ -187,8 +185,9 @@ void Probability_Algorithm::calculateSurfaceFluxProbabilities()
     const double b = std::max(0.01f, Parameters::halfaxis_b);
     const double c = std::max(0.01f, Parameters::halfaxis_c);
     const double p = std::max(0.1, Parameters::ellipse_order);
+    const double gamma = 3.0;
 
-    double sum_t[26] = {0.0};
+    double sum_proj_t[26] = {0.0};
     uint64_t count[26] = {0};
 
     // Precalculate normalized neighbor offsets and Euclidean distances
@@ -217,7 +216,7 @@ void Probability_Algorithm::calculateSurfaceFluxProbabilities()
         double inv_len = 1.0 / std::sqrt(len2);
         gx *= inv_len; gy *= inv_len; gz *= inv_len;
 
-        // Transform global ray direction into the grain's crystallographic orientation frame
+        // Transform global ray direction into the grain's local crystallographic frame
         double lx = gx, ly = gy, lz = gz;
         rotatePoint(lx, ly, lz);
 
@@ -239,7 +238,7 @@ void Probability_Algorithm::calculateSurfaceFluxProbabilities()
             }
         }
 
-        sum_t[best_idx] += t;
+        sum_proj_t[best_idx] += t * max_dot;
         count[best_idx]++;
     }
 
@@ -247,9 +246,8 @@ void Probability_Algorithm::calculateSurfaceFluxProbabilities()
     double raw_prob[26] = {0.0};
     for (size_t o = 0; o < 26; ++o) {
         if (count[o] > 0) {
-            // Average radial reach in this direction cone divided by Euclidean distance to neighbor
-            double avg_t = sum_t[o] / count[o];
-            raw_prob[o] = avg_t / lengths[o];
+            double avg_proj_t = sum_proj_t[o] / count[o];
+            raw_prob[o] = avg_proj_t / (lengths[o] * lengths[o]);
             max_prob = std::max(max_prob, raw_prob[o]);
         }
     }
@@ -265,7 +263,8 @@ void Probability_Algorithm::calculateSurfaceFluxProbabilities()
         int i = 1 + PROBABILITY_OFFSETS[o][0];
         int j = 1 + PROBABILITY_OFFSETS[o][1];
         int k = 1 + PROBABILITY_OFFSETS[o][2];
-        this->probability[i][j][k] = raw_prob[o] / max_prob;
+        double u_norm = raw_prob[o] / max_prob;
+        this->probability[i][j][k] = std::pow(u_norm, gamma);
     }
 
     this->probability[1][1][1] = 0.0;

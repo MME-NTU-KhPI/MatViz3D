@@ -186,10 +186,13 @@ void Parameters::setWaveCoefficient(float value) {
     }
 }
 
+static bool s_inProbPreset = false;
+
 void Parameters::setProbPreset(const QString& value)
 {
     QString v = value.trimmed();
     prob_preset = v;
+    s_inProbPreset = true;
 
     if (v.contains("Sphere", Qt::CaseInsensitive) || v.contains("Circle", Qt::CaseInsensitive)) {
         setHalfAxisA(1.5f);
@@ -233,6 +236,7 @@ void Parameters::setProbPreset(const QString& value)
         setEllipseOrder(4.0);
     }
 
+    s_inProbPreset = false;
     emit probPresetChanged();
 }
 
@@ -248,6 +252,10 @@ void Parameters::setProbMatrixMode(const QString& value)
 void Parameters::setHalfAxisA(float value) {
     if (halfaxis_a != value) {
         halfaxis_a = value;
+        if (!s_inProbPreset && prob_preset != "Custom") {
+            prob_preset = "Custom";
+            emit probPresetChanged();
+        }
         emit halfAxisAChanged();
     }
 }
@@ -255,6 +263,10 @@ void Parameters::setHalfAxisA(float value) {
 void Parameters::setHalfAxisB(float value) {
     if (halfaxis_b != value) {
         halfaxis_b = value;
+        if (!s_inProbPreset && prob_preset != "Custom") {
+            prob_preset = "Custom";
+            emit probPresetChanged();
+        }
         emit halfAxisBChanged();
     }
 }
@@ -262,6 +274,10 @@ void Parameters::setHalfAxisB(float value) {
 void Parameters::setHalfAxisC(float value) {
     if (halfaxis_c != value) {
         halfaxis_c = value;
+        if (!s_inProbPreset && prob_preset != "Custom") {
+            prob_preset = "Custom";
+            emit probPresetChanged();
+        }
         emit halfAxisCChanged();
     }
 }
@@ -269,6 +285,10 @@ void Parameters::setHalfAxisC(float value) {
 void Parameters::setOrientationAngleA(float value) {
     if (orientation_angle_a != value) {
         orientation_angle_a = value;
+        if (!s_inProbPreset && prob_preset != "Custom") {
+            prob_preset = "Custom";
+            emit probPresetChanged();
+        }
         emit orientationAngleAChanged();
     }
 }
@@ -276,6 +296,10 @@ void Parameters::setOrientationAngleA(float value) {
 void Parameters::setOrientationAngleB(float value) {
     if (orientation_angle_b != value) {
         orientation_angle_b = value;
+        if (!s_inProbPreset && prob_preset != "Custom") {
+            prob_preset = "Custom";
+            emit probPresetChanged();
+        }
         emit orientationAngleBChanged();
     }
 }
@@ -283,6 +307,10 @@ void Parameters::setOrientationAngleB(float value) {
 void Parameters::setOrientationAngleC(float value) {
     if (orientation_angle_c != value) {
         orientation_angle_c = value;
+        if (!s_inProbPreset && prob_preset != "Custom") {
+            prob_preset = "Custom";
+            emit probPresetChanged();
+        }
         emit orientationAngleCChanged();
     }
 }
@@ -318,6 +346,10 @@ void Parameters::setHasProbParameters(bool value) {
 void Parameters::setEllipseOrder(double value) {
     if (ellipse_order != value) {
         ellipse_order = value;
+        if (!s_inProbPreset && prob_preset != "Custom") {
+            prob_preset = "Custom";
+            emit probPresetChanged();
+        }
         emit ellipseOrderChanged();
     }
 }

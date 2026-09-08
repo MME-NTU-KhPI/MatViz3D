@@ -254,6 +254,9 @@ void Commandline_Parser::processOptions(const QCommandLineParser& parser)
                params->getPoints(), std::pow(params->getSize(), 3));
     }
 
+    // ── Probability preset & half-axes ───────────────────────────────────
+    parseString("prob_preset",      [&](const QString& v) { params->setProbPreset(v); });
+
     // ── Ellipsoid half-axes ───────────────────────────────────────────────
     parseFloat("halfaxis_a", [&](float v) { params->setHalfAxisA(v); });
     parseFloat("halfaxis_b", [&](float v) { params->setHalfAxisB(v); });
@@ -275,7 +278,6 @@ void Commandline_Parser::processOptions(const QCommandLineParser& parser)
     // ── Algorithm options ─────────────────────────────────────────────────
     parseDouble("ellipse_order",    [&](double v) { params->setEllipseOrder(v); });
     parseFloat("stefan_number",     [&](float v)  { params->setStefanNumber(v); });
-    parseString("prob_preset",      [&](const QString& v) { params->setProbPreset(v); });
     parseDouble("minkowski_p",      [&](double v) {
         if (v <= 0.0)
             qFatal("Option --minkowski_p expects a positive value; got %s",
