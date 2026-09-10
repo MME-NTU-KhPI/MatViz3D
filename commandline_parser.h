@@ -9,6 +9,8 @@ public:
     Commandline_Parser();
     static void setupParser(QCommandLineParser &parser);
     static void processOptions(const QCommandLineParser &parser);
+    static QString buildApplicationDescription();
+    static void printJsonHelp();
 };
 
 #endif // CONSOLE_H

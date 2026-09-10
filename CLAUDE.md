@@ -43,9 +43,10 @@ ANSYS must be on PATH for `--solver both|ansys`; it degrades to FFT-only otherwi
 
 GUI: run the built executable directly.
 
-Headless/scripted, via `commandline_parser.cpp` options (`--help` for the full list):
+Headless/scripted, via `commandline_parser.cpp` options (`--help` or `--help-json` for machine-readable JSON):
 - `--nogui --autostart` — generate a structure with no UI and exit (add `--run_stress_calc` to also solve).
-- `--algorithm <name> --size <n> --points <n> --seed <n>` — structure generation (add `--animate` to step iteration by iteration instead of one shot).
+- `--nologo` (or `--no-logo`) — suppress printing the ASCII logo banner on startup.
+- `--algorithm <name> --size <n> --points <n> --seed <n>` — structure generation (add `--animate` to step iteration by iteration instead of one shot). Available algorithms: `Voronoi`, `Composite`, `Probability`, `Moore`, `Neumann`, `Radial`, `DLCA`.
 - `--minkowski_p <p> --periodic --voronoi_metric_preset <preset> --voronoi_mxx <m11> --voronoi_myy <m22> --voronoi_mzz <m33> --voronoi_mxy <m12> --voronoi_myz <m23> --voronoi_mxz <m13> --voronoi_metric <mxx,myy,mzz[,mxy,myz,mxz]>` — Voronoi tessellation and 3D Riemannian metric tensor controls (presets matching Probability algo: `Sphere (Circle)`, `Prolate (Needle)`, `Oblate (Disc)`, `Triaxial Ellipsoid`, `Superellipsoid (Cube)`, plus `Columnar (Z-axis)`, `Columnar (X-axis)`, `Rolled (Orthotropic)`, `Sheared (45° XY)`, `Custom`).
 - `--halfaxis_a <a> --halfaxis_b <b> --halfaxis_c <c> --ellipse_order <p> --orientation_angle_a <deg> --orientation_angle_b <deg> --orientation_angle_c <deg> --stefan_number <n> --prob_matrix_mode <volume|surface> --prob_preset <preset>` — Probability superellipsoid kernel, matrix mode, and orientation controls (`--periodic` applies here too).
 - `--wave_generation --initial_nuclei <n> --wave_peak_fraction <0..1> --wave_end_fraction <0..1>` — Probability continuous wave nucleation (transformation-fraction controlled kinetics).
@@ -54,8 +55,9 @@ Headless/scripted, via `commandline_parser.cpp` options (`--help` for the full l
 - `--matrix_material <name> --fiber_material <name>` — the two Composite constituents (both from `material_properties.db`); replaces `--material` for that algorithm.
 - `--material <name>` — material from `material_properties.db` (Cu, Fe, W, ...); supplies the cubic constants both stress solvers use and the lattice the texture presets are built for.
 - `--texture <random|extrusion|rolling|recrystallization|shear|scattered_cube> --lattice <fcc|bcc> --scatter <deg>` — crystallographic texture preset (`--lattice` overrides the material's lattice).
-- `--run_stress_calc --solver <ansys|fft> --stress_mode <single|dataset> --eps <exx,eyy,ezz,exy,eyz,exz>` — stress analysis.
+- `--run_stress_calc --solver <ansys|fft> --stress_mode <stiffness|single|dataset> --eps <exx,eyy,ezz,exy,eyz,exz>` — stress analysis.
 - `--output <dir>`, `--working_directory <dir>`, `--num_rnd_loads <n>`, `--np <n>`.
+- `--help-json` — dump complete CLI options, algorithms, materials, texture presets, and executable recipes as JSON for automation/agents.
 
 ## Architecture
 

@@ -54,14 +54,16 @@ int main(int argc, char *argv[])
     QApplication::setApplicationName("MatViz3D");
     QApplication::setApplicationVersion("3.01");
 
-
-    Logo::print(Logo::Style::Full);
-
     // ── Parse CLI early so --help / --version exit before any UI is built,
     //    and so --nogui can be checked before loading QML at all.
     QCommandLineParser parser;
     Commandline_Parser::setupParser(parser);
     parser.process(app);   // exits here if --help / --version
+
+    if (parser.isSet("help-json")) {
+        Commandline_Parser::printJsonHelp();
+        return 0;
+    }
 
     // ── Optional: tensor math known-answer tests ──────────────────────────
     //    Opt-in via MATVIZ_TENSOR_SELFTEST=1 so it never costs anything in a
@@ -84,6 +86,11 @@ int main(int argc, char *argv[])
             handler.runStressCalculation();
 
         return 0;
+    }
+
+    // Banner is only printed when launching interactive GUI and --nologo is not set
+    if (!parser.isSet("nologo")) {
+        Logo::print(Logo::Style::Full);
     }
 
     // Install before engine

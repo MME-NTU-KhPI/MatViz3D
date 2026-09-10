@@ -1,10 +1,16 @@
 #include <QDebug>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QTextStream>
 #include <omp.h>
 
 #include <cmath>
 #include <ctime>
+#include "algorithmfactory.h"
 #include "cpuinfo.hpp"
 #include "commandline_parser.h"
+#include "dbmanager.h"
 #include "parameters.h"
 #include "texturelibrary.h"
 
@@ -13,112 +19,378 @@ Commandline_Parser::Commandline_Parser()
 
 }
 
+QString Commandline_Parser::buildApplicationDescription()
+{
+    QString desc;
+    desc += "MatViz3D - Cellular Automata 3D Microstructure Generator & Homogenization Analyzer\n\n";
+
+    desc += "OVERVIEW:\n";
+    desc += "  MatViz3D synthesizes 3D cellular microstructures on a regular voxel grid,\n";
+    desc += "  assigns crystallographic textures (Euler orientation angles) or multi-phase\n";
+    desc += "  constituent stiffnesses, and computes effective elastic response and full field\n";
+    desc += "  distributions via an in-memory FFT solver (Moulinec-Suquet) or external ANSYS FEM.\n\n";
+
+    desc += "EXECUTION MODES:\n";
+    desc += "  * Interactive GUI Mode (default):\n";
+    desc += "      Launch without --nogui to run the Qt/QML graphical desktop interface.\n";
+    desc += "  * Headless Batch Mode (for scripts and AI agents):\n";
+    desc += "      Pass BOTH --nogui and --autostart to run non-interactively and exit:\n";
+    desc += "        MatViz3D --nogui --autostart [options]\n";
+    desc += "      To also compute stress/strain homogenization after generation, add --run_stress_calc:\n";
+    desc += "        MatViz3D --nogui --autostart --run_stress_calc [options]\n\n";
+
+    desc += "WORKFLOW RECIPES FOR AGENTS & SCRIPTS:\n";
+    desc += "  1. Headless Voronoi Polycrystal (periodic 30^3, 50 grains, copper):\n";
+    desc += "       MatViz3D --nogui --autostart --algorithm Voronoi --size 30 --points 50 --periodic --material Cu --output voronoi.hdf5\n\n";
+    desc += "  2. Composite Fiber RVE (2D orthogonal, hexagonal packing, 40% Vf):\n";
+    desc += "       MatViz3D --nogui --autostart --algorithm Composite --size 40 --composite_dim 2d --composite_packing hexagonal --fiber_volume_fraction 0.4 --matrix_material Epoxy --fiber_material C-fiber --output composite.hdf5\n\n";
+    desc += "  3. Fast In-Memory FFT Stiffness Tensor (Phase 1, 6 unit strains -> S, C, moduli):\n";
+    desc += "       MatViz3D --nogui --autostart --algorithm Voronoi --size 20 --points 30 --material Al --run_stress_calc --solver fft --stress_mode stiffness --output stiffness.hdf5\n\n";
+    desc += "  4. Prescribed Strain Single-Load Analysis:\n";
+    desc += "       MatViz3D --nogui --autostart --algorithm Voronoi --size 20 --points 20 --run_stress_calc --solver fft --stress_mode single --eps 0.001,0,0,0,0,0 --output single.hdf5\n\n";
+
+    desc += "AVAILABLE GENERATION ALGORITHMS (--algorithm <name>):\n";
+    const QStringList algos = AlgorithmFactory::instance().algorithmNames();
+    for (const QString& name : algos) {
+        const AlgorithmPlugin* plugin = AlgorithmFactory::instance().pluginFor(name);
+        QString summary = plugin ? plugin->description : QString();
+        if (summary.isEmpty()) {
+            desc += QString("  - %1\n").arg(name, -13);
+        } else {
+            int dotIdx = summary.indexOf('.');
+            QString shortSummary = (dotIdx > 0 && dotIdx < 100) ? summary.left(dotIdx + 1) : summary;
+            desc += QString("  - %1 : %2\n").arg(name, -13).arg(shortSummary);
+        }
+    }
+    desc += "\n";
+
+    desc += "KEY PRESETS & ENUM VALUES:\n";
+    desc += "  --algorithm:             Voronoi | Composite | Probability | Moore | Neumann | Radial | DLCA\n";
+    desc += "  --solver:                fft (in-memory Moulinec-Suquet) | ansys (external APDL FEM)\n";
+    desc += "  --stress_mode:           stiffness (fast 6 solves -> S, C, moduli) | single (--eps required) | dataset (full 300 loads)\n";
+    desc += "  --composite_dim:         1d (fibers along Z) | 2d (along X, Y) | 3d (along X, Y, Z)\n";
+    desc += "  --composite_packing:     square | hexagonal\n";
+    desc += "  --prob_matrix_mode:      volume ('Volume Sampling') | surface ('Surface Flux')\n";
+    desc += "  --texture:               random | extrusion | rolling | recrystallization | shear | scattered_cube\n";
+    desc += "  --lattice:               fcc | bcc\n";
+    desc += "  --prob_preset:           'Sphere (Circle)', 'Prolate (Needle)', 'Oblate (Disc)', 'Triaxial Ellipsoid', 'Superellipsoid (Cube)', 'Custom'\n";
+    desc += "  --voronoi_metric_preset: 'Sphere (Circle)', 'Prolate (Needle)', 'Oblate (Disc)', 'Triaxial Ellipsoid', 'Superellipsoid (Cube)',\n";
+    desc += "                           'Columnar (Z-axis)', 'Columnar (X-axis)', 'Rolled (Orthotropic)', 'Sheared (45 deg XY)', 'Custom'\n\n";
+
+    desc += "MACHINE-READABLE SCHEMA:\n";
+    desc += "  Pass --help-json to output full CLI schema, algorithms, materials, and options in JSON format.";
+
+    return desc;
+}
+
 void Commandline_Parser::setupParser(QCommandLineParser &parser)
 {
+    parser.setApplicationDescription(buildApplicationDescription());
     parser.addHelpOption();
     parser.addVersionOption();
-    parser.addOption(QCommandLineOption("size","Set the size of cube", "size"));
-    parser.addOption(QCommandLineOption("points","Set the number of points", "points"));
-    parser.addOption(QCommandLineOption("concentration","Set the concentration of initial points in the cube(%)", "concentration"));
-    parser.addOption(QCommandLineOption("algorithm", "Set the algorithm of generation", "algorithm"));
-    parser.addOption(QCommandLineOption("seed","Set the seed of generation","seed"));
-    parser.addOption(QCommandLineOption("np", "Set the number of processors for single or multi-threaded execution of algorithms.", "num_threads"));
-    parser.addOption(QCommandLineOption("wave_coefficient", "Coefficient for wave generation", "value"));
-    parser.addOption(QCommandLineOption("halfaxis_a", "The length of the semi-axis A for the Probability algorithm", "value"));
-    parser.addOption(QCommandLineOption("halfaxis_b", "The length of the semi-axis B for the Probability algorithm", "value"));
-    parser.addOption(QCommandLineOption("halfaxis_c", "The length of the semi-axis C for the Probability algorithm", "value"));
-    parser.addOption(QCommandLineOption("orientation_angle_a", "Rotation angle of the x-axis for the Probability algorithm", "value"));
-    parser.addOption(QCommandLineOption("orientation_angle_b", "Rotation angle of the y-axis for the Probability algorithm", "value"));
-    parser.addOption(QCommandLineOption("orientation_angle_c", "Rotation angle of the z-axis for the Probability algorithm", "value"));
-    parser.addOption(QCommandLineOption("ellipse_order", "The degree of the superellipse equation", "value"));
-    parser.addOption(QCommandLineOption("stefan_number", "Thermodynamic Stefan number (cooling limit) for Probability algorithm", "value"));
-    parser.addOption(QCommandLineOption("wave_generation", "Enable continuous wave nucleation (transformation-fraction controlled)"));
-    parser.addOption(QCommandLineOption("initial_nuclei", "Number of initial nuclei present at step 0 for wave nucleation", "count"));
-    parser.addOption(QCommandLineOption("wave_peak_fraction", "Solid volume fraction where nucleation rate peaks (0..1, default 0.20)", "fraction"));
-    parser.addOption(QCommandLineOption("wave_end_fraction", "Solid volume fraction where 100% of nuclei are placed (0..1, default 0.60)", "fraction"));
-    parser.addOption(QCommandLineOption("prob_preset", "Shape preset for Probability algorithm (e.g. 'Sphere (Circle)', 'Prolate (Needle)', 'Oblate (Disc)', 'Triaxial Ellipsoid', 'Superellipsoid (Cube)')", "preset"));
-    parser.addOption(QCommandLineOption("prob_matrix_mode", "Probability matrix calculation method: 'Volume Sampling' (or 'volume') | 'Surface Flux' (or 'surface')", "mode"));
-    parser.addOption(QCommandLineOption("minkowski_p",
-                                        "Minkowski exponent p for the Voronoi algorithm: 1 = Manhattan "
-                                        "(octahedral grains), 2 = Euclidean, large = Chebyshev (cuboidal). "
-                                        "Default 2", "value"));
-    parser.addOption(QCommandLineOption("periodic",
-                                        "Generate a periodic cell: grains wrap across opposite faces"));
-    parser.addOption(QCommandLineOption("voronoi_metric_preset",
-                                        "Preset for Voronoi shape / metric tensor ('Sphere (Circle)', 'Prolate (Needle)', 'Oblate (Disc)', 'Triaxial Ellipsoid', 'Superellipsoid (Cube)', 'Columnar Z', 'Rolled', 'Sheared')",
-                                        "preset"));
-    parser.addOption(QCommandLineOption("voronoi_mxx", "Metric tensor component M_xx (M11) for Voronoi algorithm (default 1.0)", "value"));
-    parser.addOption(QCommandLineOption("voronoi_myy", "Metric tensor component M_yy (M22) for Voronoi algorithm (default 1.0)", "value"));
-    parser.addOption(QCommandLineOption("voronoi_mzz", "Metric tensor component M_zz (M33) for Voronoi algorithm (default 1.0)", "value"));
-    parser.addOption(QCommandLineOption("voronoi_mxy", "Metric tensor component M_xy (M12) for Voronoi algorithm (default 0.0)", "value"));
-    parser.addOption(QCommandLineOption("voronoi_myz", "Metric tensor component M_yz (M23) for Voronoi algorithm (default 0.0)", "value"));
-    parser.addOption(QCommandLineOption("voronoi_mxz", "Metric tensor component M_xz (M13) for Voronoi algorithm (default 0.0)", "value"));
-    parser.addOption(QCommandLineOption("voronoi_metric", "Metric tensor components: 'mxx,myy,mzz' or 'mxx,myy,mzz,mxy,myz,mxz'", "mxx,myy,mzz..."));
-    // ── Composite (fiber-reinforced RVE) ──────────────────────────────────
-    parser.addOption(QCommandLineOption("composite_dim",
-                                        "Reinforcement dimensionality for the Composite algorithm: "
-                                        "1d = fibers along Z, 2d = along X and Y, 3d = along X, Y and Z. "
-                                        "Default 1d", "dim"));
-    parser.addOption(QCommandLineOption("composite_packing",
-                                        "Fiber arrangement in the cross-section: square | hexagonal. "
-                                        "Default square", "packing"));
-    parser.addOption(QCommandLineOption("fiber_volume_fraction",
-                                        "Target fiber volume fraction (0..1). The fiber semi-axes are "
-                                        "solved so the structure actually reaches it; the value is "
-                                        "clamped to the packing limit unless --fiber_allow_overlap. "
-                                        "Default 0.4", "value"));
-    parser.addOption(QCommandLineOption("fibers_per_row",
-                                        "Fibers per row in the cross-section lattice. Default 3", "n"));
-    parser.addOption(QCommandLineOption("fiber_aspect_ratio",
-                                        "Fiber cross-section a/b (major over minor semi-axis); 1 = circular. "
-                                        "The area is held fixed, so this changes shape at constant volume "
-                                        "fraction. Default 1", "value"));
-    parser.addOption(QCommandLineOption("fiber_angle_scatter",
-                                        "Per-fiber in-plane rotation of the ellipse, full width in degrees "
-                                        "(0 = all aligned, 180 = fully random). Default 0", "degrees"));
-    parser.addOption(QCommandLineOption("fiber_center_jitter",
-                                        "Random shift of each fiber center, in half-pitches (0 = perfect "
-                                        "lattice, 1 = up to half a pitch). Default 0", "value"));
-    parser.addOption(QCommandLineOption("fiber_allow_overlap",
-                                        "Let jittered fibers overlap and merge instead of rejection-sampling "
-                                        "their centers; also lifts the packing limit on the volume fraction"));
-    parser.addOption(QCommandLineOption("matrix_material",
-                                        "Matrix constituent for the Composite algorithm, from "
-                                        "material_properties.db (e.g. Epoxy, Al, Cu). Default Epoxy", "name"));
-    parser.addOption(QCommandLineOption("fiber_material",
-                                        "Fiber constituent for the Composite algorithm, from "
-                                        "material_properties.db (e.g. C-fiber, E-glass, SiC, W). Its axis 3 "
-                                        "is aligned with the fiber, so a transversely isotropic row is stiff "
-                                        "along the fiber. Default C-fiber", "name"));
 
-    parser.addOption(QCommandLineOption("material",
-                                        "Material from material_properties.db (e.g. Cu, Fe, W). Supplies the "
-                                        "cubic constants both stress solvers use and the lattice the texture "
-                                        "presets are built for", "name"));
-    parser.addOption(QCommandLineOption("autostart","Running a program with auto-generation of a cube"));
+    // ── Execution & Headless Control ──────────────────────────────────────
+    parser.addOption(QCommandLineOption("nogui",
+        "[Mode] Run in headless batch mode without GUI (requires --autostart to execute)."));
+    parser.addOption(QCommandLineOption(QStringList() << "nologo" << "no-logo",
+        "[Mode] Suppress printing the ASCII logo banner on startup."));
+    parser.addOption(QCommandLineOption("autostart",
+        "[Mode] Automatically start structure generation on launch (required for headless mode)."));
     parser.addOption(QCommandLineOption("animate",
-                                        "Grow the structure iteration by iteration instead of in one shot"));
-    parser.addOption(QCommandLineOption("nogui","Running a program with no GUI"));
-    parser.addOption(QCommandLineOption("solver","Solver for --run_stress_calc: ansys | fft (default ansys)", "solver"));
-    parser.addOption(QCommandLineOption("stress_mode",
-                                        "Stress calculation mode: single | dataset | stiffness (default dataset). "
-                                        "stiffness computes S/C/P/moduli only (6 solves, no Hill calibration or "
-                                        "300-sample run) and writes them to HDF5, same schema as dataset mode.", "mode"));
-    parser.addOption(QCommandLineOption("eps",
-                                        "Strain tensor for --stress_mode single: exx,eyy,ezz,exy,eyz,exz", "values"));
+        "[Mode] Grow structure iteration by iteration instead of one-shot generation."));
+    parser.addOption(QCommandLineOption("np",
+        "[System] Number of OpenMP worker threads (default: physical CPU cores).", "threads"));
+    parser.addOption(QCommandLineOption("seed",
+        "[System] RNG seed for reproducibility (default: current timestamp).", "uint"));
     parser.addOption(QCommandLineOption("output",
-                                        "HDF5 file results are written to (default current_ls.hdf5)", "file"));
-    parser.addOption(QCommandLineOption("num_rnd_loads", "Set number of random loads (as eps) for stress analis", "num_rnd_loads"));
-    parser.addOption(QCommandLineOption("run_stress_calc", "Run FEM to estimate stresses and strains"));
-    parser.addOption(QCommandLineOption("working_directory", "Set path where ansys working directory will be stored","working_directory"));
+        "[Output] Output HDF5 file path for structure and fields (default: current_ls.hdf5).", "file"));
 
-    // ── Crystallographic texture ──────────────────────────────────────────
+    // ── Structure Geometry & Nucleation ───────────────────────────────────
+    parser.addOption(QCommandLineOption("size",
+        "[Grid] Voxel grid dimension N for N x N x N cell (integer > 0, e.g. 30).", "n"));
+    parser.addOption(QCommandLineOption("points",
+        "[Grid] Number of initial nucleation seeds / grains (integer > 0, e.g. 50).", "count"));
+    parser.addOption(QCommandLineOption("concentration",
+        "[Grid] Nucleation seed density as volume percentage in (0, 100]; overrides --points (e.g. 0.5).", "pct"));
+    parser.addOption(QCommandLineOption("algorithm",
+        "[Grid] Generation algorithm name (default: Voronoi). See registered list above.", "name"));
+    parser.addOption(QCommandLineOption("periodic",
+        "[Grid] Enable periodic boundary conditions (grains/fibers wrap across opposite cell faces)."));
+
+    // ── Voronoi Tessellation & Riemannian Metric ──────────────────────────
+    parser.addOption(QCommandLineOption("minkowski_p",
+        "[Voronoi] Minkowski exponent p: 1 = Manhattan (octahedral), 2 = Euclidean, large = Chebyshev (cuboidal). Default: 2.0", "p"));
+    parser.addOption(QCommandLineOption("voronoi_metric_preset",
+        "[Voronoi] Preset for shape / metric tensor ('Sphere (Circle)', 'Prolate (Needle)', 'Oblate (Disc)', 'Triaxial Ellipsoid', 'Superellipsoid (Cube)', 'Columnar (Z-axis)', 'Columnar (X-axis)', 'Rolled (Orthotropic)', 'Sheared (45 deg XY)', 'Custom').", "preset"));
+    parser.addOption(QCommandLineOption("voronoi_metric",
+        "[Voronoi] Metric tensor components as comma-separated list: 'mxx,myy,mzz' or 'mxx,myy,mzz,mxy,myz,mxz'.", "components"));
+    parser.addOption(QCommandLineOption("voronoi_mxx",
+        "[Voronoi] Metric tensor diagonal M_xx (M11) scaling X-elongation (default: 1.0).", "val"));
+    parser.addOption(QCommandLineOption("voronoi_myy",
+        "[Voronoi] Metric tensor diagonal M_yy (M22) scaling Y-elongation (default: 1.0).", "val"));
+    parser.addOption(QCommandLineOption("voronoi_mzz",
+        "[Voronoi] Metric tensor diagonal M_zz (M33) scaling Z-elongation (default: 1.0).", "val"));
+    parser.addOption(QCommandLineOption("voronoi_mxy",
+        "[Voronoi] Metric tensor off-diagonal M_xy (M12) XY shear coupling (default: 0.0).", "val"));
+    parser.addOption(QCommandLineOption("voronoi_myz",
+        "[Voronoi] Metric tensor off-diagonal M_yz (M23) YZ shear coupling (default: 0.0).", "val"));
+    parser.addOption(QCommandLineOption("voronoi_mxz",
+        "[Voronoi] Metric tensor off-diagonal M_xz (M13) XZ shear coupling (default: 0.0).", "val"));
+
+    // ── Composite (Fiber-Reinforced RVE) ──────────────────────────────────
+    parser.addOption(QCommandLineOption("composite_dim",
+        "[Composite] Reinforcement families: 1d (along Z) | 2d (along X,Y) | 3d (along X,Y,Z). Default: 1d", "dim"));
+    parser.addOption(QCommandLineOption("composite_packing",
+        "[Composite] Fiber cross-section packing lattice: square | hexagonal. Default: square", "packing"));
+    parser.addOption(QCommandLineOption("fiber_volume_fraction",
+        "[Composite] Target fiber volume fraction in range (0, 1). Solved via bisection. Default: 0.4", "frac"));
+    parser.addOption(QCommandLineOption("fibers_per_row",
+        "[Composite] Number of fibers per lattice row in cross-section (default: 3).", "n"));
+    parser.addOption(QCommandLineOption("fiber_aspect_ratio",
+        "[Composite] Fiber elliptical cross-section a/b (major/minor semi-axis; 1 = circular). Default: 1.0", "ratio"));
+    parser.addOption(QCommandLineOption("fiber_angle_scatter",
+        "[Composite] Per-fiber in-plane rotation spread in degrees [0, 180] (default: 0.0).", "deg"));
+    parser.addOption(QCommandLineOption("fiber_center_jitter",
+        "[Composite] Random shift of fiber centers in [0, 1] of half-pitches (0 = perfect lattice). Default: 0.0", "val"));
+    parser.addOption(QCommandLineOption("fiber_allow_overlap",
+        "[Composite] Let jittered fibers overlap and merge; lifts packing limit on volume fraction."));
+    parser.addOption(QCommandLineOption("matrix_material",
+        "[Composite] Matrix constituent from material_properties.db (e.g. Epoxy, Al, Cu). Default: Epoxy", "name"));
+    parser.addOption(QCommandLineOption("fiber_material",
+        "[Composite] Fiber constituent from material_properties.db (e.g. C-fiber, E-glass, SiC, W). Default: C-fiber", "name"));
+
+    // ── Probability Cellular Automaton ────────────────────────────────────
+    parser.addOption(QCommandLineOption("prob_preset",
+        "[Probability] Shape preset: 'Sphere (Circle)', 'Prolate (Needle)', 'Oblate (Disc)', 'Triaxial Ellipsoid', 'Superellipsoid (Cube)', 'Custom'.", "preset"));
+    parser.addOption(QCommandLineOption("prob_matrix_mode",
+        "[Probability] Transition matrix calculation: volume ('Volume Sampling') | surface ('Surface Flux'). Default: volume", "mode"));
+    parser.addOption(QCommandLineOption("halfaxis_a",
+        "[Probability] Kernel semi-axis A length along X.", "val"));
+    parser.addOption(QCommandLineOption("halfaxis_b",
+        "[Probability] Kernel semi-axis B length along Y.", "val"));
+    parser.addOption(QCommandLineOption("halfaxis_c",
+        "[Probability] Kernel semi-axis C length along Z.", "val"));
+    parser.addOption(QCommandLineOption("orientation_angle_a",
+        "[Probability] Kernel Euler rotation angle about X-axis in degrees.", "deg"));
+    parser.addOption(QCommandLineOption("orientation_angle_b",
+        "[Probability] Kernel Euler rotation angle about Y-axis in degrees.", "deg"));
+    parser.addOption(QCommandLineOption("orientation_angle_c",
+        "[Probability] Kernel Euler rotation angle about Z-axis in degrees.", "deg"));
+    parser.addOption(QCommandLineOption("ellipse_order",
+        "[Probability] Superellipse equation degree |x/a|^p + |y/b|^p + |z/c|^p <= 1 (default: 2.0).", "p"));
+    parser.addOption(QCommandLineOption("stefan_number",
+        "[Probability] Thermodynamic Stefan number (cooling limit) for probabilistic growth.", "val"));
+    parser.addOption(QCommandLineOption("wave_generation",
+        "[Probability] Enable continuous wave nucleation (transformation-fraction controlled)."));
+    parser.addOption(QCommandLineOption("initial_nuclei",
+        "[Probability] Number of initial nuclei present at step 0 for wave nucleation.", "count"));
+    parser.addOption(QCommandLineOption("wave_peak_fraction",
+        "[Probability] Solid volume fraction where nucleation rate peaks in [0, 1] (default: 0.20).", "frac"));
+    parser.addOption(QCommandLineOption("wave_end_fraction",
+        "[Probability] Solid volume fraction where 100% of nuclei are placed in [0, 1] (default: 0.60).", "frac"));
+    parser.addOption(QCommandLineOption("wave_coefficient",
+        "[Probability] Rate coefficient for wave nucleation kinetics (default: 0.1).", "val"));
+
+    // ── Material & Crystallographic Texture ───────────────────────────────
+    parser.addOption(QCommandLineOption("material",
+        "[Material] Material from material_properties.db (e.g. Cu, Fe, Al, W). Supplies cubic constants and default lattice.", "name"));
     parser.addOption(QCommandLineOption("texture",
-                                        "Texture preset: random | extrusion | rolling | recrystallization | shear | scattered_cube", "preset"));
+        "[Texture] Crystallographic texture preset: random | extrusion | rolling | recrystallization | shear | scattered_cube", "preset"));
     parser.addOption(QCommandLineOption("lattice",
-                                        "Crystal lattice for the texture preset: fcc | bcc (default fcc)", "lattice"));
+        "[Texture] Crystal lattice override: fcc | bcc (default: from material, or fcc).", "lat"));
     parser.addOption(QCommandLineOption("scatter",
-                                        "Texture scatter (spread) in degrees, default 11", "degrees"));
+        "[Texture] Texture orientation scatter spread in degrees (default: 11.0).", "deg"));
+
+    // ── Stress Analysis & Homogenization ──────────────────────────────────
+    parser.addOption(QCommandLineOption("run_stress_calc",
+        "[Stress] Run stress/strain homogenization after structure generation."));
+    parser.addOption(QCommandLineOption("solver",
+        "[Stress] Homogenization solver: fft (in-memory Moulinec-Suquet) | ansys (external FEM). Default: ansys", "solver"));
+    parser.addOption(QCommandLineOption("stress_mode",
+        "[Stress] Calculation mode: stiffness (fast 6 solves -> S, C, moduli) | single (prescribed --eps) | dataset (full 300 loads). Default: dataset", "mode"));
+    parser.addOption(QCommandLineOption("eps",
+        "[Stress] Prescribed macroscopic strain tensor for '--stress_mode single': exx,eyy,ezz,exy,eyz,exz", "strains"));
+    parser.addOption(QCommandLineOption("num_rnd_loads",
+        "[Stress] Number of random loads for Hill yield criterion fit in dataset mode (default: 150).", "count"));
+    parser.addOption(QCommandLineOption("working_directory",
+        "[Stress] Working directory for ANSYS scratch and APDL files.", "dir"));
+
+    // ── Machine-Readable Agent Metadata ───────────────────────────────────
+    parser.addOption(QCommandLineOption(QStringList() << "help-json" << "json-help",
+        "[Agent] Output complete CLI schema, algorithms, materials, presets, and options as JSON and exit."));
+}
+
+void Commandline_Parser::printJsonHelp()
+{
+    // Silence debug logs so output is 100% pure JSON even if stderr is combined
+    auto noopHandler = [](QtMsgType, const QMessageLogContext&, const QString&) {};
+    auto oldHandler = qInstallMessageHandler(noopHandler);
+
+    QJsonObject root;
+    root["application"] = "MatViz3D";
+    root["version"] = "3.01";
+    root["description"] = "Cellular Automata 3D Microstructure Generator & Homogenization Stress Analyzer";
+
+    QJsonObject modes;
+    modes["gui"] = "Launch without --nogui for interactive Qt/QML desktop UI";
+    modes["headless_generation"] = "MatViz3D --nogui --autostart --algorithm <algo> --size <n> --points <n>";
+    modes["headless_stress_analysis"] = "MatViz3D --nogui --autostart --run_stress_calc --solver <fft|ansys> --stress_mode <mode>";
+    root["modes"] = modes;
+
+    QJsonArray recipes;
+    auto addRecipe = [&](const QString& name, const QString& desc, const QString& cmd) {
+        QJsonObject r;
+        r["name"] = name;
+        r["description"] = desc;
+        r["command"] = cmd;
+        recipes.append(r);
+    };
+    addRecipe("Voronoi Polycrystal",
+              "Periodic Voronoi tessellation (30^3, 50 grains, copper)",
+              "MatViz3D --nogui --autostart --algorithm Voronoi --size 30 --points 50 --periodic --material Cu --output voronoi.hdf5");
+    addRecipe("Composite Fiber RVE",
+              "2D orthogonal continuous fibers on hexagonal lattice with 40% volume fraction",
+              "MatViz3D --nogui --autostart --algorithm Composite --size 40 --composite_dim 2d --composite_packing hexagonal --fiber_volume_fraction 0.4 --matrix_material Epoxy --fiber_material C-fiber --output composite.hdf5");
+    addRecipe("Fast In-Memory FFT Stiffness Tensor",
+              "Phase 1 homogenization (6 unit strain solves) computing effective S, C, and engineering moduli",
+              "MatViz3D --nogui --autostart --algorithm Voronoi --size 20 --points 30 --material Al --run_stress_calc --solver fft --stress_mode stiffness --output stiffness.hdf5");
+    addRecipe("Single Load Case Prescribed Strain",
+              "Single-shot stress solve under prescribed macroscopic strain tensor",
+              "MatViz3D --nogui --autostart --algorithm Voronoi --size 20 --points 20 --run_stress_calc --solver fft --stress_mode single --eps 0.001,0,0,0,0,0 --output single.hdf5");
+    root["recipes"] = recipes;
+
+    QJsonArray algos;
+    for (const QString& name : AlgorithmFactory::instance().algorithmNames()) {
+        const AlgorithmPlugin* plugin = AlgorithmFactory::instance().pluginFor(name);
+        QJsonObject a;
+        a["name"] = name;
+        a["description"] = plugin ? plugin->description : QString();
+        algos.append(a);
+    }
+    root["algorithms"] = algos;
+
+    QJsonArray mats;
+    QStringList matList = DBManager::materialNames();
+    if (matList.isEmpty())
+        matList << "Cu" << "Fe" << "Al" << "W" << "Ti" << "Ni" << "Brass" << "Epoxy" << "C-fiber" << "E-glass" << "SiC" << "Al2O3";
+    for (const QString& m : matList) mats.append(m);
+    root["materials"] = mats;
+
+    QJsonArray textures;
+    textures.append("random");
+    textures.append("extrusion");
+    textures.append("rolling");
+    textures.append("recrystallization");
+    textures.append("shear");
+    textures.append("scattered_cube");
+    root["texture_presets"] = textures;
+
+    QJsonArray options;
+    auto addOpt = [&](const QString& name, const QString& cat, const QString& type,
+                      const QString& valName, const QString& defVal, const QString& desc,
+                      const QStringList& choices = {}) {
+        QJsonObject o;
+        o["name"] = name;
+        o["flag"] = "--" + name;
+        o["category"] = cat;
+        o["type"] = type;
+        if (!valName.isEmpty()) o["value_name"] = valName;
+        if (!defVal.isEmpty()) o["default"] = defVal;
+        o["description"] = desc;
+        if (!choices.isEmpty()) {
+            QJsonArray ch;
+            for (const QString& c : choices) ch.append(c);
+            o["choices"] = ch;
+        }
+        options.append(o);
+    };
+
+    // Execution & Headless
+    addOpt("nogui", "Execution", "bool", "", "false", "Run in headless mode without GUI (requires --autostart to execute)");
+    addOpt("nologo", "Execution", "bool", "", "false", "Suppress printing the ASCII logo banner on startup");
+    addOpt("autostart", "Execution", "bool", "", "false", "Automatically start structure generation on startup (required for --nogui)");
+    addOpt("animate", "Execution", "bool", "", "false", "Grow structure iteration by iteration instead of one-shot generation");
+    addOpt("np", "System", "int", "threads", "CPU cores", "Number of OpenMP worker threads for algorithm execution");
+    addOpt("seed", "System", "uint", "uint", "timestamp", "RNG seed for reproducible structure generation");
+    addOpt("output", "Output", "string", "file", "current_ls.hdf5", "Output HDF5 filepath for structure and fields");
+
+    // Grid Geometry & Nucleation
+    addOpt("size", "Grid", "int", "n", "", "Voxel grid dimension N for N x N x N cell (integer > 0)");
+    addOpt("points", "Grid", "int", "count", "", "Number of initial nucleation seeds / grains (integer > 0)");
+    addOpt("concentration", "Grid", "float", "pct", "", "Nucleation seed density as volume percentage in (0, 100]; overrides --points");
+    addOpt("algorithm", "Grid", "string", "name", "Voronoi", "Generation algorithm name", QStringList() << "Voronoi" << "Composite" << "Probability" << "Moore" << "Neumann" << "Radial" << "DLCA");
+    addOpt("periodic", "Grid", "bool", "", "false", "Periodic boundary conditions (grains/fibers wrap across opposite cell faces)");
+
+    // Voronoi
+    addOpt("minkowski_p", "Voronoi", "double", "p", "2.0", "Minkowski exponent: 1 = Manhattan, 2 = Euclidean, large = Chebyshev");
+    addOpt("voronoi_metric_preset", "Voronoi", "string", "preset", "", "Preset for Voronoi shape / metric tensor",
+           QStringList() << "Sphere (Circle)" << "Prolate (Needle)" << "Oblate (Disc)" << "Triaxial Ellipsoid"
+                         << "Superellipsoid (Cube)" << "Columnar (Z-axis)" << "Columnar (X-axis)"
+                         << "Rolled (Orthotropic)" << "Sheared (45 deg XY)" << "Custom");
+    addOpt("voronoi_metric", "Voronoi", "string", "components", "", "Metric tensor components: 'mxx,myy,mzz' or 'mxx,myy,mzz,mxy,myz,mxz'");
+    addOpt("voronoi_mxx", "Voronoi", "double", "val", "1.0", "Metric tensor diagonal M_xx (M11) scaling X-elongation");
+    addOpt("voronoi_myy", "Voronoi", "double", "val", "1.0", "Metric tensor diagonal M_yy (M22) scaling Y-elongation");
+    addOpt("voronoi_mzz", "Voronoi", "double", "val", "1.0", "Metric tensor diagonal M_zz (M33) scaling Z-elongation");
+    addOpt("voronoi_mxy", "Voronoi", "double", "val", "0.0", "Metric tensor off-diagonal M_xy (M12) XY shear coupling");
+    addOpt("voronoi_myz", "Voronoi", "double", "val", "0.0", "Metric tensor off-diagonal M_yz (M23) YZ shear coupling");
+    addOpt("voronoi_mxz", "Voronoi", "double", "val", "0.0", "Metric tensor off-diagonal M_xz (M13) XZ shear coupling");
+
+    // Composite
+    addOpt("composite_dim", "Composite", "string", "dim", "1d", "Reinforcement dimensionality: 1d (along Z) | 2d (along X,Y) | 3d (along X,Y,Z)", QStringList() << "1d" << "2d" << "3d");
+    addOpt("composite_packing", "Composite", "string", "packing", "square", "Fiber cross-section packing: square | hexagonal", QStringList() << "square" << "hexagonal");
+    addOpt("fiber_volume_fraction", "Composite", "double", "frac", "0.4", "Target fiber volume fraction in (0, 1)");
+    addOpt("fibers_per_row", "Composite", "int", "n", "3", "Fibers per row in cross-section lattice");
+    addOpt("fiber_aspect_ratio", "Composite", "double", "ratio", "1.0", "Fiber elliptical cross-section a/b (major/minor semi-axis; 1 = circular)");
+    addOpt("fiber_angle_scatter", "Composite", "double", "deg", "0.0", "Per-fiber in-plane rotation spread in degrees [0, 180]");
+    addOpt("fiber_center_jitter", "Composite", "double", "val", "0.0", "Random shift of fiber centers in [0, 1] of half-pitches");
+    addOpt("fiber_allow_overlap", "Composite", "bool", "", "false", "Let jittered fibers overlap and merge; lifts packing limit on volume fraction");
+    addOpt("matrix_material", "Composite", "string", "name", "Epoxy", "Matrix constituent from material database");
+    addOpt("fiber_material", "Composite", "string", "name", "C-fiber", "Fiber constituent from material database");
+
+    // Probability
+    addOpt("prob_preset", "Probability", "string", "preset", "", "Kernel shape preset",
+           QStringList() << "Sphere (Circle)" << "Prolate (Needle)" << "Oblate (Disc)" << "Triaxial Ellipsoid" << "Superellipsoid (Cube)" << "Custom");
+    addOpt("prob_matrix_mode", "Probability", "string", "mode", "volume", "Transition matrix calculation method: volume | surface", QStringList() << "volume" << "surface");
+    addOpt("halfaxis_a", "Probability", "float", "val", "", "Kernel semi-axis A length along X");
+    addOpt("halfaxis_b", "Probability", "float", "val", "", "Kernel semi-axis B length along Y");
+    addOpt("halfaxis_c", "Probability", "float", "val", "", "Kernel semi-axis C length along Z");
+    addOpt("orientation_angle_a", "Probability", "float", "deg", "", "Kernel Euler rotation angle about X-axis in degrees");
+    addOpt("orientation_angle_b", "Probability", "float", "deg", "", "Kernel Euler rotation angle about Y-axis in degrees");
+    addOpt("orientation_angle_c", "Probability", "float", "deg", "", "Kernel Euler rotation angle about Z-axis in degrees");
+    addOpt("ellipse_order", "Probability", "double", "p", "2.0", "Superellipse equation exponent in |x/a|^p + |y/b|^p + |z/c|^p <= 1");
+    addOpt("stefan_number", "Probability", "float", "val", "", "Thermodynamic Stefan cooling limit number for probabilistic growth");
+    addOpt("wave_generation", "Probability", "bool", "", "false", "Enable continuous wave nucleation (transformation-fraction controlled)");
+    addOpt("initial_nuclei", "Probability", "int", "count", "", "Number of initial nuclei present at step 0 for wave nucleation");
+    addOpt("wave_peak_fraction", "Probability", "float", "frac", "0.20", "Solid volume fraction where nucleation rate peaks in [0, 1]");
+    addOpt("wave_end_fraction", "Probability", "float", "frac", "0.60", "Solid volume fraction where 100% of nuclei are placed in [0, 1]");
+    addOpt("wave_coefficient", "Probability", "float", "val", "0.1", "Rate coefficient for wave nucleation kinetics");
+
+    // Material & Texture
+    addOpt("material", "Material", "string", "name", "Cu", "Material from database supplying cubic constants and default lattice");
+    addOpt("texture", "Texture", "string", "preset", "", "Crystallographic texture preset",
+           QStringList() << "random" << "extrusion" << "rolling" << "recrystallization" << "shear" << "scattered_cube");
+    addOpt("lattice", "Texture", "string", "lat", "fcc", "Crystal lattice override: fcc | bcc", QStringList() << "fcc" << "bcc");
+    addOpt("scatter", "Texture", "double", "deg", "11.0", "Texture orientation scatter spread in degrees");
+
+    // Stress Analysis
+    addOpt("run_stress_calc", "Stress", "bool", "", "false", "Run stress/strain homogenization after structure generation");
+    addOpt("solver", "Stress", "string", "solver", "ansys", "Homogenization solver: fft | ansys", QStringList() << "ansys" << "fft");
+    addOpt("stress_mode", "Stress", "string", "mode", "dataset", "Calculation mode: stiffness (fast 6 solves) | single | dataset (full 300 loads)", QStringList() << "dataset" << "stiffness" << "single");
+    addOpt("eps", "Stress", "string", "strains", "", "Applied strain tensor for --stress_mode single: exx,eyy,ezz,exy,eyz,exz");
+    addOpt("num_rnd_loads", "Stress", "uint", "count", "150", "Number of random loads for Hill yield criterion fit in dataset mode");
+    addOpt("working_directory", "Stress", "string", "dir", "", "Working directory for ANSYS scratch and APDL files");
+
+    // Agent Metadata
+    addOpt("help-json", "Agent", "bool", "", "false", "Output complete CLI schema, algorithms, materials, and options as JSON and exit");
+
+    root["options"] = options;
+
+    QJsonDocument doc(root);
+    QTextStream out(stdout);
+    out << doc.toJson(QJsonDocument::Indented);
+    out.flush();
+
+    qInstallMessageHandler(oldHandler);
 }
 
 namespace {
@@ -500,7 +772,7 @@ void Commandline_Parser::processOptions(const QCommandLineParser& parser)
     if (parser.isSet("eps")) {
         const QStringList parts = parser.value("eps").split(',');
         if (parts.size() != 6)
-            qFatal("Option --eps expects 6 comma-separated values, got %d", parts.size());
+            qFatal("Option --eps expects 6 comma-separated values, got %d", static_cast<int>(parts.size()));
         double e[6];
         for (int i = 0; i < 6; ++i) {
             bool ok = false;
