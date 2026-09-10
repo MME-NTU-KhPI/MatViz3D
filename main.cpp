@@ -19,6 +19,7 @@
 #include "texturecontroller.h"
 #include "hdf5projectcontroller.h"
 #include "tensormath_selftest.hpp"
+#include <hdf5.h>
 
 #ifdef _WIN32
     #include <windows.h>
@@ -43,6 +44,10 @@ void enable_virtual_term()
 
 int main(int argc, char *argv[])
 {
+    // Silence HDF5 library built-in error dumps to stderr.
+    // Probing non-existent links/datasets is handled explicitly by return values.
+    H5Eset_auto(H5E_DEFAULT, NULL, NULL);
+
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 #endif

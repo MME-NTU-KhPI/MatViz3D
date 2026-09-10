@@ -131,6 +131,16 @@ void Hdf5ProjectController::reloadGeometryMetadata(int geomSetNum)
     m_seed = hdf5.readInt(prefix, "seed");
     if (m_seed == -1) m_seed = 0;
 
+    // Read full geometry metadata (algorithm, seed, solver, parameters, JSON)
+    m_geomMeta = readGeometryMetadataFromHDF5(hdf5, prefix);
+    m_algorithm = m_geomMeta.algorithm;
+    m_solver = m_geomMeta.solver;
+    m_geomParamsSummary = m_geomMeta.summary;
+    m_geomParams = m_geomMeta.parameters;
+    if (m_geomMeta.seed != 0) {
+        m_seed = m_geomMeta.seed;
+    }
+
     m_hasStiffness = false;
     for (int i = 0; i < 6; ++i) {
         m_moduli[i] = 0.0;
@@ -511,4 +521,18 @@ bool Hdf5ProjectController::exportSvg(const QUrl& fileUrl, bool dark, bool withS
 
     qDebug() << "Hdf5ProjectController: wrote SVG to" << path;
     return true;
+}
+
+bool Hdf5ProjectController::hasVoxels() const
+{
+    return LoadStepManager::getInstance().hasVoxels();
+}
+
+bool Hdf5ProjectController::reproduceGeometry()
+{
+    if (m_geomMeta.algorithm.isEmpty() && m_geomParams.isEmpty()) {
+        qWarning() << "Hdf5ProjectController: No geometry metadata available to reproduce";
+        return false;
+    }
+    return applyGeometryMetadataToParameters(m_geomMeta);
 }

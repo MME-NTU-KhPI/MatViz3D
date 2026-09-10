@@ -5,6 +5,7 @@
 #include "loadstepmanager.h"
 #include "hdf5wrapper.h"
 #include "ansyswrapper.h"   // tensor_components enum (SX..SXZ, SEQV) -- shares layout with fftsa::ResCol
+#include "fft_solver_session.hpp"
 #include "openglwidgetqml.h"
 
 #include <QDebug>
@@ -522,29 +523,102 @@ void StressAnalysisController::saveSingleShotResult()
     else                { last_set += 1; hdf5.update("/", "last_set", last_set); }
     const std::string prefix = ("/" + QString::number(last_set)).toStdString();
 
-    hdf5.write(prefix, "voxels",    Parameters::voxels, Parameters::instance()->getSize());
-    hdf5.write(prefix, "cubeSize",  Parameters::instance()->getSize());
-    hdf5.write(prefix, "numPoints", Parameters::instance()->getPoints());
+    const int numCubes = Parameters::instance()->getSize();
+    const int numPoints = Parameters::instance()->getPoints();
+    const QString solver = m_lastResult.ansysField ? QStringLiteral("ansys") : QStringLiteral("fft");
 
-    // Single-shot only tracks the macro (volume-average) stress -- so the
-    // one-row "results" table and its max/min are identical to the average.
-    std::vector<float> avg(EpsEQV + 1, 0.0f);
-    avg[SX]  = float(m_lastResult.macro_stress[0]);
-    avg[SY]  = float(m_lastResult.macro_stress[1]);
-    avg[SZ]  = float(m_lastResult.macro_stress[2]);
-    avg[SXY] = float(m_lastResult.macro_stress[3]);
-    avg[SYZ] = float(m_lastResult.macro_stress[4]);
-    avg[SXZ] = float(m_lastResult.macro_stress[5]);
-    avg[SEQV] = float(m_lastResult.von_mises);
+    hdf5.write(prefix, "voxels",    Parameters::voxels, numCubes);
+    hdf5.write(prefix, "cubeSize",  numCubes);
+    hdf5.write(prefix, "numPoints", numPoints);
+    hdf5.write(prefix, "seed",      int(Parameters::seed));
+    hdf5.write(prefix, "solver",    solver);
 
-    std::vector<std::vector<float>> results{avg};
+    if (OpenGLWidgetQML* ogl = OpenGLWidgetQML::getInstance()) {
+        const auto& orientations = ogl->getGrainOrientations();
+        if (!orientations.empty()) {
+            std::vector<std::vector<float>> local_cs;
+            local_cs.reserve(orientations.size());
+            for (const auto& arr : orientations) {
+                local_cs.push_back({arr[0], arr[1], arr[2]});
+            }
+            hdf5.write(prefix, "local_cs", local_cs);
+        }
+    }
+
+    saveGeometryMetadataToHDF5(hdf5, prefix, solver);
+
+    std::vector<std::vector<float>> results;
+    std::vector<float> avg;
+    std::vector<float> mx;
+    std::vector<float> mn;
+
+    if (m_lastResult.fftField) {
+        using fftsa::ResCol;
+        const int N = m_lastResult.fftField->numCubes;
+        const size_t totalVoxels = static_cast<size_t>(N) * N * N;
+        results.assign(totalVoxels, std::vector<float>(ResCol::R_NCOLS, 0.0f));
+        avg.assign(ResCol::R_NCOLS, 0.0f);
+        mx.assign(ResCol::R_NCOLS, -3.0e38f);
+        mn.assign(ResCol::R_NCOLS,  3.0e38f);
+
+        for (size_t idx = 0; idx < totalVoxels; ++idx) {
+            const int iz = int(idx / (N * N)), iy = int((idx / N) % N), ix = int(idx % N);
+            auto& row = results[idx];
+            row[ResCol::R_ID] = float(idx + 1);
+            row[ResCol::R_X]  = float(ix); row[ResCol::R_Y] = float(iy); row[ResCol::R_Z] = float(iz);
+
+            row[ResCol::R_SX]  = m_lastResult.fftField->perVoxel[SX][idx];
+            row[ResCol::R_SY]  = m_lastResult.fftField->perVoxel[SY][idx];
+            row[ResCol::R_SZ]  = m_lastResult.fftField->perVoxel[SZ][idx];
+            row[ResCol::R_SXY] = m_lastResult.fftField->perVoxel[SXY][idx];
+            row[ResCol::R_SYZ] = m_lastResult.fftField->perVoxel[SYZ][idx];
+            row[ResCol::R_SXZ] = m_lastResult.fftField->perVoxel[SXZ][idx];
+
+            row[ResCol::R_EX]  = m_lastResult.fftField->perVoxel[EpsX][idx];
+            row[ResCol::R_EY]  = m_lastResult.fftField->perVoxel[EpsY][idx];
+            row[ResCol::R_EZ]  = m_lastResult.fftField->perVoxel[EpsZ][idx];
+            row[ResCol::R_EXY] = m_lastResult.fftField->perVoxel[EpsXY][idx];
+            row[ResCol::R_EYZ] = m_lastResult.fftField->perVoxel[EpsYZ][idx];
+            row[ResCol::R_EXZ] = m_lastResult.fftField->perVoxel[EpsXZ][idx];
+
+            row[ResCol::R_SEQV] = m_lastResult.fftField->perVoxel[SEQV][idx];
+            row[ResCol::R_EEQV] = m_lastResult.fftField->perVoxel[EpsEQV][idx];
+
+            for (int c = 0; c < ResCol::R_NCOLS; ++c) {
+                avg[c] += row[c];
+                mx[c]  = std::max(mx[c], row[c]);
+                mn[c]  = std::min(mn[c], row[c]);
+            }
+        }
+        if (totalVoxels > 0) {
+            for (int c = 0; c < ResCol::R_NCOLS; ++c) avg[c] /= float(totalVoxels);
+        }
+    } else if (m_lastResult.ansysField) {
+        results = m_lastResult.ansysField->loadstep_results;
+        avg     = m_lastResult.ansysField->loadstep_results_avg;
+        mx      = m_lastResult.ansysField->loadstep_results_max;
+        mn      = m_lastResult.ansysField->loadstep_results_min;
+    } else {
+        avg.assign(EpsEQV + 1, 0.0f);
+        avg[SX]  = float(m_lastResult.macro_stress[0]);
+        avg[SY]  = float(m_lastResult.macro_stress[1]);
+        avg[SZ]  = float(m_lastResult.macro_stress[2]);
+        avg[SXY] = float(m_lastResult.macro_stress[3]);
+        avg[SYZ] = float(m_lastResult.macro_stress[4]);
+        avg[SXZ] = float(m_lastResult.macro_stress[5]);
+        avg[SEQV] = float(m_lastResult.von_mises);
+        results.push_back(avg);
+        mx = avg;
+        mn = avg;
+    }
+
     std::vector<float> eps_load(m_lastEps, m_lastEps + 6);
 
     const std::string ls_str = prefix + "/ls_1";
     hdf5.write(ls_str, "results",        results);
     hdf5.write(ls_str, "results_avg",    avg);
-    hdf5.write(ls_str, "results_max",    avg);
-    hdf5.write(ls_str, "results_min",    avg);
+    hdf5.write(ls_str, "results_max",    mx);
+    hdf5.write(ls_str, "results_min",    mn);
     hdf5.write(ls_str, "eps_as_loading", eps_load);
 
     qDebug() << "[StressAnalysisController] Saved single-shot result to" << filename << prefix.c_str();

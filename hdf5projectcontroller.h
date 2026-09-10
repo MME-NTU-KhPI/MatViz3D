@@ -5,6 +5,7 @@
 #include <QString>
 #include <QStringList>
 #include <QVariantList>
+#include <QVariantMap>
 #include <QUrl>
 #include <vector>
 #include "deformed_state_analyzer.h"
@@ -26,6 +27,11 @@ class Hdf5ProjectController : public QObject
     Q_PROPERTY(int         cubeSize              READ cubeSize              NOTIFY geomChanged)
     Q_PROPERTY(int         numPoints             READ numPoints             NOTIFY geomChanged)
     Q_PROPERTY(int         seed                  READ seed                  NOTIFY geomChanged)
+    Q_PROPERTY(QString     algorithm             READ algorithm             NOTIFY geomChanged)
+    Q_PROPERTY(QString     solver                READ solver                NOTIFY geomChanged)
+    Q_PROPERTY(QString     geomParamsSummary     READ geomParamsSummary     NOTIFY geomChanged)
+    Q_PROPERTY(QVariantMap geomParams            READ geomParams            NOTIFY geomChanged)
+    Q_PROPERTY(bool        hasVoxels             READ hasVoxels             NOTIFY geomChanged)
     Q_PROPERTY(bool        hasStiffness          READ hasStiffness          NOTIFY geomChanged)
     Q_PROPERTY(QVariantList stiffnessModuli      READ stiffnessModuli      NOTIFY geomChanged)
     Q_PROPERTY(QVariantList stiffnessC           READ stiffnessC           NOTIFY geomChanged)
@@ -72,6 +78,7 @@ public:
     Q_INVOKABLE void exportCSV(const QString& filePath);
     Q_INVOKABLE bool exportSvg(const QUrl& fileUrl, bool dark, bool withStats);
     Q_INVOKABLE QString toLocalFile(const QUrl& fileUrl) const;
+    Q_INVOKABLE bool reproduceGeometry();
 
     QString     filePath() const { return m_filePath; }
     bool        isOpen() const { return m_isOpen; }
@@ -84,6 +91,11 @@ public:
     int         cubeSize() const { return m_cubeSize; }
     int         numPoints() const { return m_numPoints; }
     int         seed() const { return m_seed; }
+    QString     algorithm() const { return m_algorithm; }
+    QString     solver() const { return m_solver; }
+    QString     geomParamsSummary() const { return m_geomParamsSummary; }
+    QVariantMap geomParams() const { return m_geomParams; }
+    bool        hasVoxels() const;
     bool        hasStiffness() const { return m_hasStiffness; }
     QVariantList stiffnessModuli() const;
     QVariantList stiffnessC() const;
@@ -139,6 +151,11 @@ private:
     int         m_cubeSize  = 0;
     int         m_numPoints = 0;
     int         m_seed      = 0;
+    QString     m_algorithm;
+    QString     m_solver;
+    QString     m_geomParamsSummary;
+    QVariantMap m_geomParams;
+    GeomMetadata m_geomMeta;
 
     bool        m_hasStiffness = false;
     double      m_C[6][6] = {{0}};

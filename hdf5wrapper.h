@@ -5,6 +5,21 @@
 #include <string>
 #include <hdf5.h>
 #include <QString>
+#include <QVariantMap>
+
+struct GeomMetadata {
+    QString algorithm;
+    QString solver;
+    int seed = 0;
+    int cubeSize = 0;
+    int numPoints = 0;
+    QString pointsMode;
+    bool isPeriodic = false;
+    double minkowskiP = 2.0;
+    QString summary;
+    QString parametersJson;
+    QVariantMap parameters;
+};
 
 class HDF5Wrapper {
 public:
@@ -14,6 +29,7 @@ public:
     void write(const std::string& dataGroup, const std::string& dataSetName, const std::vector<float>& data);
     void write(const std::string& dataGroup, const std::string& dataSetName, const std::vector<std::vector<float>>& data);
     void write(const std::string& dataGroup, const std::string& dataSetName, float data);
+    void write(const std::string& dataGroup, const std::string& dataSetName, double data);
     void write(const std::string& dataGroup, const std::string& dataSetName, int data);
     void write(const std::string& dataGroup, const std::string& dataSetName, const QString& data);
     void write(const std::string& dataGroup, const std::string& dataSetName, int32_t ***voxels , int size);
@@ -21,6 +37,7 @@ public:
     std::vector<float> readVectorFloat(const std::string& dataGroup, const std::string& dataSetName);
     std::vector<std::vector<float>> readVectorVectorFloat(const std::string& dataGroup, const std::string& dataSetName);
     float readFloat(const std::string& dataGroup, const std::string& dataSetName);
+    double readDouble(const std::string& dataGroup, const std::string& dataSetName);
     int readInt(const std::string& dataGroup, const std::string& dataSetName);
     QString readQString(const std::string& dataGroup, const std::string& dataSetName);
     std::vector<std::vector<std::vector<int32_t>>> readVoxels(const std::string& dataGroup, const std::string& dataSetName);
@@ -46,5 +63,8 @@ private:
     static std::string fullPath(const std::string& dataGroup, const std::string& dataSetName);
 };
 
+void saveGeometryMetadataToHDF5(HDF5Wrapper& hdf5, const std::string& prefix, const QString& solver = QString());
+GeomMetadata readGeometryMetadataFromHDF5(HDF5Wrapper& hdf5, const std::string& prefix);
+bool applyGeometryMetadataToParameters(const GeomMetadata& meta);
 
 #endif // HDF5WRAPPER_H

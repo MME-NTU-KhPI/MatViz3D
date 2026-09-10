@@ -242,10 +242,16 @@ void StressAnalysisFFT::estimateStressWithFFT(short int numCubes, short int numP
         qDebug() << "[StressAnalysisFFT] HDF5 prefix:" << QString::fromStdString(prefix);
 
         // dataset-level metadata (same keys as the ANSYS path)
-        hdf5.write(prefix, "voxels",    Parameters::voxels, Parameters::instance()->getSize());
-        hdf5.write(prefix, "cubeSize",  Parameters::instance()->getSize());
-        hdf5.write(prefix, "numPoints", Parameters::instance()->getPoints());
+        hdf5.write(prefix, "voxels",    voxels ? voxels : Parameters::voxels, N);
+        hdf5.write(prefix, "cubeSize",  N);
+        hdf5.write(prefix, "numPoints", numPoints);
         hdf5.write(prefix, "local_cs",  session.local_cs());
+        hdf5.write(prefix, "seed",      int(Parameters::seed));
+        hdf5.write(prefix, "solver",    QStringLiteral("fft"));
+        hdf5.write(prefix, "num_samples", num_samples);
+        hdf5.write(prefix, "num_calib",   num_calib);
+        hdf5.write(prefix, "strain_val",  float(strain_val));
+        saveGeometryMetadataToHDF5(hdf5, prefix, QStringLiteral("fft"));
 
         // per-load-step solve + write + yield extraction (streamed, low memory)
         for (size_t ls = 1; ls <= load_cases.size(); ++ls) {

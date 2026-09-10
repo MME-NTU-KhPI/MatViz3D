@@ -208,13 +208,13 @@ Window {
                 Button {
                     text: qsTr("Sync to 3D")
                     Layout.preferredHeight: 34
-                    enabled: ctrl.isOpen
+                    enabled: ctrl.isOpen && ctrl.hasVoxels
                     font.family: inter.name
                     font.pixelSize: 12
                     onClicked: ctrl.pushTo3DView()
                     ToolTip.visible: hovered
                     ToolTip.delay: 400
-                    ToolTip.text: qsTr("Push the selected geometry and load step mesh, field, and deformations into the main 3D viewport")
+                    ToolTip.text: ctrl.hasVoxels ? qsTr("Push the selected geometry and load step mesh, field, and deformations into the main 3D viewport") : qsTr("This geometry set has no 3D voxels to display")
                 }
 
                 CheckBox {
@@ -288,10 +288,79 @@ Window {
                                 anchors.margins: 8
                                 spacing: 4
 
-                                Text { text: qsTr("Grid Size: ") + ctrl.cubeSize + "³"; color: chartTheme.controlText; font.pixelSize: 12; font.family: inter.name }
-                                Text { text: qsTr("Grains / Points: ") + ctrl.numPoints; color: chartTheme.controlText; font.pixelSize: 12; font.family: inter.name }
-                                Text { text: qsTr("RNG Seed: ") + ctrl.seed; color: chartTheme.controlText; font.pixelSize: 12; font.family: inter.name }
+                                Text { text: qsTr("Grid Size: ") + (ctrl.cubeSize > 0 ? (ctrl.cubeSize + "³") : qsTr("N/A")); color: chartTheme.controlText; font.pixelSize: 12; font.family: inter.name }
+                                Text { text: qsTr("Grains / Points: ") + (ctrl.numPoints > 0 ? ctrl.numPoints : qsTr("N/A")); color: chartTheme.controlText; font.pixelSize: 12; font.family: inter.name }
+                                Text { text: qsTr("RNG Seed: ") + (ctrl.seed !== 0 ? ctrl.seed : qsTr("N/A")); color: chartTheme.controlText; font.pixelSize: 12; font.family: inter.name }
+                                Text { text: qsTr("Algorithm: ") + (ctrl.algorithm.length > 0 ? ctrl.algorithm : qsTr("Unknown")); color: chartTheme.controlText; font.pixelSize: 12; font.family: inter.name; visible: ctrl.algorithm.length > 0 }
+                                Text { text: qsTr("Solver: ") + (ctrl.solver.length > 0 ? ctrl.solver.toUpperCase() : qsTr("Unknown")); color: chartTheme.controlText; font.pixelSize: 12; font.family: inter.name; visible: ctrl.solver.length > 0 }
+                                Text { text: qsTr("Geometry: ") + (ctrl.hasVoxels ? qsTr("3D Voxels Available") : qsTr("None (Stiffness only)")); color: ctrl.hasVoxels ? "#81c784" : "#e57373"; font.pixelSize: 12; font.family: inter.name }
                                 Text { text: qsTr("Load Steps: ") + ctrl.loadSteps.length; color: chartTheme.controlText; font.pixelSize: 12; font.family: inter.name }
+                            }
+                        }
+
+                        Text {
+                            text: qsTr("Generator Parameters")
+                            color: chartTheme.chartTitle
+                            font.pixelSize: 14
+                            font.bold: true
+                            font.family: montserrat.name
+                            visible: ctrl.geomParamsSummary.length > 0 || ctrl.algorithm.length > 0
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: genCol.implicitHeight + 16
+                            color: chartTheme.plotBackground
+                            border.color: chartTheme.plotBorder
+                            radius: 6
+                            visible: ctrl.geomParamsSummary.length > 0 || ctrl.algorithm.length > 0
+
+                            ColumnLayout {
+                                id: genCol
+                                anchors.fill: parent
+                                anchors.margins: 8
+                                spacing: 6
+
+                                Text {
+                                    text: ctrl.geomParamsSummary.length > 0 ? ctrl.geomParamsSummary : (qsTr("Algorithm: ") + ctrl.algorithm)
+                                    color: chartTheme.controlText
+                                    font.pixelSize: 11
+                                    font.family: "monospace"
+                                    wrapMode: Text.Wrap
+                                    Layout.fillWidth: true
+                                }
+
+                                Button {
+                                    text: qsTr("Reproduce Geometry")
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 30
+                                    font.family: inter.name
+                                    font.pixelSize: 11
+                                    onClicked: {
+                                        if (ctrl.reproduceGeometry()) {
+                                            reproduceNotice.text = qsTr("Parameters loaded into generator!");
+                                            reproduceNotice.color = "#81c784";
+                                            reproduceNotice.visible = true;
+                                        } else {
+                                            reproduceNotice.text = qsTr("Failed to load parameters.");
+                                            reproduceNotice.color = "#e57373";
+                                            reproduceNotice.visible = true;
+                                        }
+                                    }
+                                    ToolTip.visible: hovered
+                                    ToolTip.delay: 400
+                                    ToolTip.text: qsTr("Load algorithm and parameters into generator settings to reproduce this microstructure")
+                                }
+
+                                Text {
+                                    id: reproduceNotice
+                                    visible: false
+                                    color: "#81c784"
+                                    font.pixelSize: 10
+                                    font.family: inter.name
+                                    wrapMode: Text.Wrap
+                                    Layout.fillWidth: true
+                                }
                             }
                         }
 

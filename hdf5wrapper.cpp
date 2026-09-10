@@ -1,10 +1,20 @@
 #include "hdf5wrapper.h"
 #include "stressresult.h"
+#include "parameters.h"
+#include "algorithmfactory.h"
+#include "openglwidgetqml.h"
 #include <QFile>
 #include <QDebug>
+#include <QJsonObject>
+#include <QJsonDocument>
+#include <QJsonValue>
 
 HDF5Wrapper::HDF5Wrapper(const std::string& fileName)
 {
+    // Silence HDF5's default error stack printing to stderr.
+    // Missing datasets during probes are completely expected and handled by return codes.
+    H5Eset_auto(H5E_DEFAULT, NULL, NULL);
+
     if (fileName.empty()) {
         qDebug() << "Error: HDF5 file name is empty!";
         return;
@@ -56,6 +66,28 @@ QString saveStiffnessMatrixToHDF5(const QString& filename,
     const QString     group  = "/" + QString::number(last_set);
     const std::string prefix = group.toStdString();
 
+    // Persist geometry if voxels are available so the dataset has a valid geometry section
+    if (Parameters::voxels && Parameters::instance()->getSize() > 0) {
+        const int size = Parameters::instance()->getSize();
+        const int points = Parameters::instance()->getPoints();
+        hdf5.write(prefix, "voxels", Parameters::voxels, size);
+        hdf5.write(prefix, "cubeSize", size);
+        hdf5.write(prefix, "numPoints", points);
+
+        if (OpenGLWidgetQML* ogl = OpenGLWidgetQML::getInstance()) {
+            const auto& orientations = ogl->getGrainOrientations();
+            if (!orientations.empty()) {
+                std::vector<std::vector<float>> local_cs;
+                local_cs.reserve(orientations.size());
+                for (const auto& arr : orientations) {
+                    local_cs.push_back({arr[0], arr[1], arr[2]});
+                }
+                hdf5.write(prefix, "local_cs", local_cs);
+            }
+        }
+        saveGeometryMetadataToHDF5(hdf5, prefix, solver);
+    }
+
     std::vector<std::vector<float>> mat_S(6, std::vector<float>(6));
     std::vector<std::vector<float>> mat_C(6, std::vector<float>(6));
     std::vector<std::vector<float>> mat_P(6, std::vector<float>(6));
@@ -92,8 +124,9 @@ std::string HDF5Wrapper::fullPath(const std::string& dataGroup, const std::strin
 bool HDF5Wrapper::datasetExists(const std::string& dataGroup, const std::string& dataSetName)
 {
     if (file < 0) return false;
-    // H5Lexists reports a missing intermediate link as false rather than
-    // failing (HDF5 >= 1.10), so the whole path can be probed in one call.
+    // Suppress HDF5's default error stack printer to stderr so intermediate
+    // component traversal failures return <= 0 silently without terminal spam.
+    H5Eset_auto(H5E_DEFAULT, NULL, NULL);
     return H5Lexists(file, fullPath(dataGroup, dataSetName).c_str(), H5P_DEFAULT) > 0;
 }
 
@@ -108,23 +141,25 @@ bool HDF5Wrapper::checkError(hid_t id, const std::string& message)
 
 hid_t HDF5Wrapper::createGroupIfNotExists(const std::string& groupName)
 {
-    H5E_auto2_t old_func;
-    void *old_client_data;
+    if (file < 0) return H5I_INVALID_HID;
+    if (groupName.empty() || groupName == "/") {
+        return H5Gopen2(file, "/", H5P_DEFAULT);
+    }
 
-    H5Eget_auto(H5E_DEFAULT, &old_func, &old_client_data);
     H5Eset_auto(H5E_DEFAULT, NULL, NULL);
 
     hid_t group_id = H5Gopen2(file, groupName.c_str(), H5P_DEFAULT);
     if (group_id < 0)
     {
-        group_id = H5Gcreate2(file, groupName.c_str(), H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        hid_t lcpl = H5Pcreate(H5P_LINK_CREATE);
+        H5Pset_create_intermediate_group(lcpl, 1);
+        group_id = H5Gcreate2(file, groupName.c_str(), lcpl, H5P_DEFAULT, H5P_DEFAULT);
+        H5Pclose(lcpl);
         if (group_id < 0)
         {
             qCritical() << "Failed to create group: " << QString::fromStdString(groupName);
         }
     }
-
-    H5Eset_auto(H5E_DEFAULT, old_func, old_client_data);
 
     return group_id;
 }
@@ -255,13 +290,17 @@ void HDF5Wrapper::write(const std::string& dataGroup, const std::string& dataSet
     if (checkError(group_id, "write float: Failed to create group"))
         return;
 
+    if (H5Lexists(group_id, dataSetName.c_str(), H5P_DEFAULT)) {
+        H5Ldelete(group_id, dataSetName.c_str(), H5P_DEFAULT);
+    }
+
     hid_t dataspace = H5Screate(H5S_SCALAR);
     if (checkError(dataspace, "write float: Failed to create dataspace"))
     {
         H5Gclose(group_id);
         return;
     }
-    hid_t dataset = H5Dcreate(file, (dataGroup + "/" + dataSetName).c_str(), H5T_NATIVE_FLOAT, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    hid_t dataset = H5Dcreate(group_id, dataSetName.c_str(), H5T_NATIVE_FLOAT, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     if (checkError(dataset, "write float: Failed to create dataset " + dataGroup + "/" + dataSetName))
     {
         H5Sclose(dataspace);
@@ -269,9 +308,38 @@ void HDF5Wrapper::write(const std::string& dataGroup, const std::string& dataSet
         return;
     }
     H5Dwrite(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &data);
+    H5Dclose(dataset);
     H5Sclose(dataspace);
     H5Gclose(group_id);
+}
+
+void HDF5Wrapper::write(const std::string& dataGroup, const std::string& dataSetName, double data)
+{
+    hid_t group_id = createGroupIfNotExists(dataGroup);
+    if (checkError(group_id, "write double: Failed to create group"))
+        return;
+
+    if (H5Lexists(group_id, dataSetName.c_str(), H5P_DEFAULT)) {
+        H5Ldelete(group_id, dataSetName.c_str(), H5P_DEFAULT);
+    }
+
+    hid_t dataspace = H5Screate(H5S_SCALAR);
+    if (checkError(dataspace, "write double: Failed to create dataspace"))
+    {
+        H5Gclose(group_id);
+        return;
+    }
+    hid_t dataset = H5Dcreate(group_id, dataSetName.c_str(), H5T_NATIVE_DOUBLE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    if (checkError(dataset, "write double: Failed to create dataset " + dataGroup + "/" + dataSetName))
+    {
+        H5Sclose(dataspace);
+        H5Gclose(group_id);
+        return;
+    }
+    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &data);
     H5Dclose(dataset);
+    H5Sclose(dataspace);
+    H5Gclose(group_id);
 }
 
 void HDF5Wrapper::write(const std::string& dataGroup, const std::string& dataSetName, const QString& data)
@@ -279,6 +347,11 @@ void HDF5Wrapper::write(const std::string& dataGroup, const std::string& dataSet
     hid_t group_id = createGroupIfNotExists(dataGroup);
     if (checkError(group_id, "write QString: Failed to create group"))
         return;
+
+    if (H5Lexists(group_id, dataSetName.c_str(), H5P_DEFAULT)) {
+        H5Ldelete(group_id, dataSetName.c_str(), H5P_DEFAULT);
+    }
+
     QByteArray byteArray = data.toUtf8();
     hsize_t dims[1] = { static_cast<hsize_t>(byteArray.size()) };
     hid_t dataspace = H5Screate_simple(1, dims, nullptr);
@@ -287,7 +360,7 @@ void HDF5Wrapper::write(const std::string& dataGroup, const std::string& dataSet
         H5Gclose(group_id);
         return;
     }
-    hid_t dataset = H5Dcreate(file, (dataGroup + "/" + dataSetName).c_str(), H5T_NATIVE_CHAR, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    hid_t dataset = H5Dcreate(group_id, dataSetName.c_str(), H5T_NATIVE_CHAR, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     if (checkError(dataset, "write QString: Failed to create dataset " + dataGroup + "/" + dataSetName))
     {
         H5Sclose(dataspace);
@@ -299,13 +372,16 @@ void HDF5Wrapper::write(const std::string& dataGroup, const std::string& dataSet
     H5Dclose(dataset);
     H5Sclose(dataspace);
     H5Gclose(group_id);
-
 }
 
 void HDF5Wrapper::write(const std::string& dataGroup, const std::string& dataSetName, int32_t ***voxels, int size)
 {
     if (file < 0) {
         qCritical() << "HDF5 file is not opened correctly.";
+        return;
+    }
+    if (!voxels || size <= 0) {
+        qWarning() << "write voxels: null voxels or invalid size" << size;
         return;
     }
 
@@ -430,6 +506,18 @@ float HDF5Wrapper::readFloat(const std::string& dataGroup, const std::string& da
     hid_t dataset = H5Dopen(file, fullPath(dataGroup, dataSetName).c_str(), H5P_DEFAULT);
     float data = 0.0f;
     H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &data);
+    H5Dclose(dataset);
+    return data;
+}
+
+double HDF5Wrapper::readDouble(const std::string& dataGroup, const std::string& dataSetName)
+{
+    if (!datasetExists(dataGroup, dataSetName)) {
+        return 0.0;
+    }
+    hid_t dataset = H5Dopen(file, fullPath(dataGroup, dataSetName).c_str(), H5P_DEFAULT);
+    double data = 0.0;
+    H5Dread(dataset, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, &data);
     H5Dclose(dataset);
     return data;
 }
@@ -563,5 +651,196 @@ void HDF5Wrapper::update(const std::string& dataGroup, const std::string& dataSe
     hid_t dataset = H5Dopen(file, (dataGroup + "/" + dataSetName).c_str(), H5P_DEFAULT);
     H5Dwrite(dataset, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &newValue);
     H5Dclose(dataset);
+}
+
+void saveGeometryMetadataToHDF5(HDF5Wrapper& hdf5, const std::string& prefix, const QString& solver)
+{
+    Parameters* p = Parameters::instance();
+    if (!p) return;
+
+    QString algo = p->getAlgorithm();
+    if (algo.isEmpty()) algo = QStringLiteral("Voronoi");
+
+    // Top-level dataset identification
+    hdf5.write(prefix, "algorithm", algo);
+    hdf5.write(prefix, "seed",      int(p->getSeed()));
+    hdf5.write(prefix, "cubeSize",  p->getSize());
+    hdf5.write(prefix, "numPoints", p->getPoints());
+    if (!solver.isEmpty()) {
+        hdf5.write(prefix, "solver", solver);
+    }
+
+    // Structured /geometry subgroup
+    const std::string geomGroup = prefix + "/geometry";
+    hdf5.write(geomGroup, "algorithm",    algo);
+    hdf5.write(geomGroup, "seed",         int(p->getSeed()));
+    hdf5.write(geomGroup, "cubeSize",     p->getSize());
+    hdf5.write(geomGroup, "numPoints",    p->getPoints());
+    hdf5.write(geomGroup, "points_mode",  p->getPointsMode());
+    hdf5.write(geomGroup, "is_periodic",  p->getIsPeriodic() ? 1 : 0);
+    hdf5.write(geomGroup, "minkowski_p",  float(p->getMinkowskiP()));
+
+    if (!solver.isEmpty()) {
+        hdf5.write(geomGroup, "solver", solver);
+    }
+
+    QJsonObject rootObj;
+    rootObj["algorithm"]    = algo;
+    rootObj["seed"]         = static_cast<qint64>(p->getSeed());
+    rootObj["cubeSize"]     = p->getSize();
+    rootObj["numPoints"]    = p->getPoints();
+    rootObj["points_mode"]  = p->getPointsMode();
+    rootObj["is_periodic"]  = p->getIsPeriodic();
+    rootObj["minkowski_p"]  = p->getMinkowskiP();
+    if (!solver.isEmpty()) rootObj["solver"] = solver;
+
+    QJsonObject paramsObj;
+    QString summaryStr = QString("%1 (Size: %2³, Points: %3, Seed: %4")
+        .arg(algo).arg(p->getSize()).arg(p->getPoints()).arg(p->getSeed());
+
+    std::vector<ParamField> schema = AlgorithmFactory::instance().schemaFor(algo);
+    for (const auto& f : schema) {
+        if (f.key.isEmpty() || f.type == ParamField::Action) continue;
+        QVariant val = p->property(f.key.toUtf8().constData());
+        if (!val.isValid()) continue;
+
+        if (f.type == ParamField::Int || f.type == ParamField::Bool) {
+            int v = val.toInt();
+            hdf5.write(geomGroup, f.key.toStdString(), v);
+            paramsObj[f.key] = v;
+            summaryStr += QString(", %1: %2").arg(f.label).arg(v);
+        } else if (f.type == ParamField::Double) {
+            double v = val.toDouble();
+            hdf5.write(geomGroup, f.key.toStdString(), float(v));
+            paramsObj[f.key] = v;
+            summaryStr += QString(", %1: %2").arg(f.label).arg(QString::number(v, 'g', 4));
+        } else if (f.type == ParamField::Enum || f.type == ParamField::PointsMode) {
+            QString v = val.toString();
+            hdf5.write(geomGroup, f.key.toStdString(), v);
+            paramsObj[f.key] = v;
+            summaryStr += QString(", %1: %2").arg(f.label, v);
+        }
+    }
+
+    if (!p->getDbMaterial().isEmpty()) {
+        hdf5.write(geomGroup, "db_material", p->getDbMaterial());
+        paramsObj["db_material"] = p->getDbMaterial();
+    }
+    if (!p->getTexturePreset().isEmpty()) {
+        hdf5.write(geomGroup, "texture_preset", p->getTexturePreset());
+        paramsObj["texture_preset"] = p->getTexturePreset();
+    }
+    hdf5.write(geomGroup, "texture_scatter", float(p->getTextureScatter()));
+    paramsObj["texture_scatter"] = p->getTextureScatter();
+
+    summaryStr += ")";
+
+    rootObj["parameters"] = paramsObj;
+    QJsonDocument doc(rootObj);
+    QString jsonStr = QString::fromUtf8(doc.toJson(QJsonDocument::Indented));
+
+    hdf5.write(geomGroup, "parameters_json",    jsonStr);
+    hdf5.write(geomGroup, "parameters_summary", summaryStr);
+
+    qDebug() << "[HDF5] Saved geometry metadata for algorithm" << algo << "to" << geomGroup.c_str();
+}
+
+GeomMetadata readGeometryMetadataFromHDF5(HDF5Wrapper& hdf5, const std::string& prefix)
+{
+    GeomMetadata meta;
+    const std::string geomGroup = prefix + "/geometry";
+    const bool hasGeomGroup = hdf5.datasetExists(prefix, "geometry");
+
+    // 1. Algorithm
+    if (hdf5.datasetExists(prefix, "algorithm")) {
+        meta.algorithm = hdf5.readQString(prefix, "algorithm");
+    } else if (hasGeomGroup && hdf5.datasetExists(geomGroup, "algorithm")) {
+        meta.algorithm = hdf5.readQString(geomGroup, "algorithm");
+    }
+
+    // 2. Solver
+    if (hdf5.datasetExists(prefix, "solver")) {
+        meta.solver = hdf5.readQString(prefix, "solver");
+    } else if (hasGeomGroup && hdf5.datasetExists(geomGroup, "solver")) {
+        meta.solver = hdf5.readQString(geomGroup, "solver");
+    }
+
+    // 3. Seed
+    if (hdf5.datasetExists(prefix, "seed")) {
+        meta.seed = hdf5.readInt(prefix, "seed");
+    } else if (hasGeomGroup && hdf5.datasetExists(geomGroup, "seed")) {
+        meta.seed = hdf5.readInt(geomGroup, "seed");
+    }
+
+    // 4. Dimensions & Points
+    if (hdf5.datasetExists(prefix, "cubeSize")) {
+        meta.cubeSize = hdf5.readInt(prefix, "cubeSize");
+    } else if (hasGeomGroup && hdf5.datasetExists(geomGroup, "cubeSize")) {
+        meta.cubeSize = hdf5.readInt(geomGroup, "cubeSize");
+    }
+
+    if (hdf5.datasetExists(prefix, "numPoints")) {
+        meta.numPoints = hdf5.readInt(prefix, "numPoints");
+    } else if (hasGeomGroup && hdf5.datasetExists(geomGroup, "numPoints")) {
+        meta.numPoints = hdf5.readInt(geomGroup, "numPoints");
+    }
+
+    if (hasGeomGroup) {
+        if (hdf5.datasetExists(geomGroup, "points_mode")) {
+            meta.pointsMode = hdf5.readQString(geomGroup, "points_mode");
+        }
+        if (hdf5.datasetExists(geomGroup, "is_periodic")) {
+            meta.isPeriodic = (hdf5.readInt(geomGroup, "is_periodic") != 0);
+        }
+        if (hdf5.datasetExists(geomGroup, "minkowski_p")) {
+            meta.minkowskiP = double(hdf5.readFloat(geomGroup, "minkowski_p"));
+        }
+
+        // 5. JSON & Summary
+        if (hdf5.datasetExists(geomGroup, "parameters_json")) {
+            meta.parametersJson = hdf5.readQString(geomGroup, "parameters_json");
+            QJsonDocument doc = QJsonDocument::fromJson(meta.parametersJson.toUtf8());
+            if (!doc.isNull() && doc.isObject()) {
+                QJsonObject root = doc.object();
+                if (root.contains("parameters") && root["parameters"].isObject()) {
+                    meta.parameters = root["parameters"].toObject().toVariantMap();
+                }
+            }
+        }
+
+        if (hdf5.datasetExists(geomGroup, "parameters_summary")) {
+            meta.summary = hdf5.readQString(geomGroup, "parameters_summary");
+        }
+    }
+
+    if (meta.summary.isEmpty() && !meta.algorithm.isEmpty()) {
+        meta.summary = QString("%1 (Size: %2³, Points: %3, Seed: %4)")
+            .arg(meta.algorithm).arg(meta.cubeSize).arg(meta.numPoints).arg(meta.seed);
+    }
+
+    return meta;
+}
+
+bool applyGeometryMetadataToParameters(const GeomMetadata& meta)
+{
+    Parameters* p = Parameters::instance();
+    if (!p) return false;
+
+    if (!meta.algorithm.isEmpty()) p->setAlgorithm(meta.algorithm);
+    if (meta.cubeSize > 0)         p->setSize(meta.cubeSize);
+    if (meta.numPoints > 0)        p->setPoints(meta.numPoints);
+    if (meta.seed > 0)             p->setSeed(static_cast<unsigned int>(meta.seed));
+    if (!meta.pointsMode.isEmpty()) p->setPointsMode(meta.pointsMode);
+    p->setIsPeriodic(meta.isPeriodic);
+    if (meta.minkowskiP > 0.0)     p->setMinkowskiP(meta.minkowskiP);
+
+    for (auto it = meta.parameters.begin(); it != meta.parameters.end(); ++it) {
+        const QString& key = it.key();
+        const QVariant& val = it.value();
+        p->setProperty(key.toUtf8().constData(), val);
+    }
+
+    qDebug() << "[Parameters] Applied geometry metadata for algorithm" << meta.algorithm << "from HDF5";
+    return true;
 }
 

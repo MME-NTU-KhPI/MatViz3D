@@ -1124,11 +1124,30 @@ void ExportController::exportToHDF5()
                 hdf5Wrapper.write(prefix, "local_cs", local_cs);
             }
         }
+        saveGeometryMetadataToHDF5(hdf5Wrapper, prefix);
     }
 
     if (StressAnalysisController* sa = StressAnalysisController::getInstance()) {
-        if (sa->hasStiffness()) {
-            saveStiffnessMatrixToHDF5(fileName, sa->lastStiffness(), sa->stiffnessIsFFT() ? "fft" : "ansys", Parameters::seed);
+        if (sa->hasStiffness() && sa->lastStiffness().ok) {
+            const auto& r = sa->lastStiffness();
+            const QString solver = sa->stiffnessIsFFT() ? QStringLiteral("fft") : QStringLiteral("ansys");
+            std::vector<std::vector<float>> mat_S(6, std::vector<float>(6));
+            std::vector<std::vector<float>> mat_C(6, std::vector<float>(6));
+            std::vector<std::vector<float>> mat_P(6, std::vector<float>(6));
+            for (int i = 0; i < 6; ++i)
+                for (int j = 0; j < 6; ++j) {
+                    mat_S[i][j] = float(r.S[i][j]);
+                    mat_C[i][j] = float(r.C[i][j]);
+                    mat_P[i][j] = float(r.P[i][j]);
+                }
+            std::vector<float> moduli(r.moduli, r.moduli + 6);
+
+            hdf5Wrapper.write(prefix, "S_matrix",         mat_S);
+            hdf5Wrapper.write(prefix, "C_matrix",         mat_C);
+            hdf5Wrapper.write(prefix, "P_matrix",         mat_P);
+            hdf5Wrapper.write(prefix, "Effective_Moduli", moduli);
+            hdf5Wrapper.write(prefix, "solver",           solver);
+            if (r.isFFT) hdf5Wrapper.write(prefix, "iterations_total", r.totalIterations);
         }
     }
 

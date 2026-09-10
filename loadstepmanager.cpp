@@ -186,6 +186,15 @@ bool LoadStepManager::LoadFromHDF5(const QString& filePath)
         bool ok = false;
         int parsed = geom_list.first().toInt(&ok);
         if (ok) firstSet = parsed;
+
+        // Prefer the first set that actually contains geometry
+        for (const auto& g : geom_list) {
+            std::string p = "/" + g.toStdString();
+            if (hdf5.datasetExists(p, "voxels") || hdf5.datasetExists(p + "/geometry", "voxels")) {
+                firstSet = g.toInt();
+                break;
+            }
+        }
     }
 
     bool res = LoadGeomSet(firstSet, hdf5);
@@ -201,7 +210,7 @@ bool LoadStepManager::LoadGeomSet(int geom_set_num)
 
 bool LoadStepManager::LoadGeomSet(int geom_set_num, HDF5Wrapper& hdf5)
 {
-    qDebug() << "Loaing geom set" << geom_set_num;
+    qDebug() << "Loading geom set" << geom_set_num;
     current_geom_set_num = geom_set_num;
     geom_sub_list.clear();
     loadstepResults.clear();
@@ -214,42 +223,75 @@ bool LoadStepManager::LoadGeomSet(int geom_set_num, HDF5Wrapper& hdf5)
     voxels_vector.clear();
 
     std::string set_prefix = "/" + std::to_string(geom_set_num);
-    // Read voxels
-    this->cubeSize = hdf5.readInt(set_prefix, "cubeSize");
-    this->numPoints = hdf5.readInt(set_prefix, "numPoints");
+    std::string geom_sub = set_prefix + "/geometry";
+    const bool has_geom_sub = hdf5.datasetExists(set_prefix, "geometry");
 
-    // A stiffness-matrix result group holds only S/C/P/moduli -- no voxels. Bail
-    // out here instead of building a cubeSize = -1 grid and indexing an empty
-    // voxel vector further down.
-    if (cubeSize <= 0 || !hdf5.datasetExists(set_prefix, "voxels")) {
-        qWarning() << "Geom set" << geom_set_num << "has no geometry (cubeSize ="
-                   << cubeSize << ") -- nothing to visualise";
-        return false;
+    // Read cubeSize and numPoints from prefix or geometry subgroup
+    if (hdf5.datasetExists(set_prefix, "cubeSize")) {
+        this->cubeSize = hdf5.readInt(set_prefix, "cubeSize");
+    } else if (has_geom_sub && hdf5.datasetExists(geom_sub, "cubeSize")) {
+        this->cubeSize = hdf5.readInt(geom_sub, "cubeSize");
+    } else {
+        this->cubeSize = 0;
     }
 
-    this->local_cs = hdf5.readVectorVectorFloat(set_prefix, "local_cs");
-    this->voxels_vector = hdf5.readVoxels(set_prefix, "voxels");
+    if (hdf5.datasetExists(set_prefix, "numPoints")) {
+        this->numPoints = hdf5.readInt(set_prefix, "numPoints");
+    } else if (has_geom_sub && hdf5.datasetExists(geom_sub, "numPoints")) {
+        this->numPoints = hdf5.readInt(geom_sub, "numPoints");
+    } else {
+        this->numPoints = 0;
+    }
+
+    // Read local coordinate system
+    std::string cs_group = hdf5.datasetExists(set_prefix, "local_cs") ? set_prefix
+                         : ((has_geom_sub && hdf5.datasetExists(geom_sub, "local_cs")) ? geom_sub : "");
+    if (!cs_group.empty()) {
+        this->local_cs = hdf5.readVectorVectorFloat(cs_group, "local_cs");
+    }
+
+    // Read voxels
+    std::string vox_group = hdf5.datasetExists(set_prefix, "voxels") ? set_prefix
+                          : ((has_geom_sub && hdf5.datasetExists(geom_sub, "voxels")) ? geom_sub : "");
+
+    if (!vox_group.empty()) {
+        this->voxels_vector = hdf5.readVoxels(vox_group, "voxels");
+        if (this->cubeSize <= 0 && !this->voxels_vector.empty()) {
+            this->cubeSize = static_cast<int>(this->voxels_vector.size());
+        }
+
+        if (voxels)
+        {
+            Parent_Algorithm::Delete3D<int32_t>(this->voxels);
+            voxels = nullptr;
+        }
+
+        if (cubeSize > 0 && !voxels_vector.empty()) {
+            voxels = Parent_Algorithm::Create3D<int32_t>(cubeSize, cubeSize, cubeSize);
+            for (int i = 0; i < cubeSize; i++)
+                for (int j = 0; j < cubeSize; j++)
+                    for (int k = 0; k < cubeSize; k++)
+                    {
+                        voxels[i][j][k] = voxels_vector[i][j][k];
+                    }
+        }
+    } else {
+        qWarning() << "Geom set" << geom_set_num << "has no voxel geometry (cubeSize ="
+                   << cubeSize << ") -- viewing without 3D voxels";
+        if (voxels) {
+            Parent_Algorithm::Delete3D<int32_t>(this->voxels);
+            voxels = nullptr;
+        }
+    }
+
     qDebug() << "\tGeom Set:" << geom_set_num;
     qDebug() << "\tCube Size:" << cubeSize;
     qDebug() << "\tNum Points:" << numPoints;
     qDebug() << "\tLocal Coordinate System:" << local_cs.size() << "elements";
     qDebug() << "\tVoxels:" << voxels_vector.size() << "elements";
 
-    if (voxels)
-    {
-        Parent_Algorithm::Delete3D<int32_t>(this->voxels);
-    }
-
-    voxels = Parent_Algorithm::Create3D<int32_t>(cubeSize, cubeSize, cubeSize);
-    for (int i = 0; i < cubeSize; i++)
-        for (int j = 0; j < cubeSize; j++)
-            for (int k = 0; k < cubeSize; k++)
-            {
-                voxels[i][j][k] = voxels_vector[i][j][k];
-            }
-
     LoadGeomSubStep(geom_set_num, 1, hdf5);
-    m_isValid = (cubeSize > 0 && voxels != nullptr);
+    m_isValid = (voxels != nullptr || hasLoadStepData() || hdf5.datasetExists(set_prefix, "C_matrix") || hdf5.datasetExists(set_prefix, "S_matrix"));
     return m_isValid;
 }
 

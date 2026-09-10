@@ -235,11 +235,17 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
         std::string prefix = ("/" + QString::number(last_set)).toStdString();
         qDebug() << "[StressAnalysis] HDF5 prefix for this dataset:" << QString::fromStdString(prefix);
 
-        qDebug() << "[StressAnalysis] Writing voxels, cubeSize, numPoints, local_cs...";
-        hdf5.write(prefix, "voxels",    Parameters::voxels, Parameters::instance()->getSize());
-        hdf5.write(prefix, "cubeSize",  Parameters::instance()->getSize());
-        hdf5.write(prefix, "numPoints", Parameters::instance()->getPoints());
+        qDebug() << "[StressAnalysis] Writing voxels, cubeSize, numPoints, local_cs, metadata...";
+        hdf5.write(prefix, "voxels",    voxels ? voxels : Parameters::voxels, N);
+        hdf5.write(prefix, "cubeSize",  N);
+        hdf5.write(prefix, "numPoints", numPoints);
         hdf5.write(prefix, "local_cs",  wr->local_cs);
+        hdf5.write(prefix, "seed",      int(Parameters::seed));
+        hdf5.write(prefix, "solver",    QStringLiteral("ansys"));
+        hdf5.write(prefix, "num_samples", num_samples);
+        hdf5.write(prefix, "num_calib",   num_calib);
+        hdf5.write(prefix, "strain_val",  float(strain_val));
+        saveGeometryMetadataToHDF5(hdf5, prefix, QStringLiteral("ansys"));
 
         qDebug() << "[StressAnalysis] Writing per-step results ("
                  << (int)wr->eps_as_loading.size() << "steps)...";

@@ -45,6 +45,7 @@ public:
     const std::vector<float>& getLoadStepResultsMin() const { return loadstepResultsMin; }
     const std::vector<float>& getEpsAsLoading() const { return eps_as_loading; }
     bool hasLoadStepData() const { return !loadstepResults.empty(); }
+    bool hasVoxels() const { return voxels != nullptr && cubeSize > 0; }
 
 private:
     LoadStepManager(); // Private constructor
