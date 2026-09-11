@@ -102,13 +102,11 @@ SOURCES += \
         mainwindowalgorithmhandler.cpp \
         mainwindowwrapper.cpp \
         materialdatabaseviewwrapper.cpp \
-        moore.cpp \
-        neumann.cpp \
         openglwidgetqml.cpp \
         parameters.cpp \
         parent_algorithm.cpp \
+        polycrystall.cpp \
         probability_algorithm.cpp \
-        radial.cpp \
         renderopengl.cpp \
         schemacontroller.cpp \
         statisticscontroller.cpp \
@@ -170,15 +168,13 @@ HEADERS += \
     mainwindowwrapper.h \
     materialdatabaseviewwrapper.h \
     matviz_homog.hpp \
-    moore.h \
-    neumann.h \
     openglwidgetqml.h \
     parameters.h \
     paramfield.h \
     parent_algorithm.h \
     phasematerial.h \
+    polycrystall.h \
     probability_algorithm.h \
-    radial.h \
     renderopengl.h \
     schemacontroller.h \
     statisticscontroller.h \

@@ -397,7 +397,7 @@ MATVIZ_REGISTER_ALGORITHM(AlgorithmPlugin{
     "DLCA",
     "Diffusion-Limited Cluster Aggregation (DLCA) cluster growth, "
     "with material and texture selection.",
-    /*order=*/ 5,
+    /*order=*/ 3,
     dlcaSchema(),
     [](const Parameters& p) {
         return std::make_shared<DLCA>(static_cast<short int>(p.getSize()), p.getPoints());

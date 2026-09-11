@@ -58,6 +58,12 @@ public:
             name.compare("Probability Algorithm", Qt::CaseInsensitive) == 0) {
             return schemaFor("Probability");
         }
+        if (name.compare("Moore", Qt::CaseInsensitive) == 0 ||
+            name.compare("Neumann", Qt::CaseInsensitive) == 0 ||
+            name.compare("von Neumann", Qt::CaseInsensitive) == 0 ||
+            name.compare("Radial", Qt::CaseInsensitive) == 0) {
+            return schemaFor("Polycrystall");
+        }
         return {};
     }
 
@@ -69,6 +75,12 @@ public:
             name.compare("Probability Ellipse", Qt::CaseInsensitive) == 0 ||
             name.compare("Probability Algorithm", Qt::CaseInsensitive) == 0) {
             return pluginFor("Probability");
+        }
+        if (name.compare("Moore", Qt::CaseInsensitive) == 0 ||
+            name.compare("Neumann", Qt::CaseInsensitive) == 0 ||
+            name.compare("von Neumann", Qt::CaseInsensitive) == 0 ||
+            name.compare("Radial", Qt::CaseInsensitive) == 0) {
+            return pluginFor("Polycrystall");
         }
         return nullptr;
     }
@@ -108,6 +120,19 @@ public:
         }
         if (name.compare("Probability Algorithm", Qt::CaseInsensitive) == 0) {
             return createAlgorithm("Probability", params);
+        }
+        if (name.compare("Moore", Qt::CaseInsensitive) == 0) {
+            Parameters::instance()->setPolycrystallNeighborhood("Moore (26)");
+            return createAlgorithm("Polycrystall", params);
+        }
+        if (name.compare("Neumann", Qt::CaseInsensitive) == 0 ||
+            name.compare("von Neumann", Qt::CaseInsensitive) == 0) {
+            Parameters::instance()->setPolycrystallNeighborhood("von Neumann (6)");
+            return createAlgorithm("Polycrystall", params);
+        }
+        if (name.compare("Radial", Qt::CaseInsensitive) == 0) {
+            Parameters::instance()->setPolycrystallNeighborhood("Radial (18)");
+            return createAlgorithm("Polycrystall", params);
         }
         return nullptr;
     }

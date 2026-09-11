@@ -961,7 +961,7 @@ MATVIZ_REGISTER_ALGORITHM(AlgorithmPlugin{
     "Probability",
     "Stochastic cellular automaton with anisotropic superellipsoidal shape kernels, "
     "thermodynamic Stefan cooling limit, periodic boundaries, material and texture selection.",
-    /*order=*/ 6,
+    /*order=*/ 4,
     probabilitySchema(),
     [](const Parameters& p) {
         return std::make_shared<Probability_Algorithm>(static_cast<short int>(p.getSize()), p.getPoints());

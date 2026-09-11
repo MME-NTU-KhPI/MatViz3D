@@ -99,6 +99,7 @@ class Parameters : public QObject
     Q_PROPERTY(double wave_peak_fraction  READ getWavePeakFraction   WRITE setWavePeakFraction   NOTIFY wavePeakFractionChanged)
     Q_PROPERTY(double wave_end_fraction   READ getWaveEndFraction    WRITE setWaveEndFraction    NOTIFY waveEndFractionChanged)
     Q_PROPERTY(unsigned int num_rnd_loads READ getNumRndLoads        WRITE setNumRndLoads        NOTIFY numRndLoadsChanged)
+    Q_PROPERTY(QString polycrystall_neighborhood READ getPolycrystallNeighborhood WRITE setPolycrystallNeighborhood NOTIFY polycrystallNeighborhoodChanged)
 
 public:
     explicit Parameters(QObject* parent = nullptr);
@@ -135,6 +136,9 @@ public:
 
     QString getProbPreset() const { return prob_preset; }
     Q_INVOKABLE void setProbPreset(const QString& value);
+
+    QString getPolycrystallNeighborhood() const { return polycrystall_neighborhood; }
+    Q_INVOKABLE void setPolycrystallNeighborhood(const QString& value);
 
     QString getProbMatrixMode() const { return prob_matrix_mode; }
     Q_INVOKABLE void setProbMatrixMode(const QString& value);
@@ -343,6 +347,7 @@ public:
     static double wave_peak_fraction;
     static double wave_end_fraction;
     static QString prob_preset;
+    static QString polycrystall_neighborhood;
     static QString prob_matrix_mode;
     static float halfaxis_a;
     static float halfaxis_b;
@@ -386,6 +391,7 @@ signals:
     void waveCoefficientChanged();
 
     void probPresetChanged();
+    void polycrystallNeighborhoodChanged();
     void probMatrixModeChanged();
     void halfAxisAChanged();
     void halfAxisBChanged();

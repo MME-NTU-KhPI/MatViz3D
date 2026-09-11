@@ -65,7 +65,8 @@ QString Commandline_Parser::buildApplicationDescription()
     desc += "\n";
 
     desc += "KEY PRESETS & ENUM VALUES:\n";
-    desc += "  --algorithm:             Voronoi | Composite | Probability | Moore | Neumann | Radial | DLCA\n";
+    desc += "  --algorithm:             Voronoi | Composite | Probability | Polycrystall | DLCA\n";
+    desc += "  --neighborhood:          'Moore (26)' | 'von Neumann (6)' | 'Radial (18)'\n";
     desc += "  --solver:                fft (in-memory Moulinec-Suquet) | ansys (external APDL FEM)\n";
     desc += "  --stress_mode:           stiffness (fast 6 solves -> S, C, moduli) | single (--eps required) | dataset (full 300 loads)\n";
     desc += "  --composite_dim:         1d (fibers along Z) | 2d (along X, Y) | 3d (along X, Y, Z)\n";
@@ -116,6 +117,8 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
         "[Grid] Generation algorithm name (default: Voronoi). See registered list above.", "name"));
     parser.addOption(QCommandLineOption("periodic",
         "[Grid] Enable periodic boundary conditions (grains/fibers wrap across opposite cell faces)."));
+    parser.addOption(QCommandLineOption(QStringList() << "neighborhood" << "polycrystall_neighborhood",
+        "[Polycrystall] Neighborhood stencil: 'Moore (26)' | 'von Neumann (6)' | 'Radial (18)' (aliases: Moore, Neumann, Radial). Default: 'Moore (26)'", "stencil"));
 
     // ── Voronoi Tessellation & Riemannian Metric ──────────────────────────
     parser.addOption(QCommandLineOption("minkowski_p",
@@ -318,8 +321,12 @@ void Commandline_Parser::printJsonHelp()
     addOpt("size", "Grid", "int", "n", "", "Voxel grid dimension N for N x N x N cell (integer > 0)");
     addOpt("points", "Grid", "int", "count", "", "Number of initial nucleation seeds / grains (integer > 0)");
     addOpt("concentration", "Grid", "float", "pct", "", "Nucleation seed density as volume percentage in (0, 100]; overrides --points");
-    addOpt("algorithm", "Grid", "string", "name", "Voronoi", "Generation algorithm name", QStringList() << "Voronoi" << "Composite" << "Probability" << "Moore" << "Neumann" << "Radial" << "DLCA");
+    addOpt("algorithm", "Grid", "string", "name", "Voronoi", "Generation algorithm name", QStringList() << "Voronoi" << "Composite" << "Probability" << "Polycrystall" << "DLCA" << "Moore" << "Neumann" << "Radial");
     addOpt("periodic", "Grid", "bool", "", "false", "Periodic boundary conditions (grains/fibers wrap across opposite cell faces)");
+
+    // Polycrystall
+    addOpt("neighborhood", "Polycrystall", "string", "stencil", "Moore (26)", "Cellular automaton neighborhood stencil",
+           QStringList() << "Moore (26)" << "von Neumann (6)" << "Radial (18)");
 
     // Voronoi
     addOpt("minkowski_p", "Voronoi", "double", "p", "2.0", "Minkowski exponent: 1 = Manhattan, 2 = Euclidean, large = Chebyshev");
@@ -663,7 +670,9 @@ void Commandline_Parser::processOptions(const QCommandLineParser& parser)
             params->setProbMatrixMode("Volume Sampling");
     }
 
-    parseString("algorithm", [&](const QString& v) { params->setAlgorithm(v); });
+    parseString("neighborhood",              [&](const QString& v) { params->setPolycrystallNeighborhood(v); });
+    parseString("polycrystall_neighborhood", [&](const QString& v) { params->setPolycrystallNeighborhood(v); });
+    parseString("algorithm",                 [&](const QString& v) { params->setAlgorithm(v); });
 
     // ── RNG seed ──────────────────────────────────────────────────────────
     // toUInt, not toInt: the seed is unsigned and values above 2^31-1 are legal.

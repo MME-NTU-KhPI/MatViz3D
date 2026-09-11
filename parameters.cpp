@@ -22,6 +22,7 @@ double Parameters::wave_peak_fraction = 0.20;
 double Parameters::wave_end_fraction = 0.60;
 unsigned int Parameters::num_rnd_loads = 0;
 QString Parameters::prob_preset = "Sphere (Circle)";
+QString Parameters::polycrystall_neighborhood = "Moore (26)";
 QString Parameters::prob_matrix_mode = "Volume Sampling";
 float Parameters::halfaxis_a = 1.5f;
 float Parameters::halfaxis_b = 1.5f;
@@ -238,6 +239,23 @@ void Parameters::setProbPreset(const QString& value)
 
     s_inProbPreset = false;
     emit probPresetChanged();
+}
+
+void Parameters::setPolycrystallNeighborhood(const QString& value)
+{
+    QString v = value.trimmed();
+    QString resolved;
+    if (v.contains("neumann", Qt::CaseInsensitive) || v == "6") {
+        resolved = "von Neumann (6)";
+    } else if (v.contains("radial", Qt::CaseInsensitive) || v == "18") {
+        resolved = "Radial (18)";
+    } else {
+        resolved = "Moore (26)";
+    }
+    if (polycrystall_neighborhood != resolved) {
+        polycrystall_neighborhood = resolved;
+        emit polycrystallNeighborhoodChanged();
+    }
 }
 
 void Parameters::setProbMatrixMode(const QString& value)

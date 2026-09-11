@@ -31,7 +31,7 @@ Window {
             width: 650
             color: "#ffffff"
             textFormat: Text.RichText
-            text: qsTr("<span style='color: #06B09E; font-size: 24px;'><b>MaterialViz3D</b></span> - this is a computer application for studying the structure of a material, which implements four algorithms for analyzing the structure of a material: Moore, von Neumann, probability circle, probability ellipse. <br>A detailed overview of the material structure using visualization")
+            text: qsTr("<span style='color: #06B09E; font-size: 24px;'><b>MaterialViz3D</b></span> - this is a computer application for studying the structure of a material, which implements microstructure generation algorithms: Voronoi, Composite, Polycrystall, DLCA, and Probability. <br>A detailed overview of the material structure using visualization")
             font.pixelSize: 22
             wrapMode: Text.WordWrap
             font.family: montserrat.name
