@@ -90,6 +90,7 @@ QVariantList SchemaController::schemaForGroup(const QString& group) const
         m["invokeMethod"]  = f.invokeMethod;
         m["action"]        = f.action;
         m["actionOnValue"] = f.actionOnValue;
+        m["visibleIf"]     = f.visibleIf;
         out.append(m);
     }
     return out;

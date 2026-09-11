@@ -18,6 +18,7 @@ struct AlgorithmFlags {
     bool isWaveGeneration = false; ///< Wave generation flag
     bool isPeriodicStructure = false; ///< Periodic structure flag
     bool isDone = false; ///< Algorithm completion flag
+    bool isThinLayer = false; ///< Thin layer flag
 };
 
 /**
@@ -33,6 +34,7 @@ class Parent_Algorithm
 private:
     void Random_Generate_Points(int currentPoints);
     void Grid_Generate_Points(int currentPoints);
+    void Thin_Layer_Generate_Points(int currentPoints);
 
 protected:
     AlgorithmFlags flags; ///< Algorithm flags
@@ -47,6 +49,7 @@ protected:
     unsigned int filled_voxels = 0; ///< Number of filled voxels
     int total_nucleated_so_far = -1;
     std::mt19937 m_rng; ///< Single generator
+    QString m_layerDirection = "+Z"; ///< Thin layer growth direction
 
 public:
 #pragma pack(push, 4)
@@ -107,6 +110,18 @@ public:
 
     /** @brief Enables or disables periodic structure. */
     void setPeriodicStructure(bool value) { flags.isPeriodicStructure = value; }
+
+    /** @brief Enables or disables thin layer structure. */
+    void setThinLayer(bool value) { flags.isThinLayer = value; }
+
+    /** @brief Checks if thin layer is enabled. */
+    bool getThinLayer() const { return flags.isThinLayer; }
+
+    /** @brief Sets thin layer starting growth direction. */
+    void setLayerDirection(const QString& dir) { m_layerDirection = dir; }
+
+    /** @brief Returns thin layer starting growth direction. */
+    QString getLayerDirection() const { return m_layerDirection; }
 
     /** @brief Set if the algorithm is complete or not. */
     void setDone(bool Done) { flags.isDone = Done; };

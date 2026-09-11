@@ -49,6 +49,12 @@ class Parameters : public QObject
     // opposite one. Required for a periodic homogenization cell.
     Q_PROPERTY(bool is_periodic READ getIsPeriodic WRITE setIsPeriodic NOTIFY isPeriodicChanged)
 
+    // Generate all initial grain seeds on the same plane (thin layer mode).
+    Q_PROPERTY(bool is_thin_layer READ getIsThinLayer WRITE setIsThinLayer NOTIFY isThinLayerChanged)
+
+    // Starting direction of the thin layer film ('+Z', '-Z', '+X', '-X', '+Y', '-Y').
+    Q_PROPERTY(QString layer_direction READ getLayerDirection WRITE setLayerDirection NOTIFY layerDirectionChanged)
+
     // Metric tensor components for anisotropic Voronoi tessellation:
     // M = [mxx mxy mxz; mxy myy myz; mxz myz mzz], default I (isotropic)
     Q_PROPERTY(QString voronoi_metric_preset READ getVoronoiMetricPreset WRITE setVoronoiMetricPreset NOTIFY voronoiMetricPresetChanged)
@@ -210,6 +216,12 @@ public:
 
     bool getIsPeriodic() const { return is_periodic; }
     Q_INVOKABLE void setIsPeriodic(bool value);
+
+    bool getIsThinLayer() const { return is_thin_layer; }
+    Q_INVOKABLE void setIsThinLayer(bool value);
+
+    QString getLayerDirection() const { return layer_direction; }
+    Q_INVOKABLE void setLayerDirection(const QString& value);
 
     QString getVoronoiMetricPreset() const { return voronoi_metric_preset; }
     Q_INVOKABLE void setVoronoiMetricPreset(const QString& value);
@@ -422,6 +434,8 @@ signals:
 
     void minkowskiPChanged();
     void isPeriodicChanged();
+    void isThinLayerChanged();
+    void layerDirectionChanged();
     void voronoiMetricPresetChanged();
     void voronoiMetricChanged();
     void dbMaterialChanged();
@@ -466,6 +480,9 @@ private:
 
     static double  minkowski_p;
     static bool    is_periodic;
+    static bool    is_thin_layer;
+    static QString layer_direction;
+    static QString normalizeLayerDirection(const QString& value);
     static QString voronoi_metric_preset;
     static double  voronoi_mxx;
     static double  voronoi_myy;

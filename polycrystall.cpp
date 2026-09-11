@@ -39,11 +39,13 @@ Polycrystall::Polycrystall()
 {
 }
 
-Polycrystall::Polycrystall(short int numCubes, int numColors, Neighborhood neighborhood)
+Polycrystall::Polycrystall(short int numCubes, int numColors, Neighborhood neighborhood, bool isThinLayer, const QString& layerDirection)
     : m_neighborhood(neighborhood)
 {
     this->numCubes = numCubes;
     this->numColors = numColors;
+    this->flags.isThinLayer = isThinLayer;
+    this->m_layerDirection = layerDirection;
 }
 
 void Polycrystall::setNeighborhood(Neighborhood neighborhood)
@@ -81,6 +83,10 @@ QString Polycrystall::neighborhoodToString(Neighborhood neighborhood)
 
 void Polycrystall::Initialization(bool isWaveGeneration)
 {
+    flags.isThinLayer = flags.isThinLayer || Parameters::instance()->getIsThinLayer();
+    if (!Parameters::instance()->getLayerDirection().isEmpty()) {
+        m_layerDirection = Parameters::instance()->getLayerDirection();
+    }
     Parent_Algorithm::Initialization(isWaveGeneration);
 
     QString neighDesc;
@@ -97,13 +103,17 @@ void Polycrystall::Initialization(bool isWaveGeneration)
         break;
     }
 
+    QString flagsDesc;
+    if (flags.isPeriodicStructure) flagsDesc += ", periodic";
+    if (flags.isThinLayer) flagsDesc += QString(", thin layer (%1)").arg(m_layerDirection);
+
     qDebug().noquote()
         << QString("[Polycrystall] %1^3 grid (%2 voxels), %3 seeds, %4%5")
                .arg(numCubes)
                .arg(static_cast<uint64_t>(numCubes) * numCubes * numCubes)
                .arg(seedPoints.size())
                .arg(neighDesc)
-               .arg(flags.isPeriodicStructure ? ", periodic" : "");
+               .arg(flagsDesc);
 }
 
 template <size_t N>
@@ -216,11 +226,17 @@ bool Polycrystall::getDone() const
 
 static std::vector<ParamField> polycrystallSchema()
 {
+    ParamField dirField{ "layer_direction", "Layer direction", ParamField::Enum, "+Z", {}, {},
+                         { "+Z", "-Z", "+X", "-X", "+Y", "-Y" }, "main" };
+    dirField.visibleIf = "is_thin_layer";
+
     std::vector<ParamField> s = {
         { "size",        "Cube size",     ParamField::Int,        10, 1, 500, {}, "main" },
         { "points",      "Points",        ParamField::PointsMode, 10, 1, 100000,
          { "Size", "Concentration" }, "main" },
         { "is_periodic", "Periodic cell", ParamField::Bool,       false, {}, {}, {}, "main" },
+        { "is_thin_layer", "Thin layer",  ParamField::Bool,       false, {}, {}, {}, "main" },
+        dirField,
         { "polycrystall_neighborhood", "Neighborhood", ParamField::Enum, "Moore (26)", {}, {},
          { "Moore (26)", "von Neumann (6)", "Radial (18)" }, "main" },
     };
@@ -244,7 +260,9 @@ MATVIZ_REGISTER_ALGORITHM(AlgorithmPlugin{
         return std::make_shared<Polycrystall>(
             static_cast<short int>(p.getSize()),
             p.getPoints(),
-            Polycrystall::neighborhoodFromString(p.getPolycrystallNeighborhood())
+            Polycrystall::neighborhoodFromString(p.getPolycrystallNeighborhood()),
+            p.getIsThinLayer(),
+            p.getLayerDirection()
         );
     }
 });

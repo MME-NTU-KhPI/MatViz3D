@@ -61,7 +61,10 @@ public:
         if (name.compare("Moore", Qt::CaseInsensitive) == 0 ||
             name.compare("Neumann", Qt::CaseInsensitive) == 0 ||
             name.compare("von Neumann", Qt::CaseInsensitive) == 0 ||
-            name.compare("Radial", Qt::CaseInsensitive) == 0) {
+            name.compare("Radial", Qt::CaseInsensitive) == 0 ||
+            name.compare("Thin Layer", Qt::CaseInsensitive) == 0 ||
+            name.compare("ThinLayer", Qt::CaseInsensitive) == 0 ||
+            name.compare("Thin_Layer", Qt::CaseInsensitive) == 0) {
             return schemaFor("Polycrystall");
         }
         return {};
@@ -79,7 +82,10 @@ public:
         if (name.compare("Moore", Qt::CaseInsensitive) == 0 ||
             name.compare("Neumann", Qt::CaseInsensitive) == 0 ||
             name.compare("von Neumann", Qt::CaseInsensitive) == 0 ||
-            name.compare("Radial", Qt::CaseInsensitive) == 0) {
+            name.compare("Radial", Qt::CaseInsensitive) == 0 ||
+            name.compare("Thin Layer", Qt::CaseInsensitive) == 0 ||
+            name.compare("ThinLayer", Qt::CaseInsensitive) == 0 ||
+            name.compare("Thin_Layer", Qt::CaseInsensitive) == 0) {
             return pluginFor("Polycrystall");
         }
         return nullptr;
@@ -132,6 +138,12 @@ public:
         }
         if (name.compare("Radial", Qt::CaseInsensitive) == 0) {
             Parameters::instance()->setPolycrystallNeighborhood("Radial (18)");
+            return createAlgorithm("Polycrystall", params);
+        }
+        if (name.compare("Thin Layer", Qt::CaseInsensitive) == 0 ||
+            name.compare("ThinLayer", Qt::CaseInsensitive) == 0 ||
+            name.compare("Thin_Layer", Qt::CaseInsensitive) == 0) {
+            Parameters::instance()->setIsThinLayer(true);
             return createAlgorithm("Polycrystall", params);
         }
         return nullptr;

@@ -20,7 +20,10 @@ public:
     };
 
     Polycrystall();
-    Polycrystall(short int numCubes, int numColors, Neighborhood neighborhood = Neighborhood::Moore);
+    Polycrystall(short int numCubes, int numColors,
+                 Neighborhood neighborhood = Neighborhood::Moore,
+                 bool isThinLayer = false,
+                 const QString& layerDirection = "+Z");
 
     void Initialization(bool isWaveGeneration) override;
     void Next_Iteration() override;

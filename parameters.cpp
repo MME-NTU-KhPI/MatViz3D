@@ -46,6 +46,8 @@ QString Parameters::m_material2  = "bcc";
 
 double  Parameters::minkowski_p = 2.0;   // Euclidean == the classical Voronoi
 bool    Parameters::is_periodic = false;
+bool    Parameters::is_thin_layer = false;
+QString Parameters::layer_direction = "+Z";
 QString Parameters::voronoi_metric_preset = "Sphere (Circle)";
 double  Parameters::voronoi_mxx = 1.0;
 double  Parameters::voronoi_myy = 1.0;
@@ -415,6 +417,39 @@ void Parameters::setIsPeriodic(bool value)
     if (is_periodic != value) {
         is_periodic = value;
         emit isPeriodicChanged();
+    }
+}
+
+void Parameters::setIsThinLayer(bool value)
+{
+    if (is_thin_layer != value) {
+        is_thin_layer = value;
+        emit isThinLayerChanged();
+    }
+}
+
+QString Parameters::normalizeLayerDirection(const QString& value)
+{
+    QString s = value.trimmed().toUpper();
+    if (s == "-Z" || s == "Z-" || s.contains("TOP"))
+        return "-Z";
+    if (s == "+X" || s == "X+" || s == "X" || s.contains("LEFT"))
+        return "+X";
+    if (s == "-X" || s == "X-" || s.contains("RIGHT"))
+        return "-X";
+    if (s == "+Y" || s == "Y+" || s == "Y" || s.contains("FRONT"))
+        return "+Y";
+    if (s == "-Y" || s == "Y-" || s.contains("BACK"))
+        return "-Y";
+    return "+Z";
+}
+
+void Parameters::setLayerDirection(const QString& value)
+{
+    QString resolved = normalizeLayerDirection(value);
+    if (layer_direction != resolved) {
+        layer_direction = resolved;
+        emit layerDirectionChanged();
     }
 }
 

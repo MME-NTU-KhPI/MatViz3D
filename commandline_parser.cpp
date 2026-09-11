@@ -119,6 +119,10 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
         "[Grid] Enable periodic boundary conditions (grains/fibers wrap across opposite cell faces)."));
     parser.addOption(QCommandLineOption(QStringList() << "neighborhood" << "polycrystall_neighborhood",
         "[Polycrystall] Neighborhood stencil: 'Moore (26)' | 'von Neumann (6)' | 'Radial (18)' (aliases: Moore, Neumann, Radial). Default: 'Moore (26)'", "stencil"));
+    parser.addOption(QCommandLineOption(QStringList() << "thin-layer" << "thin_layer",
+        "[Polycrystall] Generate all initial grain seeds on the same plane (thin layer mode)."));
+    parser.addOption(QCommandLineOption(QStringList() << "layer-direction" << "layer_direction",
+        "[Polycrystall] Starting direction of the thin layer film: '+Z' | '-Z' | '+X' | '-X' | '+Y' | '-Y' (default: '+Z').", "dir"));
 
     // ── Voronoi Tessellation & Riemannian Metric ──────────────────────────
     parser.addOption(QCommandLineOption("minkowski_p",
@@ -321,12 +325,16 @@ void Commandline_Parser::printJsonHelp()
     addOpt("size", "Grid", "int", "n", "", "Voxel grid dimension N for N x N x N cell (integer > 0)");
     addOpt("points", "Grid", "int", "count", "", "Number of initial nucleation seeds / grains (integer > 0)");
     addOpt("concentration", "Grid", "float", "pct", "", "Nucleation seed density as volume percentage in (0, 100]; overrides --points");
-    addOpt("algorithm", "Grid", "string", "name", "Voronoi", "Generation algorithm name", QStringList() << "Voronoi" << "Composite" << "Probability" << "Polycrystall" << "DLCA" << "Moore" << "Neumann" << "Radial");
+    addOpt("algorithm", "Grid", "string", "name", "Voronoi", "Generation algorithm name", QStringList() << "Voronoi" << "Composite" << "Probability" << "Polycrystall" << "DLCA" << "Moore" << "Neumann" << "Radial" << "Thin Layer");
     addOpt("periodic", "Grid", "bool", "", "false", "Periodic boundary conditions (grains/fibers wrap across opposite cell faces)");
 
     // Polycrystall
     addOpt("neighborhood", "Polycrystall", "string", "stencil", "Moore (26)", "Cellular automaton neighborhood stencil",
            QStringList() << "Moore (26)" << "von Neumann (6)" << "Radial (18)");
+    addOpt("thin-layer", "Polycrystall", "bool", "", "false", "Generate all initial grain seeds on the same plane (thin layer mode)");
+    addOpt("layer-direction", "Polycrystall", "string", "dir", "+Z",
+           "Starting direction of the thin layer film ('+Z', '-Z', '+X', '-X', '+Y', '-Y')",
+           QStringList() << "+Z" << "-Z" << "+X" << "-X" << "+Y" << "-Y");
 
     // Voronoi
     addOpt("minkowski_p", "Voronoi", "double", "p", "2.0", "Minkowski exponent: 1 = Manhattan, 2 = Euclidean, large = Chebyshev");
@@ -672,6 +680,17 @@ void Commandline_Parser::processOptions(const QCommandLineParser& parser)
 
     parseString("neighborhood",              [&](const QString& v) { params->setPolycrystallNeighborhood(v); });
     parseString("polycrystall_neighborhood", [&](const QString& v) { params->setPolycrystallNeighborhood(v); });
+    if (parser.isSet("thin-layer") || parser.isSet("thin_layer")) {
+        params->setIsThinLayer(true);
+    }
+    parseString("layer-direction", [&](const QString& v) {
+        params->setLayerDirection(v);
+        params->setIsThinLayer(true);
+    });
+    parseString("layer_direction", [&](const QString& v) {
+        params->setLayerDirection(v);
+        params->setIsThinLayer(true);
+    });
     parseString("algorithm",                 [&](const QString& v) { params->setAlgorithm(v); });
 
     // ── RNG seed ──────────────────────────────────────────────────────────

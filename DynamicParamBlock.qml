@@ -17,16 +17,25 @@ Column {
         model: root.schemaModel
 
         delegate: Item {
-                    width: 224
-                    height: col.implicitHeight
-                    anchors.horizontalCenter: parent.horizontalCenter
-
+                    id: delegateItem
                     property var f: modelData
+
+                    property bool isItemVisible: {
+                        if (!f.visibleIf || f.visibleIf === "") return true
+                        if (f.visibleIf === "is_thin_layer") return Parameters.is_thin_layer
+                        return !!Parameters[f.visibleIf]
+                    }
+
+                    visible: isItemVisible
+                    width: 224
+                    height: isItemVisible ? col.implicitHeight : 0
+                    anchors.horizontalCenter: parent.horizontalCenter
 
                     Column {
                         id: col
                         width: parent.width
                         spacing: 6
+                        visible: delegateItem.isItemVisible
 
                         Text {
                             // Bool fields carry their own inline label so the
