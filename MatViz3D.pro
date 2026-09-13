@@ -25,9 +25,9 @@ QML_LIBEXEC = $$(QT_QML_LIBEXEC)
     QT_TOOL.qmlimportscanner.binary = $$QML_LIBEXEC/qmlimportscanner
 }
 
-# Silence -Wsfinae-incomplete noise from Qt headers (qchar.h, qbitarray.h)
-# under GCC 16 + libstdc++ <unordered_map>. Not our code — remove once Qt ships a fix.
-QMAKE_CXXFLAGS += -Wno-sfinae-incomplete
+# -Wsfinae-incomplete exists only in GCC 16+; guard so older toolchains don't choke
+gcc_ver = $$system($$QMAKE_CXX -dumpversion)
+greaterThan(gcc_ver, 15): QMAKE_CXXFLAGS += -Wno-sfinae-incomplete
 
 QMAKE_CXXFLAGS += -fopenmp
 LIBS += -fopenmp
