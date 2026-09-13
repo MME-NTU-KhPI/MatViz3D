@@ -483,7 +483,7 @@ void ansysWrapper::createFEfromArray(int32_t*** voxels, short int numCubes, int 
     qInfo().noquote() << FEM_info.arg(nodes.size()).arg(elemets.size()/20);
 }
 
-void ansysWrapper::createFEfromArray8Node(int32_t*** voxels, short int numCubes, int numSeeds, bool is_random_orientation,
+void ansysWrapper::createFEfromArray8Node(int32_t*** voxels, short int numCubes, int /*numSeeds*/, bool is_random_orientation,
                                           const std::vector<std::array<double,3>>& sharedOrientations)
 {
     this->ansys_to_voxel_map.clear();
@@ -703,7 +703,7 @@ void ansysWrapper::createFEfromArray8Node(int32_t*** voxels, short int numCubes,
     qInfo().noquote() << FEM_info.arg(nodes.size()).arg(elements.size() / 8);
 }
 
-int ansysWrapper::createLocalCS(bool is_random_orientation, double x, double y, double z)
+int ansysWrapper::createLocalCS(bool /*is_random_orientation*/, double x, double y, double z)
 {
     QTextStream apdl(&m_apdl);
     int cs_id = this->m_lcs;
@@ -1837,8 +1837,8 @@ void ansysWrapper::load_loadstep(int num)
     }
 
     auto &avg = this->loadstep_results_avg;
-    auto &max = this->loadstep_results_max;
-    auto &min = this->loadstep_results_min;
+    // auto &max = this->loadstep_results_max;
+    // auto &min = this->loadstep_results_min;
     auto &load = this->eps_as_loading[num - 1];
     qDebug() << QString("------ LS NUM %1 ------- ").arg(num);
     qDebug() << "Total nodes:" << (int)this->loadstep_results.size()
@@ -1937,7 +1937,7 @@ void ansysWrapper::createResultNodesHash()
 
 ansysWrapper::ElasticProperties ansysWrapper::calculateElasticProperties()
 {
-    ElasticProperties res = {0};
+    ElasticProperties res{};
     res.isValid = false;
 
     int numSteps = this->eps_as_loading.size();

@@ -180,7 +180,8 @@ std::vector<std::array<double,6>> HillCriterion::computeYieldPoints(
         double percentile_threshold = 0.98;
 
         int p_index = static_cast<int>(tau_list.size() * percentile_threshold);
-        if (p_index >= tau_list.size()) p_index = tau_list.size() - 1;
+        if (p_index >= static_cast<int>(tau_list.size()))
+            p_index = static_cast<int>(tau_list.size()) - 1;
 
         double max_tau = tau_list[p_index].tau;
         int max_elem_idx = tau_list[p_index].idx;
@@ -746,7 +747,8 @@ std::vector<std::vector<double>> HillCriterion::generateLoads(
     }
 
     qDebug() << "[generateLoads] Total loads:" << (int)load_cases.size()
-             << "(uniform:" << n_uniform << ", edges:" << n_edges << ")";
+             << "(uniform:" << n_uniform << ", edges:" << n_edges
+             << ", rejected:" << retries << ")";
 
     return load_cases;
 }

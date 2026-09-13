@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
         if (!parser.isSet("autostart")) return 0;
 
         MainWindowAlgorithmHandler handler;
-        handler.runAlgorithm(Parameters::instance()->getAlgorithm(), false);
+        handler.runAlgorithm(Parameters::instance()->getAlgorithm());
 
         if (parser.isSet("run_stress_calc"))
             handler.runStressCalculation();

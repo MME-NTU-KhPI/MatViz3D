@@ -1103,7 +1103,7 @@ QImage RenderOpenGL::captureScreenshot(bool includeGizmo)
 
     f->glReadPixels(0, 0, readW, readH, GL_RGBA, GL_UNSIGNED_BYTE, screenshot.bits());
 
-    screenshot = screenshot.mirrored();
+    screenshot = screenshot.flipped(Qt::Vertical);
 
     // If we suppressed the gizmo for the capture, restore it on the current FBO
     // so the on-screen display remains completely intact and seamless.

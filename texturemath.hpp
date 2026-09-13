@@ -179,9 +179,12 @@ inline OdfGrid odfFromVariants(const std::vector<Bunge>& fzVariants,
     // 1. raw counts
     for (const auto& b : fzVariants) {
         int i = int(b[0] / g.bin), j = int(b[1] / g.bin), k = int(b[2] / g.bin);
-        if (i < 0) i = 0; if (i >= nbins) i = nbins - 1;
-        if (j < 0) j = 0; if (j >= nbins) j = nbins - 1;
-        if (k < 0) k = 0; if (k >= nbins) k = nbins - 1;
+        if (i < 0) i = 0;
+        if (i >= nbins) i = nbins - 1;
+        if (j < 0) j = 0;
+        if (j >= nbins) j = nbins - 1;
+        if (k < 0) k = 0;
+        if (k >= nbins) k = nbins - 1;
         g.at(i, j, k) += 1.0;
     }
 
@@ -258,8 +261,10 @@ inline std::vector<double> odfSection(const OdfGrid& g, double phi2_deg)
 inline std::vector<double> resampleSection(const std::vector<double>& sec, int n, int m)
 {
     auto src = [&](int i, int j) {
-        if (i < 0) i = 0; if (i >= n) i = n - 1;
-        if (j < 0) j = 0; if (j >= n) j = n - 1;
+        if (i < 0) i = 0;
+        if (i >= n) i = n - 1;
+        if (j < 0) j = 0;
+        if (j >= n) j = n - 1;
         return sec[std::size_t(i)*n + j];
     };
     auto cr = [](double p0, double p1, double p2, double p3, double t) {

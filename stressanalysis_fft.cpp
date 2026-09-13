@@ -198,6 +198,7 @@ void StressAnalysisFFT::estimateStressWithFFT(short int numCubes, short int numP
         }
 
         qDebug() << "[StressAnalysisFFT]   calibration solves:" << solved
+                 << " skipped:" << skipped
                  << " yield points:" << (int)yield_points.size();
         if ((int)yield_points.size() < 21) {
             qCritical() << "[StressAnalysisFFT] x PHASE 1.5 FAILED: too few yield points ("

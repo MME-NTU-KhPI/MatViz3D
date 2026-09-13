@@ -212,13 +212,6 @@ void Parent_Algorithm::Grid_Generate_Points(int totalPoints)
     const int N = std::max(1, static_cast<int>(std::cbrt(static_cast<double>(totalPoints))));
     const int num_points_to_generate = N * N * N;
 
-    std::vector<int> available_colors(totalPoints);
-    std::iota(available_colors.begin(), available_colors.end(), 1);
-
-    static std::random_device rd;
-    static std::mt19937 gen(rd());
-    std::shuffle(available_colors.begin(), available_colors.end(), gen);
-
     const double M_minus_1 = static_cast<double>(numCubes - 1);
     const double N_minus_1 = (N > 1) ? static_cast<double>(N - 1) : 1.0;
 
@@ -269,8 +262,6 @@ void Parent_Algorithm::Grid_Generate_Points(int totalPoints)
                 z = should_scale
                         ? static_cast<int>(std::round(normalized_iz * M_minus_1))
                         : center_cube;
-
-                int assigned_color = available_colors[color_index];
 
                 if (voxels[x][y][z] == 0)
                 {

@@ -50,7 +50,7 @@ bool MainWindowAlgorithmHandler::validateParameters()
     return true;
 }
 
-void MainWindowAlgorithmHandler::runAlgorithm(const QString& algorithmName, bool isAnimation)
+void MainWindowAlgorithmHandler::runAlgorithm(const QString& algorithmName)
 {
     clock_t start_time = clock();
 
