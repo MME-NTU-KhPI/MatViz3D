@@ -10,6 +10,15 @@
 
 enum tensor_components{ID,X,Y,Z,UX,UY,UZ,SX,SY,SZ,SXY,SYZ,SXZ,EpsX,EpsY,EpsZ,EpsXY,EpsYZ,EpsXZ, USUM, SEQV, EpsEQV};
 
+struct LoadStepData
+{
+    std::vector<std::vector<float>> results;     // nvox x 22 table (SX..SXZ, EX..EXZ, SEQV, EEQV, etc.)
+    std::vector<float> results_avg;             // 22 components
+    std::vector<float> results_max;             // 22 components
+    std::vector<float> results_min;             // 22 components
+    std::vector<float> eps_as_loading;          // 6 components
+};
+
 namespace n3d
 {
 
@@ -250,6 +259,8 @@ public:
         double C[6][6]; // Stiffness
         double P[6][6]; // Poisson's ratio matrix
         bool isValid;   // Calculation success flag
+        std::vector<LoadStepData> load_steps;
+        std::vector<std::vector<float>> local_cs;
     };
 
     ElasticProperties calculateElasticProperties();

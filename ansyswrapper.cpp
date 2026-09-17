@@ -1955,6 +1955,14 @@ ansysWrapper::ElasticProperties ansysWrapper::calculateElasticProperties()
         auto& avg = this->loadstep_results_avg;     // Stresses (Sigma) - these are our ‘coefficients’
         auto& load = this->eps_as_loading[k];       // Deformations (Eps) - these are our ‘values’
 
+        LoadStepData stepData;
+        stepData.results = this->loadstep_results;
+        stepData.results_avg = this->loadstep_results_avg;
+        stepData.results_max = this->loadstep_results_max;
+        stepData.results_min = this->loadstep_results_min;
+        stepData.eps_as_loading.assign(load.begin(), load.end());
+        res.load_steps.push_back(std::move(stepData));
+
         double sigma[6] = {
             avg[SX]  * m_solid_fraction,
             avg[SY]  * m_solid_fraction,
@@ -2023,6 +2031,7 @@ ansysWrapper::ElasticProperties ansysWrapper::calculateElasticProperties()
     }
 
     res.isValid = true;
+    res.local_cs = this->local_cs;
     return res;
 }
 

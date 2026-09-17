@@ -447,6 +447,8 @@ StiffnessMatrixResult StressAnalysis::computeStiffnessMatrix(short int numCubes,
         }
     for (int i = 0; i < 6; ++i)
         r.moduli[i] = (std::abs(r.S[i][i]) > 1e-20) ? 1.0 / r.S[i][i] : 0.0;
+    r.load_steps = std::move(props.load_steps);
+    r.local_cs = std::move(props.local_cs);
     r.ok = true;
 
     qDebug() << "[StressAnalysis::computeStiffnessMatrix] v DONE. C matrix (6x6) [Pa]:";

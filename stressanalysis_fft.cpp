@@ -540,13 +540,51 @@ StiffnessMatrixResult StressAnalysisFFT::computeStiffnessMatrix(short int numCub
             ? std::function<void(int, double)>([cb, j](int it, double err) { cb(j, it, err); })
             : std::function<void(int, double)>();
 
-        auto step = session.solveLoadCase(e, perLoadCb);
+        std::vector<Vec6> vstrain_eng;
+        auto step = session.solveLoadCaseFull(e, vstrain_eng, perLoadCb);
         totalIters += step.iterations;
         for (int i = 0; i < 6; ++i) C[i][j] = step.macro_stress[i];
 
         r.loads[j].iterations = step.iterations;
         r.loads[j].error      = step.error;
         for (int i = 0; i < 6; ++i) r.loads[j].macroStress[i] = step.macro_stress[i];
+
+        const int nv = (int)step.voxel_idx.size();
+        LoadStepData lsData;
+        lsData.results.assign(nv, std::vector<float>(ResCol::R_NCOLS, 0.0f));
+        lsData.results_avg.assign(ResCol::R_NCOLS, 0.0f);
+        lsData.results_max.assign(ResCol::R_NCOLS, -3.0e38f);
+        lsData.results_min.assign(ResCol::R_NCOLS,  3.0e38f);
+
+        for (int vi = 0; vi < nv; ++vi) {
+            const int idx = step.voxel_idx[vi];
+            const int iz = idx / (N * N), iy = (idx / N) % N, ix = idx % N;
+            const Vec6& s = step.voxel_stress[vi];
+            const Vec6& g = vstrain_eng[vi];
+
+            auto& row = lsData.results[vi];
+            row[R_ID]  = float(idx + 1);
+            row[R_X]   = float(ix); row[R_Y] = float(iy); row[R_Z] = float(iz);
+            row[R_SX]  = float(s[0]); row[R_SY]  = float(s[1]); row[R_SZ]  = float(s[2]);
+            row[R_SXY] = float(s[3]); row[R_SYZ] = float(s[4]); row[R_SXZ] = float(s[5]);
+            row[R_EX]  = float(g[0]); row[R_EY]  = float(g[1]); row[R_EZ]  = float(g[2]);
+            row[R_EXY] = float(g[3]); row[R_EYZ] = float(g[4]); row[R_EXZ] = float(g[5]);
+            row[R_SEQV]= float(vonMises(s));
+            row[R_EEQV]= float(eqvStrain(g));
+
+            for (int c = 0; c < ResCol::R_NCOLS; ++c) {
+                lsData.results_avg[c] += row[c];
+                lsData.results_max[c]  = std::max(lsData.results_max[c], row[c]);
+                lsData.results_min[c]  = std::min(lsData.results_min[c], row[c]);
+            }
+        }
+        if (nv > 0) {
+            for (int c = 0; c < ResCol::R_NCOLS; ++c) lsData.results_avg[c] /= float(nv);
+        }
+        lsData.eps_as_loading.assign(6, 0.0f);
+        for (int i = 0; i < 6; ++i) lsData.eps_as_loading[i] = float(e[i]);
+
+        r.load_steps.push_back(std::move(lsData));
 
         qDebug() << QString("      -> iterations=%1  error=%2  stress=[%3, %4, %5, %6, %7, %8] Pa")
                         .arg(step.iterations).arg(step.error, 0, 'e', 3)
@@ -578,6 +616,7 @@ StiffnessMatrixResult StressAnalysisFFT::computeStiffnessMatrix(short int numCub
         r.moduli[i] = (std::abs(r.S[i][i]) > 1e-20) ? 1.0 / r.S[i][i] : 0.0;
 
     r.totalIterations = totalIters;
+    r.local_cs = session.local_cs();
     r.ok = true;
 
     qDebug() << "[StressAnalysisFFT::computeStiffnessMatrix] v DONE (" << totalIters << "total iters).";

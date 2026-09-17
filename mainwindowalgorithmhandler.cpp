@@ -229,6 +229,12 @@ void MainWindowAlgorithmHandler::runStressCalculation()
                 << " syz" << r.macro_stress[4] << " sxz" << r.macro_stress[5];
         qInfo() << "von Mises:" << r.von_mises;
         if (fft) qInfo() << "iterations:" << r.iterations << " error:" << r.error;
+
+        const QString filename = Parameters::filename.length() ? Parameters::filename : "current_ls.hdf5";
+        const QString group = saveSingleShotResultToHDF5(filename, r, solver, Parameters::seed, eps);
+        if (group.isEmpty()) {
+            qCritical() << "Failed to write single-shot result to" << filename;
+        }
         return;
     }
 

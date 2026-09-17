@@ -138,6 +138,9 @@ struct StiffnessMatrixResult
         double macroStress[6] = {0};
     };
     std::array<LoadDebug, 6> loads;   // one per canonical unit-strain direction
+
+    std::vector<LoadStepData> load_steps;
+    std::vector<std::vector<float>> local_cs;
 };
 
 // Persist a stiffness-matrix result into a fresh auto-incremented /<n>/ group
@@ -153,6 +156,12 @@ QString saveStiffnessMatrixToHDF5(const QString& filename,
                                   const StiffnessMatrixResult& r,
                                   const QString& solver,
                                   unsigned int seed);
+
+QString saveSingleShotResultToHDF5(const QString& filename,
+                                   const struct SingleShotResult& r,
+                                   const QString& solver,
+                                   unsigned int seed,
+                                   const double* eps = nullptr);
 
 // Result of a single load-case solve, shared by StressAnalysisFFT and
 // StressAnalysis (ANSYS) so the controller can treat both solvers the same way.

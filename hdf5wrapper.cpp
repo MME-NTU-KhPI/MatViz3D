@@ -74,7 +74,9 @@ QString saveStiffnessMatrixToHDF5(const QString& filename,
         hdf5.write(prefix, "cubeSize", size);
         hdf5.write(prefix, "numPoints", points);
 
-        if (OpenGLWidgetQML* ogl = OpenGLWidgetQML::getInstance()) {
+        if (!r.local_cs.empty()) {
+            hdf5.write(prefix, "local_cs", r.local_cs);
+        } else if (OpenGLWidgetQML* ogl = OpenGLWidgetQML::getInstance()) {
             const auto& orientations = ogl->getGrainOrientations();
             if (!orientations.empty()) {
                 std::vector<std::vector<float>> local_cs;
@@ -107,7 +109,160 @@ QString saveStiffnessMatrixToHDF5(const QString& filename,
     hdf5.write(prefix, "solver",           solver);
     if (r.isFFT) hdf5.write(prefix, "iterations_total", r.totalIterations);
 
+    if (!r.load_steps.empty()) {
+        hdf5.write(prefix, "num_samples", int(r.load_steps.size()));
+        for (size_t ls = 0; ls < r.load_steps.size(); ++ls) {
+            const auto& step = r.load_steps[ls];
+            const std::string ls_str = prefix + "/ls_" + std::to_string(ls + 1);
+            if (!step.results.empty()) {
+                hdf5.write(ls_str, "results", step.results);
+            }
+            if (!step.results_avg.empty()) {
+                hdf5.write(ls_str, "results_avg", step.results_avg);
+            }
+            if (!step.results_max.empty()) {
+                hdf5.write(ls_str, "results_max", step.results_max);
+            }
+            if (!step.results_min.empty()) {
+                hdf5.write(ls_str, "results_min", step.results_min);
+            }
+            if (!step.eps_as_loading.empty()) {
+                hdf5.write(ls_str, "eps_as_loading", step.eps_as_loading);
+            }
+        }
+    }
+
     qDebug() << "Stiffness matrix ->" << filename << group;
+    return group;
+}
+
+QString saveSingleShotResultToHDF5(const QString& filename,
+                                   const struct SingleShotResult& r,
+                                   const QString& solver,
+                                   unsigned int seed,
+                                   const double* eps)
+{
+    if (!r.ok) {
+        qWarning() << "saveSingleShotResultToHDF5: refusing to write a failed result";
+        return {};
+    }
+
+    HDF5Wrapper hdf5(filename.toStdString());
+
+    int last_set = hdf5.readInt("/", "last_set");
+    if (last_set == -1) { last_set = 1; hdf5.write("/", "last_set", last_set); }
+    else                { last_set += 1; hdf5.update("/", "last_set", last_set); }
+
+    const QString     group  = "/" + QString::number(last_set);
+    const std::string prefix = group.toStdString();
+
+    const int numCubes = Parameters::instance()->getSize();
+    const int numPoints = Parameters::instance()->getPoints();
+
+    if (Parameters::voxels && numCubes > 0) {
+        hdf5.write(prefix, "voxels",    Parameters::voxels, numCubes);
+        hdf5.write(prefix, "cubeSize",  numCubes);
+        hdf5.write(prefix, "numPoints", numPoints);
+        hdf5.write(prefix, "seed",      int(seed));
+        hdf5.write(prefix, "solver",    solver);
+
+        if (r.ansysField && !r.ansysField->local_cs.empty()) {
+            hdf5.write(prefix, "local_cs", r.ansysField->local_cs);
+        } else if (OpenGLWidgetQML* ogl = OpenGLWidgetQML::getInstance()) {
+            const auto& orientations = ogl->getGrainOrientations();
+            if (!orientations.empty()) {
+                std::vector<std::vector<float>> local_cs;
+                local_cs.reserve(orientations.size());
+                for (const auto& arr : orientations) {
+                    local_cs.push_back({arr[0], arr[1], arr[2]});
+                }
+                hdf5.write(prefix, "local_cs", local_cs);
+            }
+        }
+        saveGeometryMetadataToHDF5(hdf5, prefix, solver);
+    }
+
+    const int total_columns = EpsEQV + 1; // 22
+    std::vector<std::vector<float>> results;
+    std::vector<float> avg;
+    std::vector<float> mx;
+    std::vector<float> mn;
+
+    if (r.fftField) {
+        const int N = r.fftField->numCubes;
+        const size_t totalVoxels = static_cast<size_t>(N) * N * N;
+        results.assign(totalVoxels, std::vector<float>(total_columns, 0.0f));
+        avg.assign(total_columns, 0.0f);
+        mx.assign(total_columns, -3.0e38f);
+        mn.assign(total_columns,  3.0e38f);
+
+        for (size_t idx = 0; idx < totalVoxels; ++idx) {
+            const int iz = int(idx / (N * N)), iy = int((idx / N) % N), ix = int(idx % N);
+            auto& row = results[idx];
+            row[ID] = float(idx + 1);
+            row[X]  = float(ix); row[Y] = float(iy); row[Z] = float(iz);
+
+            row[SX]  = r.fftField->perVoxel[SX][idx];
+            row[SY]  = r.fftField->perVoxel[SY][idx];
+            row[SZ]  = r.fftField->perVoxel[SZ][idx];
+            row[SXY] = r.fftField->perVoxel[SXY][idx];
+            row[SYZ] = r.fftField->perVoxel[SYZ][idx];
+            row[SXZ] = r.fftField->perVoxel[SXZ][idx];
+
+            row[EpsX]  = r.fftField->perVoxel[EpsX][idx];
+            row[EpsY]  = r.fftField->perVoxel[EpsY][idx];
+            row[EpsZ]  = r.fftField->perVoxel[EpsZ][idx];
+            row[EpsXY] = r.fftField->perVoxel[EpsXY][idx];
+            row[EpsYZ] = r.fftField->perVoxel[EpsYZ][idx];
+            row[EpsXZ] = r.fftField->perVoxel[EpsXZ][idx];
+
+            row[SEQV]   = r.fftField->perVoxel[SEQV][idx];
+            row[EpsEQV] = r.fftField->perVoxel[EpsEQV][idx];
+
+            for (int c = 0; c < total_columns; ++c) {
+                avg[c] += row[c];
+                mx[c]  = std::max(mx[c], row[c]);
+                mn[c]  = std::min(mn[c], row[c]);
+            }
+        }
+        if (totalVoxels > 0) {
+            for (int c = 0; c < total_columns; ++c) avg[c] /= float(totalVoxels);
+        }
+    } else if (r.ansysField) {
+        results = r.ansysField->loadstep_results;
+        avg     = r.ansysField->loadstep_results_avg;
+        mx      = r.ansysField->loadstep_results_max;
+        mn      = r.ansysField->loadstep_results_min;
+    } else {
+        avg.assign(total_columns, 0.0f);
+        avg[SX]  = float(r.macro_stress[0]);
+        avg[SY]  = float(r.macro_stress[1]);
+        avg[SZ]  = float(r.macro_stress[2]);
+        avg[SXY] = float(r.macro_stress[3]);
+        avg[SYZ] = float(r.macro_stress[4]);
+        avg[SXZ] = float(r.macro_stress[5]);
+        avg[SEQV] = float(r.von_mises);
+        results.push_back(avg);
+        mx = avg;
+        mn = avg;
+    }
+
+    std::vector<float> eps_load(6, 0.0f);
+    if (eps) {
+        for (int i = 0; i < 6; ++i) eps_load[i] = float(eps[i]);
+    } else if (r.fftField) {
+        for (int i = 0; i < 6; ++i) eps_load[i] = float(r.fftField->macroStrain[i]);
+    }
+
+    hdf5.write(prefix, "num_samples", 1);
+    const std::string ls_str = prefix + "/ls_1";
+    hdf5.write(ls_str, "results",        results);
+    hdf5.write(ls_str, "results_avg",    avg);
+    hdf5.write(ls_str, "results_max",    mx);
+    hdf5.write(ls_str, "results_min",    mn);
+    hdf5.write(ls_str, "eps_as_loading", eps_load);
+
+    qDebug() << "Single shot result ->" << filename << group;
     return group;
 }
 
