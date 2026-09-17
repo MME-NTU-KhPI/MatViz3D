@@ -101,6 +101,12 @@ void Parent_Algorithm::CleanUp()
 
 void Parent_Algorithm::Random_Generate_Points(int currentPoints)
 {
+    if (flags.isThinLayer)
+    {
+        Thin_Layer_Generate_Points(currentPoints);
+        return;
+    }
+
     const int maxVoxels = numCubes * numCubes * numCubes;
     const int target = std::min(currentPoints, maxVoxels);
     int placed = 0;
@@ -116,17 +122,95 @@ void Parent_Algorithm::Random_Generate_Points(int currentPoints)
     }
 }
 
+void Parent_Algorithm::Thin_Layer_Generate_Points(int currentPoints)
+{
+    // Direction defines which plane is the starting plane for the thin layer:
+    // +Z: starting plane Z = 0 (grows in +Z direction)
+    // -Z: starting plane Z = numCubes - 1 (grows in -Z direction)
+    // +X: starting plane X = 0 (grows in +X direction)
+    // -X: starting plane X = numCubes - 1 (grows in -X direction)
+    // +Y: starting plane Y = 0 (grows in +Y direction)
+    // -Y: starting plane Y = numCubes - 1 (grows in -Y direction)
+    int axis = 2; // 0=X, 1=Y, 2=Z
+    int planeCoord = 0;
+
+    QString dir = m_layerDirection.trimmed().toUpper();
+    if (dir.contains("-Z")) {
+        axis = 2;
+        planeCoord = numCubes - 1;
+    } else if (dir.contains("+Z")) {
+        axis = 2;
+        planeCoord = 0;
+    } else if (dir.contains("-X")) {
+        axis = 0;
+        planeCoord = numCubes - 1;
+    } else if (dir.contains("+X")) {
+        axis = 0;
+        planeCoord = 0;
+    } else if (dir.contains("-Y")) {
+        axis = 1;
+        planeCoord = numCubes - 1;
+    } else if (dir.contains("+Y")) {
+        axis = 1;
+        planeCoord = 0;
+    } else {
+        axis = 2;
+        planeCoord = 0;
+    }
+
+    auto makeCoord = [axis, planeCoord](int u, int v) -> Coordinate {
+        if (axis == 0) return { planeCoord, u, v };
+        if (axis == 1) return { u, planeCoord, v };
+        return { u, v, planeCoord };
+    };
+
+    const int maxVoxels = numCubes * numCubes;
+    const int target = std::min(currentPoints, maxVoxels);
+
+    int placed = 0;
+    int maxRetries = target * 100 + 1000;
+    std::uniform_int_distribution<int> dist(0, numCubes - 1);
+    while (placed < target && maxRetries-- > 0)
+    {
+        int u = dist(m_rng);
+        int v = dist(m_rng);
+        Coordinate c = makeCoord(u, v);
+        if (voxels[c.x][c.y][c.z] == 0)
+        {
+            birthGrain(c.x, c.y, c.z);
+            placed++;
+        }
+    }
+
+    // If rejection sampling stalled on a densely packed plane, finish deterministically
+    if (placed < target)
+    {
+        std::vector<Coordinate> freeCoords;
+        freeCoords.reserve(static_cast<size_t>(maxVoxels - placed));
+        for (int u = 0; u < numCubes; ++u)
+        {
+            for (int v = 0; v < numCubes; ++v)
+            {
+                Coordinate c = makeCoord(u, v);
+                if (voxels[c.x][c.y][c.z] == 0)
+                {
+                    freeCoords.push_back(c);
+                }
+            }
+        }
+        std::shuffle(freeCoords.begin(), freeCoords.end(), m_rng);
+        for (size_t i = 0; i < freeCoords.size() && placed < target; ++i)
+        {
+            birthGrain(freeCoords[i].x, freeCoords[i].y, freeCoords[i].z);
+            placed++;
+        }
+    }
+}
+
 void Parent_Algorithm::Grid_Generate_Points(int totalPoints)
 {
     const int N = std::max(1, static_cast<int>(std::cbrt(static_cast<double>(totalPoints))));
     const int num_points_to_generate = N * N * N;
-
-    std::vector<int> available_colors(totalPoints);
-    std::iota(available_colors.begin(), available_colors.end(), 1);
-
-    static std::random_device rd;
-    static std::mt19937 gen(rd());
-    std::shuffle(available_colors.begin(), available_colors.end(), gen);
 
     const double M_minus_1 = static_cast<double>(numCubes - 1);
     const double N_minus_1 = (N > 1) ? static_cast<double>(N - 1) : 1.0;
@@ -179,8 +263,6 @@ void Parent_Algorithm::Grid_Generate_Points(int totalPoints)
                         ? static_cast<int>(std::round(normalized_iz * M_minus_1))
                         : center_cube;
 
-                int assigned_color = available_colors[color_index];
-
                 if (voxels[x][y][z] == 0)
                 {
                     birthGrain(x, y, z);
@@ -215,6 +297,11 @@ void Parent_Algorithm::Initialization(bool isWaveGeneration)
     }
     file << "x,y,z,color\n";
     Random_Generate_Points(currentPoints);
+    if (flags.isThinLayer)
+    {
+        numColors = static_cast<int>(seedPoints.size());
+        remainingPoints = 0;
+    }
     //Grid_Generate_Points(currentPoints);
 }
 

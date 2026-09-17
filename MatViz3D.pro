@@ -25,6 +25,10 @@ QML_LIBEXEC = $$(QT_QML_LIBEXEC)
     QT_TOOL.qmlimportscanner.binary = $$QML_LIBEXEC/qmlimportscanner
 }
 
+# -Wsfinae-incomplete exists only in GCC 16+; guard so older toolchains don't choke
+gcc_ver = $$system($$QMAKE_CXX -dumpversion)
+greaterThan(gcc_ver, 15): QMAKE_CXXFLAGS += -Wno-sfinae-incomplete
+
 QMAKE_CXXFLAGS += -fopenmp
 LIBS += -fopenmp
 
@@ -102,13 +106,11 @@ SOURCES += \
         mainwindowalgorithmhandler.cpp \
         mainwindowwrapper.cpp \
         materialdatabaseviewwrapper.cpp \
-        moore.cpp \
-        neumann.cpp \
         openglwidgetqml.cpp \
         parameters.cpp \
         parent_algorithm.cpp \
+        polycrystall.cpp \
         probability_algorithm.cpp \
-        radial.cpp \
         renderopengl.cpp \
         schemacontroller.cpp \
         statisticscontroller.cpp \
@@ -170,15 +172,13 @@ HEADERS += \
     mainwindowwrapper.h \
     materialdatabaseviewwrapper.h \
     matviz_homog.hpp \
-    moore.h \
-    neumann.h \
     openglwidgetqml.h \
     parameters.h \
     paramfield.h \
     parent_algorithm.h \
     phasematerial.h \
+    polycrystall.h \
     probability_algorithm.h \
-    radial.h \
     renderopengl.h \
     schemacontroller.h \
     statisticscontroller.h \

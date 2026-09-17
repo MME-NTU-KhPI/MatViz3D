@@ -21,12 +21,24 @@ struct ProjFace { std::vector<QPointF> pts; float depth; QRgb color; };
 
 // Project a world point through mvp into pixels. false = behind the camera.
 inline bool project(const QMatrix4x4& mvp, const GlVertex& g,
-                    int w, int h, QPointF& out, float& zOut)
+                    int w, int h, QPointF& out, float& zOut) //voxel faces
 {
     const QVector4D clip = mvp * QVector4D(g.x, g.y, g.z, 1.0f);
     if (clip.w() <= 0.0f) return false;                       // behind eye -> drop
     out.setX((clip.x() / clip.w() * 0.5f + 0.5f) * w);        // NDC -> px, X
     out.setY((clip.y() / clip.w() * 0.5f + 0.5f) * h);        // Quick FBO already flips Y
+    zOut = clip.z() / clip.w();
+    return true;
+}
+
+// Project a bare world point (axes/markers with no color or normal).
+inline bool project(const QMatrix4x4& mvp, const QVector3D& p,
+                    int w, int h, QPointF& out, float& zOut) //axes && markers
+{
+    const QVector4D clip = mvp * QVector4D(p.x(), p.y(), p.z(), 1.0f);
+    if (clip.w() <= 0.0f) return false;
+    out.setX((clip.x() / clip.w() * 0.5f + 0.5f) * w);
+    out.setY((clip.y() / clip.w() * 0.5f + 0.5f) * h);
     zOut = clip.z() / clip.w();
     return true;
 }
@@ -58,8 +70,8 @@ inline void appendAxes(QTextStream& ts, const QMatrix4x4& mvp,
 {
     const float half = numCubes / 2.0f;
     const float tip  = 1.15f * numCubes;
-    const GlVertex origin{ -half, -half, -half };
-    struct Axis { GlVertex end; const char* color; const char* label; };
+    const QVector3D origin{ -half, -half, -half };
+    struct Axis { QVector3D end; const char* color; const char* label; };
     const Axis axes[3] = {
                            {{  tip, -half, -half }, "#ff0000", "X"},
                            {{ -half,  tip, -half }, "#00ff00", "Y"},

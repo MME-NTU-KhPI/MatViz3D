@@ -50,7 +50,7 @@ bool MainWindowAlgorithmHandler::validateParameters()
     return true;
 }
 
-void MainWindowAlgorithmHandler::runAlgorithm(const QString& algorithmName, bool isAnimation)
+void MainWindowAlgorithmHandler::runAlgorithm(const QString& algorithmName)
 {
     clock_t start_time = clock();
 
@@ -200,6 +200,8 @@ void MainWindowAlgorithmHandler::setAlgorithmFlags(Parent_Algorithm& algorithm)
     algorithm.setAnimation(params.getIsAnimation());
     algorithm.setWaveGeneration(params.getIsWaveGeneration());
     algorithm.setPeriodicStructure(params.getIsPeriodic());
+    algorithm.setThinLayer(params.getIsThinLayer());
+    algorithm.setLayerDirection(params.getLayerDirection());
 }
 
 void MainWindowAlgorithmHandler::runStressCalculation()

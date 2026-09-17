@@ -49,6 +49,12 @@ class Parameters : public QObject
     // opposite one. Required for a periodic homogenization cell.
     Q_PROPERTY(bool is_periodic READ getIsPeriodic WRITE setIsPeriodic NOTIFY isPeriodicChanged)
 
+    // Generate all initial grain seeds on the same plane (thin layer mode).
+    Q_PROPERTY(bool is_thin_layer READ getIsThinLayer WRITE setIsThinLayer NOTIFY isThinLayerChanged)
+
+    // Starting direction of the thin layer film ('+Z', '-Z', '+X', '-X', '+Y', '-Y').
+    Q_PROPERTY(QString layer_direction READ getLayerDirection WRITE setLayerDirection NOTIFY layerDirectionChanged)
+
     // Metric tensor components for anisotropic Voronoi tessellation:
     // M = [mxx mxy mxz; mxy myy myz; mxz myz mzz], default I (isotropic)
     Q_PROPERTY(QString voronoi_metric_preset READ getVoronoiMetricPreset WRITE setVoronoiMetricPreset NOTIFY voronoiMetricPresetChanged)
@@ -99,6 +105,7 @@ class Parameters : public QObject
     Q_PROPERTY(double wave_peak_fraction  READ getWavePeakFraction   WRITE setWavePeakFraction   NOTIFY wavePeakFractionChanged)
     Q_PROPERTY(double wave_end_fraction   READ getWaveEndFraction    WRITE setWaveEndFraction    NOTIFY waveEndFractionChanged)
     Q_PROPERTY(unsigned int num_rnd_loads READ getNumRndLoads        WRITE setNumRndLoads        NOTIFY numRndLoadsChanged)
+    Q_PROPERTY(QString polycrystall_neighborhood READ getPolycrystallNeighborhood WRITE setPolycrystallNeighborhood NOTIFY polycrystallNeighborhoodChanged)
 
 public:
     explicit Parameters(QObject* parent = nullptr);
@@ -135,6 +142,9 @@ public:
 
     QString getProbPreset() const { return prob_preset; }
     Q_INVOKABLE void setProbPreset(const QString& value);
+
+    QString getPolycrystallNeighborhood() const { return polycrystall_neighborhood; }
+    Q_INVOKABLE void setPolycrystallNeighborhood(const QString& value);
 
     QString getProbMatrixMode() const { return prob_matrix_mode; }
     Q_INVOKABLE void setProbMatrixMode(const QString& value);
@@ -206,6 +216,12 @@ public:
 
     bool getIsPeriodic() const { return is_periodic; }
     Q_INVOKABLE void setIsPeriodic(bool value);
+
+    bool getIsThinLayer() const { return is_thin_layer; }
+    Q_INVOKABLE void setIsThinLayer(bool value);
+
+    QString getLayerDirection() const { return layer_direction; }
+    Q_INVOKABLE void setLayerDirection(const QString& value);
 
     QString getVoronoiMetricPreset() const { return voronoi_metric_preset; }
     Q_INVOKABLE void setVoronoiMetricPreset(const QString& value);
@@ -343,6 +359,7 @@ public:
     static double wave_peak_fraction;
     static double wave_end_fraction;
     static QString prob_preset;
+    static QString polycrystall_neighborhood;
     static QString prob_matrix_mode;
     static float halfaxis_a;
     static float halfaxis_b;
@@ -386,6 +403,7 @@ signals:
     void waveCoefficientChanged();
 
     void probPresetChanged();
+    void polycrystallNeighborhoodChanged();
     void probMatrixModeChanged();
     void halfAxisAChanged();
     void halfAxisBChanged();
@@ -416,6 +434,8 @@ signals:
 
     void minkowskiPChanged();
     void isPeriodicChanged();
+    void isThinLayerChanged();
+    void layerDirectionChanged();
     void voronoiMetricPresetChanged();
     void voronoiMetricChanged();
     void dbMaterialChanged();
@@ -460,6 +480,9 @@ private:
 
     static double  minkowski_p;
     static bool    is_periodic;
+    static bool    is_thin_layer;
+    static QString layer_direction;
+    static QString normalizeLayerDirection(const QString& value);
     static QString voronoi_metric_preset;
     static double  voronoi_mxx;
     static double  voronoi_myy;

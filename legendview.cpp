@@ -45,7 +45,7 @@ void LegendView::draw()
     const int lineHeight = 30;
     for (int i = 0; i < numLevels; ++i)
     {
-        QGraphicsRectItem *rect = this->addRect(10, 15 + i * lineHeight, lineHeight, lineHeight, QPen(Qt::darkGray, 2), QBrush(colors[numLevels - i - 1]));
+        this->addRect(10, 15 + i * lineHeight, lineHeight, lineHeight, QPen(Qt::darkGray, 2), QBrush(colors[numLevels - i - 1]));
     }
     for (int i = 0; i <= numLevels; ++i)
     {

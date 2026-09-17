@@ -32,6 +32,12 @@ Makefile*
 *.qm
 *.prl
 
+# Qt 6 / MOC / QML specific artifacts
+moc_*.cpp.json
+*_metatypes.json
+*.qmltypes
+*_qmltyperegistrations.cpp
+
 # Qt unit tests
 target_wrapper.*
 
@@ -57,6 +63,9 @@ compile_commands.json
 # Build directories
 build/
 release/
+
+# Project Executables
+MatViz3D
 
 # _qmlcache.qrc
 *_qmlcache.qrc

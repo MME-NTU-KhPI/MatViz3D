@@ -22,6 +22,7 @@ double Parameters::wave_peak_fraction = 0.20;
 double Parameters::wave_end_fraction = 0.60;
 unsigned int Parameters::num_rnd_loads = 0;
 QString Parameters::prob_preset = "Sphere (Circle)";
+QString Parameters::polycrystall_neighborhood = "Moore (26)";
 QString Parameters::prob_matrix_mode = "Volume Sampling";
 float Parameters::halfaxis_a = 1.5f;
 float Parameters::halfaxis_b = 1.5f;
@@ -45,6 +46,8 @@ QString Parameters::m_material2  = "bcc";
 
 double  Parameters::minkowski_p = 2.0;   // Euclidean == the classical Voronoi
 bool    Parameters::is_periodic = false;
+bool    Parameters::is_thin_layer = false;
+QString Parameters::layer_direction = "+Z";
 QString Parameters::voronoi_metric_preset = "Sphere (Circle)";
 double  Parameters::voronoi_mxx = 1.0;
 double  Parameters::voronoi_myy = 1.0;
@@ -240,6 +243,23 @@ void Parameters::setProbPreset(const QString& value)
     emit probPresetChanged();
 }
 
+void Parameters::setPolycrystallNeighborhood(const QString& value)
+{
+    QString v = value.trimmed();
+    QString resolved;
+    if (v.contains("neumann", Qt::CaseInsensitive) || v == "6") {
+        resolved = "von Neumann (6)";
+    } else if (v.contains("radial", Qt::CaseInsensitive) || v == "18") {
+        resolved = "Radial (18)";
+    } else {
+        resolved = "Moore (26)";
+    }
+    if (polycrystall_neighborhood != resolved) {
+        polycrystall_neighborhood = resolved;
+        emit polycrystallNeighborhoodChanged();
+    }
+}
+
 void Parameters::setProbMatrixMode(const QString& value)
 {
     QString v = value.trimmed();
@@ -397,6 +417,39 @@ void Parameters::setIsPeriodic(bool value)
     if (is_periodic != value) {
         is_periodic = value;
         emit isPeriodicChanged();
+    }
+}
+
+void Parameters::setIsThinLayer(bool value)
+{
+    if (is_thin_layer != value) {
+        is_thin_layer = value;
+        emit isThinLayerChanged();
+    }
+}
+
+QString Parameters::normalizeLayerDirection(const QString& value)
+{
+    QString s = value.trimmed().toUpper();
+    if (s == "-Z" || s == "Z-" || s.contains("TOP"))
+        return "-Z";
+    if (s == "+X" || s == "X+" || s == "X" || s.contains("LEFT"))
+        return "+X";
+    if (s == "-X" || s == "X-" || s.contains("RIGHT"))
+        return "-X";
+    if (s == "+Y" || s == "Y+" || s == "Y" || s.contains("FRONT"))
+        return "+Y";
+    if (s == "-Y" || s == "Y-" || s.contains("BACK"))
+        return "-Y";
+    return "+Z";
+}
+
+void Parameters::setLayerDirection(const QString& value)
+{
+    QString resolved = normalizeLayerDirection(value);
+    if (layer_direction != resolved) {
+        layer_direction = resolved;
+        emit layerDirectionChanged();
     }
 }
 

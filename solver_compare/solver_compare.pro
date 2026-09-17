@@ -69,15 +69,11 @@ SOURCES += \
         ../mainwindowalgorithmhandler.cpp \
         ../mainwindowwrapper.cpp \
         ../materialdatabaseviewwrapper.cpp \
-        ../moore.cpp \
-        ../neumann.cpp \
         ../openglwidgetqml.cpp \
         ../parameters.cpp \
         ../parent_algorithm.cpp \
+        ../polycrystall.cpp \
         ../probability_algorithm.cpp \
-        ../probability_circle.cpp \
-        ../probability_ellipse.cpp \
-        ../radial.cpp \
         ../renderopengl.cpp \
         ../schemacontroller.cpp \
         ../statisticscontroller.cpp \
@@ -92,9 +88,9 @@ HEADERS += \
     ../algorithmfactory.h ../algorithmplugin.h ../ansyswrapper.h ../composite.h ../dlca.h \
     ../legendview.h ../logo_printer.h \
     ../loadstepmanager.h ../mainwindowalgorithmhandler.h ../mainwindowwrapper.h \
-    ../materialdatabaseviewwrapper.h ../matviz_homog.hpp ../moore.h ../neumann.h ../openglwidgetqml.h \
-    ../parameters.h ../paramfield.h ../parent_algorithm.h ../probability_algorithm.h \
-    ../probability_circle.h ../probability_ellipse.h ../radial.h ../renderopengl.h ../schemacontroller.h \
+    ../materialdatabaseviewwrapper.h ../matviz_homog.hpp ../openglwidgetqml.h \
+    ../parameters.h ../paramfield.h ../parent_algorithm.h ../polycrystall.h ../probability_algorithm.h \
+    ../renderopengl.h ../schemacontroller.h \
     ../statisticscontroller.h ../stressanalysis.h ../stressanalysis_fft.h ../stressanalysiscontroller.h \
     ../phasematerial.h ../stressresult.h ../voronoi.h
 

@@ -9,7 +9,7 @@ MainWindowWrapper::MainWindowWrapper(QObject *parent) : QObject(parent) {}
 void MainWindowWrapper::onStartButton()
 {
     Parameters& params = *Parameters::instance();
-    algoManager.runAlgorithm(params.getAlgorithm(), params.getIsAnimation());
+    algoManager.runAlgorithm(params.getAlgorithm());
 }
 
 void MainWindowWrapper::isometricViewButton()

@@ -269,10 +269,11 @@ void DLCA::Initialization(bool /*isWaveGeneration*/)
     m_prevClusters = aggregates.size();
 
     qDebug().noquote()
-        << QString("[DLCA] %1^3 grid (%2 voxels), %3 initial particles")
+                << QString("[DLCA] %1^3 grid (%2 voxels), %3 of %4 initial particles placed")
                .arg(numCubes)
                .arg(static_cast<uint64_t>(numCubes) * numCubes * numCubes)
-               .arg(aggregates.size());
+               .arg(aggregates.size())
+               .arg(successfully_placed);
 }
 
 static inline int32_t my_abs(int32_t a) {
@@ -397,7 +398,7 @@ MATVIZ_REGISTER_ALGORITHM(AlgorithmPlugin{
     "DLCA",
     "Diffusion-Limited Cluster Aggregation (DLCA) cluster growth, "
     "with material and texture selection.",
-    /*order=*/ 5,
+    /*order=*/ 3,
     dlcaSchema(),
     [](const Parameters& p) {
         return std::make_shared<DLCA>(static_cast<short int>(p.getSize()), p.getPoints());

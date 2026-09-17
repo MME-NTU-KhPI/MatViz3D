@@ -29,6 +29,10 @@ struct ParamField {
     // actionOnValue -- that is what makes a "Custom..." entry open an editor.
     QString action = "";
     QString actionOnValue = "";
+
+    // Optional conditional visibility key (e.g. "is_thin_layer"):
+    // when set, UI only displays this field if the named boolean property is true.
+    QString visibleIf = "";
 };
 
 #endif // PARAMFIELD_H
