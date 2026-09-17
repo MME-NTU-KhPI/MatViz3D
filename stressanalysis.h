@@ -5,6 +5,7 @@
 #include "ansyswrapper.h"
 #include "hillcriterion.h"
 #include "stressresult.h"
+#include "parameters.h"
 
 class StressAnalysis
 {
@@ -28,6 +29,11 @@ public:
 
     ansysWrapper* wr;
 
+    // computeStiffnessMatrix(): also keep the per-voxel fields of the six
+    // solves in StiffnessMatrixResult::fields (mirrors StressAnalysisFFT).
+    // Seeded from --save_fields.
+    bool   keep_fields = Parameters::instance()->getSaveFields();
+
     // Dataset-build controls (phase 1.5 / 2.0), editable from the UI.
     int    num_samples = 300;   // final load cases in phase 2.0
     int    num_calib   = 150;   // calibration load cases in phase 1.5
@@ -39,8 +45,12 @@ private:
     // Shared by computeSMatrix() and computeStiffnessMatrix(): builds a temp
     // ansysWrapper, applies the 6 canonical unit-strain loads, runs ANSYS,
     // and reads back S/C/P via ansysWrapper::calculateElasticProperties().
+    // If `fields` is given, the per-node result tables of the six loads are
+    // read back (element-averaged correction applied) into fields->fields
+    // and the solver's local_cs into fields->local_cs.
     bool computeElasticProperties(short int numCubes, short int numPoints, int32_t ***voxels,
-                                  double strain_val, ansysWrapper::ElasticProperties& out);
+                                  double strain_val, ansysWrapper::ElasticProperties& out,
+                                  StiffnessMatrixResult* fields = nullptr);
 
     bool computeSMatrix(short int numCubes, short int numPoints, int32_t ***voxels,
                         double strain_val, double S_out[6][6]);

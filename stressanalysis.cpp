@@ -333,7 +333,8 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
 //  Result: S[6][6] via calculateElasticProperties
 // ─────────────────────────────────────────────────────────────────────────────
 bool StressAnalysis::computeElasticProperties(short int numCubes, short int numPoints, int32_t ***voxels,
-                                              double strain_val, ansysWrapper::ElasticProperties& out)
+                                              double strain_val, ansysWrapper::ElasticProperties& out,
+                                              StiffnessMatrixResult* fields)
 {
     qDebug() << "\n[StressAnalysis::computeElasticProperties] ────────────────────────────────";
     qDebug() << "[StressAnalysis::computeElasticProperties] Computing elastic S/C/P via 6 canonical loads";
@@ -407,6 +408,29 @@ bool StressAnalysis::computeElasticProperties(short int numCubes, short int numP
     for (int i = 0; i < 6; ++i)
         qDebug() << QString("    S[%1][%1] = %2").arg(i).arg(out.S[i][i], 0, 'e', 4);
 
+    // --save_fields: read the six per-node tables back before the scratch
+    // directory is cleared. Same extraction as dataset mode, plus the
+    // element-averaged fix for results_avg the single-shot path applies.
+    if (fields) {
+        fields->local_cs = temp_wr.local_cs;
+        fields->fields.assign(6, {});
+        for (int k = 1; k <= 6; ++k) {
+            temp_wr.load_loadstep(k);
+            temp_wr.loadElementAveragedResults(k);
+            auto& f = fields->fields[k - 1];
+            f.results = temp_wr.loadstep_results;
+            f.avg     = temp_wr.loadstep_results_avg;
+            f.max     = temp_wr.loadstep_results_max;
+            f.min     = temp_wr.loadstep_results_min;
+            if (k <= (int)temp_wr.eps_as_loading.size())
+                f.eps = temp_wr.eps_as_loading[k - 1];
+            if (f.results.empty())
+                qWarning() << "[StressAnalysis::computeElasticProperties] ! load" << k
+                           << "returned no per-node results; ls_" << k << "will be skipped";
+        }
+        qDebug() << "[StressAnalysis::computeElasticProperties]   --save_fields: kept per-node fields (ls_1..ls_6)";
+    }
+
     temp_wr.clear_temp_data();
     qDebug() << "[StressAnalysis::computeElasticProperties] ────────────────────────────────\n";
     return true;
@@ -434,7 +458,8 @@ StiffnessMatrixResult StressAnalysis::computeStiffnessMatrix(short int numCubes,
     r.isFFT = false;
 
     ansysWrapper::ElasticProperties props;
-    if (!computeElasticProperties(numCubes, numPoints, voxels, strain_val, props)) {
+    if (!computeElasticProperties(numCubes, numPoints, voxels, strain_val, props,
+                                  keep_fields ? &r : nullptr)) {
         r.errorMessage = QObject::tr("ANSYS elastic-property computation failed (see log)");
         return r;
     }
