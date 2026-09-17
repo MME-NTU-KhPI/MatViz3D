@@ -51,6 +51,10 @@ public:
     double fft_tol      = 1e-5;
     int    fft_max_iter = 1000;
 
+    // computeStiffnessMatrix(): also keep the per-voxel fields of the six
+    // solves in StiffnessMatrixResult::fields. Seeded from --save_fields.
+    bool   keep_fields  = false;
+
     // Dataset-build controls (phase 1.5 / 2.0), editable from the UI.
     int    num_samples = 300;   // final load cases in phase 2.0
     int    num_calib   = 150;   // calibration load cases in phase 1.5

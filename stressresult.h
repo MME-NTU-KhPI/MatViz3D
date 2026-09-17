@@ -138,6 +138,19 @@ struct StiffnessMatrixResult
         double macroStress[6] = {0};
     };
     std::array<LoadDebug, 6> loads;   // one per canonical unit-strain direction
+
+    // Per-voxel fields of the six canonical solves, filled only on request
+    // (--save_fields): the elastic response is linear, so these six fields
+    // determine the field for any macroscopic load -- they are the training
+    // target of the localisation model. Rows use the same 22-column layout
+    // dataset mode writes (ResCol in fft_solver_session.hpp).
+    struct LoadFields {
+        std::vector<float>              eps;      // applied strain, pipeline order
+        std::vector<std::vector<float>> results;  // per voxel, R_NCOLS columns
+        std::vector<float>              avg, max, min;
+    };
+    std::vector<LoadFields>         fields;    // empty unless requested; else 6 entries
+    std::vector<std::vector<float>> local_cs;  // per-grain Euler angles (deg) the solver used
 };
 
 // Persist a stiffness-matrix result into a fresh auto-incremented /<n>/ group

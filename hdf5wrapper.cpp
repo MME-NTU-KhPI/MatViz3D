@@ -8,6 +8,7 @@
 #include <QJsonObject>
 #include <QJsonDocument>
 #include <QJsonValue>
+#include <algorithm>
 
 HDF5Wrapper::HDF5Wrapper(const std::string& fileName)
 {
@@ -74,7 +75,11 @@ QString saveStiffnessMatrixToHDF5(const QString& filename,
         hdf5.write(prefix, "cubeSize", size);
         hdf5.write(prefix, "numPoints", points);
 
-        if (OpenGLWidgetQML* ogl = OpenGLWidgetQML::getInstance()) {
+        // Prefer the orientations the solver actually used (FFT session);
+        // fall back to the view's table for the ANSYS path / older results.
+        if (!r.local_cs.empty()) {
+            hdf5.write(prefix, "local_cs", r.local_cs);
+        } else if (OpenGLWidgetQML* ogl = OpenGLWidgetQML::getInstance()) {
             const auto& orientations = ogl->getGrainOrientations();
             if (!orientations.empty()) {
                 std::vector<std::vector<float>> local_cs;
@@ -87,6 +92,22 @@ QString saveStiffnessMatrixToHDF5(const QString& filename,
         }
         saveGeometryMetadataToHDF5(hdf5, prefix, solver);
     }
+
+    // --save_fields: the six canonical unit-strain solves as load steps, in
+    // the exact layout dataset mode writes (results / results_avg / _max /
+    // _min / eps_as_loading), so every existing reader treats them as steps.
+    for (size_t j = 0; j < r.fields.size(); ++j) {
+        const auto& f = r.fields[j];
+        if (f.results.empty()) continue;
+        const std::string ls = prefix + "/ls_" + std::to_string(j + 1);
+        hdf5.write(ls, "results",        f.results);
+        hdf5.write(ls, "results_avg",    f.avg);
+        hdf5.write(ls, "results_max",    f.max);
+        hdf5.write(ls, "results_min",    f.min);
+        hdf5.write(ls, "eps_as_loading", f.eps);
+    }
+    if (!r.fields.empty())
+        hdf5.write(prefix, "num_samples", int(r.fields.size()));
 
     std::vector<std::vector<float>> mat_S(6, std::vector<float>(6));
     std::vector<std::vector<float>> mat_C(6, std::vector<float>(6));
@@ -109,6 +130,54 @@ QString saveStiffnessMatrixToHDF5(const QString& filename,
 
     qDebug() << "Stiffness matrix ->" << filename << group;
     return group;
+}
+
+// Dataset-creation property list for array datasets: chunked + shuffle +
+// gzip when --hdf5_compress > 0, plain H5P_DEFAULT otherwise (byte-identical
+// to the historical layout). Compression is transparent to every reader
+// (h5py, pymv3d, MatViz3D itself). Chunks are whole rows of the leading
+// dimension capped at ~1 MB so partial reads of a results table stay cheap.
+// Returns H5P_DEFAULT if the deflate filter is unavailable in this HDF5
+// build; the caller must H5Pclose() anything else.
+static hid_t makeArrayDcpl(int rank, const hsize_t* dims, size_t elemSize)
+{
+    const int level = Parameters::instance()->getHdf5Compress();
+    if (level <= 0) return H5P_DEFAULT;
+
+    static bool warned = false;
+    if (H5Zfilter_avail(H5Z_FILTER_DEFLATE) <= 0) {
+        if (!warned) {
+            qWarning() << "HDF5: deflate filter not available in this build -- writing uncompressed";
+            warned = true;
+        }
+        return H5P_DEFAULT;
+    }
+
+    hsize_t total = 1;
+    for (int i = 0; i < rank; ++i) total *= dims[i];
+    if (total == 0) return H5P_DEFAULT;  // chunking needs non-zero extents
+
+    std::vector<hsize_t> chunk(dims, dims + rank);
+    hsize_t rowElems = 1;
+    for (int i = 1; i < rank; ++i) rowElems *= dims[i];
+    const hsize_t maxElems = std::max<hsize_t>(1, (1u << 20) / elemSize);
+    hsize_t rows = std::max<hsize_t>(1, maxElems / std::max<hsize_t>(1, rowElems));
+    chunk[0] = std::min<hsize_t>(dims[0], rows);
+
+    hid_t dcpl = H5Pcreate(H5P_DATASET_CREATE);
+    if (dcpl < 0) return H5P_DEFAULT;
+    if (H5Pset_chunk(dcpl, rank, chunk.data()) < 0 ||
+        H5Pset_shuffle(dcpl) < 0 ||
+        H5Pset_deflate(dcpl, static_cast<unsigned>(level)) < 0) {
+        H5Pclose(dcpl);
+        return H5P_DEFAULT;
+    }
+    return dcpl;
+}
+
+static void closeDcpl(hid_t dcpl)
+{
+    if (dcpl != H5P_DEFAULT) H5Pclose(dcpl);
 }
 
 // "/" + "last_set" would otherwise give "//last_set".
@@ -178,7 +247,9 @@ void HDF5Wrapper::write(const std::string& dataGroup, const std::string& dataSet
         return;
     }
 
-    hid_t dataset = H5Dcreate(file, (dataGroup + "/" + dataSetName).c_str(), H5T_NATIVE_FLOAT, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    hid_t dcpl = makeArrayDcpl(1, dims, sizeof(float));
+    hid_t dataset = H5Dcreate(file, (dataGroup + "/" + dataSetName).c_str(), H5T_NATIVE_FLOAT, dataspace, H5P_DEFAULT, dcpl, H5P_DEFAULT);
+    closeDcpl(dcpl);
     if (checkError(dataset, "write vector<float>: Failed to create dataset " + dataGroup + "/" + dataSetName))
     {
         H5Sclose(dataspace);
@@ -205,7 +276,9 @@ void HDF5Wrapper::write(const std::string& dataGroup, const std::string& dataSet
         H5Gclose(group_id);
         return;
     }
-    hid_t dataset = H5Dcreate(file, (dataGroup + "/" + dataSetName).c_str(), H5T_NATIVE_FLOAT, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    hid_t dcpl = makeArrayDcpl(2, dims, sizeof(float));
+    hid_t dataset = H5Dcreate(file, (dataGroup + "/" + dataSetName).c_str(), H5T_NATIVE_FLOAT, dataspace, H5P_DEFAULT, dcpl, H5P_DEFAULT);
+    closeDcpl(dcpl);
     if (checkError(dataset, "write vector<vector<float>>: Failed to create dataset " + dataGroup + "/" + dataSetName))
     {
         H5Dclose(dataset);
@@ -418,7 +491,9 @@ void HDF5Wrapper::write(const std::string& dataGroup, const std::string& dataSet
     } else {
         // Dataset doesn't exist, create a new one
         qDebug() << "Creating dataset: " << QString::fromStdString(dataGroup + "/" + dataSetName);
-        dataset_id = H5Dcreate(group_id, dataSetName.c_str(), H5T_STD_I32LE, dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        hid_t dcpl = makeArrayDcpl(3, dims, sizeof(int32_t));
+        dataset_id = H5Dcreate(group_id, dataSetName.c_str(), H5T_STD_I32LE, dataspace, H5P_DEFAULT, dcpl, H5P_DEFAULT);
+        closeDcpl(dcpl);
         if (checkError(dataset_id, "write int32_t ***voxels: Failed to create dataset " + dataGroup + "/" + dataSetName)) {
             H5Sclose(dataspace);
             H5Gclose(group_id);

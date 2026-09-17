@@ -63,6 +63,10 @@ static FFTSolverSession makeSession(int N, const std::vector<int>& grain_field,
 StressAnalysisFFT::StressAnalysisFFT()
 {
     Parameters::cubicConstantsPa(C11, C12, C44);
+    const Parameters* p = Parameters::instance();
+    if (p->getFftTol()     > 0.0) fft_tol      = p->getFftTol();
+    if (p->getFftMaxIter() > 0)   fft_max_iter = p->getFftMaxIter();
+    keep_fields = p->getSaveFields();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -88,7 +92,48 @@ std::vector<int> StressAnalysisFFT::buildGrainField(int N, int32_t ***voxels, in
 // von Mises stress / equivalent strain -- shared with StressAnalysis (ANSYS)
 // and the controller via stressresult.h.
 static inline double vonMises(const Vec6& s) { return vonMisesPipeline(s.data()); }
+
 static inline double eqvStrain(const Vec6& e) { return eqvStrainPipeline(e.data()); }
+
+// Build the 22-column per-voxel result table (plus column-wise avg/max/min)
+// for one solved load case. Shared by dataset mode and the stiffness-mode
+// --save_fields path so both write the identical HDF5 row layout.
+static void buildResultRows(int N, const FFTSolverSession::StepResult& r,
+                            const std::vector<Vec6>& vstrain_eng,
+                            std::vector<std::vector<float>>& results,
+                            std::vector<float>& avg, std::vector<float>& mx, std::vector<float>& mn)
+{
+    const int nv = (int)r.voxel_idx.size();
+    results.assign(nv, std::vector<float>(ResCol::R_NCOLS, 0.0f));
+    avg.assign(ResCol::R_NCOLS, 0.0f);
+    mx.assign(ResCol::R_NCOLS, -3.0e38f);
+    mn.assign(ResCol::R_NCOLS,  3.0e38f);
+
+    for (int e = 0; e < nv; ++e) {
+        const int idx = r.voxel_idx[e];
+        const int iz = idx / (N*N), iy = (idx / N) % N, ix = idx % N;
+        const Vec6& s = r.voxel_stress[e];
+        const Vec6& g = vstrain_eng[e];
+
+        auto& row = results[e];
+        row[R_ID]  = float(idx + 1);
+        row[R_X]   = float(ix); row[R_Y] = float(iy); row[R_Z] = float(iz);
+        // R_UX..R_UZ left 0 (FFT yields fields, not nodal displacements)
+        row[R_SX]  = float(s[0]); row[R_SY]  = float(s[1]); row[R_SZ]  = float(s[2]);
+        row[R_SXY] = float(s[3]); row[R_SYZ] = float(s[4]); row[R_SXZ] = float(s[5]);
+        row[R_EX]  = float(g[0]); row[R_EY]  = float(g[1]); row[R_EZ]  = float(g[2]);
+        row[R_EXY] = float(g[3]); row[R_EYZ] = float(g[4]); row[R_EXZ] = float(g[5]);
+        row[R_SEQV]= float(vonMises(s));
+        row[R_EEQV]= float(eqvStrain(g));
+
+        for (int c = 0; c < ResCol::R_NCOLS; ++c) {
+            avg[c] += row[c];
+            mx[c]  = std::max(mx[c], row[c]);
+            mn[c]  = std::min(mn[c], row[c]);
+        }
+    }
+    if (nv > 0) for (int c = 0; c < ResCol::R_NCOLS; ++c) avg[c] /= float(nv);
+}
 
 // --np reached only ANSYS (ansysWrapper::setNP); the OpenMP loops in
 // fft_homog.hpp used the runtime default and ignored it. Parameters::num_threads
@@ -261,38 +306,10 @@ void StressAnalysisFFT::estimateStressWithFFT(short int numCubes, short int numP
             std::vector<Vec6> vstrain_eng;
             auto r = session.solveLoadCaseFull(eps, vstrain_eng);
 
-            const int nv = (int)r.voxel_idx.size();
-
             // build the 22-column per-voxel result table
-            std::vector<std::vector<float>> results(nv, std::vector<float>(ResCol::R_NCOLS, 0.0f));
-            std::vector<float> avg(ResCol::R_NCOLS, 0.0f);
-            std::vector<float> mx (ResCol::R_NCOLS, -3.0e38f);
-            std::vector<float> mn (ResCol::R_NCOLS,  3.0e38f);
-
-            for (int e = 0; e < nv; ++e) {
-                const int idx = r.voxel_idx[e];
-                const int iz = idx / (N*N), iy = (idx / N) % N, ix = idx % N;
-                const Vec6& s = r.voxel_stress[e];
-                const Vec6& g = vstrain_eng[e];
-
-                auto& row = results[e];
-                row[R_ID]  = float(idx + 1);
-                row[R_X]   = float(ix); row[R_Y] = float(iy); row[R_Z] = float(iz);
-                // R_UX..R_UZ left 0 (FFT yields fields, not nodal displacements)
-                row[R_SX]  = float(s[0]); row[R_SY]  = float(s[1]); row[R_SZ]  = float(s[2]);
-                row[R_SXY] = float(s[3]); row[R_SYZ] = float(s[4]); row[R_SXZ] = float(s[5]);
-                row[R_EX]  = float(g[0]); row[R_EY]  = float(g[1]); row[R_EZ]  = float(g[2]);
-                row[R_EXY] = float(g[3]); row[R_EYZ] = float(g[4]); row[R_EXZ] = float(g[5]);
-                row[R_SEQV]= float(vonMises(s));
-                row[R_EEQV]= float(eqvStrain(g));
-
-                for (int c = 0; c < ResCol::R_NCOLS; ++c) {
-                    avg[c] += row[c];
-                    mx[c]  = std::max(mx[c], row[c]);
-                    mn[c]  = std::min(mn[c], row[c]);
-                }
-            }
-            if (nv > 0) for (int c = 0; c < ResCol::R_NCOLS; ++c) avg[c] /= float(nv);
+            std::vector<std::vector<float>> results;
+            std::vector<float> avg, mx, mn;
+            buildResultRows(N, r, vstrain_eng, results, avg, mx, mn);
 
             std::vector<float> eps_load(6);
             for (int i = 0; i < 6; ++i) eps_load[i] = float(eps[i]);
@@ -531,6 +548,12 @@ StiffnessMatrixResult StressAnalysisFFT::computeStiffnessMatrix(short int numCub
     double C[6][6] = {{0}};
     int totalIters = 0;
 
+    r.local_cs = session.local_cs();
+    if (keep_fields) {
+        r.fields.resize(6);
+        qDebug() << "[StressAnalysisFFT::computeStiffnessMatrix]   --save_fields: keeping per-voxel fields (ls_1..ls_6)";
+    }
+
     for (int j = 0; j < 6; ++j) {
         Vec6 e{}; e.fill(0.0); e[j] = 1.0;
         qDebug() << QString("[StressAnalysisFFT::computeStiffnessMatrix]   Load #%1: %2 = 1.0 (unit tensor strain)")
@@ -541,7 +564,16 @@ StiffnessMatrixResult StressAnalysisFFT::computeStiffnessMatrix(short int numCub
             ? std::function<void(int, double)>([cb, j](int it, double err) { cb(j, it, err); })
             : std::function<void(int, double)>();
 
-        auto step = session.solveLoadCase(e, perLoadCb);
+        FFTSolverSession::StepResult step;
+        if (keep_fields) {
+            std::vector<Vec6> vstrain_eng;
+            step = session.solveLoadCaseFull(e, vstrain_eng, perLoadCb);
+            auto& f = r.fields[j];
+            f.eps.assign(e.begin(), e.end());
+            buildResultRows(N, step, vstrain_eng, f.results, f.avg, f.max, f.min);
+        } else {
+            step = session.solveLoadCase(e, perLoadCb);
+        }
         totalIters += step.iterations;
         for (int i = 0; i < 6; ++i) C[i][j] = step.macro_stress[i];
 

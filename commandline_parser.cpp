@@ -221,6 +221,14 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
         "[Stress] Number of random loads for Hill yield criterion fit in dataset mode (default: 150).", "count"));
     parser.addOption(QCommandLineOption("working_directory",
         "[Stress] Working directory for ANSYS scratch and APDL files.", "dir"));
+    parser.addOption(QCommandLineOption("fft_tol",
+        "[Stress] FFT solver equilibrium tolerance (default: 1e-5).", "tol"));
+    parser.addOption(QCommandLineOption("fft_max_iter",
+        "[Stress] FFT solver iteration cap per load case (default: 1000).", "count"));
+    parser.addOption(QCommandLineOption("save_fields",
+        "[Stress] In '--stress_mode stiffness' also write the per-voxel stress/strain fields of the 6 canonical solves as ls_1..ls_6."));
+    parser.addOption(QCommandLineOption("hdf5_compress",
+        "[Output] gzip level 0-9 for array datasets in the HDF5 output (default: 0 = uncompressed).", "level"));
 
     // ── Machine-Readable Agent Metadata ───────────────────────────────────
     parser.addOption(QCommandLineOption(QStringList() << "help-json" << "json-help",
@@ -394,6 +402,10 @@ void Commandline_Parser::printJsonHelp()
     addOpt("eps", "Stress", "string", "strains", "", "Applied strain tensor for --stress_mode single: exx,eyy,ezz,exy,eyz,exz");
     addOpt("num_rnd_loads", "Stress", "uint", "count", "150", "Number of random loads for Hill yield criterion fit in dataset mode");
     addOpt("working_directory", "Stress", "string", "dir", "", "Working directory for ANSYS scratch and APDL files");
+    addOpt("fft_tol", "Stress", "double", "tol", "1e-5", "FFT solver equilibrium tolerance");
+    addOpt("fft_max_iter", "Stress", "uint", "count", "1000", "FFT solver iteration cap per load case");
+    addOpt("save_fields", "Stress", "bool", "", "false", "stiffness mode: also write per-voxel fields of the 6 canonical solves as ls_1..ls_6");
+    addOpt("hdf5_compress", "Output", "uint", "level", "0", "gzip level 0-9 for array datasets in the HDF5 output");
 
     // Agent Metadata
     addOpt("help-json", "Agent", "bool", "", "false", "Output complete CLI schema, algorithms, materials, and options as JSON and exit");
@@ -810,6 +822,41 @@ void Commandline_Parser::processOptions(const QCommandLineParser& parser)
                        i + 1, qPrintable(parts[i]));
         }
         params->setStressEps(e);
+    }
+
+    if (parser.isSet("fft_tol")) {
+        bool ok = false;
+        const double tol = parser.value("fft_tol").toDouble(&ok);
+        if (!ok || tol <= 0.0)
+            qFatal("Option --fft_tol expects a positive number; got \"%s\"",
+                   qPrintable(parser.value("fft_tol")));
+        params->setFftTol(tol);
+        qInfo() << "fft_tol :" << tol;
+    }
+
+    if (parser.isSet("fft_max_iter")) {
+        bool ok = false;
+        const int n = parser.value("fft_max_iter").toInt(&ok);
+        if (!ok || n <= 0)
+            qFatal("Option --fft_max_iter expects a positive integer; got \"%s\"",
+                   qPrintable(parser.value("fft_max_iter")));
+        params->setFftMaxIter(n);
+        qInfo() << "fft_max_iter :" << n;
+    }
+
+    if (parser.isSet("save_fields")) {
+        params->setSaveFields(true);
+        qInfo() << "save_fields : true";
+    }
+
+    if (parser.isSet("hdf5_compress")) {
+        bool ok = false;
+        const int level = parser.value("hdf5_compress").toInt(&ok);
+        if (!ok || level < 0 || level > 9)
+            qFatal("Option --hdf5_compress expects an integer 0..9; got \"%s\"",
+                   qPrintable(parser.value("hdf5_compress")));
+        params->setHdf5Compress(level);
+        qInfo() << "hdf5_compress :" << level;
     }
 
     parseString("output", [&](const QString& v) {

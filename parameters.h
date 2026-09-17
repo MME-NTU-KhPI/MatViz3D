@@ -191,6 +191,22 @@ public:
     const double* getStressEps() const { return stressEps; }
     void setStressEps(const double value[6]);
 
+    // FFT solver overrides (0 => keep the solver's built-in defaults).
+    double getFftTol()     const { return fftTol; }
+    int    getFftMaxIter() const { return fftMaxIter; }
+    void   setFftTol(double value)  { fftTol = value; }
+    void   setFftMaxIter(int value) { fftMaxIter = value; }
+
+    // --stress_mode stiffness: also persist the per-voxel fields of the six
+    // canonical solves (ls_1..ls_6), not only S/C/P.
+    bool getSaveFields() const { return saveFields; }
+    void setSaveFields(bool value) { saveFields = value; }
+
+    // gzip level for array datasets written by HDF5Wrapper (0 = uncompressed,
+    // byte-identical to the historical layout).
+    int  getHdf5Compress() const { return hdf5Compress; }
+    void setHdf5Compress(int value) { hdf5Compress = value; }
+
     QString getMaterial()  const { return m_material; }
     QString getMaterial1() const { return m_material1; }
     QString getMaterial2() const { return m_material2; }
@@ -473,6 +489,10 @@ private:
     static QString stressSolver;      // "ansys" | "fft"
     static QString stressMode;        // "single" | "dataset"
     static double  stressEps[6];      // exx,eyy,ezz,exy,eyz,exz
+    static double  fftTol;            // 0 => StressAnalysisFFT default
+    static int     fftMaxIter;        // 0 => StressAnalysisFFT default
+    static bool    saveFields;        // stiffness mode: write ls_1..ls_6 fields
+    static int     hdf5Compress;      // 0..9 gzip level for HDF5 arrays
 
     static QString m_material;
     static QString m_material1;

@@ -83,6 +83,10 @@ QString Parameters::fiber_material        = "C-fiber";
 QString Parameters::stressSolver = "ansys";
 QString Parameters::stressMode   = "dataset";
 double  Parameters::stressEps[6] = {0, 0, 0, 0, 0, 0};
+double  Parameters::fftTol       = 0.0;
+int     Parameters::fftMaxIter   = 0;
+bool    Parameters::saveFields   = false;
+int     Parameters::hdf5Compress = 0;
 
 std::vector<TextureLibrary::Component> Parameters::textureComponents;
 PhaseAssignment Parameters::phaseAssignment;
