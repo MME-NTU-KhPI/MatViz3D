@@ -14,7 +14,7 @@ ConsoleLogger::ConsoleLogger(QObject* parent) : QObject(parent) {}
 
 void ConsoleLogger::messageHandler(QtMsgType type, const QMessageLogContext&, const QString& msg) {
     QString msgType;
-    const char* prefix;
+    const char* prefix = "";
     switch (type) {
     case QtDebugMsg:    msgType = "debug";    prefix = "[DBG] "; break;
     case QtInfoMsg:     msgType = "info";     prefix = "[INF] "; break;

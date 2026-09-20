@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
 
     QApplication::setApplicationName("MatViz3D");
-    QApplication::setApplicationVersion("3.01");
+    QApplication::setApplicationVersion("3.0.0");
 
     // ── Parse CLI early so --help / --version exit before any UI is built,
     //    and so --nogui can be checked before loading QML at all.
