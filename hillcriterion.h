@@ -38,6 +38,8 @@ public:
         const std::vector<std::vector<float>>&   local_cs);
 
 private:
+    friend class TestHillCriterion;
+
     double m_P_Hill[6][6]    = {0}; // 6x6 matrix for HDF5 export
     double m_P_Hill_5D[5][5] = {0}; // 5x5 working matrix in deviatoric space
     double m_L_5D[5][5]      = {0}; // Holetskiy decomposition P_5D = L * L^T

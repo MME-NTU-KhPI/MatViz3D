@@ -31,12 +31,11 @@ class Parent_Algorithm
     struct Coordinate;
     template <class T> static T*** Create3D(int N1, int N2, int N3);
     template <class T> static void Delete3D(T*** array);
-private:
+protected:
     void Random_Generate_Points(int currentPoints);
     void Grid_Generate_Points(int currentPoints);
     void Thin_Layer_Generate_Points(int currentPoints);
 
-protected:
     AlgorithmFlags flags; ///< Algorithm flags
     unsigned int IterationNumber = 0; ///< Current iteration number
     int initialWave; ///< Initial wave

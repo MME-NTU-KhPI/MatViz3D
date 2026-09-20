@@ -72,6 +72,7 @@ MatViz3D
 
 # csv
 crystallization_seeds.csv
+*.csv
 
 # gif
 *.gif

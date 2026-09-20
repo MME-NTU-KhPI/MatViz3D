@@ -408,10 +408,8 @@ void Commandline_Parser::printJsonHelp()
     qInstallMessageHandler(oldHandler);
 }
 
-namespace {
-
 // Maps --texture to TextureLibrary::Process. Returns false on an unknown name.
-bool parseProcess(const QString& name, TextureLibrary::Process& out)
+bool Commandline_Parser::parseProcess(const QString& name, TextureLibrary::Process& out)
 {
     const QString n = name.trimmed().toLower();
     if (n == "random")                                     out = TextureLibrary::Process::Random;
@@ -425,7 +423,7 @@ bool parseProcess(const QString& name, TextureLibrary::Process& out)
     return true;
 }
 
-bool parseLattice(const QString& name, TextureLibrary::Lattice& out)
+bool Commandline_Parser::parseLattice(const QString& name, TextureLibrary::Lattice& out)
 {
     const QString n = name.trimmed().toLower();
     if (n == "fcc")      out = TextureLibrary::Lattice::FCC;
@@ -434,7 +432,29 @@ bool parseLattice(const QString& name, TextureLibrary::Lattice& out)
     return true;
 }
 
-} // namespace
+bool Commandline_Parser::isValidCompositeDim(const QString& v)
+{
+    const QString n = v.trimmed().toLower();
+    return n.startsWith('1') || n.startsWith('2') || n.startsWith('3');
+}
+
+bool Commandline_Parser::isValidCompositePacking(const QString& v)
+{
+    const QString n = v.trimmed().toLower();
+    return n == "square" || n == "hexagonal" || n == "hex";
+}
+
+bool Commandline_Parser::isValidSolver(const QString& v)
+{
+    const QString s = v.trimmed().toLower();
+    return s == "ansys" || s == "fft";
+}
+
+bool Commandline_Parser::isValidStressMode(const QString& v)
+{
+    const QString m = v.trimmed().toLower();
+    return m == "single" || m == "dataset" || m == "stiffness";
+}
 
 void Commandline_Parser::processOptions(const QCommandLineParser& parser)
 {
@@ -614,14 +634,12 @@ void Commandline_Parser::processOptions(const QCommandLineParser& parser)
 
     // ── Composite (fiber-reinforced RVE) ──────────────────────────────────
     parseString("composite_dim", [&](const QString& v) {
-        const QString n = v.trimmed().toLower();
-        if (!n.startsWith('1') && !n.startsWith('2') && !n.startsWith('3'))
+        if (!isValidCompositeDim(v))
             qFatal("Option --composite_dim expects 1d, 2d or 3d; got \"%s\"", qPrintable(v));
         params->setCompositeDim(v);
     });
     parseString("composite_packing", [&](const QString& v) {
-        const QString n = v.trimmed().toLower();
-        if (n != "square" && n != "hexagonal" && n != "hex")
+        if (!isValidCompositePacking(v))
             qFatal("Option --composite_packing expects square or hexagonal; got \"%s\"",
                    qPrintable(v));
         params->setCompositePacking(v);
@@ -780,20 +798,20 @@ void Commandline_Parser::processOptions(const QCommandLineParser& parser)
     }
 
     if (parser.isSet("solver")) {
-        const QString s = parser.value("solver").trimmed().toLower();
-        if (s != "ansys" && s != "fft")
+        const QString s = parser.value("solver");
+        if (!isValidSolver(s))
             qFatal("Option --solver expects ansys or fft; got \"%s\"",
-                   qPrintable(parser.value("solver")));
-        params->setStressSolver(s);
+                   qPrintable(s));
+        params->setStressSolver(s.trimmed().toLower());
         qInfo() << "solver :" << s;
     }
 
     if (parser.isSet("stress_mode")) {
-        const QString m = parser.value("stress_mode").trimmed().toLower();
-        if (m != "single" && m != "dataset" && m != "stiffness")
+        const QString m = parser.value("stress_mode");
+        if (!isValidStressMode(m))
             qFatal("Option --stress_mode expects single, dataset or stiffness; got \"%s\"",
-                   qPrintable(parser.value("stress_mode")));
-        params->setStressMode(m);
+                   qPrintable(m));
+        params->setStressMode(m.trimmed().toLower());
         qInfo() << "stress_mode :" << m;
     }
 

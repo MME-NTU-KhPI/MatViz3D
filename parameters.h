@@ -344,6 +344,8 @@ public:
     Q_INVOKABLE void setWaveEndFraction(double value);
     Q_INVOKABLE void setNumRndLoads(unsigned int value);
 
+    static void resetDefaults();
+
     static Parameters* m_instance;
 
     static int32_t*** voxels;

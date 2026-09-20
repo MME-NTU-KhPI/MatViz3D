@@ -89,6 +89,76 @@ PhaseAssignment Parameters::phaseAssignment;
 
 Parameters::Parameters(QObject* parent) : QObject(parent) {}
 
+void Parameters::resetDefaults()
+{
+    size = 10;
+    points = 10;
+    algorithm = "";
+    seed = 0;
+    filename = "";
+    num_threads = 1;
+    working_directory = "";
+    wave_coefficient = 0.0f;
+    wave_spread = 0.0f;
+    initial_nuclei_count = 1;
+    is_wave_generation = false;
+    wave_peak_fraction = 0.20;
+    wave_end_fraction = 0.60;
+    num_rnd_loads = 0;
+    prob_preset = "Sphere (Circle)";
+    polycrystall_neighborhood = "Moore (26)";
+    prob_matrix_mode = "Volume Sampling";
+    halfaxis_a = 1.5f;
+    halfaxis_b = 1.5f;
+    halfaxis_c = 1.5f;
+    orientation_angle_a = 0.0f;
+    orientation_angle_b = 0.0f;
+    orientation_angle_c = 0.0f;
+    points_mode = "count";
+    isAnimation = false;
+    isGifRecording = false;
+    hasProbParameters = false;
+    ellipse_order = 2.0;
+    stefan_number = 100.0f;
+    m_material = "bcc";
+    m_material1 = "fcc";
+    m_material2 = "bcc";
+    minkowski_p = 2.0;
+    is_periodic = false;
+    is_thin_layer = false;
+    layer_direction = "+Z";
+    voronoi_metric_preset = "Sphere (Circle)";
+    voronoi_mxx = 1.0;
+    voronoi_myy = 1.0;
+    voronoi_mzz = 1.0;
+    voronoi_mxy = 0.0;
+    voronoi_myz = 0.0;
+    voronoi_mxz = 0.0;
+    db_material = "";
+    mat_c11 = 168.40;
+    mat_c12 = 121.40;
+    mat_c44 = 75.40;
+    mat_type = "fcc";
+    texture_preset = "random";
+    texture_scatter = 11.0;
+    lattice_override = "";
+    composite_dim = "1d";
+    composite_packing = "square";
+    fiber_volume_fraction = 0.40;
+    fibers_per_row = 3;
+    fiber_aspect_ratio = 1.0;
+    fiber_angle_scatter = 0.0;
+    fiber_center_jitter = 0.0;
+    fiber_allow_overlap = false;
+    matrix_material = "Epoxy";
+    fiber_material = "C-fiber";
+    stressSolver = "ansys";
+    stressMode = "dataset";
+    for (int i = 0; i < 6; ++i) stressEps[i] = 0.0;
+    textureComponents.clear();
+    phaseAssignment.clear();
+}
+
 void Parameters::processPointInput(const QString &text)
 {
     bool ok = false;
