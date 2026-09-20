@@ -76,6 +76,7 @@ crystallization_seeds.csv
 
 # gif
 *.gif
+!img/README/*.gif
 
 # development env
 .vscode/

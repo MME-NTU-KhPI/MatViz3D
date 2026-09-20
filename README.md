@@ -1,4 +1,4 @@
-# <img src="img/icon.ico" alt="App Icon" width="50" height="50" style="vertical-align: middle; margin-right: 8px;"> MatViz3D
+# <img src="img/README/icon.ico" alt="App Icon" width="50" height="50" style="vertical-align: middle; margin-right: 8px;"> MatViz3D
 
 Voxel-based generator of polycrystalline and composite microstructures with grain statistics, crystallographic texture and micromechanical (FFT / ANSYS) homogenization
 
@@ -19,7 +19,7 @@ ___
 ## English Version
 
 <p align="center">
-  <img src="img/matviz3d_window.gif" alt="MatViz3D main window: cellular-automaton grain growth in the 3D viewport" width="900">
+  <img src="img/README/matviz3d_window.gif" alt="MatViz3D main window: cellular-automaton grain growth in the 3D viewport" width="900">
 </p>
 
 **MatViz3D** is a desktop application for generating, visualizing and analyzing three-dimensional representative volume elements (RVEs) of polycrystalline and composite materials. Microstructures are built on a voxel grid by cellular automata, Voronoi tessellation and related growth algorithms, then characterized statistically, assigned a crystallographic texture and a material from the built-in database, and passed to a micromechanical solver (in-memory FFT or ANSYS) to obtain the effective stiffness, the stress–strain fields and a Hill yield surface.
@@ -41,7 +41,7 @@ Grains grow from random nuclei by a cellular automaton with a selectable neighbo
 
 | Moore (26) | von Neumann (6) | Radial (18) | Thin film |
 |:---:|:---:|:---:|:---:|
-| <img src="img/preview_moore.png" width="180"> | <img src="img/preview_neumann.png" width="180"> | <img src="img/preview_radial.png" width="180"> | <img src="img/preview_thin_film.png" width="180"> |
+| <img src="img/README/preview_moore.png" width="180"> | <img src="img/README/preview_neumann.png" width="180"> | <img src="img/README/preview_radial.png" width="180"> | <img src="img/README/preview_thin_film.png" width="180"> |
 
 </details>
 <details>
@@ -51,7 +51,7 @@ Every voxel is assigned to the nearest seed under a generalized Minkowski *L<sub
 
 | Euclidean, *p* = 2 | Columnar (Z-axis) preset |
 |:---:|:---:|
-| <img src="img/preview_voronoi.png" width="180"> | <img src="img/preview_voronoi_columnar.png" width="180"> |
+| <img src="img/README/preview_voronoi.png" width="180"> | <img src="img/README/preview_voronoi_columnar.png" width="180"> |
 
 </details>
 <details>
@@ -61,7 +61,7 @@ The filling probability of each of the 26 neighbours is derived from a superelli
 
 | Prolate (Needle) preset | Wave nucleation |
 |:---:|:---:|
-| <img src="img/preview_probability_needle.png" width="180"> | <img src="img/preview_probability_wave.png" width="180"> |
+| <img src="img/README/preview_probability_needle.png" width="180"> | <img src="img/README/preview_probability_wave.png" width="180"> |
 
 </details>
 <details>
@@ -69,7 +69,7 @@ The filling probability of each of the 26 neighbours is derived from a superelli
 
 One, two or three orthogonal families of continuous elliptical fibres (1D along Z, 2D along X and Y, 3D along X, Y and Z) on a square or hexagonal lattice. The fibre radius is bisected to hit the **target volume fraction** exactly; imperfections — centre jitter, cross-section aspect ratio, in-plane angle scatter, optional overlap. The matrix and the fibres are two different materials from the database (e.g. epoxy / carbon fibre, epoxy / E-glass), and both solvers use the full anisotropic (transversely isotropic) fibre stiffness rotated into each fibre's own axis.
 
-<img src="img/preview_composite.png" width="180">
+<img src="img/README/preview_composite.png" width="180">
 
 </details>
 <details>
@@ -77,7 +77,7 @@ One, two or three orthogonal families of continuous elliptical fibres (1D along 
 
 Particles perform random walks and stick together on contact, growing fractal, dendrite-like aggregates that can be used as porous or skeletal structures.
 
-<img src="img/preview_dlca.png" width="180">
+<img src="img/README/preview_dlca.png" width="180">
 
 </details>
 
@@ -107,32 +107,32 @@ Legacy names (`Moore`, `Neumann`, `Radial`, `Probability Circle`, `Probability E
 
 Growth of microstructures by different algorithms, recorded from the 3D viewport (`--animate`):
 
-| <img src="img/algo_moore.gif" alt="Polycrystall, Moore" width="385"> | <img src="img/algo_neumann.gif" alt="Polycrystall, von Neumann" width="385"> |
+| <img src="img/README/algo_moore.gif" alt="Polycrystall, Moore" width="385"> | <img src="img/README/algo_neumann.gif" alt="Polycrystall, von Neumann" width="385"> |
 |:---:|:---:|
 | Polycrystall — Moore (26) | Polycrystall — von Neumann (6) |
 
-| <img src="img/algo_radial.gif" alt="Polycrystall, Radial" width="385"> | <img src="img/algo_thin_film.gif" alt="Thin film" width="385"> |
+| <img src="img/README/algo_radial.gif" alt="Polycrystall, Radial" width="385"> | <img src="img/README/algo_thin_film.gif" alt="Thin film" width="385"> |
 |:---:|:---:|
 | Polycrystall — Radial (18) | Polycrystall — thin-film mode (`--thin-layer`) |
 
-| <img src="img/algo_voronoi.gif" alt="Voronoi" width="385"> | <img src="img/algo_voronoi_columnar.gif" alt="Voronoi columnar" width="385"> |
+| <img src="img/README/algo_voronoi.gif" alt="Voronoi" width="385"> | <img src="img/README/algo_voronoi_columnar.gif" alt="Voronoi columnar" width="385"> |
 |:---:|:---:|
 | Voronoi, Euclidean metric | Voronoi, *Columnar (Z-axis)* metric preset |
 
-| <img src="img/algo_probability_needle.gif" alt="Probability needle" width="385"> | <img src="img/algo_probability_wave.gif" alt="Probability wave nucleation" width="385"> |
+| <img src="img/README/algo_probability_needle.gif" alt="Probability needle" width="385"> | <img src="img/README/algo_probability_wave.gif" alt="Probability wave nucleation" width="385"> |
 |:---:|:---:|
 | Probability — *Prolate (Needle)* kernel | Probability — wave nucleation |
 
-| <img src="img/algo_composite.gif" alt="Composite" width="385"> | <img src="img/algo_dlca.gif" alt="DLCA" width="385"> |
+| <img src="img/README/algo_composite.gif" alt="Composite" width="385"> | <img src="img/README/algo_dlca.gif" alt="DLCA" width="385"> |
 |:---:|:---:|
 | Composite — 2D hexagonal fibre packing, V<sub>f</sub> = 0.4 | DLCA — cluster aggregation |
 
 <!-- TODO (screenshots of the other windows, add when ready):
-| <img src="img/screenshot_statistics.png" width="385"> | <img src="img/screenshot_texture.png" width="385"> |
+| <img src="img/README/screenshot_statistics.png" width="385"> | <img src="img/README/screenshot_texture.png" width="385"> |
 | Grain statistics | Crystallographic texture editor |
-| <img src="img/screenshot_stress.png" width="385"> | <img src="img/screenshot_anisotropy.png" width="385"> |
+| <img src="img/README/screenshot_stress.png" width="385"> | <img src="img/README/screenshot_anisotropy.png" width="385"> |
 | Stress analysis | Elastic anisotropy surface |
-| <img src="img/screenshot_materials.png" width="385"> | <img src="img/screenshot_hdf5.png" width="385"> |
+| <img src="img/README/screenshot_materials.png" width="385"> | <img src="img/README/screenshot_hdf5.png" width="385"> |
 | Material database | HDF5 project viewer |
 -->
 
@@ -329,7 +329,7 @@ ___
 ## Українська версія
 
 <p align="center">
-  <img src="img/matviz3d_window.gif" alt="Головне вікно MatViz3D: ріст зерен клітинним автоматом у 3D-в'юпорті" width="900">
+  <img src="img/README/matviz3d_window.gif" alt="Головне вікно MatViz3D: ріст зерен клітинним автоматом у 3D-в'юпорті" width="900">
 </p>
 
 **MatViz3D** — це десктопний застосунок для генерації, візуалізації та аналізу тривимірних представницьких об'ємних елементів (RVE) полікристалічних і композитних матеріалів. Мікроструктури будуються на вокселній сітці клітинними автоматами, тесселяцією Вороного та спорідненими алгоритмами росту, після чого статистично характеризуються, отримують кристалографічну текстуру й матеріал із вбудованої бази даних і передаються до мікромеханічного розв'язувача (вбудований FFT або ANSYS) для отримання ефективної жорсткості, полів напружень і деформацій та поверхні текучості Хілла.
@@ -351,7 +351,7 @@ ___
 
 | Мура (26) | фон Неймана (6) | Радіальна (18) | Тонка плівка |
 |:---:|:---:|:---:|:---:|
-| <img src="img/preview_moore.png" width="180"> | <img src="img/preview_neumann.png" width="180"> | <img src="img/preview_radial.png" width="180"> | <img src="img/preview_thin_film.png" width="180"> |
+| <img src="img/README/preview_moore.png" width="180"> | <img src="img/README/preview_neumann.png" width="180"> | <img src="img/README/preview_radial.png" width="180"> | <img src="img/README/preview_thin_film.png" width="180"> |
 
 </details>
 <details>
@@ -361,7 +361,7 @@ ___
 
 | Евклідова, *p* = 2 | Пресет Columnar (Z-axis) |
 |:---:|:---:|
-| <img src="img/preview_voronoi.png" width="180"> | <img src="img/preview_voronoi_columnar.png" width="180"> |
+| <img src="img/README/preview_voronoi.png" width="180"> | <img src="img/README/preview_voronoi_columnar.png" width="180"> |
 
 </details>
 <details>
@@ -371,7 +371,7 @@ ___
 
 | Пресет Prolate (Needle) | Хвильова нуклеація |
 |:---:|:---:|
-| <img src="img/preview_probability_needle.png" width="180"> | <img src="img/preview_probability_wave.png" width="180"> |
+| <img src="img/README/preview_probability_needle.png" width="180"> | <img src="img/README/preview_probability_wave.png" width="180"> |
 
 </details>
 <details>
@@ -379,7 +379,7 @@ ___
 
 Одна, дві або три ортогональні сім'ї неперервних еліптичних волокон (1D вздовж Z, 2D вздовж X і Y, 3D вздовж X, Y, Z) на квадратній або гексагональній ґратці. Радіус волокон підбирається бісекцією так, щоб точно вийти на **задану об'ємну частку**; недосконалості — зміщення центрів, співвідношення півосей перерізу, розкид кутів у площині, дозвіл на перекриття. Матриця й волокна — два різні матеріали з бази (наприклад епоксид / вуглецеве волокно, епоксид / E-скло); обидва розв'язувачі використовують повну анізотропну (трансверсально-ізотропну) жорсткість волокна, повернуту у вісь кожного волокна.
 
-<img src="img/preview_composite.png" width="180">
+<img src="img/README/preview_composite.png" width="180">
 
 </details>
 <details>
@@ -387,7 +387,7 @@ ___
 
 Частинки виконують випадкові блукання і злипаються при контакті, утворюючи фрактальні дендритоподібні агрегати — основу для пористих і каркасних структур.
 
-<img src="img/preview_dlca.png" width="180">
+<img src="img/README/preview_dlca.png" width="180">
 
 </details>
 
@@ -417,32 +417,32 @@ ___
 
 Ріст мікроструктур різними алгоритмами, записаний з 3D-в'юпорту (`--animate`):
 
-| <img src="img/algo_moore.gif" alt="Polycrystall, Мура" width="385"> | <img src="img/algo_neumann.gif" alt="Polycrystall, фон Неймана" width="385"> |
+| <img src="img/README/algo_moore.gif" alt="Polycrystall, Мура" width="385"> | <img src="img/README/algo_neumann.gif" alt="Polycrystall, фон Неймана" width="385"> |
 |:---:|:---:|
 | Polycrystall — Мура (26) | Polycrystall — фон Неймана (6) |
 
-| <img src="img/algo_radial.gif" alt="Polycrystall, радіальна" width="385"> | <img src="img/algo_thin_film.gif" alt="Тонка плівка" width="385"> |
+| <img src="img/README/algo_radial.gif" alt="Polycrystall, радіальна" width="385"> | <img src="img/README/algo_thin_film.gif" alt="Тонка плівка" width="385"> |
 |:---:|:---:|
 | Polycrystall — радіальна (18) | Polycrystall — режим тонкої плівки (`--thin-layer`) |
 
-| <img src="img/algo_voronoi.gif" alt="Voronoi" width="385"> | <img src="img/algo_voronoi_columnar.gif" alt="Voronoi стовпчаста" width="385"> |
+| <img src="img/README/algo_voronoi.gif" alt="Voronoi" width="385"> | <img src="img/README/algo_voronoi_columnar.gif" alt="Voronoi стовпчаста" width="385"> |
 |:---:|:---:|
 | Voronoi, евклідова метрика | Voronoi, метричний пресет *Columnar (Z-axis)* |
 
-| <img src="img/algo_probability_needle.gif" alt="Probability needle" width="385"> | <img src="img/algo_probability_wave.gif" alt="Probability хвильова нуклеація" width="385"> |
+| <img src="img/README/algo_probability_needle.gif" alt="Probability needle" width="385"> | <img src="img/README/algo_probability_wave.gif" alt="Probability хвильова нуклеація" width="385"> |
 |:---:|:---:|
 | Probability — ядро *Prolate (Needle)* | Probability — хвильова нуклеація |
 
-| <img src="img/algo_composite.gif" alt="Composite" width="385"> | <img src="img/algo_dlca.gif" alt="DLCA" width="385"> |
+| <img src="img/README/algo_composite.gif" alt="Composite" width="385"> | <img src="img/README/algo_dlca.gif" alt="DLCA" width="385"> |
 |:---:|:---:|
 | Composite — 2D гексагональне укладання волокон, V<sub>f</sub> = 0.4 | DLCA — агрегація кластерів |
 
 <!-- TODO (знімки інших вікон, додати коли будуть готові):
-| <img src="img/screenshot_statistics.png" width="385"> | <img src="img/screenshot_texture.png" width="385"> |
+| <img src="img/README/screenshot_statistics.png" width="385"> | <img src="img/README/screenshot_texture.png" width="385"> |
 | Статистика зерен | Редактор кристалографічної текстури |
-| <img src="img/screenshot_stress.png" width="385"> | <img src="img/screenshot_anisotropy.png" width="385"> |
+| <img src="img/README/screenshot_stress.png" width="385"> | <img src="img/README/screenshot_anisotropy.png" width="385"> |
 | Аналіз напружень | Поверхня пружної анізотропії |
-| <img src="img/screenshot_materials.png" width="385"> | <img src="img/screenshot_hdf5.png" width="385"> |
+| <img src="img/README/screenshot_materials.png" width="385"> | <img src="img/README/screenshot_hdf5.png" width="385"> |
 | База даних матеріалів | Переглядач HDF5-проєктів |
 -->
 
