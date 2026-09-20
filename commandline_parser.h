@@ -9,7 +9,7 @@ class Commandline_Parser
 public:
     Commandline_Parser();
     static void setupParser(QCommandLineParser &parser);
-    static void processOptions(const QCommandLineParser &parser);
+    static bool processOptions(const QCommandLineParser &parser, QString *error = nullptr);
     static QString buildApplicationDescription();
     static void printJsonHelp();
 
@@ -19,6 +19,10 @@ public:
     static bool isValidCompositePacking(const QString& v);
     static bool isValidSolver(const QString& v);
     static bool isValidStressMode(const QString& v);
+
+    static bool applyParameter(const QString& key, const QString& value, QString* error = nullptr);
 };
+
+bool applyParameter(const QString& key, const QString& value, QString* error = nullptr);
 
 #endif // CONSOLE_H

@@ -2,6 +2,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QSet>
 #include <QTextStream>
 #include <omp.h>
 
@@ -10,6 +11,7 @@
 #include "algorithmfactory.h"
 #include "cpuinfo.hpp"
 #include "commandline_parser.h"
+#include "config_source.h"
 #include "dbmanager.h"
 #include "parameters.h"
 #include "texturelibrary.h"
@@ -78,6 +80,11 @@ QString Commandline_Parser::buildApplicationDescription()
     desc += "  --voronoi_metric_preset: 'Sphere (Circle)', 'Prolate (Needle)', 'Oblate (Disc)', 'Triaxial Ellipsoid', 'Superellipsoid (Cube)',\n";
     desc += "                           'Columnar (Z-axis)', 'Columnar (X-axis)', 'Rolled (Orthotropic)', 'Sheared (45 deg XY)', 'Custom'\n\n";
 
+    desc += "CONFIGURATION FILES (--config <file>):\n";
+    desc += "  Load run parameters from a configuration file (JSON supported; YAML stubbed).\n";
+    desc += "  Load order: configuration file parameters are loaded first, and explicit command-line\n";
+    desc += "  options are applied on top, overriding file values.\n\n";
+
     desc += "MACHINE-READABLE SCHEMA:\n";
     desc += "  Pass --help-json to output full CLI schema, algorithms, materials, and options in JSON format.";
 
@@ -89,6 +96,10 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
     parser.setApplicationDescription(buildApplicationDescription());
     parser.addHelpOption();
     parser.addVersionOption();
+
+    // ── Configuration File Import ─────────────────────────────────────────
+    parser.addOption(QCommandLineOption(QStringList() << "config" << "c",
+        "[Config] Load run parameters from configuration file (JSON supported; explicit CLI options override file values).", "file"));
 
     // ── Execution & Headless Control ──────────────────────────────────────
     parser.addOption(QCommandLineOption("nogui",
@@ -312,6 +323,9 @@ void Commandline_Parser::printJsonHelp()
         options.append(o);
     };
 
+    // Configuration File
+    addOpt("config", "Config", "string", "file", "", "Load run parameters from configuration file (.json supported; explicit CLI options override file)");
+
     // Execution & Headless
     addOpt("nogui", "Execution", "bool", "", "false", "Run in headless mode without GUI (requires --autostart to execute)");
     addOpt("nologo", "Execution", "bool", "", "false", "Suppress printing the ASCII logo banner on startup");
@@ -456,385 +470,708 @@ bool Commandline_Parser::isValidStressMode(const QString& v)
     return m == "single" || m == "dataset" || m == "stiffness";
 }
 
-void Commandline_Parser::processOptions(const QCommandLineParser& parser)
+bool Commandline_Parser::applyParameter(const QString& key, const QString& value, QString* error)
 {
     Parameters* params = Parameters::instance();
 
-    // ── Typed parse helpers ───────────────────────────────────────────────
-    // Each helper returns true on success so callers can chain or ignore.
+    QString normKey = key.trimmed().toLower();
+    normKey.replace('-', '_');
+    normKey.replace('.', '_');
 
-    auto parseInt = [&](const QString& opt, auto setter) -> bool {
-        if (!parser.isSet(opt)) return false;
-        const QString str = parser.value(opt);
+    auto setErr = [&](const QString& msg) {
+        if (error) *error = msg;
+        return false;
+    };
+
+    auto parseInt = [&](int& out, bool positive = false) -> bool {
         bool ok = false;
-        const int value = str.toInt(&ok);
+        int v = value.trimmed().toInt(&ok);
         if (!ok) {
-            qFatal("Option --%s expects an integer; got \"%s\"",
-                   qPrintable(opt), qPrintable(str));
+            return setErr(QString("expects an integer; got \"%1\"").arg(value));
         }
-        setter(value);
-        qInfo() << opt << ":" << value;
+        if (positive && v <= 0) {
+            return setErr(QString("expects a positive integer; got %1").arg(v));
+        }
+        out = v;
         return true;
     };
 
-    auto parseFloat = [&](const QString& opt, auto setter) -> bool {
-        if (!parser.isSet(opt)) return false;
-        const QString str = parser.value(opt);
+    auto parseUInt = [&](unsigned int& out) -> bool {
         bool ok = false;
-        const float value = str.toFloat(&ok);
+        unsigned int v = value.trimmed().toUInt(&ok);
         if (!ok) {
-            qFatal("Option --%s expects a float; got \"%s\"",
-                   qPrintable(opt), qPrintable(str));
+            return setErr(QString("expects a non-negative integer; got \"%1\"").arg(value));
         }
-        setter(value);
-        qInfo() << opt << ":" << value;
+        out = v;
         return true;
     };
 
-    auto parseDouble = [&](const QString& opt, auto setter) -> bool {
-        if (!parser.isSet(opt)) return false;
-        const QString str = parser.value(opt);
+    auto parseFloat = [&](float& out, bool positive = false) -> bool {
         bool ok = false;
-        const double value = str.toDouble(&ok);
+        float v = value.trimmed().toFloat(&ok);
         if (!ok) {
-            qFatal("Option --%s expects a double; got \"%s\"",
-                   qPrintable(opt), qPrintable(str));
+            return setErr(QString("expects a float; got \"%1\"").arg(value));
         }
-        setter(value);
-        qInfo() << opt << ":" << value;
+        if (positive && v <= 0.0f) {
+            return setErr(QString("expects a positive value; got %1").arg(value));
+        }
+        out = v;
         return true;
     };
 
-    auto parseString = [&](const QString& opt, auto setter) -> bool {
-        if (!parser.isSet(opt)) return false;
-        const QString value = parser.value(opt);
-        setter(value);
-        qInfo() << opt << ":" << value;
+    auto parseDouble = [&](double& out, bool positive = false) -> bool {
+        bool ok = false;
+        double v = value.trimmed().toDouble(&ok);
+        if (!ok) {
+            return setErr(QString("expects a double; got \"%1\"").arg(value));
+        }
+        if (positive && v <= 0.0) {
+            return setErr(QString("expects a positive value; got %1").arg(value));
+        }
+        out = v;
         return true;
     };
 
-    // Positive-value guard: catches --size -5 and --np 0, which used to pass
-    // parsing and blow up much later.
-    auto requirePositive = [&](const QString& opt, double value) {
-        if (value <= 0.0)
-            qFatal("Option --%s expects a positive value; got %s",
-                   qPrintable(opt), qPrintable(QString::number(value)));
+    auto parseBool = [&](bool& out) -> bool {
+        const QString v = value.trimmed().toLower();
+        if (v == "true" || v == "1" || v == "yes" || v == "on") {
+            out = true;
+            return true;
+        }
+        if (v == "false" || v == "0" || v == "no" || v == "off") {
+            out = false;
+            return true;
+        }
+        return setErr(QString("expects a boolean ('true' or 'false'); got \"%1\"").arg(value));
     };
 
-    // ── Cube geometry ─────────────────────────────────────────────────────
-    parseInt("size",   [&](int v) { requirePositive("size", v);   params->setSize(v); });
-    parseInt("points", [&](int v) { requirePositive("points", v); params->setPoints(v); });
+    if (normKey == "size") {
+        int v = 0;
+        if (!parseInt(v, true)) return false;
+        params->setSize(v);
+        return true;
+    }
 
+    if (normKey == "points") {
+        int v = 0;
+        if (!parseInt(v, true)) return false;
+        if (params->getSize() > 0 && v > std::pow(params->getSize(), 3)) {
+            return setErr(QString("Initial points (%1) exceed the cube volume (%2); lower points or raise size")
+                              .arg(QString::number(v), QString::number(std::pow(params->getSize(), 3))));
+        }
+        params->setPoints(v);
+        return true;
+    }
+
+    if (normKey == "concentration") {
+        bool ok = false;
+        float pct = value.trimmed().toFloat(&ok);
+        if (!ok) {
+            return setErr(QString("Option concentration expects a float; got \"%1\"").arg(value));
+        }
+        if (pct <= 0.0f || pct > 100.0f) {
+            return setErr(QString("Option concentration expects a value in (0, 100]; got %1").arg(value));
+        }
+        const double volume = std::pow(static_cast<double>(params->getSize()), 3);
+        const int derived = static_cast<int>(std::lround(static_cast<double>(pct) / 100.0 * volume));
+        if (derived <= 0) {
+            return setErr(QString("Option concentration resolved to %1 points; raise size or concentration").arg(derived));
+        }
+        params->setPoints(derived);
+        return true;
+    }
+
+    if (normKey == "algorithm") {
+        params->setAlgorithm(value.trimmed());
+        return true;
+    }
+
+    if (normKey == "periodic" || normKey == "is_periodic") {
+        bool b = false;
+        if (!parseBool(b)) return false;
+        params->setIsPeriodic(b);
+        return true;
+    }
+
+    if (normKey == "neighborhood" || normKey == "polycrystall_neighborhood") {
+        const QString v = value.trimmed();
+        const QString vl = v.toLower();
+        if (vl == "moore" || vl == "moore (26)") {
+            params->setPolycrystallNeighborhood("Moore (26)");
+        } else if (vl == "neumann" || vl == "von neumann" || vl == "von neumann (6)") {
+            params->setPolycrystallNeighborhood("von Neumann (6)");
+        } else if (vl == "radial" || vl == "radial (18)") {
+            params->setPolycrystallNeighborhood("Radial (18)");
+        } else {
+            params->setPolycrystallNeighborhood(v);
+        }
+        return true;
+    }
+
+    if (normKey == "thin_layer" || normKey == "is_thin_layer") {
+        bool b = false;
+        if (!parseBool(b)) return false;
+        params->setIsThinLayer(b);
+        return true;
+    }
+
+    if (normKey == "layer_direction") {
+        const QString v = value.trimmed().toUpper();
+        if (v != "+Z" && v != "-Z" && v != "+X" && v != "-X" && v != "+Y" && v != "-Y") {
+            return setErr(QString("Option layer_direction expects one of: +Z, -Z, +X, -X, +Y, -Y; got \"%1\"").arg(value));
+        }
+        params->setLayerDirection(v);
+        params->setIsThinLayer(true);
+        return true;
+    }
+
+    if (normKey == "minkowski_p") {
+        double v = 0.0;
+        if (!parseDouble(v, true)) return false;
+        params->setMinkowskiP(v);
+        return true;
+    }
+
+    if (normKey == "voronoi_metric_preset") {
+        params->setVoronoiMetricPreset(value.trimmed());
+        return true;
+    }
+
+    if (normKey == "voronoi_metric") {
+        const QStringList parts = value.split(',');
+        if (parts.size() != 3 && parts.size() != 6) {
+            return setErr(QString("voronoi_metric expects 3 or 6 comma-separated values, got %1").arg(parts.size()));
+        }
+        bool ok1 = false, ok2 = false, ok3 = false;
+        double mxx = parts[0].trimmed().toDouble(&ok1);
+        double myy = parts[1].trimmed().toDouble(&ok2);
+        double mzz = parts[2].trimmed().toDouble(&ok3);
+        if (!ok1 || !ok2 || !ok3) {
+            return setErr(QString("voronoi_metric diagonal components must be valid numbers"));
+        }
+        params->setVoronoiMxx(mxx);
+        params->setVoronoiMyy(myy);
+        params->setVoronoiMzz(mzz);
+        if (parts.size() == 6) {
+            bool ok4 = false, ok5 = false, ok6 = false;
+            double mxy = parts[3].trimmed().toDouble(&ok4);
+            double myz = parts[4].trimmed().toDouble(&ok5);
+            double mxz = parts[5].trimmed().toDouble(&ok6);
+            if (!ok4 || !ok5 || !ok6) {
+                return setErr(QString("voronoi_metric off-diagonal components must be valid numbers"));
+            }
+            params->setVoronoiMxy(mxy);
+            params->setVoronoiMyz(myz);
+            params->setVoronoiMxz(mxz);
+        }
+        return true;
+    }
+
+    if (normKey == "voronoi_mxx") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        params->setVoronoiMxx(v);
+        return true;
+    }
+    if (normKey == "voronoi_myy") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        params->setVoronoiMyy(v);
+        return true;
+    }
+    if (normKey == "voronoi_mzz") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        params->setVoronoiMzz(v);
+        return true;
+    }
+    if (normKey == "voronoi_mxy") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        params->setVoronoiMxy(v);
+        return true;
+    }
+    if (normKey == "voronoi_myz") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        params->setVoronoiMyz(v);
+        return true;
+    }
+    if (normKey == "voronoi_mxz") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        params->setVoronoiMxz(v);
+        return true;
+    }
+
+    if (normKey == "composite_dim") {
+        if (!isValidCompositeDim(value)) {
+            return setErr(QString("Option composite_dim expects 1d, 2d or 3d; got \"%1\"").arg(value));
+        }
+        params->setCompositeDim(value);
+        return true;
+    }
+
+    if (normKey == "composite_packing") {
+        if (!isValidCompositePacking(value)) {
+            return setErr(QString("Option composite_packing expects square or hexagonal; got \"%1\"").arg(value));
+        }
+        params->setCompositePacking(value);
+        return true;
+    }
+
+    if (normKey == "fiber_volume_fraction" || normKey == "composite_fiber_volume_fraction") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v <= 0.0 || v >= 1.0) {
+            return setErr(QString("Option fiber_volume_fraction expects a value in (0, 1); got %1").arg(value));
+        }
+        params->setFiberVolumeFraction(v);
+        return true;
+    }
+
+    if (normKey == "fibers_per_row" || normKey == "composite_fibers_per_row") {
+        int v = 0;
+        if (!parseInt(v, true)) return false;
+        params->setFibersPerRow(v);
+        return true;
+    }
+
+    if (normKey == "fiber_aspect_ratio" || normKey == "composite_fiber_aspect_ratio") {
+        double v = 0.0;
+        if (!parseDouble(v, true)) return false;
+        params->setFiberAspectRatio(v);
+        return true;
+    }
+
+    if (normKey == "fiber_angle_scatter" || normKey == "composite_fiber_angle_scatter") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0.0 || v > 180.0) {
+            return setErr(QString("Option fiber_angle_scatter expects degrees in [0, 180]; got %1").arg(value));
+        }
+        params->setFiberAngleScatter(v);
+        return true;
+    }
+
+    if (normKey == "fiber_center_jitter" || normKey == "composite_fiber_center_jitter") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0.0 || v > 1.0) {
+            return setErr(QString("Option fiber_center_jitter expects a value in [0, 1]; got %1").arg(value));
+        }
+        params->setFiberCenterJitter(v);
+        return true;
+    }
+
+    if (normKey == "fiber_allow_overlap" || normKey == "composite_fiber_allow_overlap") {
+        bool b = false;
+        if (!parseBool(b)) return false;
+        params->setFiberAllowOverlap(b);
+        return true;
+    }
+
+    if (normKey == "matrix_material" || normKey == "composite_matrix_material") {
+        params->setMatrixMaterial(value.trimmed());
+        return true;
+    }
+
+    if (normKey == "fiber_material" || normKey == "composite_fiber_material") {
+        params->setFiberMaterial(value.trimmed());
+        return true;
+    }
+
+    if (normKey == "prob_preset") {
+        params->setProbPreset(value.trimmed());
+        return true;
+    }
+
+    if (normKey == "prob_matrix_mode") {
+        const QString m = value.trimmed().toLower();
+        if (m == "surface" || m == "surface flux" || m == "surface_flux") {
+            params->setProbMatrixMode("Surface Flux");
+        } else {
+            params->setProbMatrixMode("Volume Sampling");
+        }
+        return true;
+    }
+
+    if (normKey == "halfaxis_a") {
+        float v = 0.0f;
+        if (!parseFloat(v)) return false;
+        params->setHalfAxisA(v);
+        params->setHasProbParameters(true);
+        return true;
+    }
+    if (normKey == "halfaxis_b") {
+        float v = 0.0f;
+        if (!parseFloat(v)) return false;
+        params->setHalfAxisB(v);
+        params->setHasProbParameters(true);
+        return true;
+    }
+    if (normKey == "halfaxis_c") {
+        float v = 0.0f;
+        if (!parseFloat(v)) return false;
+        params->setHalfAxisC(v);
+        params->setHasProbParameters(true);
+        return true;
+    }
+
+    if (normKey == "orientation_angle_a") {
+        float v = 0.0f;
+        if (!parseFloat(v)) return false;
+        params->setOrientationAngleA(v);
+        params->setHasProbParameters(true);
+        return true;
+    }
+    if (normKey == "orientation_angle_b") {
+        float v = 0.0f;
+        if (!parseFloat(v)) return false;
+        params->setOrientationAngleB(v);
+        params->setHasProbParameters(true);
+        return true;
+    }
+    if (normKey == "orientation_angle_c") {
+        float v = 0.0f;
+        if (!parseFloat(v)) return false;
+        params->setOrientationAngleC(v);
+        params->setHasProbParameters(true);
+        return true;
+    }
+
+    if (normKey == "ellipse_order") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        params->setEllipseOrder(v);
+        return true;
+    }
+
+    if (normKey == "stefan_number") {
+        float v = 0.0f;
+        if (!parseFloat(v)) return false;
+        params->setStefanNumber(v);
+        return true;
+    }
+
+    if (normKey == "animate" || normKey == "is_animation") {
+        bool b = false;
+        if (!parseBool(b)) return false;
+        params->setIsAnimation(b);
+        return true;
+    }
+
+    if (normKey == "wave_generation" || normKey == "is_wave_generation") {
+        bool b = false;
+        if (!parseBool(b)) return false;
+        params->setIsWaveGeneration(b);
+        return true;
+    }
+
+    if (normKey == "initial_nuclei" || normKey == "initial_nuclei_count") {
+        int v = 0;
+        if (!parseInt(v)) return false;
+        params->setInitialNucleiCount(v);
+        return true;
+    }
+
+    if (normKey == "wave_peak_fraction") {
+        float v = 0.0f;
+        if (!parseFloat(v)) return false;
+        params->setWavePeakFraction(v);
+        return true;
+    }
+
+    if (normKey == "wave_end_fraction") {
+        float v = 0.0f;
+        if (!parseFloat(v)) return false;
+        params->setWaveEndFraction(v);
+        return true;
+    }
+
+    if (normKey == "wave_coefficient") {
+        float v = 0.0f;
+        if (!parseFloat(v)) return false;
+        params->setWaveCoefficient(v);
+        return true;
+    }
+
+    if (normKey == "material" || normKey == "db_material") {
+        params->setDbMaterial(value.trimmed());
+        return true;
+    }
+
+    if (normKey == "lattice" || normKey == "lattice_override") {
+        TextureLibrary::Lattice lat;
+        if (!parseLattice(value, lat)) {
+            return setErr(QString("Option lattice expects fcc or bcc; got \"%1\"").arg(value));
+        }
+        params->setLatticeOverride(value.trimmed().toLower());
+        return true;
+    }
+
+    if (normKey == "texture" || normKey == "texture_preset") {
+        TextureLibrary::Process proc;
+        if (!parseProcess(value, proc)) {
+            return setErr(QString("Option texture expects one of: random, extrusion, rolling, "
+                                  "recrystallization, shear, scattered_cube; got \"%1\"").arg(value));
+        }
+        params->setTexturePreset(value.trimmed());
+        return true;
+    }
+
+    if (normKey == "scatter" || normKey == "texture_scatter") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0.0) {
+            return setErr(QString("Option scatter expects a non-negative number of degrees; got \"%1\"").arg(value));
+        }
+        params->setTextureScatter(v);
+        return true;
+    }
+
+    if (normKey == "num_rnd_loads") {
+        unsigned int v = 0;
+        if (!parseUInt(v)) return false;
+        params->setNumRndLoads(v);
+        return true;
+    }
+
+    if (normKey == "solver" || normKey == "stress_solver") {
+        if (!isValidSolver(value)) {
+            return setErr(QString("Option solver expects ansys or fft; got \"%1\"").arg(value));
+        }
+        params->setStressSolver(value.trimmed().toLower());
+        return true;
+    }
+
+    if (normKey == "stress_mode") {
+        if (!isValidStressMode(value)) {
+            return setErr(QString("Option stress_mode expects single, dataset or stiffness; got \"%1\"").arg(value));
+        }
+        params->setStressMode(value.trimmed().toLower());
+        return true;
+    }
+
+    if (normKey == "eps" || normKey == "stress_eps") {
+        const QStringList parts = value.split(',');
+        if (parts.size() != 6) {
+            return setErr(QString("Option eps expects 6 comma-separated values, got %1").arg(parts.size()));
+        }
+        double e[6];
+        for (int i = 0; i < 6; ++i) {
+            bool ok = false;
+            e[i] = parts[i].trimmed().toDouble(&ok);
+            if (!ok) {
+                return setErr(QString("Option eps: component %1 is not a number: \"%2\"")
+                                  .arg(QString::number(i + 1), parts[i].trimmed()));
+            }
+        }
+        params->setStressEps(e);
+        return true;
+    }
+
+    if (normKey == "output" || normKey == "filename") {
+        params->setFilename(value.trimmed());
+        return true;
+    }
+
+    if (normKey == "working_directory") {
+        params->setWorkingDirectory(value.trimmed());
+        return true;
+    }
+
+    if (normKey == "seed") {
+        unsigned int v = 0;
+        if (!parseUInt(v)) return false;
+        params->setSeed(v);
+        return true;
+    }
+
+    if (normKey == "np" || normKey == "num_threads") {
+        int v = 0;
+        if (!parseInt(v, true)) return false;
+        params->setNumThreads(v);
+        return true;
+    }
+
+    return setErr(QString("Unknown parameter key: '%1'").arg(key));
+}
+
+bool applyParameter(const QString& key, const QString& value, QString* error)
+{
+    return Commandline_Parser::applyParameter(key, value, error);
+}
+
+bool Commandline_Parser::processOptions(const QCommandLineParser& parser, QString* error)
+{
+    Parameters* params = Parameters::instance();
+    QSet<QString> appliedKeys;
+
+    auto setErr = [&](const QString& msg) -> bool {
+        if (error) *error = msg;
+        qCritical().noquote() << msg;
+        return false;
+    };
+
+    auto normalizeKey = [](const QString& k) -> QString {
+        QString s = k.trimmed().toLower();
+        s.replace('-', '_');
+        s.replace('.', '_');
+        return s;
+    };
+
+    auto applyCliOption = [&](const QString& opt, const QString& val) -> bool {
+        QString err;
+        if (!applyParameter(opt, val, &err)) {
+            return setErr(QString("Option --%1: %2").arg(opt, err));
+        }
+        appliedKeys.insert(normalizeKey(opt));
+        qInfo() << opt << ":" << val;
+        return true;
+    };
+
+    // ── Load order Step 1: Config file (if specified) ─────────────────────
+    if (parser.isSet("config")) {
+        const QString configPath = parser.value("config");
+        QString configErr;
+        if (!ConfigDispatcher::loadAndApply(configPath, &configErr, &appliedKeys)) {
+            return setErr(configErr);
+        }
+    }
+
+    // ── Load order Step 2: Explicit CLI options (isSet overrides file) ─────
+    if (parser.isSet("size"))               if (!applyCliOption("size", parser.value("size"))) return false;
+    if (parser.isSet("points"))             if (!applyCliOption("points", parser.value("points"))) return false;
     if (parser.isSet("concentration")) {
         if (parser.isSet("points")) {
             qWarning() << "Both --points and --concentration were given;"
                        << "--concentration wins and --points is ignored";
         }
-        const QString str = parser.value("concentration");
-        bool ok = false;
-        const float pct = str.toFloat(&ok);
-        if (!ok) {
-            qFatal("Option --concentration expects a float; got \"%s\"",
-                   qPrintable(str));
-        }
-        if (pct <= 0.0f || pct > 100.0f)
-            qFatal("Option --concentration expects a value in (0, 100]; got %s",
-                   qPrintable(str));
+        if (!applyCliOption("concentration", parser.value("concentration"))) return false;
+    }
+    if (parser.isSet("algorithm"))          if (!applyCliOption("algorithm", parser.value("algorithm"))) return false;
+    if (parser.isSet("periodic"))           if (!applyCliOption("periodic", "true")) return false;
 
-        // Double, and rounded rather than truncated, to match
-        // Parameters::processPointInput(): computed in float, 0.375% of 20^3
-        // lands on 29.999... and truncated to 29 instead of the exact 30.
-        const double volume = std::pow(static_cast<double>(params->getSize()), 3);
-        const int derived = static_cast<int>(
-            std::lround(static_cast<double>(pct) / 100.0 * volume));
-        if (derived <= 0)
-            qFatal("Option --concentration resolved to %d points; raise --size or --concentration",
-                   derived);
-
-        params->setPoints(derived);
-        qInfo() << "concentration:" << pct << "% -> points:" << derived;
+    if (parser.isSet("neighborhood")) {
+        if (!applyCliOption("neighborhood", parser.value("neighborhood"))) return false;
+    } else if (parser.isSet("polycrystall_neighborhood")) {
+        if (!applyCliOption("polycrystall_neighborhood", parser.value("polycrystall_neighborhood"))) return false;
     }
 
-    // points must fit inside the cube, otherwise generation misbehaves silently
-    if (params->getSize() > 0 && params->getPoints() > std::pow(params->getSize(), 3)) {
-        qFatal("Initial points (%d) exceed the cube volume (%.0f); lower --points or raise --size",
-               params->getPoints(), std::pow(params->getSize(), 3));
-    }
-
-    // ── Probability preset & half-axes ───────────────────────────────────
-    parseString("prob_preset",      [&](const QString& v) { params->setProbPreset(v); });
-
-    // ── Ellipsoid half-axes ───────────────────────────────────────────────
-    parseFloat("halfaxis_a", [&](float v) { params->setHalfAxisA(v); });
-    parseFloat("halfaxis_b", [&](float v) { params->setHalfAxisB(v); });
-    parseFloat("halfaxis_c", [&](float v) { params->setHalfAxisC(v); });
-
-    params->setHasProbParameters(
-        parser.isSet("halfaxis_a") ||
-        parser.isSet("halfaxis_b") ||
-        parser.isSet("halfaxis_c") ||
-        parser.isSet("orientation_angle_a") ||
-        parser.isSet("orientation_angle_b") ||
-        parser.isSet("orientation_angle_c"));
-
-    // ── Orientation angles ────────────────────────────────────────────────
-    parseFloat("orientation_angle_a", [&](float v) { params->setOrientationAngleA(v); });
-    parseFloat("orientation_angle_b", [&](float v) { params->setOrientationAngleB(v); });
-    parseFloat("orientation_angle_c", [&](float v) { params->setOrientationAngleC(v); });
-
-    // ── Algorithm options ─────────────────────────────────────────────────
-    parseDouble("ellipse_order",    [&](double v) { params->setEllipseOrder(v); });
-    parseFloat("stefan_number",     [&](float v)  { params->setStefanNumber(v); });
-    parseDouble("minkowski_p",      [&](double v) {
-        if (v <= 0.0)
-            qFatal("Option --minkowski_p expects a positive value; got %s",
-                   qPrintable(QString::number(v)));
-        params->setMinkowskiP(v);
-    });
-    params->setIsPeriodic(parser.isSet("periodic"));
-
-    parseString("voronoi_metric_preset", [&](const QString& v) { params->setVoronoiMetricPreset(v); });
-    if (!parser.isSet("voronoi_metric_preset") && parser.isSet("prob_preset") &&
-        parser.value("algorithm").compare("Voronoi", Qt::CaseInsensitive) == 0) {
-        params->setVoronoiMetricPreset(parser.value("prob_preset"));
-    }
-
-    parseDouble("voronoi_mxx", [&](double v) { params->setVoronoiMxx(v); });
-    parseDouble("voronoi_myy", [&](double v) { params->setVoronoiMyy(v); });
-    parseDouble("voronoi_mzz", [&](double v) { params->setVoronoiMzz(v); });
-    parseDouble("voronoi_mxy", [&](double v) { params->setVoronoiMxy(v); });
-    parseDouble("voronoi_myz", [&](double v) { params->setVoronoiMyz(v); });
-    parseDouble("voronoi_mxz", [&](double v) { params->setVoronoiMxz(v); });
-
-    if (parser.isSet("voronoi_metric")) {
-        const QStringList parts = parser.value("voronoi_metric").split(',');
-        if (parts.size() >= 3) {
-            bool ok1 = false, ok2 = false, ok3 = false;
-            double mxx = parts[0].trimmed().toDouble(&ok1);
-            double myy = parts[1].trimmed().toDouble(&ok2);
-            double mzz = parts[2].trimmed().toDouble(&ok3);
-            if (ok1 && ok2 && ok3) {
-                params->setVoronoiMxx(mxx);
-                params->setVoronoiMyy(myy);
-                params->setVoronoiMzz(mzz);
-            }
-            if (parts.size() >= 6) {
-                bool ok4 = false, ok5 = false, ok6 = false;
-                double mxy = parts[3].trimmed().toDouble(&ok4);
-                double myz = parts[4].trimmed().toDouble(&ok5);
-                double mxz = parts[5].trimmed().toDouble(&ok6);
-                if (ok4 && ok5 && ok6) {
-                    params->setVoronoiMxy(mxy);
-                    params->setVoronoiMyz(myz);
-                    params->setVoronoiMxz(mxz);
-                }
-            }
-        }
-    }
-
-    // ── Composite (fiber-reinforced RVE) ──────────────────────────────────
-    parseString("composite_dim", [&](const QString& v) {
-        if (!isValidCompositeDim(v))
-            qFatal("Option --composite_dim expects 1d, 2d or 3d; got \"%s\"", qPrintable(v));
-        params->setCompositeDim(v);
-    });
-    parseString("composite_packing", [&](const QString& v) {
-        if (!isValidCompositePacking(v))
-            qFatal("Option --composite_packing expects square or hexagonal; got \"%s\"",
-                   qPrintable(v));
-        params->setCompositePacking(v);
-    });
-    parseDouble("fiber_volume_fraction", [&](double v) {
-        if (v <= 0.0 || v >= 1.0)
-            qFatal("Option --fiber_volume_fraction expects a value in (0, 1); got %s",
-                   qPrintable(QString::number(v)));
-        params->setFiberVolumeFraction(v);
-    });
-    parseInt("fibers_per_row", [&](int v) {
-        requirePositive("fibers_per_row", v);
-        params->setFibersPerRow(v);
-    });
-    parseDouble("fiber_aspect_ratio", [&](double v) {
-        if (v <= 0.0)
-            qFatal("Option --fiber_aspect_ratio expects a positive value; got %s",
-                   qPrintable(QString::number(v)));
-        params->setFiberAspectRatio(v);
-    });
-    parseDouble("fiber_angle_scatter", [&](double v) {
-        if (v < 0.0 || v > 180.0)
-            qFatal("Option --fiber_angle_scatter expects degrees in [0, 180]; got %s",
-                   qPrintable(QString::number(v)));
-        params->setFiberAngleScatter(v);
-    });
-    parseDouble("fiber_center_jitter", [&](double v) {
-        if (v < 0.0 || v > 1.0)
-            qFatal("Option --fiber_center_jitter expects a value in [0, 1]; got %s",
-                   qPrintable(QString::number(v)));
-        params->setFiberCenterJitter(v);
-    });
-    params->setFiberAllowOverlap(parser.isSet("fiber_allow_overlap"));
-    parseString("matrix_material", [&](const QString& v) { params->setMatrixMaterial(v); });
-    parseString("fiber_material",  [&](const QString& v) { params->setFiberMaterial(v); });
-
-    if (parser.isSet("animate"))
-        params->setIsAnimation(true);
-    if (parser.isSet("wave_generation"))
-        params->setIsWaveGeneration(true);
-    parseInt   ("initial_nuclei",      [&](int    v) { params->setInitialNucleiCount(v); });
-    parseFloat ("wave_peak_fraction",  [&](float  v) { params->setWavePeakFraction(v); });
-    parseFloat ("wave_end_fraction",   [&](float  v) { params->setWaveEndFraction(v); });
-    parseFloat ("wave_coefficient",    [&](float  v) { params->setWaveCoefficient(v); });
-
-    if (!parser.isSet("wave_coefficient"))
-        params->setWaveCoefficient(0.1f);
-
-    if (parser.isSet("prob_matrix_mode")) {
-        const QString m = parser.value("prob_matrix_mode").trimmed().toLower();
-        if (m == "surface" || m == "surface flux" || m == "surface_flux")
-            params->setProbMatrixMode("Surface Flux");
-        else
-            params->setProbMatrixMode("Volume Sampling");
-    }
-
-    parseString("neighborhood",              [&](const QString& v) { params->setPolycrystallNeighborhood(v); });
-    parseString("polycrystall_neighborhood", [&](const QString& v) { params->setPolycrystallNeighborhood(v); });
     if (parser.isSet("thin-layer") || parser.isSet("thin_layer")) {
-        params->setIsThinLayer(true);
+        if (!applyCliOption("thin_layer", "true")) return false;
     }
-    parseString("layer-direction", [&](const QString& v) {
-        params->setLayerDirection(v);
-        params->setIsThinLayer(true);
-    });
-    parseString("layer_direction", [&](const QString& v) {
-        params->setLayerDirection(v);
-        params->setIsThinLayer(true);
-    });
-    parseString("algorithm",                 [&](const QString& v) { params->setAlgorithm(v); });
-
-    // ── RNG seed ──────────────────────────────────────────────────────────
-    // toUInt, not toInt: the seed is unsigned and values above 2^31-1 are legal.
-    if (parser.isSet("seed")) {
-        bool ok = false;
-        const unsigned int seed = parser.value("seed").toUInt(&ok);
-        if (!ok)
-            qFatal("Option --seed expects a non-negative integer; got \"%s\"",
-                   qPrintable(parser.value("seed")));
-        params->setSeed(seed);
-    } else {
-        params->setSeed(static_cast<unsigned int>(std::time(nullptr)));
-    }
-    qInfo() << "Random seed:" << params->getSeed();
-
-    // ── Threading ─────────────────────────────────────────────────────────
-    if (parser.isSet("np")) {
-        bool ok = false;
-        const int np = parser.value("np").toInt(&ok);
-        if (!ok) qFatal("Option --np expects an integer");
-        requirePositive("np", np);
-        params->setNumThreads(np);
-    } else {
-        int cores = CpuInfo::getPhysicalCores();
-        params->setNumThreads(cores > 0 ? cores : omp_get_max_threads());
-        qDebug() << "Physical CPU cores:" << params->getNumThreads();
-    }
-    qInfo() << "Number of threads:" << params->getNumThreads();
-
-    // ── Material ──────────────────────────────────────────────────────────
-    // Before the texture block: the material's Type column decides which
-    // lattice the presets are built for, unless --lattice overrides it.
-    parseString("material", [&](const QString& v) { params->setDbMaterial(v); });
-
-    if (parser.isSet("lattice")) {
-        TextureLibrary::Lattice lat;
-        if (!parseLattice(parser.value("lattice"), lat))
-            qFatal("Option --lattice expects fcc or bcc; got \"%s\"",
-                   qPrintable(parser.value("lattice")));
-        params->setLatticeOverride(parser.value("lattice").trimmed().toLower());
+    if (parser.isSet("layer-direction")) {
+        if (!applyCliOption("layer_direction", parser.value("layer-direction"))) return false;
+    } else if (parser.isSet("layer_direction")) {
+        if (!applyCliOption("layer_direction", parser.value("layer_direction"))) return false;
     }
 
-    // ── Crystallographic texture ──────────────────────────────────────────
-    // Fills the same Parameters::textureComponents that the Texture Editor writes,
-    // so ansysWrapper and the viewport pick it up through the usual path.
+    if (parser.isSet("minkowski_p"))        if (!applyCliOption("minkowski_p", parser.value("minkowski_p"))) return false;
+    if (parser.isSet("voronoi_metric_preset")) if (!applyCliOption("voronoi_metric_preset", parser.value("voronoi_metric_preset"))) return false;
+    if (parser.isSet("voronoi_metric"))     if (!applyCliOption("voronoi_metric", parser.value("voronoi_metric"))) return false;
+    if (parser.isSet("voronoi_mxx"))        if (!applyCliOption("voronoi_mxx", parser.value("voronoi_mxx"))) return false;
+    if (parser.isSet("voronoi_myy"))        if (!applyCliOption("voronoi_myy", parser.value("voronoi_myy"))) return false;
+    if (parser.isSet("voronoi_mzz"))        if (!applyCliOption("voronoi_mzz", parser.value("voronoi_mzz"))) return false;
+    if (parser.isSet("voronoi_mxy"))        if (!applyCliOption("voronoi_mxy", parser.value("voronoi_mxy"))) return false;
+    if (parser.isSet("voronoi_myz"))        if (!applyCliOption("voronoi_myz", parser.value("voronoi_myz"))) return false;
+    if (parser.isSet("voronoi_mxz"))        if (!applyCliOption("voronoi_mxz", parser.value("voronoi_mxz"))) return false;
+
+    if (parser.isSet("composite_dim"))           if (!applyCliOption("composite_dim", parser.value("composite_dim"))) return false;
+    if (parser.isSet("composite_packing"))       if (!applyCliOption("composite_packing", parser.value("composite_packing"))) return false;
+    if (parser.isSet("fiber_volume_fraction"))   if (!applyCliOption("fiber_volume_fraction", parser.value("fiber_volume_fraction"))) return false;
+    if (parser.isSet("fibers_per_row"))          if (!applyCliOption("fibers_per_row", parser.value("fibers_per_row"))) return false;
+    if (parser.isSet("fiber_aspect_ratio"))      if (!applyCliOption("fiber_aspect_ratio", parser.value("fiber_aspect_ratio"))) return false;
+    if (parser.isSet("fiber_angle_scatter"))     if (!applyCliOption("fiber_angle_scatter", parser.value("fiber_angle_scatter"))) return false;
+    if (parser.isSet("fiber_center_jitter"))     if (!applyCliOption("fiber_center_jitter", parser.value("fiber_center_jitter"))) return false;
+    if (parser.isSet("fiber_allow_overlap"))     if (!applyCliOption("fiber_allow_overlap", "true")) return false;
+    if (parser.isSet("matrix_material"))         if (!applyCliOption("matrix_material", parser.value("matrix_material"))) return false;
+    if (parser.isSet("fiber_material"))          if (!applyCliOption("fiber_material", parser.value("fiber_material"))) return false;
+
+    if (parser.isSet("prob_preset"))             if (!applyCliOption("prob_preset", parser.value("prob_preset"))) return false;
+    if (parser.isSet("prob_matrix_mode"))        if (!applyCliOption("prob_matrix_mode", parser.value("prob_matrix_mode"))) return false;
+    if (parser.isSet("halfaxis_a"))              if (!applyCliOption("halfaxis_a", parser.value("halfaxis_a"))) return false;
+    if (parser.isSet("halfaxis_b"))              if (!applyCliOption("halfaxis_b", parser.value("halfaxis_b"))) return false;
+    if (parser.isSet("halfaxis_c"))              if (!applyCliOption("halfaxis_c", parser.value("halfaxis_c"))) return false;
+    if (parser.isSet("orientation_angle_a"))     if (!applyCliOption("orientation_angle_a", parser.value("orientation_angle_a"))) return false;
+    if (parser.isSet("orientation_angle_b"))     if (!applyCliOption("orientation_angle_b", parser.value("orientation_angle_b"))) return false;
+    if (parser.isSet("orientation_angle_c"))     if (!applyCliOption("orientation_angle_c", parser.value("orientation_angle_c"))) return false;
+    if (parser.isSet("ellipse_order"))           if (!applyCliOption("ellipse_order", parser.value("ellipse_order"))) return false;
+    if (parser.isSet("stefan_number"))           if (!applyCliOption("stefan_number", parser.value("stefan_number"))) return false;
+    if (parser.isSet("animate"))                 if (!applyCliOption("animate", "true")) return false;
+    if (parser.isSet("wave_generation"))         if (!applyCliOption("wave_generation", "true")) return false;
+    if (parser.isSet("initial_nuclei"))          if (!applyCliOption("initial_nuclei", parser.value("initial_nuclei"))) return false;
+    if (parser.isSet("wave_peak_fraction"))      if (!applyCliOption("wave_peak_fraction", parser.value("wave_peak_fraction"))) return false;
+    if (parser.isSet("wave_end_fraction"))       if (!applyCliOption("wave_end_fraction", parser.value("wave_end_fraction"))) return false;
+    if (parser.isSet("wave_coefficient"))        if (!applyCliOption("wave_coefficient", parser.value("wave_coefficient"))) return false;
+
+    if (parser.isSet("material"))                if (!applyCliOption("material", parser.value("material"))) return false;
+    if (parser.isSet("lattice"))                 if (!applyCliOption("lattice", parser.value("lattice"))) return false;
+
     if (parser.isSet("texture")) {
-        TextureLibrary::Process proc;
-        if (!parseProcess(parser.value("texture"), proc)) {
-            qFatal("Option --texture expects one of: random, extrusion, rolling, "
-                   "recrystallization, shear, scattered_cube; got \"%s\"",
-                   qPrintable(parser.value("texture")));
-        }
-
+        if (!applyCliOption("texture", parser.value("texture"))) return false;
         if (parser.isSet("scatter")) {
-            bool ok = false;
-            const double scatter = parser.value("scatter").toDouble(&ok);
-            if (!ok || scatter < 0.0)
-                qFatal("Option --scatter expects a non-negative number of degrees; got \"%s\"",
-                       qPrintable(parser.value("scatter")));
-            params->setTextureScatter(scatter);
+            if (!applyCliOption("scatter", parser.value("scatter"))) return false;
         }
-
-        // Routed through Parameters (rather than writing textureComponents
-        // directly) so the GUI panel shows the preset the CLI selected.
-        params->setTexturePreset(parser.value("texture"));
-
         const bool bcc = Parameters::materialLattice() == TextureLibrary::Lattice::BCC;
         qInfo() << "texture:" << parser.value("texture")
                 << " lattice:" << (bcc ? "bcc" : "fcc")
                 << " scatter:" << params->getTextureScatter() << "deg"
                 << " components:" << Parameters::textureComponents.size();
+    } else if (appliedKeys.contains("texture")) {
+        if (parser.isSet("scatter")) {
+            if (!applyCliOption("scatter", parser.value("scatter"))) return false;
+        }
+        const bool bcc = Parameters::materialLattice() == TextureLibrary::Lattice::BCC;
+        qInfo() << "texture:" << params->getTexturePreset()
+                << " lattice:" << (bcc ? "bcc" : "fcc")
+                << " scatter:" << params->getTextureScatter() << "deg"
+                << " components:" << Parameters::textureComponents.size();
     } else {
-        if (parser.isSet("lattice") || parser.isSet("scatter"))
+        if (parser.isSet("lattice") || parser.isSet("scatter")) {
             qWarning() << "--lattice and --scatter have no effect without --texture";
+        }
         Parameters::textureComponents.clear();
     }
 
-    if (parser.isSet("num_rnd_loads")) {
-        bool ok = false;
-        const unsigned int n = parser.value("num_rnd_loads").toUInt(&ok);
-        if (!ok)
-            qFatal("Option --num_rnd_loads expects a non-negative integer; got \"%s\"",
-                   qPrintable(parser.value("num_rnd_loads")));
-        params->setNumRndLoads(n);
-        qInfo() << "num_rnd_loads :" << n;
+    if (parser.isSet("num_rnd_loads"))           if (!applyCliOption("num_rnd_loads", parser.value("num_rnd_loads"))) return false;
+    if (parser.isSet("solver"))                  if (!applyCliOption("solver", parser.value("solver"))) return false;
+    if (parser.isSet("stress_mode"))             if (!applyCliOption("stress_mode", parser.value("stress_mode"))) return false;
+    if (parser.isSet("eps"))                     if (!applyCliOption("eps", parser.value("eps"))) return false;
+    if (parser.isSet("output"))                  if (!applyCliOption("output", parser.value("output"))) return false;
+    if (parser.isSet("working_directory"))       if (!applyCliOption("working_directory", parser.value("working_directory"))) return false;
+
+    if (parser.isSet("seed")) {
+        if (!applyCliOption("seed", parser.value("seed"))) return false;
     }
 
-    if (parser.isSet("solver")) {
-        const QString s = parser.value("solver");
-        if (!isValidSolver(s))
-            qFatal("Option --solver expects ansys or fft; got \"%s\"",
-                   qPrintable(s));
-        params->setStressSolver(s.trimmed().toLower());
-        qInfo() << "solver :" << s;
+    if (parser.isSet("np")) {
+        if (!applyCliOption("np", parser.value("np"))) return false;
     }
 
-    if (parser.isSet("stress_mode")) {
-        const QString m = parser.value("stress_mode");
-        if (!isValidStressMode(m))
-            qFatal("Option --stress_mode expects single, dataset or stiffness; got \"%s\"",
-                   qPrintable(m));
-        params->setStressMode(m.trimmed().toLower());
-        qInfo() << "stress_mode :" << m;
+    // ── Load order Step 3: Default values only if not set in file or CLI ──
+    if (!appliedKeys.contains("voronoi_metric_preset") &&
+        appliedKeys.contains("prob_preset") &&
+        params->getAlgorithm().compare("Voronoi", Qt::CaseInsensitive) == 0) {
+        params->setVoronoiMetricPreset(params->getProbPreset());
     }
 
-    if (parser.isSet("eps")) {
-        const QStringList parts = parser.value("eps").split(',');
-        if (parts.size() != 6)
-            qFatal("Option --eps expects 6 comma-separated values, got %d", static_cast<int>(parts.size()));
-        double e[6];
-        for (int i = 0; i < 6; ++i) {
-            bool ok = false;
-            e[i] = parts[i].trimmed().toDouble(&ok);
-            if (!ok)
-                qFatal("Option --eps: component %d is not a number: \"%s\"",
-                       i + 1, qPrintable(parts[i]));
-        }
-        params->setStressEps(e);
+    if (!appliedKeys.contains("wave_coefficient")) {
+        params->setWaveCoefficient(0.1f);
     }
 
-    parseString("output", [&](const QString& v) {
-        params->setFilename(v);
-    });
+    if (!appliedKeys.contains("seed")) {
+        params->setSeed(static_cast<unsigned int>(std::time(nullptr)));
+        qInfo() << "Random seed:" << params->getSeed();
+    }
 
-    parseString("working_directory", [&](const QString& v) {
-        params->setWorkingDirectory(v);
-    });
+    if (!appliedKeys.contains("np") && !appliedKeys.contains("num_threads")) {
+        int cores = CpuInfo::getPhysicalCores();
+        params->setNumThreads(cores > 0 ? cores : omp_get_max_threads());
+        qDebug() << "Physical CPU cores:" << params->getNumThreads();
+        qInfo() << "Number of threads:" << params->getNumThreads();
+    }
+
+    return true;
 }

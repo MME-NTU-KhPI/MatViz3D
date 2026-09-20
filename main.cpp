@@ -20,6 +20,7 @@
 #include "hdf5projectcontroller.h"
 #include "tensormath_selftest.hpp"
 #include <hdf5.h>
+#include <vector>
 
 #ifdef _WIN32
     #include <windows.h>
@@ -54,7 +55,43 @@ int main(int argc, char *argv[])
 #ifdef QT_DEBUG
     qputenv("QML_DISABLE_DISK_CACHE", "1");
 #endif
-    QApplication app(argc, argv);
+
+    // Save full original command-line arguments for our own QCommandLineParser
+    // and ConfigDispatcher.
+    QStringList originalArgs;
+    originalArgs.reserve(argc);
+    for (int i = 0; i < argc; ++i) {
+        originalArgs.append(QString::fromLocal8Bit(argv[i]));
+    }
+
+    // Isolate --config / -c from Qt/KConfig machinery:
+    // KDE Plasma's platform theme (KConfig) inspects QCoreApplication::arguments()
+    // on startup for '--config'. If present, it attempts to parse the user's config
+    // file as a KConfig INI file, generating invalid-entry errors.
+    // By filtering --config out of the argv passed to QApplication, KConfig never
+    // sees it, while our QCommandLineParser consumes it from originalArgs.
+    std::vector<char*> clean_argv;
+    clean_argv.reserve(argc + 1);
+    bool afterDoubleDash = false;
+    for (int i = 0; i < argc; ++i) {
+        const QString arg = QString::fromLocal8Bit(argv[i]);
+        if (!afterDoubleDash && arg == "--") {
+            afterDoubleDash = true;
+            clean_argv.push_back(argv[i]);
+        } else if (!afterDoubleDash && (arg == "--config" || arg == "-c")) {
+            if (i + 1 < argc) {
+                ++i; // Skip config file path argument
+            }
+        } else if (!afterDoubleDash && (arg.startsWith("--config=") || arg.startsWith("-c="))) {
+            // Skip combined flag
+        } else {
+            clean_argv.push_back(argv[i]);
+        }
+    }
+    int clean_argc = static_cast<int>(clean_argv.size());
+    clean_argv.push_back(nullptr);
+
+    QApplication app(clean_argc, clean_argv.data());
 
     QApplication::setApplicationName("MatViz3D");
     QApplication::setApplicationVersion("3.0.0");
@@ -63,7 +100,7 @@ int main(int argc, char *argv[])
     //    and so --nogui can be checked before loading QML at all.
     QCommandLineParser parser;
     Commandline_Parser::setupParser(parser);
-    parser.process(app);   // exits here if --help / --version
+    parser.process(originalArgs);   // exits here if --help / --version
 
     if (parser.isSet("help-json")) {
         Commandline_Parser::printJsonHelp();
@@ -79,9 +116,13 @@ int main(int argc, char *argv[])
             return 1;
     }
 
+    // ── Process configuration file and command-line options ───────────────
+    if (!Commandline_Parser::processOptions(parser)) {
+        return 1;
+    }
+
     // ── Optional: skip QML entirely in headless mode ──────────────────────
     if (parser.isSet("nogui")) {
-        Commandline_Parser::processOptions(parser);
         if (!parser.isSet("autostart")) return 0;
 
         MainWindowAlgorithmHandler handler;
@@ -182,8 +223,6 @@ int main(int argc, char *argv[])
                      });
 
     QTimer::singleShot(0, [&mainWindowWrapper, &parser, &schemaController, &stressAnalysisController]() {
-        Commandline_Parser::processOptions(parser);
-
         QString algo = Parameters::instance()->getAlgorithm();
         if (!algo.isEmpty())
             schemaController.onAlgorithmSelected(algo);

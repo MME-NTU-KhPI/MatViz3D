@@ -1,8 +1,10 @@
 #include "test_commandline_parser.h"
 #include <QTest>
 #include <QCommandLineParser>
+#include <QTemporaryFile>
 #include <setjmp.h>
 #include "commandline_parser.h"
+#include "config_source.h"
 #include "parameters.h"
 #include "texturelibrary.h"
 
@@ -173,4 +175,268 @@ void TestCommandlineParser::testInvalidOptionsRejected()
     TextureLibrary::Lattice lat;
     QCOMPARE(Commandline_Parser::parseLattice("hcp", lat), false);
     QCOMPARE(Commandline_Parser::parseLattice("sc", lat), false);
+}
+
+void TestCommandlineParser::testJsonSourceMapsKeysCorrectly()
+{
+    QTemporaryFile tempFile;
+    QVERIFY(tempFile.open());
+    const QByteArray jsonContent = R"({
+        "size": 35,
+        "algorithm": "Voronoi",
+        "periodic": true,
+        "eps": [0.002, 0.0, 0.0, 0.0, 0.0, 0.0]
+    })";
+    tempFile.write(jsonContent);
+    tempFile.flush();
+
+    JsonSource source;
+    QString err;
+    const auto pairs = source.read(tempFile.fileName(), &err);
+    QVERIFY(err.isEmpty());
+
+    QMap<QString, QString> map;
+    for (const auto& p : pairs) {
+        map[p.first] = p.second;
+    }
+
+    QCOMPARE(map.value("size"), QString("35"));
+    QCOMPARE(map.value("algorithm"), QString("Voronoi"));
+    QCOMPARE(map.value("periodic"), QString("true"));
+    QCOMPARE(map.value("eps"), QString("0.002,0,0,0,0,0"));
+}
+
+void TestCommandlineParser::testJsonSourceNestedFlattening()
+{
+    QTemporaryFile tempFile(QDir::tempPath() + "/matviz_test_XXXXXX.json");
+    QVERIFY(tempFile.open());
+    const QByteArray jsonContent = R"({
+        "voronoi": {
+            "metric": [1.0, 2.0, 3.0],
+            "mxx": 1.5
+        },
+        "composite": {
+            "dim": "2d",
+            "packing": "hexagonal"
+        }
+    })";
+    tempFile.write(jsonContent);
+    tempFile.close();
+
+    JsonSource source;
+    QString err;
+    const auto pairs = source.read(tempFile.fileName(), &err);
+    QVERIFY(err.isEmpty());
+
+    QMap<QString, QString> map;
+    for (const auto& p : pairs) {
+        map[p.first] = p.second;
+    }
+
+    QCOMPARE(map.value("voronoi_metric"), QString("1,2,3"));
+    QCOMPARE(map.value("voronoi_mxx"), QString("1.5"));
+    QCOMPARE(map.value("composite_dim"), QString("2d"));
+    QCOMPARE(map.value("composite_packing"), QString("hexagonal"));
+
+    // Verify applying these pairs into Parameters
+    QString applyErr;
+    QVERIFY(ConfigDispatcher::loadAndApply(tempFile.fileName(), &applyErr));
+    Parameters* params = Parameters::instance();
+    QVERIFY(params->getCompositeDim().contains("2D"));
+    QCOMPARE(params->getCompositePacking().toLower(), QString("hexagonal"));
+    QCOMPARE(params->getVoronoiMxx(), 1.5);
+}
+
+void TestCommandlineParser::testApplyParameterValidAndInvalid()
+{
+    Parameters* params = Parameters::instance();
+    QString err;
+
+    // Valid parameters
+    QVERIFY(applyParameter("size", "42", &err));
+    QCOMPARE(params->getSize(), 42);
+
+    QVERIFY(applyParameter("composite_dim", "3d", &err));
+    QVERIFY(params->getCompositeDim().contains("3D"));
+
+    QVERIFY(applyParameter("periodic", "true", &err));
+    QCOMPARE(params->getIsPeriodic(), true);
+
+    QVERIFY(applyParameter("fiber_volume_fraction", "0.35", &err));
+    QCOMPARE(params->getFiberVolumeFraction(), 0.35);
+
+    // Invalid parameters must return false, set descriptive error, and NOT crash
+    QVERIFY(!applyParameter("size", "-5", &err));
+    QVERIFY(!err.isEmpty());
+
+    QVERIFY(!applyParameter("size", "not_an_int", &err));
+    QVERIFY(!err.isEmpty());
+
+    QVERIFY(!applyParameter("composite_dim", "4d", &err));
+    QVERIFY(err.contains("composite_dim", Qt::CaseInsensitive));
+
+    QVERIFY(!applyParameter("composite_packing", "triangle", &err));
+    QVERIFY(err.contains("composite_packing", Qt::CaseInsensitive));
+
+    QVERIFY(!applyParameter("fiber_volume_fraction", "1.5", &err));
+    QVERIFY(err.contains("fiber_volume_fraction", Qt::CaseInsensitive));
+
+    QVERIFY(!applyParameter("solver", "abaqus", &err));
+    QVERIFY(err.contains("solver", Qt::CaseInsensitive));
+
+    QVERIFY(!applyParameter("stress_mode", "bogus", &err));
+    QVERIFY(err.contains("stress_mode", Qt::CaseInsensitive));
+
+    QVERIFY(!applyParameter("lattice", "invalid_lattice", &err));
+    QVERIFY(err.contains("lattice", Qt::CaseInsensitive));
+
+    QVERIFY(!applyParameter("texture", "invalid_texture", &err));
+    QVERIFY(err.contains("texture", Qt::CaseInsensitive));
+
+    QVERIFY(!applyParameter("scatter", "-5.0", &err));
+    QVERIFY(err.contains("scatter", Qt::CaseInsensitive));
+
+    QVERIFY(!applyParameter("eps", "1,2,3", &err));
+    QVERIFY(err.contains("eps", Qt::CaseInsensitive));
+}
+
+void TestCommandlineParser::testUnknownKeyRejected()
+{
+    QString err;
+    QVERIFY(!applyParameter("totally_unknown_key_xyz", "value", &err));
+    QVERIFY(err.contains("Unknown parameter key", Qt::CaseInsensitive));
+    QVERIFY(err.contains("totally_unknown_key_xyz"));
+
+    // Also test via ConfigDispatcher::loadAndApply
+    QTemporaryFile tempFile(QDir::tempPath() + "/matviz_test_XXXXXX.json");
+    QVERIFY(tempFile.open());
+    tempFile.write(R"({ "invalid_key_123": "val" })");
+    tempFile.close();
+
+    QString loadErr;
+    QVERIFY(!ConfigDispatcher::loadAndApply(tempFile.fileName(), &loadErr));
+    QVERIFY(loadErr.contains("invalid_key_123"));
+}
+
+void TestCommandlineParser::testCliOverridesFile()
+{
+    Parameters* params = Parameters::instance();
+
+    QTemporaryFile tempFile(QDir::tempPath() + "/matviz_test_XXXXXX.json");
+    QVERIFY(tempFile.open());
+    const QByteArray jsonContent = R"({
+        "size": 30,
+        "algorithm": "Voronoi",
+        "composite_dim": "1d",
+        "seed": 7777
+    })";
+    tempFile.write(jsonContent);
+    tempFile.close();
+
+    // CLI overrides size to 50 and algorithm to Composite; composite_dim and seed are not set on CLI
+    QCommandLineParser parser;
+    Commandline_Parser::setupParser(parser);
+    const QStringList args = {
+        "MatViz3D",
+        "--config", tempFile.fileName(),
+        "--size", "50",
+        "--algorithm", "Composite"
+    };
+    QVERIFY(parser.parse(args));
+    QVERIFY(Commandline_Parser::processOptions(parser));
+
+    // CLI values override config file
+    QCOMPARE(params->getSize(), 50);
+    QCOMPARE(params->getAlgorithm(), QString("Composite"));
+
+    // File values are preserved because CLI did not set them (defaults do NOT overwrite)
+    QVERIFY(params->getCompositeDim().contains("1D"));
+    QCOMPARE(params->getSeed(), 7777u);
+}
+
+void TestCommandlineParser::testYamlSourceStub()
+{
+    QTemporaryFile tempFile(QDir::tempPath() + "/matviz_test_XXXXXX.yaml");
+    QVERIFY(tempFile.open());
+    tempFile.write("size: 30\n");
+    tempFile.flush();
+
+    QString err;
+    QVERIFY(!ConfigDispatcher::loadAndApply(tempFile.fileName(), &err));
+    QVERIFY(err.contains("YAML configuration support is not built yet", Qt::CaseInsensitive));
+}
+
+void TestCommandlineParser::testConfigCallerPathUnknownKey()
+{
+    QTemporaryFile tempFile(QDir::tempPath() + "/matviz_test_XXXXXX.json");
+    QVERIFY(tempFile.open());
+    tempFile.write(R"({ "unknown_option_key": "some_value" })");
+    tempFile.close();
+
+    // 1. Direct caller path via ConfigDispatcher::loadAndApply
+    QString loadErr;
+    bool success = ConfigDispatcher::loadAndApply(tempFile.fileName(), &loadErr);
+    QVERIFY(!success);
+    QVERIFY(!loadErr.isEmpty());
+    QVERIFY(loadErr.contains("unknown_option_key"));
+    QVERIFY(loadErr.contains("Unknown parameter key", Qt::CaseInsensitive));
+
+    // 2. Caller path via Commandline_Parser::processOptions with --config
+    QCommandLineParser parser;
+    Commandline_Parser::setupParser(parser);
+    const QStringList args = { "MatViz3D", "--config", tempFile.fileName() };
+    QVERIFY(parser.parse(args));
+
+    QString processErr;
+    bool procSuccess = Commandline_Parser::processOptions(parser, &processErr);
+    QVERIFY(!procSuccess);
+    QVERIFY(!processErr.isEmpty());
+    QVERIFY(processErr.contains("unknown_option_key"));
+    QVERIFY(processErr.contains("Unknown parameter key", Qt::CaseInsensitive));
+}
+
+void TestCommandlineParser::testConfigCallerPathMissingAndMalformed()
+{
+    // Missing file
+    const QString missingPath = QDir::tempPath() + "/matviz_nonexistent_123456.json";
+    QString missingErr;
+    QVERIFY(!ConfigDispatcher::loadAndApply(missingPath, &missingErr));
+    QVERIFY(!missingErr.isEmpty());
+
+    QCommandLineParser missingParser;
+    Commandline_Parser::setupParser(missingParser);
+    QVERIFY(missingParser.parse({ "MatViz3D", "--config", missingPath }));
+    QString missingProcErr;
+    QVERIFY(!Commandline_Parser::processOptions(missingParser, &missingProcErr));
+    QVERIFY(!missingProcErr.isEmpty());
+
+    // Malformed JSON
+    QTemporaryFile malformedFile(QDir::tempPath() + "/matviz_malformed_XXXXXX.json");
+    QVERIFY(malformedFile.open());
+    malformedFile.write("{ bad json: 123");
+    malformedFile.close();
+
+    QString malformedErr;
+    QVERIFY(!ConfigDispatcher::loadAndApply(malformedFile.fileName(), &malformedErr));
+    QVERIFY(malformedErr.contains("syntax error", Qt::CaseInsensitive));
+
+    QCommandLineParser malformedParser;
+    Commandline_Parser::setupParser(malformedParser);
+    QVERIFY(malformedParser.parse({ "MatViz3D", "--config", malformedFile.fileName() }));
+    QString malformedProcErr;
+    QVERIFY(!Commandline_Parser::processOptions(malformedParser, &malformedProcErr));
+    QVERIFY(malformedProcErr.contains("syntax error", Qt::CaseInsensitive));
+}
+
+void TestCommandlineParser::testCliCallerPathGracefulErrors()
+{
+    QCommandLineParser parser;
+    Commandline_Parser::setupParser(parser);
+    const QStringList args = { "MatViz3D", "--size", "not_a_number" };
+    QVERIFY(parser.parse(args));
+
+    QString err;
+    QVERIFY(!Commandline_Parser::processOptions(parser, &err));
+    QVERIFY(!err.isEmpty());
+    QVERIFY(err.contains("Option --size", Qt::CaseInsensitive));
 }

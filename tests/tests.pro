@@ -48,6 +48,7 @@ SOURCES += \
     ../loadstepmanager.cpp \
     ../texturelibrary.cpp \
     ../commandline_parser.cpp \
+    ../config_source.cpp \
     ../dbmanager.cpp \
     ../hillcriterion.cpp \
     ../hdf5wrapper.cpp \
@@ -68,6 +69,7 @@ HEADERS += \
     ../loadstepmanager.h \
     ../texturelibrary.h \
     ../commandline_parser.h \
+    ../config_source.h \
     ../dbmanager.h \
     ../hillcriterion.h \
     ../hdf5wrapper.h \

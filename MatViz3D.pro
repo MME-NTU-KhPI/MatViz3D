@@ -87,6 +87,7 @@ win32 {
 
 SOURCES += \
         commandline_parser.cpp \
+        config_source.cpp \
         consolelogger.cpp \
         dbmanager.cpp \
         exportcontroller.cpp \
@@ -147,6 +148,7 @@ HEADERS += \
     colormap.hpp \
     cornergizmo.hpp \
     commandline_parser.h \
+    config_source.h \
     consolelogger.h \
     cpuinfo.hpp \
     dbmanager.h \
