@@ -354,16 +354,255 @@ void TestCommandlineParser::testCliOverridesFile()
     QCOMPARE(params->getSeed(), 7777u);
 }
 
-void TestCommandlineParser::testYamlSourceStub()
+void TestCommandlineParser::testYamlSourceMapsFlatKeysCorrectly()
 {
-    QTemporaryFile tempFile(QDir::tempPath() + "/matviz_test_XXXXXX.yaml");
+    QTemporaryFile tempFile;
     QVERIFY(tempFile.open());
-    tempFile.write("size: 30\n");
+    const QByteArray content =
+        "size: 30\n"
+        "algorithm: Voronoi\n"
+        "periodic: true\n"
+        "points: 50\n";
+    tempFile.write(content);
     tempFile.flush();
 
+    YamlSource source;
     QString err;
-    QVERIFY(!ConfigDispatcher::loadAndApply(tempFile.fileName(), &err));
-    QVERIFY(err.contains("YAML configuration support is not built yet", Qt::CaseInsensitive));
+    const auto pairs = source.read(tempFile.fileName(), &err);
+    QVERIFY2(err.isEmpty(), qPrintable(err));
+
+    QMap<QString, QString> map;
+    for (const auto& p : pairs) {
+        map[p.first] = p.second;
+    }
+    QCOMPARE(map.value("size"), QString("30"));
+    QCOMPARE(map.value("algorithm"), QString("Voronoi"));
+    QCOMPARE(map.value("periodic"), QString("true"));
+    QCOMPARE(map.value("points"), QString("50"));
+}
+
+void TestCommandlineParser::testYamlSourceNestedFlattening()
+{
+    QTemporaryFile tempFile;
+    QVERIFY(tempFile.open());
+    const QByteArray content =
+        "voronoi:\n"
+        "  mxx: 1.5\n"
+        "  voronoi_myy: 2.0\n"
+        "composite:\n"
+        "  dim: 2d\n"
+        "  packing: hexagonal\n";
+    tempFile.write(content);
+    tempFile.flush();
+
+    YamlSource source;
+    QString err;
+    const auto pairs = source.read(tempFile.fileName(), &err);
+    QVERIFY2(err.isEmpty(), qPrintable(err));
+
+    QMap<QString, QString> map;
+    for (const auto& p : pairs) {
+        map[p.first] = p.second;
+    }
+    QCOMPARE(map.value("voronoi_mxx"), QString("1.5"));
+    QCOMPARE(map.value("voronoi_myy"), QString("2.0")); // Anti-duplicate prefix rule
+    QCOMPARE(map.value("composite_dim"), QString("2d"));
+    QCOMPARE(map.value("composite_packing"), QString("hexagonal"));
+}
+
+void TestCommandlineParser::testYamlSourceCommentsAndQuotes()
+{
+    QTemporaryFile tempFile;
+    QVERIFY(tempFile.open());
+    const QByteArray content =
+        "# Leading comment\n"
+        "size: 30 # trailing comment\n"
+        "algorithm: 'Voronoi'\n"
+        "output: \"results # not comment.hdf5\"\n"
+        "neighborhood: 'Moore (26)'\n";
+    tempFile.write(content);
+    tempFile.flush();
+
+    YamlSource source;
+    QString err;
+    const auto pairs = source.read(tempFile.fileName(), &err);
+    QVERIFY2(err.isEmpty(), qPrintable(err));
+
+    QMap<QString, QString> map;
+    for (const auto& p : pairs) {
+        map[p.first] = p.second;
+    }
+    QCOMPARE(map.value("size"), QString("30"));
+    QCOMPARE(map.value("algorithm"), QString("Voronoi"));
+    QCOMPARE(map.value("output"), QString("results # not comment.hdf5"));
+    QCOMPARE(map.value("neighborhood"), QString("Moore (26)"));
+}
+
+void TestCommandlineParser::testYamlSourceInlineList()
+{
+    QTemporaryFile tempFile;
+    QVERIFY(tempFile.open());
+    const QByteArray content =
+        "metric: [1.0, 2.0, 3.0]\n"
+        "eps: [0.002, 0.0, 0.0, 0.0, 0.0, 0.0] # comment after list\n"
+        "names: ['item 1', \"item 2\"]\n";
+    tempFile.write(content);
+    tempFile.flush();
+
+    YamlSource source;
+    QString err;
+    const auto pairs = source.read(tempFile.fileName(), &err);
+    QVERIFY2(err.isEmpty(), qPrintable(err));
+
+    QMap<QString, QString> map;
+    for (const auto& p : pairs) {
+        map[p.first] = p.second;
+    }
+    QCOMPARE(map.value("metric"), QString("1.0,2.0,3.0"));
+    QCOMPARE(map.value("eps"), QString("0.002,0.0,0.0,0.0,0.0,0.0"));
+    QCOMPARE(map.value("names"), QString("item 1,item 2"));
+}
+
+void TestCommandlineParser::testYamlSourceNoTypeCoercion()
+{
+    // Guard against the "Norway problem" (algorithm: on, material: NO)
+    QTemporaryFile tempFile;
+    QVERIFY(tempFile.open());
+    const QByteArray content =
+        "algorithm: on\n"
+        "material: NO\n"
+        "flag_yes: yes\n"
+        "flag_off: off\n";
+    tempFile.write(content);
+    tempFile.flush();
+
+    YamlSource source;
+    QString err;
+    const auto pairs = source.read(tempFile.fileName(), &err);
+    QVERIFY2(err.isEmpty(), qPrintable(err));
+
+    QMap<QString, QString> map;
+    for (const auto& p : pairs) {
+        map[p.first] = p.second;
+    }
+    QCOMPARE(map.value("algorithm"), QString("on"));
+    QCOMPARE(map.value("material"), QString("NO"));
+    QCOMPARE(map.value("flag_yes"), QString("yes"));
+    QCOMPARE(map.value("flag_off"), QString("off"));
+}
+
+void TestCommandlineParser::testYamlSourceAllowedCharacters()
+{
+    // Ensure characters like '-', '&', '|' pass when they are not YAML syntax constructs
+    QTemporaryFile tempFile;
+    QVERIFY(tempFile.open());
+    const QByteArray content =
+        "output: results-2024.json\n"
+        "material: Steel & Iron\n"
+        "fiber_material: \"a|b\"\n";
+    tempFile.write(content);
+    tempFile.flush();
+
+    YamlSource source;
+    QString err;
+    const auto pairs = source.read(tempFile.fileName(), &err);
+    QVERIFY2(err.isEmpty(), qPrintable(err));
+
+    QMap<QString, QString> map;
+    for (const auto& p : pairs) {
+        map[p.first] = p.second;
+    }
+    QCOMPARE(map.value("output"), QString("results-2024.json"));
+    QCOMPARE(map.value("material"), QString("Steel & Iron"));
+    QCOMPARE(map.value("fiber_material"), QString("a|b"));
+}
+
+void TestCommandlineParser::testYamlSourceUnsupportedConstructsRejected()
+{
+    auto testReject = [](const QByteArray& yaml, const QString& expectedSubstring, int expectedLine) {
+        QTemporaryFile file;
+        QVERIFY(file.open());
+        file.write(yaml);
+        file.flush();
+
+        YamlSource source;
+        QString err;
+        const auto pairs = source.read(file.fileName(), &err);
+        QVERIFY(pairs.isEmpty());
+        QVERIFY2(!err.isEmpty(), "Expected parse error, got empty error string");
+        QVERIFY2(err.contains(expectedSubstring, Qt::CaseInsensitive),
+                 qPrintable(QString("Expected substring '%1' not in '%2'").arg(expectedSubstring, err)));
+        QVERIFY2(err.contains(QString("line %1").arg(expectedLine), Qt::CaseInsensitive),
+                 qPrintable(QString("Expected line %1 not in '%2'").arg(QString::number(expectedLine), err)));
+    };
+
+    // 1. Block sequence (- item)
+    testReject("- item\n", "block sequence", 1);
+
+    // 2. Tab for indentation
+    testReject("\tsize: 30\n", "tabs are not allowed", 1);
+
+    // 3. Anchor (&anchor)
+    testReject("key: &anchor 42\n", "anchor/alias", 1);
+
+    // 4. Alias (*alias)
+    testReject("key: *alias\n", "anchor/alias", 1);
+
+    // 5. Multi-line scalar (|)
+    testReject("key: |\n  multi\n", "multi-line scalar", 1);
+
+    // 6. Multi-line scalar (>)
+    testReject("key: >\n  multi\n", "multi-line scalar", 1);
+
+    // 7. Document marker (---)
+    testReject("---\nsize: 30\n", "document marker", 1);
+
+    // 8. Nesting deeper than 1 level
+    testReject("voronoi:\n  metric:\n    deep: 1\n", "nesting deeper than 1 level", 2);
+
+    // 9. Missing ':' separator
+    testReject("just_a_string_without_colon\n", "missing ':'", 1);
+}
+
+void TestCommandlineParser::testYamlSourceEndToEnd()
+{
+    // 1. Valid YAML file applies to Parameters
+    {
+        QTemporaryFile tempFile(QDir::tempPath() + "/matviz_test_XXXXXX.yaml");
+        QVERIFY(tempFile.open());
+        const QByteArray content =
+            "size: 45\n"
+            "periodic: true\n"
+            "voronoi:\n"
+            "  mxx: 2.5\n"
+            "composite:\n"
+            "  dim: 2d\n"
+            "  packing: hexagonal\n";
+        tempFile.write(content);
+        tempFile.flush();
+
+        QString applyErr;
+        QVERIFY2(ConfigDispatcher::loadAndApply(tempFile.fileName(), &applyErr), qPrintable(applyErr));
+        Parameters* params = Parameters::instance();
+        QCOMPARE(params->getSize(), 45);
+        QCOMPARE(params->getIsPeriodic(), true);
+        QCOMPARE(params->getVoronoiMxx(), 2.5);
+        QVERIFY(params->getCompositeDim().contains("2D"));
+        QCOMPARE(params->getCompositePacking().toLower(), QString("hexagonal"));
+    }
+
+    // 2. Invalid parameter value rejected via applyParameter gracefully without crashing
+    {
+        QTemporaryFile invalidFile(QDir::tempPath() + "/matviz_test_XXXXXX.yaml");
+        QVERIFY(invalidFile.open());
+        invalidFile.write("size: -10\n");
+        invalidFile.flush();
+
+        QString invalidErr;
+        QVERIFY(!ConfigDispatcher::loadAndApply(invalidFile.fileName(), &invalidErr));
+        QVERIFY(!invalidErr.isEmpty());
+        QVERIFY(invalidErr.contains("size", Qt::CaseInsensitive));
+    }
 }
 
 void TestCommandlineParser::testConfigCallerPathUnknownKey()

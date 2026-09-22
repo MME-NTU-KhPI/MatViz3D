@@ -41,10 +41,11 @@ public:
 };
 
 /**
- * @brief YAML configuration reader stub.
+ * @brief YAML configuration reader for flat and 1-level nested configurations.
  *
- * Returns a "not built yet" error message until yaml-cpp is linked.
- * Leaves the architectural seam ready for future drop-in support.
+ * Lightweight, zero-dependency parser that reads (key, value) pairs and flattens
+ * 1-level nested mappings matching JsonSource's canonical key naming.
+ * Values are returned in raw string form without type coercion.
  */
 class YamlSource : public ConfigSource {
 public:

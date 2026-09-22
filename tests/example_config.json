@@ -1,0 +1,24 @@
+{
+  "size": 40,
+  "points": 60,
+  "algorithm": "Voronoi",
+  "periodic": true,
+  "seed": 42,
+  "np": 4,
+  "output": "voronoi_out.hdf5",
+  "voronoi": {
+    "mxx": 1.0,
+    "myy": 1.0,
+    "mzz": 1.0,
+    "metric_preset": "Sphere (Circle)"
+  },
+  "composite": {
+    "dim": "2d",
+    "packing": "hexagonal",
+    "fiber_volume_fraction": 0.4
+  },
+  "material": "Cu",
+  "lattice": "fcc",
+  "texture": "rolling",
+  "scatter": 5.0
+}

@@ -1,0 +1,33 @@
+# MatViz3D example configuration (YAML)
+# Values pass through as-is; validation happens in applyParameter.
+
+size: 40
+points: 60
+algorithm: Voronoi
+periodic: true
+seed: 42
+np: 4
+output: "voronoi_out.hdf5"   # quoted value; the # here is a real comment
+
+# One-level nesting flattens to voronoi_mxx, voronoi_myy, ...
+voronoi:
+  mxx: 1.0
+  myy: 1.0
+  mzz: 1.0
+  metric_preset: "Sphere (Circle)"
+
+composite:
+  dim: 2d
+  packing: hexagonal
+  fiber_volume_fraction: 0.4
+
+# Inline list -> joined to "0.001,0,0,0,0,0"
+stress:
+  solver: fft
+  mode: stiffness
+  eps: [0.001, 0, 0, 0, 0, 0]
+
+material: Cu
+lattice: fcc
+texture: rolling
+scatter: 5.0

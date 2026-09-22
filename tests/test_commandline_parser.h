@@ -21,7 +21,14 @@ private slots:
     void testApplyParameterValidAndInvalid();
     void testUnknownKeyRejected();
     void testCliOverridesFile();
-    void testYamlSourceStub();
+    void testYamlSourceMapsFlatKeysCorrectly();
+    void testYamlSourceNestedFlattening();
+    void testYamlSourceCommentsAndQuotes();
+    void testYamlSourceInlineList();
+    void testYamlSourceNoTypeCoercion();
+    void testYamlSourceAllowedCharacters();
+    void testYamlSourceUnsupportedConstructsRejected();
+    void testYamlSourceEndToEnd();
     void testConfigCallerPathUnknownKey();
     void testConfigCallerPathMissingAndMalformed();
     void testCliCallerPathGracefulErrors();
