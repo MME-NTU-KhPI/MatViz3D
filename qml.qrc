@@ -64,5 +64,11 @@
         <file>TensorViewPanel.qml</file>
         <file>TextureView.qml</file>
         <file>img/fileMenu/grain_generator.svg</file>
+        <file>img/textureView/texture_extrusion.svg</file>
+        <file>img/textureView/texture_random.svg</file>
+        <file>img/textureView/texture_rolling.svg</file>
+        <file>img/textureView/texture_recrystallization.svg</file>
+        <file>img/textureView/texture_scattered_cube.svg</file>
+        <file>img/textureView/texture_shear.svg</file>
     </qresource>
 </RCC>

@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Controls.Material
 import QtQuick.Dialogs
 import QtQuick.Layouts
+import QtQuick.Effects
 
 Window {
     id: root
@@ -221,12 +222,12 @@ Window {
                     // Order must match TextureLibrary::Process -- the index is
                     // assigned straight to ctrl.process.
                     readonly property var processList: [
-                        { name: "Random", desc: "Isotropic background", icon: "🎲" },
-                        { name: "Extrusion", desc: "Fiber textures (<111>+<100> / <110>)", icon: "⭱" },
-                        { name: "Rolling", desc: "Copper, Brass, S / Alpha, Gamma", icon: "⇌" },
-                        { name: "Recrystallization", desc: "Cube & Goss components", icon: "❄" },
-                        { name: "Shear", desc: "Torsion/Shear components", icon: "⇋" },
-                        { name: "Scattered Cube", desc: "Cube-aligned, tilted by ≤ σ", icon: "⊹" }
+                        { name: "Random", desc: "Isotropic background", icon: "qrc:/img/textureView/texture_random.svg" },
+                        { name: "Extrusion", desc: "Fiber textures (<111>+<100> / <110>)", icon: "qrc:/img/textureView/texture_extrusion.svg" },
+                        { name: "Rolling", desc: "Copper, Brass, S / Alpha, Gamma", icon: "qrc:/img/textureView/texture_rolling.svg" },
+                        { name: "Recrystallization", desc: "Cube & Goss components", icon: "qrc:/img/textureView/texture_recrystallization.svg" },
+                        { name: "Shear", desc: "Torsion/Shear components", icon: "qrc:/img/textureView/texture_shear.svg" },
+                        { name: "Scattered Cube", desc: "Cube-aligned, tilted by ≤ σ", icon: "qrc:/img/textureView/texture_scattered_cube.svg" }
                     ]
 
                     ColumnLayout {
@@ -271,13 +272,25 @@ Window {
                                         // different advance widths (🎲 vs ⇌ vs ❄), so an
                                         // auto-sized Label made the text start at a different
                                         // x on every row.
-                                        Label {
+                                        Item {
                                             Layout.preferredWidth: 24
+                                            Layout.preferredHeight: 24
                                             Layout.alignment: Qt.AlignVCenter
-                                            horizontalAlignment: Text.AlignHCenter
-                                            text: modelData.icon
-                                            color: procDelegate.active ? colAccent : colSub
-                                            font.pixelSize: 18
+
+                                            Image {
+                                                id: procIcon
+                                                anchors.fill: parent
+                                                source: modelData.icon
+                                                sourceSize: Qt.size(48, 48)
+                                                fillMode: Image.PreserveAspectFit
+                                                visible: false
+                                            }
+                                            MultiEffect {
+                                                anchors.fill: procIcon
+                                                source: procIcon
+                                                colorization: 1.0
+                                                colorizationColor: procDelegate.active ? colAccent : colSub
+                                            }
                                         }
 
                                         ColumnLayout {
