@@ -3,7 +3,6 @@ import QtQuick.Controls
 import QtQuick.Controls.Material
 import QtQuick.Dialogs
 import QtQuick.Layouts
-import QtQuick.Effects
 
 Window {
     id: root
@@ -272,25 +271,14 @@ Window {
                                         // different advance widths (🎲 vs ⇌ vs ❄), so an
                                         // auto-sized Label made the text start at a different
                                         // x on every row.
-                                        Item {
+                                        Image {
                                             Layout.preferredWidth: 24
                                             Layout.preferredHeight: 24
                                             Layout.alignment: Qt.AlignVCenter
-
-                                            Image {
-                                                id: procIcon
-                                                anchors.fill: parent
-                                                source: modelData.icon
-                                                sourceSize: Qt.size(48, 48)
-                                                fillMode: Image.PreserveAspectFit
-                                                visible: false
-                                            }
-                                            MultiEffect {
-                                                anchors.fill: procIcon
-                                                source: procIcon
-                                                colorization: 1.0
-                                                colorizationColor: procDelegate.active ? colAccent : colSub
-                                            }
+                                            source: modelData.icon
+                                            sourceSize: Qt.size(48, 48)
+                                            fillMode: Image.PreserveAspectFit
+                                            opacity: procDelegate.active ? 1.0 : 0.6
                                         }
 
                                         ColumnLayout {
