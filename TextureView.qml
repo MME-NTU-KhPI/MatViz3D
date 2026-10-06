@@ -240,7 +240,7 @@ Window {
                             font.pixelSize: 15; font.bold: true; font.family: inter.name
                         }
 
-                        ColumnLayout {
+                        Column {
                             Layout.fillWidth: true
                             spacing: 0
 
@@ -248,14 +248,8 @@ Window {
                                 model: leftPanel.processList
                                 delegate: Rectangle {
                                     id: procDelegate
-                                    Layout.fillWidth: true
-                                    // Every row is laid out from the panel width, never from its
-                                    // own text width: without this the longest description grew
-                                    // the row past the panel and each row ended up a different
-                                    // width. Labels elide instead of pushing the row wider.
-                                    Layout.preferredWidth: leftPanel.width
-                                    Layout.maximumWidth: leftPanel.width
-                                    Layout.preferredHeight: 64
+                                    width: leftPanel.width
+                                    height: 64
                                     clip: true
 
                                     property bool active: index === ctrl.process
@@ -267,10 +261,6 @@ Window {
                                         anchors.rightMargin: 16
                                         spacing: 12
 
-                                        // Fixed-width icon cell -- the glyphs have wildly
-                                        // different advance widths (🎲 vs ⇌ vs ❄), so an
-                                        // auto-sized Label made the text start at a different
-                                        // x on every row.
                                         Image {
                                             Layout.preferredWidth: 24
                                             Layout.preferredHeight: 24
@@ -283,8 +273,6 @@ Window {
 
                                         ColumnLayout {
                                             Layout.fillWidth: true
-                                            // Never report an implicit width larger than what
-                                            // the row can give us.
                                             Layout.minimumWidth: 0
                                             spacing: 2
                                             Label {
