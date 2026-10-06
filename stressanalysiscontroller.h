@@ -157,6 +157,10 @@ private:
     void onDatasetFinished();
     void onStiffnessFinished();
 
+    // Reloads results through Hdf5ProjectController (same path as "Open
+    // project"), so Statistics and the project viewer get change signals.
+    void refreshProjectView(const QString& filename);
+
     // Clears the convergence buffer and (re)tags it for a new FFT run.
     // loadCount is 1 for a single-shot solve, 6 for a stiffness-matrix run.
     void resetConvergence(bool isFFT, int loadCount);
