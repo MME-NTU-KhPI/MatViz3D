@@ -355,11 +355,11 @@ static QString scratchResultPath()
 {
     const QString appDir = QCoreApplication::applicationDirPath();
     if (QFileInfo(appDir).isWritable())
-        return QDir(appDir).filePath("last_single_shot.hdf5");
+        return QDir(appDir).filePath("last_result.hdf5");
 
     const QString cache = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
     QDir().mkpath(cache);
-    return QDir(cache).filePath("last_single_shot.hdf5");
+    return QDir(cache).filePath("last_result.hdf5");
 }
 
 void StressAnalysisController::onSingleShotFinished()
@@ -506,6 +506,16 @@ void StressAnalysisController::onStiffnessFinished()
         setError(r.errorMessage.isEmpty() ? tr("Stiffness matrix computation failed") : r.errorMessage);
     } else {
         m_lastErrorMessage.clear();
+
+        // Mirror into the scratch HDF5 so Statistics (Deformed) and the
+        // project viewer pick up the 6 load steps without a manual Save.
+        const QString scratch = scratchResultPath();
+        QFile::remove(scratch);
+        const QString solver = r.isFFT ? QStringLiteral("fft") : QStringLiteral("ansys");
+        if (!saveStiffnessMatrixToHDF5(scratch, r, solver, Parameters::seed).isEmpty())
+            refreshProjectView(scratch);
+        else
+            qWarning() << "[StressAnalysisController] scratch HDF5 write failed:" << scratch;
     }
     emit stiffnessChanged();
 }
