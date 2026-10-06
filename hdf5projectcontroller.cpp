@@ -30,7 +30,7 @@ void Hdf5ProjectController::openFileDialog()
     }
 }
 
-bool Hdf5ProjectController::openFile(const QString& filePath)
+bool Hdf5ProjectController::openFile(const QString& filePath, bool selectLatest)
 {
     if (filePath.isEmpty()) return false;
 
@@ -55,7 +55,17 @@ bool Hdf5ProjectController::openFile(const QString& filePath)
     emit projectChanged();
 
     if (!m_geomSets.isEmpty()) {
-        selectGeomSet(0);
+        int pick = 0;
+        if (selectLatest) {
+            // Set names are numbers ("1".."N"); pick the highest, not the last
+            // in the list (the list may be sorted lexically: "1","10","2").
+            int best = -1;
+            for (int i = 0; i < m_geomSets.size(); ++i) {
+                const int n = m_geomSets[i].toInt();
+                if (n > best) { best = n; pick = i; }
+            }
+        }
+        selectGeomSet(pick);
     }
 
     qDebug() << "Hdf5ProjectController: opened project" << filePath << "with" << m_geomSets.size() << "geometry set(s)";

@@ -7,12 +7,15 @@
 #include "ansyswrapper.h"   // tensor_components enum (SX..SXZ, SEQV) -- shares layout with fftsa::ResCol
 #include "fft_solver_session.hpp"
 #include "openglwidgetqml.h"
-
+#include "hdf5projectcontroller.h"
 #include <QDebug>
 #include <QFileDialog>
 #include <QtConcurrent/QtConcurrent>
 #include <cmath>
 #include <algorithm>
+#include <QStandardPaths>
+#include <QDir>
+#include <QFile>
 
 StressAnalysisController* StressAnalysisController::s_instance = nullptr;
 
@@ -345,6 +348,20 @@ void StressAnalysisController::runSingleShot(const QString& solver, const QVaria
     m_singleShotWatcher.setFuture(future);
 }
 
+// Scratch file for the last single-shot result, next to the executable.
+// Falls back to the user's cache dir if the app dir is read-only
+// (e.g. a package install into /usr/bin).
+static QString scratchResultPath()
+{
+    const QString appDir = QCoreApplication::applicationDirPath();
+    if (QFileInfo(appDir).isWritable())
+        return QDir(appDir).filePath("last_single_shot.hdf5");
+
+    const QString cache = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    QDir().mkpath(cache);
+    return QDir(cache).filePath("last_single_shot.hdf5");
+}
+
 void StressAnalysisController::onSingleShotFinished()
 {
     const SingleShotResult r = m_singleShotWatcher.result();
@@ -365,6 +382,16 @@ void StressAnalysisController::onSingleShotFinished()
     m_hasResult = true;
     m_lastErrorMessage.clear();
     pushResultToView();
+
+    // Mirror the result into a scratch HDF5 so Statistics (Deformed) can read it.
+    const QString scratch = scratchResultPath();
+    QFile::remove(scratch);   // one set per run, not an ever-growing file
+    const QString solver = m_lastResult.ansysField ? QStringLiteral("ansys") : QStringLiteral("fft");
+    if (!saveSingleShotResultToHDF5(scratch, m_lastResult, solver, Parameters::seed, m_lastEps).isEmpty())
+        refreshProjectView(scratch);
+    else
+        qWarning() << "[StressAnalysisController] scratch HDF5 write failed:" << scratch;
+
     emit resultChanged();
 }
 
@@ -426,7 +453,7 @@ void StressAnalysisController::onDatasetFinished()
     m_lastErrorMessage.clear();
 
     // Now back on the main thread: safe to touch the LoadStepManager singleton.
-    LoadStepManager::getInstance().LoadFromHDF5(m_pendingDatasetFilename);
+    refreshProjectView(m_pendingDatasetFilename);
 
     emit resultChanged();
 }
@@ -506,6 +533,7 @@ void StressAnalysisController::saveStiffnessResult()
     qDebug() << "[StressAnalysisController] Saved stiffness matrix to" << filename << group;
     m_lastErrorMessage.clear();
     emit savedToHDF5(filename);
+    refreshProjectView(filename);
 }
 
 void StressAnalysisController::saveSingleShotResult()
@@ -525,8 +553,8 @@ void StressAnalysisController::saveSingleShotResult()
 
     qDebug() << "[StressAnalysisController] Saved single-shot result to" << filename << group;
 
-    LoadStepManager::getInstance().LoadFromHDF5(filename);
     emit savedToHDF5(filename);
+    refreshProjectView(filename);
 }
 
 bool StressAnalysisController::loadFromHDF5(const QString& filePath)
@@ -685,3 +713,12 @@ void StressAnalysisController::clearResult()
     emit fieldComponentChanged();
 }
 
+// Reload results the same way "Open project" does, so Statistics and the
+// project viewer get their change signals.
+void StressAnalysisController::refreshProjectView(const QString& filename)
+{
+    if (Hdf5ProjectController* hpc = Hdf5ProjectController::getInstance())
+        hpc->openFile(filename, /*selectLatest=*/true);
+    else
+        LoadStepManager::getInstance().LoadFromHDF5(filename);
+}

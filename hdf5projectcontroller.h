@@ -64,7 +64,7 @@ public:
     static Hdf5ProjectController* getInstance() { return s_instance; }
 
     Q_INVOKABLE void openFileDialog();
-    Q_INVOKABLE bool openFile(const QString& filePath);
+    Q_INVOKABLE bool openFile(const QString& filePath, bool selectLatest = false);
     Q_INVOKABLE void selectGeomSet(int index);
     Q_INVOKABLE void selectGeometry(int index) { selectGeomSet(index); }
     Q_INVOKABLE void selectLoadStep(int index);
