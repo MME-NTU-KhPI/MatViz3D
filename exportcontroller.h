@@ -49,6 +49,10 @@ public:
     Q_INVOKABLE void setDpi(int v) { if (m_dpi != v) { m_dpi = v; emit dpiChanged(); } }
     int dpi() const { return m_dpi; }
 
+
+    static bool writeVoxelsCSV(const QString& path, int32_t*** voxels,
+                               int numCubes, QString* error = nullptr);
+
     static void overlayColorBar(QImage& img, bool vertical = false, QQuickItem* item = nullptr);
     static QImage processScreenshot(const QImage& rawImg, bool replaceWhiteBg, bool autoCrop,
                                     bool verticalLegend, int targetDpi = 300, QQuickItem* item = nullptr,

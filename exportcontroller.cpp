@@ -975,21 +975,11 @@ void ExportController::exportToCSV()
     if (!fileName.endsWith(".csv", Qt::CaseInsensitive))
         fileName += ".csv";
 
-    QFile file(fileName);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        emit exportFailed(tr("Cannot open file for writing: ") + fileName);
+    QString err;
+    if (!writeVoxelsCSV(fileName, voxels, numCubes, &err)) {
+        emit exportFailed(err);
         return;
     }
-
-    QTextStream out(&file);
-    out << "X;Y;Z;Color\n";
-
-    for (int x = 0; x < numCubes; ++x)
-        for (int y = 0; y < numCubes; ++y)
-            for (int z = 0; z < numCubes; ++z)
-                out << x << ";" << y << ";" << z << ";" << voxels[x][y][z] << "\n";
-
-    file.close();
 
     qDebug() << "CSV saved:" << fileName
              << "| voxels:" << (qint64)numCubes * numCubes * numCubes;
@@ -1215,4 +1205,25 @@ void ExportController::openHDF5()
 
     qDebug() << "HDF5 project opened successfully:" << fileName;
     emit exportFinished(fileName);
+}
+
+bool ExportController::writeVoxelsCSV(const QString& path, int32_t*** voxels,
+                                      int numCubes, QString* error)
+{
+    if (!voxels || numCubes <= 0) {
+        if (error) *error = "no structure to export";
+        return false;
+    }
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        if (error) *error = "cannot open " + path + ": " + file.errorString();
+        return false;
+    }
+    QTextStream out(&file);
+    out << "X;Y;Z;Color\n";
+    for (int x = 0; x < numCubes; ++x)
+        for (int y = 0; y < numCubes; ++y)
+            for (int z = 0; z < numCubes; ++z)
+                out << x << ';' << y << ';' << z << ';' << voxels[x][y][z] << '\n';
+    return true;
 }

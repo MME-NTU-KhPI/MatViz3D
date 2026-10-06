@@ -354,6 +354,7 @@ public:
     static QString filename;
     static int num_threads;
     static QString working_directory;
+    static QString csv_output;
     static float wave_coefficient;
     static float wave_spread;
     static int initial_nuclei_count;

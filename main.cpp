@@ -18,6 +18,7 @@
 #include "stressanalysiscontroller.h"
 #include "texturecontroller.h"
 #include "hdf5projectcontroller.h"
+#include "exportcontroller.h"
 #include "tensormath_selftest.hpp"
 #include <hdf5.h>
 #include <vector>
@@ -127,6 +128,15 @@ int main(int argc, char *argv[])
 
         MainWindowAlgorithmHandler handler;
         handler.runAlgorithm(Parameters::instance()->getAlgorithm());
+        if (!Parameters::csv_output.isEmpty()) {
+            QString err;
+            if (!ExportController::writeVoxelsCSV(Parameters::csv_output, Parameters::voxels,
+                                                  Parameters::instance()->getSize(), &err)) {
+                qCritical().noquote() << "CSV export failed:" << err;
+                return 1;
+            }
+            qDebug().noquote() << "CSV saved:" << Parameters::csv_output;
+        }
 
         if (parser.isSet("run_stress_calc"))
             handler.runStressCalculation();

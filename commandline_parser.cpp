@@ -116,6 +116,8 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
         "[System] RNG seed for reproducibility (default: current timestamp).", "uint"));
     parser.addOption(QCommandLineOption("output",
         "[Output] Output HDF5 file path for structure and fields (default: current_ls.hdf5).", "file"));
+    parser.addOption(QCommandLineOption("csv",
+                                        "Write the generated voxel grid to a CSV file (X;Y;Z;Color).", "file"));
 
     // ── Structure Geometry & Nucleation ───────────────────────────────────
     parser.addOption(QCommandLineOption("size",
@@ -334,6 +336,7 @@ void Commandline_Parser::printJsonHelp()
     addOpt("np", "System", "int", "threads", "CPU cores", "Number of OpenMP worker threads for algorithm execution");
     addOpt("seed", "System", "uint", "uint", "timestamp", "RNG seed for reproducible structure generation");
     addOpt("output", "Output", "string", "file", "current_ls.hdf5", "Output HDF5 filepath for structure and fields");
+    addOpt("csv", "Output", "string", "file", "", "CSV export of the voxel grid (X;Y;Z;Color)");
 
     // Grid Geometry & Nucleation
     addOpt("size", "Grid", "int", "n", "", "Voxel grid dimension N for N x N x N cell (integer > 0)");
@@ -981,6 +984,11 @@ bool Commandline_Parser::applyParameter(const QString& key, const QString& value
         return true;
     }
 
+    if (normKey == "csv") {
+        Parameters::csv_output = value.trimmed();
+        return true;
+    }
+
     if (normKey == "seed") {
         unsigned int v = 0;
         if (!parseUInt(v)) return false;
@@ -1141,6 +1149,7 @@ bool Commandline_Parser::processOptions(const QCommandLineParser& parser, QStrin
     if (parser.isSet("eps"))                     if (!applyCliOption("eps", parser.value("eps"))) return false;
     if (parser.isSet("output"))                  if (!applyCliOption("output", parser.value("output"))) return false;
     if (parser.isSet("working_directory"))       if (!applyCliOption("working_directory", parser.value("working_directory"))) return false;
+    if (parser.isSet("csv"))   if (!applyCliOption("csv", parser.value("csv"))) return false;
 
     if (parser.isSet("seed")) {
         if (!applyCliOption("seed", parser.value("seed"))) return false;

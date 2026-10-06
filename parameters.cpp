@@ -14,6 +14,7 @@ unsigned int Parameters::seed = 0;
 QString Parameters::filename = "";
 int Parameters::num_threads = 1;
 QString Parameters::working_directory = "";
+QString Parameters::csv_output = "";
 float Parameters::wave_coefficient = 0.0f;
 float Parameters::wave_spread;
 int Parameters::initial_nuclei_count = 1;
@@ -98,6 +99,7 @@ void Parameters::resetDefaults()
     filename = "";
     num_threads = 1;
     working_directory = "";
+    csv_output = "";
     wave_coefficient = 0.0f;
     wave_spread = 0.0f;
     initial_nuclei_count = 1;
