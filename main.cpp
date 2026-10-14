@@ -1,3 +1,4 @@
+#include <QSurfaceFormat>
 #include <QGuiApplication>
 #include <QApplication>
 #include <QQmlApplicationEngine>
@@ -153,6 +154,18 @@ int main(int argc, char *argv[])
     qInstallMessageHandler(ConsoleLogger::messageHandler);
      // ── UI setup ──────────────────────────────────────────────────────────
     QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
+#ifdef Q_OS_MACOS
+    {
+        // macOS: the default is a legacy 2.1 context (GLSL 1.20, no VAO).
+        // The renderers need VAOs and GLSL 1.30+, so ask for 4.1 Core Profile.
+        QSurfaceFormat fmt = QSurfaceFormat::defaultFormat();
+        fmt.setVersion(4, 1);
+        fmt.setProfile(QSurfaceFormat::CoreProfile);
+        fmt.setDepthBufferSize(24);
+        fmt.setStencilBufferSize(8);
+        QSurfaceFormat::setDefaultFormat(fmt);
+    }
+#endif
 
     QIcon icon(":/img/Plugin icon - 1icon.ico");
     app.setWindowIcon(icon);

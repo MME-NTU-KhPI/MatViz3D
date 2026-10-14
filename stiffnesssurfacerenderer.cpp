@@ -67,8 +67,8 @@ void StiffnessSurfaceRenderer::initializeGL()
     QOpenGLExtraFunctions* ef = QOpenGLContext::currentContext()->extraFunctions();
 
     m_litProgram = new QOpenGLShaderProgram();
-    if (!m_litProgram->addShaderFromSourceCode(QOpenGLShader::Vertex, matviz_gl::kLitVertexShader) ||
-        !m_litProgram->addShaderFromSourceCode(QOpenGLShader::Fragment, matviz_gl::kLitFragmentShader)) {
+    if (!m_litProgram->addShaderFromSourceCode(QOpenGLShader::Vertex, matviz_gl::portable(matviz_gl::kLitVertexShader, false)) ||
+        !m_litProgram->addShaderFromSourceCode(QOpenGLShader::Fragment, matviz_gl::portable(matviz_gl::kLitFragmentShader, true))) {
         qWarning() << "[StiffnessSurfaceRenderer] lit shader compile failed:" << m_litProgram->log();
         delete m_litProgram; m_litProgram = nullptr;
     } else {
@@ -82,8 +82,8 @@ void StiffnessSurfaceRenderer::initializeGL()
     }
 
     m_axisProgram = new QOpenGLShaderProgram();
-    if (!m_axisProgram->addShaderFromSourceCode(QOpenGLShader::Vertex, matviz_gl::kAxisVertexShader) ||
-        !m_axisProgram->addShaderFromSourceCode(QOpenGLShader::Fragment, matviz_gl::kAxisFragmentShader)) {
+    if (!m_axisProgram->addShaderFromSourceCode(QOpenGLShader::Vertex, matviz_gl::portable(matviz_gl::kAxisVertexShader, false)) ||
+        !m_axisProgram->addShaderFromSourceCode(QOpenGLShader::Fragment, matviz_gl::portable(matviz_gl::kAxisFragmentShader, true))) {
         qWarning() << "[StiffnessSurfaceRenderer] axis shader compile failed:" << m_axisProgram->log();
         delete m_axisProgram; m_axisProgram = nullptr;
     } else {

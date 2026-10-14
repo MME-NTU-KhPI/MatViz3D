@@ -29,8 +29,15 @@ QML_LIBEXEC = $$(QT_QML_LIBEXEC)
 gcc_ver = $$system($$QMAKE_CXX -dumpversion)
 greaterThan(gcc_ver, 15): QMAKE_CXXFLAGS += -Wno-sfinae-incomplete
 
-QMAKE_CXXFLAGS += -fopenmp
-LIBS += -fopenmp
+macos {
+    # Apple clang: OpenMP via libomp, HDF5 via Homebrew
+    QMAKE_CXXFLAGS += -Xpreprocessor -fopenmp
+    INCLUDEPATH += /opt/homebrew/opt/libomp/include /opt/homebrew/opt/hdf5/include
+    LIBS += -L/opt/homebrew/opt/libomp/lib -lomp -L/opt/homebrew/opt/hdf5/lib -lhdf5 -lhdf5_cpp
+} else {
+    QMAKE_CXXFLAGS += -fopenmp
+    LIBS += -fopenmp
+}
 
 CONFIG += qmltypes
 QML_IMPORT_NAME = OpenGLUnderQML

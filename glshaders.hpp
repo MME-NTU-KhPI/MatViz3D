@@ -167,3 +167,41 @@ inline constexpr const char* kAxisFragmentShader = R"(
     )";
 
 } // namespace matviz_gl
+
+// ---------------------------------------------------------------------------
+// macOS has no GLSL 1.30: a legacy context gives 1.20, a Core Profile context
+// gives 1.50+. Rewrite the shader at runtime for whichever context we got.
+// Other platforms get the source untouched.
+// ---------------------------------------------------------------------------
+#include <QByteArray>
+#include <QOpenGLContext>
+#include <QSurfaceFormat>
+namespace matviz_gl {
+inline QByteArray portable(const char* src, bool fragment)
+{
+    QByteArray s(src);
+#ifdef Q_OS_MACOS
+    const QOpenGLContext* ctx = QOpenGLContext::currentContext();
+    const bool core = ctx && ctx->format().profile() == QSurfaceFormat::CoreProfile;
+    if (core) {
+        s.replace("#version 130", "#version 150 core");
+        if (fragment) {
+            s.replace("varying ", "in ");
+            s.replace("gl_FragColor", "mv3dFragColor");
+            const int v = s.indexOf("#version 150 core");
+            const int eol = s.indexOf('\n', v);
+            s.insert(eol + 1, "out vec4 mv3dFragColor;\n");
+        } else {
+            s.replace("attribute ", "in ");
+            s.replace("varying ", "out ");
+        }
+        s.replace("texture2D(", "texture(");
+    } else {
+        s.replace("#version 130", "#version 120");
+    }
+#else
+    (void)fragment;
+#endif
+    return s;
+}
+} // namespace matviz_gl
