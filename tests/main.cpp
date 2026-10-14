@@ -9,6 +9,7 @@
 #include "test_hillcriterion.h"
 #include "test_svgexporter.h"
 #include "test_commandline_parser.h"
+#include "test_lattice.h"
 
 int main(int argc, char *argv[])
 {
@@ -50,6 +51,9 @@ int main(int argc, char *argv[])
 
     TestCommandlineParser testCli;
     runSuite(&testCli, "TestCommandlineParser");
+
+    TestLattice testLattice;
+    runSuite(&testLattice, "TestLattice");
 
     std::cout << "\n=======================================================\n";
     if (totalFailures == 0) {

@@ -9,6 +9,7 @@
 #include <cmath>
 #include <ctime>
 #include "algorithmfactory.h"
+#include "latticefamily.h"
 #include "cpuinfo.hpp"
 #include "commandline_parser.h"
 #include "config_source.h"
@@ -50,6 +51,7 @@ QString Commandline_Parser::buildApplicationDescription()
     desc += "       MatViz3D --nogui --autostart --algorithm Voronoi --size 20 --points 30 --material Al --run_stress_calc --solver fft --stress_mode stiffness --output stiffness.hdf5\n\n";
     desc += "  4. Prescribed Strain Single-Load Analysis:\n";
     desc += "       MatViz3D --nogui --autostart --algorithm Voronoi --size 20 --points 20 --run_stress_calc --solver fft --stress_mode single --eps 0.001,0,0,0,0,0 --output single.hdf5\n\n";
+    desc += "       MatViz3D --nogui --autostart --algorithm Lattice --lattice_family gyroid_sheet --size 48 --cells_per_edge 2 --relative_density 0.3 --material PETG --run_stress_calc --solver fft --stress_mode stiffness --output gyroid.hdf5\n\n";
 
     desc += "AVAILABLE GENERATION ALGORITHMS (--algorithm <name>):\n";
     const QStringList algos = AlgorithmFactory::instance().algorithmNames();
@@ -67,12 +69,17 @@ QString Commandline_Parser::buildApplicationDescription()
     desc += "\n";
 
     desc += "KEY PRESETS & ENUM VALUES:\n";
-    desc += "  --algorithm:             Voronoi | Composite | Probability | Polycrystall | DLCA\n";
+    desc += "  --algorithm:             Voronoi | Composite | Probability | Polycrystall | DLCA | Lattice\n";
     desc += "  --neighborhood:          'Moore (26)' | 'von Neumann (6)' | 'Radial (18)'\n";
     desc += "  --solver:                fft (in-memory Moulinec-Suquet) | ansys (external APDL FEM)\n";
     desc += "  --stress_mode:           stiffness (fast 6 solves -> S, C, moduli) | single (--eps required) | dataset (full 300 loads)\n";
     desc += "  --composite_dim:         1d (fibers along Z) | 2d (along X, Y) | 3d (along X, Y, Z)\n";
     desc += "  --composite_packing:     square | hexagonal\n";
+    desc += "  --lattice_family:        gyroid_sheet | gyroid_skeletal | schwarz_p_sheet | schwarz_p_skeletal | schwarz_d_sheet | schwarz_d_skeletal | iwp_sheet | iwp_skeletal | simple_cubic | bcc | fcc | octet | honeycomb | reentrant | spinodoid\n";
+    desc += "  --cells_per_edge:        unit cells along each cube edge (default: 2)\n";
+    desc += "  --relative_density:      target solid fraction of the lattice in (0, 1) (default: 0.3)\n";
+    desc += "  --lattice_grading:       linear wall-thickness gradient along Z, 0..0.9 (default: 0)\n";
+    desc += "  --lattice_jitter:        random wall-thickness modulation, 0..1 (default: 0)\n";
     desc += "  --prob_matrix_mode:      volume ('Volume Sampling') | surface ('Surface Flux')\n";
     desc += "  --texture:               random | extrusion | rolling | recrystallization | shear | scattered_cube\n";
     desc += "  --lattice:               fcc | bcc\n";
@@ -179,6 +186,20 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
     parser.addOption(QCommandLineOption("fiber_material",
         "[Composite] Fiber constituent from material_properties.db (e.g. C-fiber, E-glass, SiC, W). Default: C-fiber", "name"));
 
+    // ── Lattice (cellular metamaterial RVE) ───────────────────────────────
+    parser.addOption(QCommandLineOption("lattice_family",
+        "[Lattice] Unit-cell family: gyroid_sheet | gyroid_skeletal | schwarz_p_sheet | schwarz_p_skeletal | "
+        "schwarz_d_sheet | schwarz_d_skeletal | iwp_sheet | iwp_skeletal | simple_cubic | bcc | fcc | octet | "
+        "honeycomb | reentrant | spinodoid. Default: gyroid_sheet", "family"));
+    parser.addOption(QCommandLineOption("cells_per_edge",
+        "[Lattice] Unit cells along each cube edge, 1..64 (default: 2).", "n"));
+    parser.addOption(QCommandLineOption("relative_density",
+        "[Lattice] Target solid fraction in (0, 1); the level that produces it is solved. Default: 0.3", "frac"));
+    parser.addOption(QCommandLineOption("lattice_grading",
+        "[Lattice] Linear wall-thickness gradient along Z in [0, 0.9): (1-g) at the bottom, (1+g) at the top. Default: 0", "g"));
+    parser.addOption(QCommandLineOption("lattice_jitter",
+        "[Lattice] Smooth random wall-thickness modulation of relative amplitude [0, 1], seeded. Default: 0", "j"));
+
     // ── Probability Cellular Automaton ────────────────────────────────────
     parser.addOption(QCommandLineOption("prob_preset",
         "[Probability] Shape preset: 'Sphere (Circle)', 'Prolate (Needle)', 'Oblate (Disc)', 'Triaxial Ellipsoid', 'Superellipsoid (Cube)', 'Custom'.", "preset"));
@@ -254,6 +275,7 @@ void Commandline_Parser::printJsonHelp()
     QJsonObject modes;
     modes["gui"] = "Launch without --nogui for interactive Qt/QML desktop UI";
     modes["headless_generation"] = "MatViz3D --nogui --autostart --algorithm <algo> --size <n> --points <n>";
+    modes["lattice_homogenization"] = "MatViz3D --nogui --autostart --algorithm Lattice --lattice_family gyroid_sheet --size 48 --cells_per_edge 2 --relative_density 0.3 --material PETG --run_stress_calc --solver fft --stress_mode stiffness --output gyroid.hdf5";
     modes["headless_stress_analysis"] = "MatViz3D --nogui --autostart --run_stress_calc --solver <fft|ansys> --stress_mode <mode>";
     root["modes"] = modes;
 
@@ -342,7 +364,7 @@ void Commandline_Parser::printJsonHelp()
     addOpt("size", "Grid", "int", "n", "", "Voxel grid dimension N for N x N x N cell (integer > 0)");
     addOpt("points", "Grid", "int", "count", "", "Number of initial nucleation seeds / grains (integer > 0)");
     addOpt("concentration", "Grid", "float", "pct", "", "Nucleation seed density as volume percentage in (0, 100]; overrides --points");
-    addOpt("algorithm", "Grid", "string", "name", "Voronoi", "Generation algorithm name", QStringList() << "Voronoi" << "Composite" << "Probability" << "Polycrystall" << "DLCA" << "Moore" << "Neumann" << "Radial" << "Thin Layer");
+    addOpt("algorithm", "Grid", "string", "name", "Voronoi", "Generation algorithm name", QStringList() << "Voronoi" << "Composite" << "Probability" << "Polycrystall" << "DLCA" << "Lattice" << "Moore" << "Neumann" << "Radial" << "Thin Layer");
     addOpt("periodic", "Grid", "bool", "", "false", "Periodic boundary conditions (grains/fibers wrap across opposite cell faces)");
 
     // Polycrystall
@@ -378,6 +400,14 @@ void Commandline_Parser::printJsonHelp()
     addOpt("fiber_allow_overlap", "Composite", "bool", "", "false", "Let jittered fibers overlap and merge; lifts packing limit on volume fraction");
     addOpt("matrix_material", "Composite", "string", "name", "Epoxy", "Matrix constituent from material database");
     addOpt("fiber_material", "Composite", "string", "name", "C-fiber", "Fiber constituent from material database");
+
+    // Lattice
+    addOpt("lattice_family", "Lattice", "string", "family", "gyroid_sheet", "Unit-cell family of the cellular metamaterial RVE",
+           latticeFamilyKeys());
+    addOpt("cells_per_edge", "Lattice", "int", "n", "2", "Unit cells along each cube edge (1..64)");
+    addOpt("relative_density", "Lattice", "double", "frac", "0.3", "Target solid fraction in (0, 1)");
+    addOpt("lattice_grading", "Lattice", "double", "g", "0.0", "Linear wall-thickness gradient along Z in [0, 0.9)");
+    addOpt("lattice_jitter", "Lattice", "double", "j", "0.0", "Random wall-thickness modulation, relative amplitude in [0, 1]");
 
     // Probability
     addOpt("prob_preset", "Probability", "string", "preset", "", "Kernel shape preset",
@@ -465,6 +495,12 @@ bool Commandline_Parser::isValidSolver(const QString& v)
 {
     const QString s = v.trimmed().toLower();
     return s == "ansys" || s == "fft";
+}
+
+bool Commandline_Parser::isValidLatticeFamily(const QString& v)
+{
+    LatticeFamily f;
+    return parseLatticeFamily(v, f);
 }
 
 bool Commandline_Parser::isValidStressMode(const QString& v)
@@ -1003,6 +1039,55 @@ bool Commandline_Parser::applyParameter(const QString& key, const QString& value
         return true;
     }
 
+    if (normKey == "lattice_family") {
+        if (!isValidLatticeFamily(value)) {
+            return setErr(QString("Option lattice_family expects one of %1; got \"%2\"")
+                              .arg(latticeFamilyKeys().join(", "), value));
+        }
+        params->setLatticeFamily(value);
+        return true;
+    }
+
+    if (normKey == "cells_per_edge") {
+        int v = 0;
+        if (!parseInt(v, true)) return false;
+        if (v > 64) {
+            return setErr(QString("Option cells_per_edge expects 1..64; got %1").arg(v));
+        }
+        params->setCellsPerEdge(v);
+        return true;
+    }
+
+    if (normKey == "relative_density") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v <= 0.0 || v >= 1.0) {
+            return setErr(QString("Option relative_density expects a value in (0, 1); got %1").arg(value));
+        }
+        params->setRelativeDensity(v);
+        return true;
+    }
+
+    if (normKey == "lattice_grading") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0.0 || v >= 0.9) {
+            return setErr(QString("Option lattice_grading expects a value in [0, 0.9); got %1").arg(value));
+        }
+        params->setLatticeGrading(v);
+        return true;
+    }
+
+    if (normKey == "lattice_jitter") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0.0 || v > 1.0) {
+            return setErr(QString("Option lattice_jitter expects a value in [0, 1]; got %1").arg(value));
+        }
+        params->setLatticeJitter(v);
+        return true;
+    }
+
     return setErr(QString("Unknown parameter key: '%1'").arg(key));
 }
 
@@ -1096,6 +1181,12 @@ bool Commandline_Parser::processOptions(const QCommandLineParser& parser, QStrin
     if (parser.isSet("fiber_allow_overlap"))     if (!applyCliOption("fiber_allow_overlap", "true")) return false;
     if (parser.isSet("matrix_material"))         if (!applyCliOption("matrix_material", parser.value("matrix_material"))) return false;
     if (parser.isSet("fiber_material"))          if (!applyCliOption("fiber_material", parser.value("fiber_material"))) return false;
+
+    if (parser.isSet("lattice_family"))          if (!applyCliOption("lattice_family", parser.value("lattice_family"))) return false;
+    if (parser.isSet("cells_per_edge"))          if (!applyCliOption("cells_per_edge", parser.value("cells_per_edge"))) return false;
+    if (parser.isSet("relative_density"))        if (!applyCliOption("relative_density", parser.value("relative_density"))) return false;
+    if (parser.isSet("lattice_grading"))         if (!applyCliOption("lattice_grading", parser.value("lattice_grading"))) return false;
+    if (parser.isSet("lattice_jitter"))          if (!applyCliOption("lattice_jitter", parser.value("lattice_jitter"))) return false;
 
     if (parser.isSet("prob_preset"))             if (!applyCliOption("prob_preset", parser.value("prob_preset"))) return false;
     if (parser.isSet("prob_matrix_mode"))        if (!applyCliOption("prob_matrix_mode", parser.value("prob_matrix_mode"))) return false;

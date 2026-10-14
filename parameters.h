@@ -95,6 +95,17 @@ class Parameters : public QObject
     Q_PROPERTY(QString matrix_material READ getMatrixMaterial WRITE setMatrixMaterial NOTIFY compositeSettingsChanged)
     Q_PROPERTY(QString fiber_material  READ getFiberMaterial  WRITE setFiberMaterial  NOTIFY compositeSettingsChanged)
 
+    // ── Lattice (cellular metamaterial RVE) ───────────────────────────────
+    // Cell family: stored as the CLI key (see latticefamily.h), read back as
+    // the combo-box label so the panel can match its own option list.
+    Q_PROPERTY(QString lattice_family   READ getLatticeFamily   WRITE setLatticeFamily   NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(int     cells_per_edge   READ getCellsPerEdge    WRITE setCellsPerEdge    NOTIFY latticeSettingsChanged)
+    // Target relative density (solid fraction) of the cell. This is the input;
+    // the level/threshold that produces it is solved by the algorithm.
+    Q_PROPERTY(double  relative_density READ getRelativeDensity WRITE setRelativeDensity NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  lattice_grading  READ getLatticeGrading  WRITE setLatticeGrading  NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  lattice_jitter   READ getLatticeJitter   WRITE setLatticeJitter   NOTIFY latticeSettingsChanged)
+
     Q_PROPERTY(QString texture_preset  READ getTexturePreset  WRITE setTexturePreset  NOTIFY textureSettingsChanged)
     Q_PROPERTY(double  texture_scatter READ getTextureScatter WRITE setTextureScatter NOTIFY textureSettingsChanged)
 
@@ -296,6 +307,24 @@ public:
     Q_INVOKABLE void setMatrixMaterial(const QString& value);
     Q_INVOKABLE void setFiberMaterial(const QString& value);
 
+    // ── Lattice ───────────────────────────────────────────────────────────
+    QString getLatticeFamily()   const { return latticeFamilyLabelOf(lattice_family); }
+    int     getCellsPerEdge()    const { return cells_per_edge; }
+    double  getRelativeDensity() const { return relative_density; }
+    double  getLatticeGrading()  const { return lattice_grading; }
+    double  getLatticeJitter()   const { return lattice_jitter; }
+
+    /// Accepts the CLI key, the panel label or a loose spelling of either.
+    Q_INVOKABLE void setLatticeFamily(const QString& value);
+    Q_INVOKABLE void setCellsPerEdge(int value);
+    Q_INVOKABLE void setRelativeDensity(double value);
+    Q_INVOKABLE void setLatticeGrading(double value);
+    Q_INVOKABLE void setLatticeJitter(double value);
+
+    /// The stored CLI key of the current family ("gyroid_sheet", ...).
+    static QString latticeFamilyKeyStored() { return lattice_family; }
+    static QString latticeFamilyLabelOf(const QString& key);
+
     /**
      * @brief Cubic single-crystal constants of the selected material, in Pa.
      *
@@ -385,6 +414,12 @@ public:
      */
     static PhaseAssignment phaseAssignment;
 
+    // Published by the Lattice algorithm after rasterization, for the HDF5
+    // geometry metadata: the solid fraction actually reached and the
+    // estimated wall / strut thickness in voxels (0 = no estimate).
+    static double lattice_achieved_density;
+    static double lattice_wall_voxels;
+
     /**
      * @brief Full anisotropic stiffness of a named database material, in Pa.
      *
@@ -444,6 +479,7 @@ signals:
     void dbMaterialChanged();
     void textureSettingsChanged();
     void compositeSettingsChanged();
+    void latticeSettingsChanged();
 
     void numRndLoadsChanged();
     void stressSolverChanged();
@@ -515,6 +551,12 @@ private:
     static bool    fiber_allow_overlap;
     static QString matrix_material;
     static QString fiber_material;
+
+    static QString lattice_family;       // CLI key, see latticefamily.h
+    static int     cells_per_edge;
+    static double  relative_density;
+    static double  lattice_grading;
+    static double  lattice_jitter;
 };
 
 #endif // PARAMETERS_H

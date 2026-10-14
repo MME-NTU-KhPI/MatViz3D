@@ -331,6 +331,17 @@ void DBManager::insertInitialData(QSqlDatabase& db)
         {"SiC",     "iso", 429.58,  69.93,  69.93, 0,0,0, 429.58,  69.93, 0,0,0, 429.58, 0,0,0, 179.82, 0,0, 179.82, 0, 179.82,
          "Representative isotropic constants for polycrystalline SiC (typical textbook/datasheet range; not a certified design allowable)."},
 
+        // ── Printed polymers (Lattice base materials) ─────────────────────
+        // Isotropic engineering values for the filaments the Lattice cells are
+        // meant to be printed from. From E and nu via lambda = E nu / ((1+nu)(1-2nu)),
+        // mu = E / (2(1+nu)): c11 = lambda + 2mu, c12 = lambda, c44 = mu.
+        // Representative datasheet ranges, not certified allowables; the
+        // dissertation workflow replaces them with the identified law.
+        {"PETG",    "iso",   3.744,  2.295,  2.295, 0,0,0,   3.744,  2.295, 0,0,0,   3.744, 0,0,0,   0.725, 0,0,   0.725, 0,   0.725,
+         "Representative isotropic constants for FDM-printed PETG (E = 2.0 GPa, nu = 0.38; typical datasheet range, printed parts are softer across layers; not a certified design allowable)."},
+        {"PLA",     "iso",   5.882,  3.309,  3.309, 0,0,0,   5.882,  3.309, 0,0,0,   5.882, 0,0,0,   1.287, 0,0,   1.287, 0,   1.287,
+         "Representative isotropic constants for FDM-printed PLA (E = 3.5 GPa, nu = 0.36; typical datasheet range; not a certified design allowable)."},
+
         // Type "ti": transversely isotropic about axis 3, which is the axis
         // Composite aligns a fiber to -- so c33 is the stiff along-fiber
         // direction. T300-class PAN carbon fiber, from the usual engineering

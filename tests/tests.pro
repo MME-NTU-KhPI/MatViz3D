@@ -5,8 +5,16 @@ CONFIG -= app_bundle
 gcc_ver = $$system($$QMAKE_CXX -dumpversion)
 greaterThan(gcc_ver, 15): QMAKE_CXXFLAGS += -Wno-sfinae-incomplete
 
-QMAKE_CXXFLAGS += -fopenmp
-LIBS += -fopenmp
+macos {
+    # Apple clang has no -fopenmp driver flag; use the preprocessor form and
+    # link Homebrew's libomp and HDF5 explicitly.
+    QMAKE_CXXFLAGS += -Xpreprocessor -fopenmp
+    INCLUDEPATH += /opt/homebrew/opt/libomp/include /opt/homebrew/opt/hdf5/include
+    LIBS += -L/opt/homebrew/opt/libomp/lib -lomp -L/opt/homebrew/opt/hdf5/lib -lhdf5 -lhdf5_cpp
+} else {
+    QMAKE_CXXFLAGS += -fopenmp
+    LIBS += -fopenmp
+}
 
 INCLUDEPATH += ..
 DEPENDPATH += ..
@@ -56,7 +64,8 @@ SOURCES += \
     ../consolelogger.cpp \
     ../voronoi.cpp \
     ../composite.cpp \
-    ../dlca.cpp
+    ../dlca.cpp \
+    ../lattice.cpp
 
 HEADERS += \
     ../parameters.h \
@@ -78,6 +87,8 @@ HEADERS += \
     ../voronoi.h \
     ../composite.h \
     ../dlca.h \
+    ../lattice.h \
+    ../latticefamily.h \
     ../texturemath.hpp \
     ../svgexporter.hpp \
     ../cpuinfo.hpp
@@ -92,7 +103,8 @@ SOURCES += \
     test_texturemath.cpp \
     test_hillcriterion.cpp \
     test_svgexporter.cpp \
-    test_commandline_parser.cpp
+    test_commandline_parser.cpp \
+    test_lattice.cpp
 
 HEADERS += \
     test_polycrystall_seeding.h \
@@ -101,6 +113,7 @@ HEADERS += \
     test_texturemath.h \
     test_hillcriterion.h \
     test_svgexporter.h \
-    test_commandline_parser.h
+    test_commandline_parser.h \
+    test_lattice.h
 
 TARGET = tests

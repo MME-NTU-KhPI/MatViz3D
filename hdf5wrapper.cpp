@@ -888,6 +888,15 @@ void saveGeometryMetadataToHDF5(HDF5Wrapper& hdf5, const std::string& prefix, co
     hdf5.write(geomGroup, "texture_scatter", float(p->getTextureScatter()));
     paramsObj["texture_scatter"] = p->getTextureScatter();
 
+    // Lattice: what the density solve actually reached, next to the target
+    // the schema loop wrote above, so a dataset can be filtered on both.
+    if (algo.compare("Lattice", Qt::CaseInsensitive) == 0) {
+        hdf5.write(geomGroup, "lattice_achieved_density", float(Parameters::lattice_achieved_density));
+        hdf5.write(geomGroup, "lattice_wall_voxels",      float(Parameters::lattice_wall_voxels));
+        paramsObj["lattice_achieved_density"] = Parameters::lattice_achieved_density;
+        paramsObj["lattice_wall_voxels"]      = Parameters::lattice_wall_voxels;
+    }
+
     summaryStr += ")";
 
     rootObj["parameters"] = paramsObj;

@@ -107,6 +107,7 @@ SOURCES += \
         composite.cpp \
         deformed_state_analyzer.cpp \
         dlca.cpp \
+        lattice.cpp \
         legendview.cpp \
         loadstepmanager.cpp \
         logo_printer.cpp \
@@ -174,6 +175,8 @@ HEADERS += \
     ansyswrapper.h \
     composite.h \
     dlca.h \
+    lattice.h \
+    latticefamily.h \
     legendview.h \
     logo_printer.h \
     loadstepmanager.h \

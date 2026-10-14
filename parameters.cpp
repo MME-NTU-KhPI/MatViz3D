@@ -1,4 +1,5 @@
 #include "parameters.h"
+#include "latticefamily.h"
 #include "openglwidgetqml.h"
 #include "dbmanager.h"
 #include <QDebug>
@@ -80,6 +81,13 @@ double  Parameters::fiber_center_jitter   = 0.0;
 bool    Parameters::fiber_allow_overlap   = false;
 QString Parameters::matrix_material       = "Epoxy";
 QString Parameters::fiber_material        = "C-fiber";
+QString Parameters::lattice_family         = "gyroid_sheet";
+int     Parameters::cells_per_edge         = 2;
+double  Parameters::relative_density       = 0.30;
+double  Parameters::lattice_grading        = 0.0;
+double  Parameters::lattice_jitter         = 0.0;
+double  Parameters::lattice_achieved_density = 0.0;
+double  Parameters::lattice_wall_voxels    = 0.0;
 
 QString Parameters::stressSolver = "ansys";
 QString Parameters::stressMode   = "dataset";
@@ -154,6 +162,13 @@ void Parameters::resetDefaults()
     fiber_allow_overlap = false;
     matrix_material = "Epoxy";
     fiber_material = "C-fiber";
+    lattice_family   = "gyroid_sheet";
+    cells_per_edge   = 2;
+    relative_density = 0.30;
+    lattice_grading  = 0.0;
+    lattice_jitter   = 0.0;
+    lattice_achieved_density = 0.0;
+    lattice_wall_voxels      = 0.0;
     stressSolver = "ansys";
     stressMode = "dataset";
     for (int i = 0; i < 6; ++i) stressEps[i] = 0.0;
@@ -1054,4 +1069,59 @@ void Parameters::setStressEps(const double value[6]) {
         if (stressEps[i] != value[i]) { stressEps[i] = value[i]; changed = true; }
     if (changed)
         emit stressEpsChanged();
+}
+
+// ── Lattice ──────────────────────────────────────────────────────────────────
+
+void Parameters::setLatticeFamily(const QString& value)
+{
+    LatticeFamily f;
+    if (!parseLatticeFamily(value, f)) {
+        qWarning() << "lattice_family expects one of" << latticeFamilyKeys().join(", ")
+                   << "; got" << value << "-- keeping" << lattice_family;
+        return;
+    }
+    const QString stored = latticeFamilyKey(f);
+    if (lattice_family == stored)
+        return;
+    lattice_family = stored;
+    emit latticeSettingsChanged();
+}
+
+// Must match latticeSchema()'s option list exactly, or the combo box falls
+// back to its first entry and silently disagrees with what will run.
+QString Parameters::latticeFamilyLabelOf(const QString& key)
+{
+    LatticeFamily f;
+    if (parseLatticeFamily(key, f))
+        return latticeFamilyLabel(f);
+    return latticeFamilyLabel(LatticeFamily::GyroidSheet);
+}
+
+void Parameters::setCellsPerEdge(int value)
+{
+    if (cells_per_edge == value) return;
+    cells_per_edge = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setRelativeDensity(double value)
+{
+    if (relative_density == value) return;
+    relative_density = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setLatticeGrading(double value)
+{
+    if (lattice_grading == value) return;
+    lattice_grading = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setLatticeJitter(double value)
+{
+    if (lattice_jitter == value) return;
+    lattice_jitter = value;
+    emit latticeSettingsChanged();
 }
