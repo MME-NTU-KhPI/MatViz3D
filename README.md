@@ -32,7 +32,7 @@ The generated RVEs and datasets are used as input for data-driven yield surfaces
 
 #### Microstructure generation
 
-Five generation algorithms on a voxel grid, all with an optional periodic cell, material and texture assignment, and step-by-step animation of growth:
+Six generation algorithms on a voxel grid, all with an optional periodic cell, material and texture assignment, and step-by-step animation of growth:
 
 <details>
 <summary><b>Polycrystall</b> — cellular-automaton grain growth (Moore / von Neumann / Radial neighbourhood)</summary>
@@ -80,6 +80,12 @@ Particles perform random walks and stick together on contact, growing fractal, d
 <img src="img/README/preview_dlca.png" width="180">
 
 </details>
+<details>
+<summary><b>Lattice</b> — periodic cellular metamaterial RVE (TPMS, struts, honeycombs, spinodoids)</summary>
+
+One solid phase plus void, tiled from unit cells of a chosen family: TPMS level sets (gyroid, Schwarz P, Schwarz D, IWP) as **sheet** or **skeletal** solids, **strut** lattices (simple cubic, BCC, FCC, octet), **hexagonal** and **re-entrant (auxetic) honeycombs** extruded along Z, and **spinodoid** Gaussian random fields that stay periodic in the cube. The **relative density is the input**: the level that produces it is read off the sorted field, and the achieved density plus an estimated wall/strut thickness (in voxels) are reported and stored in the HDF5 metadata. Optional thickness grading along Z, seeded thickness jitter (print scatter) and rotation of the lattice. The base material comes from the database (`PETG`, `PLA`, or any other row); void is grain id 0, which the FFT solver treats as a soft phase.
+
+</details>
 
 Legacy names (`Moore`, `Neumann`, `Radial`, `Probability Circle`, `Probability Ellipse`) are still accepted as aliases on the command line.
 
@@ -90,7 +96,7 @@ Legacy names (`Moore`, `Neumann`, `Radial`, `Probability Circle`, `Probability E
 - **Crystallographic texture editor**: presets `random`, `extrusion`, `rolling`, `recrystallization`, `shear`, `scattered_cube` for FCC and BCC lattices with adjustable scatter; standard components Cube {001}<100>, Goss {110}<001>, Copper {112}<11-1>, Brass {110}<112>, S {123}<634> and fibre textures; conversion between Miller indices, Bunge Euler angles and ANSYS rotation angles; ODF sections.
 - **Material database** (SQLite, editable in the app): ~40 materials with the full 21-constant elasticity matrix (c11…c66) and lattice type — cubic metals (Cu, Fe, Al, W, Ni…), hcp metals, semiconductors, ceramics, and composite constituents (Epoxy, E-glass, Al2O3, SiC, C-fiber).
 - **Stress analysis of the RVE** with two interchangeable solvers writing the same HDF5 schema:
-  - **FFT** — built-in spectral (Moulinec–Suquet) homogenization, no external software, live convergence plot;
+  - **FFT** — built-in spectral homogenization, no external software, live convergence plot. Two schemes: the Moulinec–Suquet basic fixed point and a conjugate-gradient (Galerkin) scheme whose iteration count grows with the square root of the phase contrast instead of linearly; `auto` picks CG for porous or high-contrast cells (lattices, void) and the basic scheme otherwise (`--fft_scheme`, `--fft_tol`, `--fft_max_iter`);
   - **ANSYS** — automatic export of the voxel geometry to SOLID185 elements, APDL generation and result parsing.
 
   Modes: `stiffness` (6 unit-strain solves → effective compliance **S**, stiffness **C**, Poisson matrix and engineering moduli), `single` (one prescribed macroscopic strain tensor) and `dataset` (Hill yield-criterion calibration on random loads, then hundreds of load cases on the Hill ellipsoid with full per-voxel stress/strain fields). Results: **elastic anisotropy surface** (directional Young's modulus, Zener ratio, bulk modulus), **tensor glyphs and hyperstreamlines** of the stress/strain fields on slices, von Mises fields on the deformed shape.
@@ -342,7 +348,7 @@ ___
 
 #### Генерація мікроструктур
 
-П'ять алгоритмів генерації на вокселній сітці; для всіх доступні періодична комірка, призначення матеріалу й текстури та покрокова анімація росту:
+Шість алгоритмів генерації на вокселній сітці; для всіх доступні періодична комірка, призначення матеріалу й текстури та покрокова анімація росту:
 
 <details>
 <summary><b>Polycrystall</b> — ріст зерен клітинним автоматом (околиця Мура / фон Неймана / радіальна)</summary>
@@ -390,6 +396,12 @@ ___
 <img src="img/README/preview_dlca.png" width="180">
 
 </details>
+<details>
+<summary><b>Lattice</b> — періодичний RVE комірчастого метаматеріалу (TPMS, стрижні, стільники, спінодоїди)</summary>
+
+Одна тверда фаза плюс пустота, викладена з елементарних комірок обраного сімейства: поверхні рівня TPMS (гіроїд, Schwarz P, Schwarz D, IWP) як **листові** або **каркасні** тіла, **стрижневі** ґратки (проста кубічна, BCC, FCC, октет), **шестикутні** та **увігнуті (ауксетичні) стільники**, витягнуті вздовж Z, і **спінодоїдні** випадкові поля, періодичні в кубі. **Відносна густина є входом**: рівень, що її дає, зчитується з відсортованого поля, а досягнута густина та оцінена товщина стінки/стрижня (у вокселях) повідомляються й записуються в метадані HDF5. Опційно — градієнт товщини вздовж Z, випадкове збурення товщини (розкид друку) та поворот ґратки. Базовий матеріал береться з бази (`PETG`, `PLA` або будь-який інший рядок); пустота — зерно з id 0, яке FFT-розв'язувач трактує як м'яку фазу.
+
+</details>
 
 Старі назви (`Moore`, `Neumann`, `Radial`, `Probability Circle`, `Probability Ellipse`) і далі приймаються в командному рядку як синоніми.
 
@@ -400,7 +412,7 @@ ___
 - **Редактор кристалографічної текстури**: пресети `random`, `extrusion`, `rolling`, `recrystallization`, `shear`, `scattered_cube` для ґраток FCC і BCC з регульованим розсіюванням; стандартні компоненти Cube {001}<100>, Goss {110}<001>, Copper {112}<11-1>, Brass {110}<112>, S {123}<634> та аксіальні текстури; перетворення між індексами Міллера, кутами Бунге та кутами повороту ANSYS; перерізи ODF.
 - **База даних матеріалів** (SQLite, редагується в застосунку): ~40 матеріалів з повною матрицею пружності з 21 константи (c11…c66) і типом ґратки — кубічні метали (Cu, Fe, Al, W, Ni…), ГЩП-метали, напівпровідники, кераміка та складники композитів (Epoxy, E-glass, Al2O3, SiC, C-fiber).
 - **Аналіз напружень RVE** двома взаємозамінними розв'язувачами, що пишуть однакову схему HDF5:
-  - **FFT** — вбудована спектральна гомогенізація (Мулінек–Сюке), без стороннього ПЗ, з живим графіком збіжності;
+  - **FFT** — вбудована спектральна гомогенізація без стороннього ПЗ, з живим графіком збіжності. Дві схеми: базова нерухома точка Мулінека–Сюке та схема спряжених градієнтів (Гальоркіна), кількість ітерацій якої росте як корінь із контрасту фаз, а не лінійно; `auto` обирає CG для пористих або висококонтрастних комірок (ґратки, пустота) і базову схему в інших випадках (`--fft_scheme`, `--fft_tol`, `--fft_max_iter`);
   - **ANSYS** — автоматичний експорт вокселної геометрії в елементи SOLID185, генерація APDL та зчитування результатів.
 
   Режими: `stiffness` (6 розв'язків для одиничних деформацій → ефективні матриці податливості **S**, жорсткості **C**, матриця Пуассона й технічні модулі), `single` (один заданий макроскопічний тензор деформацій) та `dataset` (калібрування критерію Хілла на випадкових навантаженнях, далі сотні випадків навантаження на еліпсоїді Хілла з повними повоксельними полями напружень і деформацій). Результати: **поверхня пружної анізотропії** (напрямний модуль Юнга, коефіцієнт Зенера, об'ємний модуль), **тензорні гліфи та гіперлінії струму** полів на перерізах, поля Мізеса на деформованій формі.
