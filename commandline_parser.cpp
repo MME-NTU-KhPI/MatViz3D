@@ -73,6 +73,8 @@ QString Commandline_Parser::buildApplicationDescription()
     desc += "  --neighborhood:          'Moore (26)' | 'von Neumann (6)' | 'Radial (18)'\n";
     desc += "  --solver:                fft (in-memory Moulinec-Suquet) | ansys (external APDL FEM)\n";
     desc += "  --stress_mode:           stiffness (fast 6 solves -> S, C, moduli) | single (--eps required) | dataset (full 300 loads)\n";
+    desc += "  --fft_scheme:            auto | basic | cg  (FFT iterative scheme; auto = CG for porous or high-contrast cells)\n";
+    desc += "  --fft_tol:               FFT convergence tolerance (default: 1e-5); --fft_max_iter: iteration cap per load (default: 1000)\n";
     desc += "  --composite_dim:         1d (fibers along Z) | 2d (along X, Y) | 3d (along X, Y, Z)\n";
     desc += "  --composite_packing:     square | hexagonal\n";
     desc += "  --lattice_family:        gyroid_sheet | gyroid_skeletal | schwarz_p_sheet | schwarz_p_skeletal | schwarz_d_sheet | schwarz_d_skeletal | iwp_sheet | iwp_skeletal | simple_cubic | bcc | fcc | octet | honeycomb | reentrant | spinodoid\n";
@@ -249,6 +251,13 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
         "[Stress] Homogenization solver: fft (in-memory Moulinec-Suquet) | ansys (external FEM). Default: ansys", "solver"));
     parser.addOption(QCommandLineOption("stress_mode",
         "[Stress] Calculation mode: stiffness (fast 6 solves -> S, C, moduli) | single (prescribed --eps) | dataset (full 300 loads). Default: dataset", "mode"));
+    parser.addOption(QCommandLineOption("fft_scheme",
+        "[Stress] FFT iterative scheme: auto (CG when the cell has void or a stiffness contrast above 100, "
+        "basic otherwise) | basic (Moulinec-Suquet fixed point) | cg (conjugate gradients, Galerkin FFT). Default: auto", "scheme"));
+    parser.addOption(QCommandLineOption("fft_tol",
+        "[Stress] FFT convergence tolerance: equilibrium error (basic) or relative residual (cg). Default: 1e-5", "tol"));
+    parser.addOption(QCommandLineOption("fft_max_iter",
+        "[Stress] FFT iteration cap per load case (default: 1000).", "n"));
     parser.addOption(QCommandLineOption("eps",
         "[Stress] Prescribed macroscopic strain tensor for '--stress_mode single': exx,eyy,ezz,exy,eyz,exz", "strains"));
     parser.addOption(QCommandLineOption("num_rnd_loads",
@@ -438,6 +447,9 @@ void Commandline_Parser::printJsonHelp()
     addOpt("run_stress_calc", "Stress", "bool", "", "false", "Run stress/strain homogenization after structure generation");
     addOpt("solver", "Stress", "string", "solver", "ansys", "Homogenization solver: fft | ansys", QStringList() << "ansys" << "fft");
     addOpt("stress_mode", "Stress", "string", "mode", "dataset", "Calculation mode: stiffness (fast 6 solves) | single | dataset (full 300 loads)", QStringList() << "dataset" << "stiffness" << "single");
+    addOpt("fft_scheme", "Stress", "string", "scheme", "auto", "FFT iterative scheme: auto (CG for porous / high-contrast cells) | basic (Moulinec-Suquet fixed point) | cg (conjugate gradients)", QStringList() << "auto" << "basic" << "cg");
+    addOpt("fft_tol", "Stress", "double", "tol", "1e-5", "FFT convergence tolerance (equilibrium error for basic, relative residual for cg)");
+    addOpt("fft_max_iter", "Stress", "int", "n", "1000", "FFT iteration cap per load case");
     addOpt("eps", "Stress", "string", "strains", "", "Applied strain tensor for --stress_mode single: exx,eyy,ezz,exy,eyz,exz");
     addOpt("num_rnd_loads", "Stress", "uint", "count", "150", "Number of random loads for Hill yield criterion fit in dataset mode");
     addOpt("working_directory", "Stress", "string", "dir", "", "Working directory for ANSYS scratch and APDL files");
@@ -501,6 +513,12 @@ bool Commandline_Parser::isValidLatticeFamily(const QString& v)
 {
     LatticeFamily f;
     return parseLatticeFamily(v, f);
+}
+
+bool Commandline_Parser::isValidFftScheme(const QString& v)
+{
+    const QString m = v.trimmed().toLower();
+    return m == "auto" || m == "basic" || m == "cg";
 }
 
 bool Commandline_Parser::isValidStressMode(const QString& v)
@@ -1039,6 +1057,31 @@ bool Commandline_Parser::applyParameter(const QString& key, const QString& value
         return true;
     }
 
+    if (normKey == "fft_scheme") {
+        if (!isValidFftScheme(value)) {
+            return setErr(QString("Option fft_scheme expects auto, basic or cg; got \"%1\"").arg(value));
+        }
+        params->setFftScheme(value);
+        return true;
+    }
+
+    if (normKey == "fft_tol") {
+        double v = 0.0;
+        if (!parseDouble(v, true)) return false;
+        if (v >= 1.0) {
+            return setErr(QString("Option fft_tol expects a value in (0, 1); got %1").arg(value));
+        }
+        params->setFftTol(v);
+        return true;
+    }
+
+    if (normKey == "fft_max_iter") {
+        int v = 0;
+        if (!parseInt(v, true)) return false;
+        params->setFftMaxIter(v);
+        return true;
+    }
+
     if (normKey == "lattice_family") {
         if (!isValidLatticeFamily(value)) {
             return setErr(QString("Option lattice_family expects one of %1; got \"%2\"")
@@ -1237,6 +1280,9 @@ bool Commandline_Parser::processOptions(const QCommandLineParser& parser, QStrin
     if (parser.isSet("num_rnd_loads"))           if (!applyCliOption("num_rnd_loads", parser.value("num_rnd_loads"))) return false;
     if (parser.isSet("solver"))                  if (!applyCliOption("solver", parser.value("solver"))) return false;
     if (parser.isSet("stress_mode"))             if (!applyCliOption("stress_mode", parser.value("stress_mode"))) return false;
+    if (parser.isSet("fft_scheme"))              if (!applyCliOption("fft_scheme", parser.value("fft_scheme"))) return false;
+    if (parser.isSet("fft_tol"))                 if (!applyCliOption("fft_tol", parser.value("fft_tol"))) return false;
+    if (parser.isSet("fft_max_iter"))            if (!applyCliOption("fft_max_iter", parser.value("fft_max_iter"))) return false;
     if (parser.isSet("eps"))                     if (!applyCliOption("eps", parser.value("eps"))) return false;
     if (parser.isSet("output"))                  if (!applyCliOption("output", parser.value("output"))) return false;
     if (parser.isSet("working_directory"))       if (!applyCliOption("working_directory", parser.value("working_directory"))) return false;

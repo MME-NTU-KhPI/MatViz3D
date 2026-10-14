@@ -228,6 +228,34 @@ public:
     void set_tolerance(double t)  { tol_ = t; }
     void set_max_iters(int it)    { maxit_ = it; }
 
+    // Which iterative scheme the homogenizer runs (see FFTHomogenizer::Scheme).
+    // Auto picks CG whenever the cell has a void phase or a stiffness contrast
+    // above 100 -- where the basic scheme needs thousands of iterations -- and
+    // keeps the historical basic scheme for dense, moderate-contrast cells.
+    enum class Scheme { Auto, Basic, CG };
+    void set_scheme(Scheme s) { scheme_ = s; if (H_) H_->set_scheme(resolved_scheme()); }
+    ffth::FFTHomogenizer::Scheme resolved_scheme() const {
+        if (scheme_ == Scheme::Basic) return ffth::FFTHomogenizer::Scheme::Basic;
+        if (scheme_ == Scheme::CG)    return ffth::FFTHomogenizer::Scheme::CG;
+        return (solid_fraction_ < 1.0 || phase_contrast() > 100.0)
+                   ? ffth::FFTHomogenizer::Scheme::CG
+                   : ffth::FFTHomogenizer::Scheme::Basic;
+    }
+    const char* scheme_name() const {
+        return resolved_scheme() == ffth::FFTHomogenizer::Scheme::CG ? "cg" : "basic";
+    }
+    // Largest over smallest C11 among the grains (the void slot excluded).
+    double phase_contrast() const {
+        double lo = 1e300, hi = 0.0;
+        for (std::size_t g = 1; g < lib_.size(); ++g) {
+            const double c = lib_[g][0][0];
+            if (!(c > 0.0)) continue;
+            if (c < lo) lo = c;
+            if (c > hi) hi = c;
+        }
+        return (lo > 0.0 && hi > 0.0 && lo < 1e300) ? hi / lo : 1.0;
+    }
+
     double solid_fraction() const { return solid_fraction_; }
     const std::vector<std::vector<float>>& local_cs() const { return local_cs_; }
     int nx() const { return nx_; } int ny() const { return ny_; } int nz() const { return nz_; }
@@ -355,6 +383,7 @@ private:
         H_->set_phase_field(grain_);      // phase id == grain id (indexes lib_)
         H_->set_tolerance(tol_);
         H_->set_max_iterations(maxit_);
+        H_->set_scheme(resolved_scheme());
     }
 
     int nx_, ny_, nz_;
@@ -367,6 +396,7 @@ private:
 
     double tol_ = 1e-5;
     int    maxit_ = 500;
+    Scheme scheme_ = Scheme::Auto;
     std::unique_ptr<ffth::FFTHomogenizer> H_;
 };
 

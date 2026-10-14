@@ -10,6 +10,7 @@
 #include "test_svgexporter.h"
 #include "test_commandline_parser.h"
 #include "test_lattice.h"
+#include "test_ffthomog.h"
 
 int main(int argc, char *argv[])
 {
@@ -54,6 +55,9 @@ int main(int argc, char *argv[])
 
     TestLattice testLattice;
     runSuite(&testLattice, "TestLattice");
+
+    TestFftHomog testFft;
+    runSuite(&testFft, "TestFftHomog");
 
     std::cout << "\n=======================================================\n";
     if (totalFailures == 0) {

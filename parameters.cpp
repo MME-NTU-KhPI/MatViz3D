@@ -88,6 +88,9 @@ double  Parameters::lattice_grading        = 0.0;
 double  Parameters::lattice_jitter         = 0.0;
 double  Parameters::lattice_achieved_density = 0.0;
 double  Parameters::lattice_wall_voxels    = 0.0;
+QString Parameters::fft_scheme             = "auto";
+double  Parameters::fft_tol                = 1e-5;
+int     Parameters::fft_max_iter           = 1000;
 
 QString Parameters::stressSolver = "ansys";
 QString Parameters::stressMode   = "dataset";
@@ -169,6 +172,9 @@ void Parameters::resetDefaults()
     lattice_jitter   = 0.0;
     lattice_achieved_density = 0.0;
     lattice_wall_voxels      = 0.0;
+    fft_scheme = "auto";
+    fft_tol = 1e-5;
+    fft_max_iter = 1000;
     stressSolver = "ansys";
     stressMode = "dataset";
     for (int i = 0; i < 6; ++i) stressEps[i] = 0.0;
@@ -1124,4 +1130,42 @@ void Parameters::setLatticeJitter(double value)
     if (lattice_jitter == value) return;
     lattice_jitter = value;
     emit latticeSettingsChanged();
+}
+
+// ── FFT scheme ───────────────────────────────────────────────────────────────
+
+void Parameters::setFftScheme(const QString& value)
+{
+    const QString norm = value.trimmed().toLower();
+    if (norm != "auto" && norm != "basic" && norm != "cg") {
+        qWarning() << "fft_scheme expects auto, basic or cg; got" << value
+                   << "-- keeping" << fft_scheme;
+        return;
+    }
+    if (fft_scheme == norm)
+        return;
+    fft_scheme = norm;
+    emit fftSchemeChanged();
+}
+
+void Parameters::setFftTol(double value)
+{
+    if (!(value > 0.0) || value >= 1.0) {
+        qWarning() << "fft_tol expects a value in (0, 1); got" << value << "-- keeping" << fft_tol;
+        return;
+    }
+    if (fft_tol == value) return;
+    fft_tol = value;
+    emit fftSchemeChanged();
+}
+
+void Parameters::setFftMaxIter(int value)
+{
+    if (value < 1) {
+        qWarning() << "fft_max_iter expects a positive integer; got" << value << "-- keeping" << fft_max_iter;
+        return;
+    }
+    if (fft_max_iter == value) return;
+    fft_max_iter = value;
+    emit fftSchemeChanged();
 }

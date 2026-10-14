@@ -106,6 +106,13 @@ class Parameters : public QObject
     Q_PROPERTY(double  lattice_grading  READ getLatticeGrading  WRITE setLatticeGrading  NOTIFY latticeSettingsChanged)
     Q_PROPERTY(double  lattice_jitter   READ getLatticeJitter   WRITE setLatticeJitter   NOTIFY latticeSettingsChanged)
 
+    // FFT solver scheme: "auto" (CG for porous or high-contrast cells, basic
+    // otherwise), "basic" (Moulinec-Suquet fixed point) or "cg" (conjugate
+    // gradients on the Galerkin form). See FFTSolverSession::Scheme.
+    Q_PROPERTY(QString fft_scheme READ getFftScheme WRITE setFftScheme NOTIFY fftSchemeChanged)
+    Q_PROPERTY(double  fft_tol      READ getFftTol     WRITE setFftTol     NOTIFY fftSchemeChanged)
+    Q_PROPERTY(int     fft_max_iter READ getFftMaxIter WRITE setFftMaxIter NOTIFY fftSchemeChanged)
+
     Q_PROPERTY(QString texture_preset  READ getTexturePreset  WRITE setTexturePreset  NOTIFY textureSettingsChanged)
     Q_PROPERTY(double  texture_scatter READ getTextureScatter WRITE setTextureScatter NOTIFY textureSettingsChanged)
 
@@ -325,6 +332,14 @@ public:
     static QString latticeFamilyKeyStored() { return lattice_family; }
     static QString latticeFamilyLabelOf(const QString& key);
 
+    QString getFftScheme() const { return fft_scheme; }
+    /// Accepts auto | basic | cg (case-insensitive); anything else is ignored with a warning.
+    Q_INVOKABLE void setFftScheme(const QString& value);
+    double getFftTol()     const { return fft_tol; }
+    int    getFftMaxIter() const { return fft_max_iter; }
+    Q_INVOKABLE void setFftTol(double value);
+    Q_INVOKABLE void setFftMaxIter(int value);
+
     /**
      * @brief Cubic single-crystal constants of the selected material, in Pa.
      *
@@ -420,6 +435,12 @@ public:
     static double lattice_achieved_density;
     static double lattice_wall_voxels;
 
+    // "auto" | "basic" | "cg"; both FFT entry points read it at construction.
+    static QString fft_scheme;
+    // Convergence tolerance and iteration cap of the FFT solver (both schemes).
+    static double  fft_tol;
+    static int     fft_max_iter;
+
     /**
      * @brief Full anisotropic stiffness of a named database material, in Pa.
      *
@@ -480,6 +501,7 @@ signals:
     void textureSettingsChanged();
     void compositeSettingsChanged();
     void latticeSettingsChanged();
+    void fftSchemeChanged();
 
     void numRndLoadsChanged();
     void stressSolverChanged();

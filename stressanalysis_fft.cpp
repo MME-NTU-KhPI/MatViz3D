@@ -63,6 +63,24 @@ static FFTSolverSession makeSession(int N, const std::vector<int>& grain_field,
 StressAnalysisFFT::StressAnalysisFFT()
 {
     Parameters::cubicConstantsPa(C11, C12, C44);
+    fft_scheme   = Parameters::fft_scheme;
+    fft_tol      = Parameters::fft_tol;
+    fft_max_iter = Parameters::fft_max_iter;
+}
+
+// Maps the user's scheme name onto the session and says which scheme will
+// actually run, since "auto" decides from the structure.
+static void applyScheme(FFTSolverSession& session, const QString& scheme)
+{
+    const QString s = scheme.trimmed().toLower();
+    session.set_scheme(s == "cg"    ? FFTSolverSession::Scheme::CG
+                     : s == "basic" ? FFTSolverSession::Scheme::Basic
+                                    : FFTSolverSession::Scheme::Auto);
+    qDebug().noquote()
+        << QString("[StressAnalysisFFT] scheme = %1 (requested %2; phase contrast %3, solid fraction %4)")
+               .arg(session.scheme_name(), s.isEmpty() ? QStringLiteral("auto") : s)
+               .arg(session.phase_contrast(), 0, 'g', 3)
+               .arg(session.solid_fraction(), 0, 'f', 3);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -139,6 +157,7 @@ void StressAnalysisFFT::estimateStressWithFFT(short int numCubes, short int numP
                                            C11, C12, C44, gm);
     session.set_tolerance(fft_tol);
     session.set_max_iters(fft_max_iter);
+    applyScheme(session, fft_scheme);
     qDebug() << "[StressAnalysisFFT] grains =" << nGrains
              << " solid fraction =" << session.solid_fraction();
 
@@ -412,6 +431,7 @@ SingleShotResult StressAnalysisFFT::solveSingleLoadCase(short int numCubes, shor
 
     session.set_tolerance(fft_tol);
     session.set_max_iters(fft_max_iter);
+    applyScheme(session, fft_scheme);
     qDebug() << "[StressAnalysisFFT]   [DEBUG] solid_fraction =" << session.solid_fraction()
              << " tol =" << fft_tol << " max_iter =" << fft_max_iter;
 
@@ -522,6 +542,7 @@ StiffnessMatrixResult StressAnalysisFFT::computeStiffnessMatrix(short int numCub
                                            C11, C12, C44, gm);
     session.set_tolerance(fft_tol);
     session.set_max_iters(fft_max_iter);
+    applyScheme(session, fft_scheme);
     qDebug() << "[StressAnalysisFFT::computeStiffnessMatrix]   grains =" << nGrains
              << " solid fraction =" << session.solid_fraction()
              << " tol =" << fft_tol << " max_iter =" << fft_max_iter

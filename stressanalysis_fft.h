@@ -50,6 +50,9 @@ public:
     double C11, C12, C44;
     double fft_tol      = 1e-5;
     int    fft_max_iter = 1000;
+    // "auto" | "basic" | "cg" -- see FFTSolverSession::Scheme. Read from
+    // Parameters::fft_scheme at construction (CLI --fft_scheme).
+    QString fft_scheme  = "auto";
 
     // Dataset-build controls (phase 1.5 / 2.0), editable from the UI.
     int    num_samples = 300;   // final load cases in phase 2.0

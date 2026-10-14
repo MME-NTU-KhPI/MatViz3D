@@ -89,6 +89,8 @@ HEADERS += \
     ../dlca.h \
     ../lattice.h \
     ../latticefamily.h \
+    ../fft_homog.hpp \
+    ../fft_solver_session.hpp \
     ../texturemath.hpp \
     ../svgexporter.hpp \
     ../cpuinfo.hpp
@@ -104,7 +106,8 @@ SOURCES += \
     test_hillcriterion.cpp \
     test_svgexporter.cpp \
     test_commandline_parser.cpp \
-    test_lattice.cpp
+    test_lattice.cpp \
+    test_ffthomog.cpp
 
 HEADERS += \
     test_polycrystall_seeding.h \
@@ -114,6 +117,7 @@ HEADERS += \
     test_hillcriterion.h \
     test_svgexporter.h \
     test_commandline_parser.h \
-    test_lattice.h
+    test_lattice.h \
+    test_ffthomog.h
 
 TARGET = tests
