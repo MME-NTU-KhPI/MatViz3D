@@ -1,7 +1,10 @@
 #include "lattice.h"
 
 #include <QDebug>
+#include <QFile>
+#include <QRegularExpression>
 #include <QString>
+#include <functional>
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -124,6 +127,20 @@ void Lattice::readParameters()
     m_angles[0] = p.getOrientationAngleA() * d2r;
     m_angles[1] = p.getOrientationAngleB() * d2r;
     m_angles[2] = p.getOrientationAngleC() * d2r;
+
+    m_theta[0] = std::clamp(p.getSpinodoidThetaX(), 0.0, 90.0);
+    m_theta[1] = std::clamp(p.getSpinodoidThetaY(), 0.0, 90.0);
+    m_theta[2] = std::clamp(p.getSpinodoidThetaZ(), 0.0, 90.0);
+    if (m_theta[0] <= 0.0 && m_theta[1] <= 0.0 && m_theta[2] <= 0.0) {
+        qWarning() << "[Lattice] all spinodoid cones are closed; using the isotropic field";
+        m_theta[0] = m_theta[1] = m_theta[2] = 90.0;
+    }
+
+    m_fourierTerms = std::clamp(p.getFourierTerms(), 2, 256);
+    m_fourierKmin  = std::max(1.0, p.getFourierKmin());
+    m_fourierKmax  = std::max(m_fourierKmin, p.getFourierKmax());
+    m_fourierDecay = std::clamp(p.getFourierDecay(), 0.0, 4.0);
+    m_fourierFile  = p.getFourierFile();
 }
 
 // R = Rz(a) * Rx(b) * Rz(c), applied to coordinates about the cube centre.
@@ -238,14 +255,15 @@ void Lattice::buildWaves()
 {
     m_waves.clear();
     m_jitterWaves.clear();
-    m_jitterNorm = 1.0;
+    m_jitterNorm  = 1.0;
+    m_directions  = 0;
 
     std::uniform_real_distribution<double> phase(0.0, 2.0 * kPi);
 
-    // Draws `count` waves whose integer wave vectors (periodic in the cube by
-    // construction) have kmin <= |k| <= kmax, one of each +-k pair. Returns
-    // how many distinct directions were available.
-    auto draw = [&](double kmin, double kmax, int count, std::vector<Wave>& out) -> size_t {
+    // Integer wave vectors (periodic in the cube by construction) with
+    // kmin <= |k| <= kmax, one of each +-k pair, filtered by `admissible`.
+    auto candidates = [&](double kmin, double kmax,
+                          const std::function<bool(int,int,int)>& admissible) {
         std::vector<std::array<int,3>> cand;
         const int K = static_cast<int>(std::ceil(kmax));
         for (int kx = -K; kx <= K; ++kx)
@@ -253,28 +271,143 @@ void Lattice::buildWaves()
                 for (int kz = -K; kz <= K; ++kz) {
                     if (kx < 0 || (kx == 0 && (ky < 0 || (ky == 0 && kz <= 0)))) continue;
                     const double n = std::sqrt(double(kx * kx + ky * ky + kz * kz));
-                    if (n >= kmin && n <= kmax) cand.push_back({ kx, ky, kz });
+                    if (n < kmin || n > kmax) continue;
+                    if (admissible && !admissible(kx, ky, kz)) continue;
+                    cand.push_back({ kx, ky, kz });
                 }
-        if (cand.empty()) return 0;
+        return cand;
+    };
+    auto drawFrom = [&](const std::vector<std::array<int,3>>& cand, int count,
+                        std::vector<Wave>& out, double decay) {
+        if (cand.empty()) return;
         std::uniform_int_distribution<size_t> pick(0, cand.size() - 1);
         for (int i = 0; i < count; ++i) {
             const std::array<int,3> k = cand[pick(m_rng)];
-            out.push_back({ double(k[0]), double(k[1]), double(k[2]), phase(m_rng) });
+            const double n = std::sqrt(double(k[0] * k[0] + k[1] * k[1] + k[2] * k[2]));
+            out.push_back({ double(k[0]), double(k[1]), double(k[2]), phase(m_rng),
+                            decay > 0.0 ? std::pow(n, -decay) : 1.0 });
         }
-        return cand.size();
     };
 
     if (m_family == LatticeFamily::Spinodoid) {
+        // Kumar, Tan, Zheng & Kochmann (2020): wave directions drawn from the
+        // union of cones of half-angle theta_i about the axes; a closed cone
+        // (theta = 0) contributes nothing, 90 degrees is the whole sphere.
+        const double cx = std::cos(m_theta[0] * kPi / 180.0);
+        const double cy = std::cos(m_theta[1] * kPi / 180.0);
+        const double cz = std::cos(m_theta[2] * kPi / 180.0);
+        auto inCones = [&](int kx, int ky, int kz) {
+            const double n = std::sqrt(double(kx * kx + ky * ky + kz * kz));
+            const double ax = std::abs(kx) / n, ay = std::abs(ky) / n, az = std::abs(kz) / n;
+            return (m_theta[0] > 0.0 && ax >= cx - 1e-12)
+                || (m_theta[1] > 0.0 && ay >= cy - 1e-12)
+                || (m_theta[2] > 0.0 && az >= cz - 1e-12);
+        };
         // Waves per cube edge ~ cells per edge, i.e. one "cell" per wavelength.
         const double beta = static_cast<double>(m_cells);
-        if (draw(0.7 * beta, 1.3 * beta, 40, m_waves) < 10) {
-            m_waves.clear();
-            draw(0.5 * beta, 2.0 * beta, 40, m_waves);
+        std::vector<std::array<int,3>> cand = candidates(0.7 * beta, 1.3 * beta, inCones);
+        if (cand.size() < 5) cand = candidates(0.5 * beta, 2.0 * beta, inCones);
+        m_directions = cand.size();
+        drawFrom(cand, 40, m_waves, 0.0);
+        if (m_directions < 3)
+            qWarning().noquote()
+                << QString("[Lattice] only %1 admissible wave direction(s) for the spinodoid; "
+                           "raise cells_per_edge or open the cones")
+                       .arg(m_directions);
+    }
+
+    if (m_family == LatticeFamily::FourierSheet || m_family == LatticeFamily::FourierSkeletal) {
+        bool loaded = false;
+        if (!m_fourierFile.isEmpty()) {
+            loaded = loadFourierFile(m_fourierFile);
+            if (!loaded)
+                qWarning().noquote()
+                    << QString("[Lattice] could not read Fourier terms from \"%1\"; "
+                               "drawing random terms from seed %2 instead")
+                           .arg(m_fourierFile).arg(Parameters::seed);
+        }
+        if (!loaded) {
+            std::vector<std::array<int,3>> cand = candidates(m_fourierKmin, m_fourierKmax, nullptr);
+            m_directions = cand.size();
+            // Distinct wave vectors when there are enough, so two draws never
+            // collapse onto one; shuffle and take the first `terms`.
+            if (static_cast<int>(cand.size()) >= m_fourierTerms) {
+                std::shuffle(cand.begin(), cand.end(), m_rng);
+                cand.resize(static_cast<size_t>(m_fourierTerms));
+                std::uniform_real_distribution<double> jit(0.5, 1.5);
+                for (const std::array<int,3>& k : cand) {
+                    const double n = std::sqrt(double(k[0] * k[0] + k[1] * k[1] + k[2] * k[2]));
+                    const double a = (m_fourierDecay > 0.0 ? std::pow(n, -m_fourierDecay) : 1.0) * jit(m_rng);
+                    m_waves.push_back({ double(k[0]), double(k[1]), double(k[2]), phase(m_rng), a });
+                }
+            } else {
+                drawFrom(cand, m_fourierTerms, m_waves, m_fourierDecay);
+            }
+            // Unit variance, so the level c means the same thing for every
+            // draw. Terms from a file are kept exactly as given: a uniform
+            // scale changes c, not the geometry, and the file is the record.
+            double var = 0.0;
+            for (const Wave& w : m_waves) var += 0.5 * w.amp * w.amp;
+            if (var > 0.0) {
+                const double s = 1.0 / std::sqrt(var);
+                for (Wave& w : m_waves) w.amp *= s;
+            }
         }
     }
 
     if (m_jitter > 0.0)
-        draw(1.0, 2.0 * m_cells, 12, m_jitterWaves);
+        drawFrom(candidates(1.0, 2.0 * m_cells, nullptr), 12, m_jitterWaves, 0.0);
+}
+
+// One term per line: kx ky kz amplitude phase. Blank lines and lines starting
+// with '#' are skipped; wave vectors must be integers so the field stays
+// periodic in the cube.
+bool Lattice::loadFourierFile(const QString& path)
+{
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) return false;
+    std::vector<Wave> terms;
+    int lineNo = 0;
+    while (!f.atEnd()) {
+        ++lineNo;
+        const QString line = QString::fromUtf8(f.readLine()).trimmed();
+        if (line.isEmpty() || line.startsWith('#')) continue;
+        const QStringList parts = line.split(QRegularExpression("[\\s,;]+"), Qt::SkipEmptyParts);
+        if (parts.size() < 5) {
+            qWarning().noquote() << QString("[Lattice] %1:%2: expected kx ky kz amplitude phase").arg(path).arg(lineNo);
+            return false;
+        }
+        bool ok[5];
+        const int    kx = parts[0].toInt(&ok[0]);
+        const int    ky = parts[1].toInt(&ok[1]);
+        const int    kz = parts[2].toInt(&ok[2]);
+        const double a  = parts[3].toDouble(&ok[3]);
+        const double ph = parts[4].toDouble(&ok[4]);
+        if (!(ok[0] && ok[1] && ok[2] && ok[3] && ok[4])) {
+            qWarning().noquote() << QString("[Lattice] %1:%2: could not parse \"%3\"").arg(path).arg(lineNo).arg(line);
+            return false;
+        }
+        if (kx == 0 && ky == 0 && kz == 0) continue;   // a constant only shifts c
+        terms.push_back({ double(kx), double(ky), double(kz), ph, a });
+    }
+    if (terms.empty()) return false;
+    m_waves = std::move(terms);
+    m_directions = m_waves.size();
+    return true;
+}
+
+// The waves actually used, for the HDF5 metadata: this is the geometry
+// vector a property-to-geometry network would output.
+void Lattice::publishWaves()
+{
+    Parameters::lattice_wave_terms.clear();
+    if (m_family == LatticeFamily::Spinodoid ||
+        m_family == LatticeFamily::FourierSheet || m_family == LatticeFamily::FourierSkeletal) {
+        Parameters::lattice_wave_terms.reserve(m_waves.size());
+        for (const Wave& w : m_waves)
+            Parameters::lattice_wave_terms.push_back({ float(w.kx), float(w.ky), float(w.kz),
+                                                       float(w.amp), float(w.phase) });
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -349,6 +482,13 @@ double Lattice::rawField(double X, double Y, double Z) const
             for (const Wave& w : m_waves)
                 g += std::cos(2.0 * kPi * (w.kx * X + w.ky * Y + w.kz * Z) + w.phase);
             return amp * g;
+        }
+        case LatticeFamily::FourierSheet:
+        case LatticeFamily::FourierSkeletal: {
+            double f = 0.0;
+            for (const Wave& w : m_waves)
+                f += w.amp * std::cos(2.0 * kPi * (w.kx * X + w.ky * Y + w.kz * Z) + w.phase);
+            return m_signed ? f : std::abs(f);
         }
     }
     return 0.0;
@@ -538,6 +678,7 @@ void Lattice::Initialization(bool /*isWaveGeneration*/)
     buildRotation();
     buildSegments();
     buildWaves();
+    publishWaves();
 
     numColors = 1;
     m_coarseN = std::min<int>(numCubes, 64);
@@ -640,6 +781,19 @@ void Lattice::report() const
                        "to tile the square cube")
                    .arg(m_cellsY).arg(m_hcStretch, 0, 'f', 3);
 
+    if (m_family == LatticeFamily::Spinodoid)
+        qInfo().noquote()
+            << QString("[Lattice] spinodoid: cones about X/Y/Z = %1/%2/%3 deg, %4 admissible directions, %5 waves (seed %6)")
+                   .arg(m_theta[0], 0, 'f', 0).arg(m_theta[1], 0, 'f', 0).arg(m_theta[2], 0, 'f', 0)
+                   .arg(m_directions).arg(m_waves.size()).arg(Parameters::seed);
+    if (m_family == LatticeFamily::FourierSheet || m_family == LatticeFamily::FourierSkeletal)
+        qInfo().noquote()
+            << QString("[Lattice] Fourier series: %1 waves%2 (|k| in [%3, %4] per edge, decay %5, seed %6)")
+                   .arg(m_waves.size())
+                   .arg(m_fourierFile.isEmpty() ? QString() : QString(" from \"%1\"").arg(m_fourierFile))
+                   .arg(m_fourierKmin, 0, 'g', 3).arg(m_fourierKmax, 0, 'g', 3)
+                   .arg(m_fourierDecay, 0, 'g', 3).arg(Parameters::seed);
+
     if (m_rotated)
         qInfo().noquote()
             << QString("[Lattice] lattice rotated by (%1, %2, %3) deg about the cube centre; "
@@ -696,6 +850,17 @@ static std::vector<ParamField> latticeSchema()
         { "orientation_angle_c", "Rotation about Z' (deg)", ParamField::Double, 0.0, -180.0, 180.0, {}, "main" },
 
         { "is_periodic", "Periodic cell", ParamField::Bool, true, {}, {}, {}, "main" },
+
+        // Spinodoid: cones of admissible wave directions about the axes.
+        { "spinodoid_theta_x", "Spinodoid cone about X (deg, 0 = off)", ParamField::Double, 90.0, 0.0, 90.0, {}, "main" },
+        { "spinodoid_theta_y", "Spinodoid cone about Y (deg, 0 = off)", ParamField::Double, 90.0, 0.0, 90.0, {}, "main" },
+        { "spinodoid_theta_z", "Spinodoid cone about Z (deg, 0 = off)", ParamField::Double, 90.0, 0.0, 90.0, {}, "main" },
+
+        // Fourier series: random draw controls (a coefficient file is CLI/config only).
+        { "fourier_terms", "Fourier waves",                   ParamField::Int,    24,  2,   256,  {}, "main" },
+        { "fourier_kmin",  "Fourier min waves per edge",      ParamField::Double, 1.0, 1.0, 32.0, {}, "main" },
+        { "fourier_kmax",  "Fourier max waves per edge",      ParamField::Double, 4.0, 1.0, 32.0, {}, "main" },
+        { "fourier_decay", "Fourier amplitude decay exponent", ParamField::Double, 1.0, 0.0, 4.0,  {}, "main" },
     };
 
     // One constituent: the printed base material. Void is the other phase.
@@ -709,9 +874,9 @@ static std::vector<ParamField> latticeSchema()
 MATVIZ_REGISTER_ALGORITHM(AlgorithmPlugin{
     "Lattice",
     "Periodic cellular metamaterial RVE (TPMS sheets and skeletons, strut "
-    "lattices, honeycombs, spinodoids): one solid phase plus void, sized to a "
-    "target relative density, with optional thickness grading, jitter and "
-    "lattice rotation.",
+    "lattices, honeycombs, anisotropic spinodoids, open Fourier-series level "
+    "sets): one solid phase plus void, sized to a target relative density, "
+    "with optional thickness grading, jitter and lattice rotation.",
     /*order=*/ 2,
     latticeSchema(),
     [](const Parameters& p) {

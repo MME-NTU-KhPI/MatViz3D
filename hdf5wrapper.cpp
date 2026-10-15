@@ -891,10 +891,26 @@ void saveGeometryMetadataToHDF5(HDF5Wrapper& hdf5, const std::string& prefix, co
     // Lattice: what the density solve actually reached, next to the target
     // the schema loop wrote above, so a dataset can be filtered on both.
     if (algo.compare("Lattice", Qt::CaseInsensitive) == 0) {
+        hdf5.write(geomGroup, "lattice_family_key", Parameters::latticeFamilyKeyStored());
+        paramsObj["lattice_family_key"] = Parameters::latticeFamilyKeyStored();
         hdf5.write(geomGroup, "lattice_achieved_density", float(Parameters::lattice_achieved_density));
         hdf5.write(geomGroup, "lattice_wall_voxels",      float(Parameters::lattice_wall_voxels));
         paramsObj["lattice_achieved_density"] = Parameters::lattice_achieved_density;
         paramsObj["lattice_wall_voxels"]      = Parameters::lattice_wall_voxels;
+        if (!p->getFourierFile().isEmpty()) {
+            hdf5.write(geomGroup, "fourier_file", p->getFourierFile());
+            paramsObj["fourier_file"] = p->getFourierFile();
+        }
+        // The exact waves of a spinodoid / Fourier cell: one row per wave,
+        // kx ky kz amplitude phase. This is the geometry vector of the sample.
+        if (!Parameters::lattice_wave_terms.empty()) {
+            std::vector<std::vector<float>> rows;
+            rows.reserve(Parameters::lattice_wave_terms.size());
+            for (const auto& t : Parameters::lattice_wave_terms)
+                rows.push_back({ t[0], t[1], t[2], t[3], t[4] });
+            hdf5.write(geomGroup, "lattice_wave_terms", rows);
+            paramsObj["lattice_wave_count"] = static_cast<int>(rows.size());
+        }
     }
 
     summaryStr += ")";

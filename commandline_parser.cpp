@@ -77,11 +77,14 @@ QString Commandline_Parser::buildApplicationDescription()
     desc += "  --fft_tol:               FFT convergence tolerance (default: 1e-5); --fft_max_iter: iteration cap per load (default: 1000)\n";
     desc += "  --composite_dim:         1d (fibers along Z) | 2d (along X, Y) | 3d (along X, Y, Z)\n";
     desc += "  --composite_packing:     square | hexagonal\n";
-    desc += "  --lattice_family:        gyroid_sheet | gyroid_skeletal | schwarz_p_sheet | schwarz_p_skeletal | schwarz_d_sheet | schwarz_d_skeletal | iwp_sheet | iwp_skeletal | simple_cubic | bcc | fcc | octet | honeycomb | reentrant | spinodoid\n";
+    desc += "  --lattice_family:        gyroid_sheet | gyroid_skeletal | schwarz_p_sheet | schwarz_p_skeletal | schwarz_d_sheet | schwarz_d_skeletal | iwp_sheet | iwp_skeletal | simple_cubic | bcc | fcc | octet | honeycomb | reentrant | spinodoid | fourier_sheet | fourier_skeletal\n";
     desc += "  --cells_per_edge:        unit cells along each cube edge (default: 2)\n";
     desc += "  --relative_density:      target solid fraction of the lattice in (0, 1) (default: 0.3)\n";
     desc += "  --lattice_grading:       linear wall-thickness gradient along Z, 0..0.9 (default: 0)\n";
     desc += "  --lattice_jitter:        random wall-thickness modulation, 0..1 (default: 0)\n";
+    desc += "  --spinodoid_theta_x/y/z: spinodoid cone half-angles about the axes, 0 (off) or 5..90 deg (default: 90)\n";
+    desc += "  --fourier_terms/kmin/kmax/decay: random Fourier-series draw (default: 24 waves, |k| in [1, 4] per edge, decay 1)\n";
+    desc += "  --fourier_file:          text file with one wave per line (kx ky kz amplitude phase); overrides the random draw\n";
     desc += "  --prob_matrix_mode:      volume ('Volume Sampling') | surface ('Surface Flux')\n";
     desc += "  --texture:               random | extrusion | rolling | recrystallization | shear | scattered_cube\n";
     desc += "  --lattice:               fcc | bcc\n";
@@ -192,7 +195,7 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
     parser.addOption(QCommandLineOption("lattice_family",
         "[Lattice] Unit-cell family: gyroid_sheet | gyroid_skeletal | schwarz_p_sheet | schwarz_p_skeletal | "
         "schwarz_d_sheet | schwarz_d_skeletal | iwp_sheet | iwp_skeletal | simple_cubic | bcc | fcc | octet | "
-        "honeycomb | reentrant | spinodoid. Default: gyroid_sheet", "family"));
+        "honeycomb | reentrant | spinodoid | fourier_sheet | fourier_skeletal. Default: gyroid_sheet", "family"));
     parser.addOption(QCommandLineOption("cells_per_edge",
         "[Lattice] Unit cells along each cube edge, 1..64 (default: 2).", "n"));
     parser.addOption(QCommandLineOption("relative_density",
@@ -201,6 +204,22 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
         "[Lattice] Linear wall-thickness gradient along Z in [0, 0.9): (1-g) at the bottom, (1+g) at the top. Default: 0", "g"));
     parser.addOption(QCommandLineOption("lattice_jitter",
         "[Lattice] Smooth random wall-thickness modulation of relative amplitude [0, 1], seeded. Default: 0", "j"));
+    parser.addOption(QCommandLineOption("spinodoid_theta_x",
+        "[Lattice] Spinodoid: half-angle of the cone of wave directions about X, 0 (closed) or 5..90 deg. Default: 90", "deg"));
+    parser.addOption(QCommandLineOption("spinodoid_theta_y",
+        "[Lattice] Spinodoid: half-angle of the cone of wave directions about Y, 0 (closed) or 5..90 deg. Default: 90", "deg"));
+    parser.addOption(QCommandLineOption("spinodoid_theta_z",
+        "[Lattice] Spinodoid: half-angle of the cone of wave directions about Z, 0 (closed) or 5..90 deg. Default: 90", "deg"));
+    parser.addOption(QCommandLineOption("fourier_terms",
+        "[Lattice] Fourier series: number of random waves, 2..256 (default: 24).", "n"));
+    parser.addOption(QCommandLineOption("fourier_kmin",
+        "[Lattice] Fourier series: smallest wave number in waves per cube edge (default: 1).", "k"));
+    parser.addOption(QCommandLineOption("fourier_kmax",
+        "[Lattice] Fourier series: largest wave number in waves per cube edge (default: 4).", "k"));
+    parser.addOption(QCommandLineOption("fourier_decay",
+        "[Lattice] Fourier series: amplitude ~ |k|^-decay, 0..4 (default: 1).", "p"));
+    parser.addOption(QCommandLineOption("fourier_file",
+        "[Lattice] Fourier series: text file with one wave per line (kx ky kz amplitude phase); overrides the random draw.", "path"));
 
     // ── Probability Cellular Automaton ────────────────────────────────────
     parser.addOption(QCommandLineOption("prob_preset",
@@ -417,6 +436,14 @@ void Commandline_Parser::printJsonHelp()
     addOpt("relative_density", "Lattice", "double", "frac", "0.3", "Target solid fraction in (0, 1)");
     addOpt("lattice_grading", "Lattice", "double", "g", "0.0", "Linear wall-thickness gradient along Z in [0, 0.9)");
     addOpt("lattice_jitter", "Lattice", "double", "j", "0.0", "Random wall-thickness modulation, relative amplitude in [0, 1]");
+    addOpt("spinodoid_theta_x", "Lattice", "double", "deg", "90", "Spinodoid: cone half-angle about X, 0 (closed) or 5..90 deg");
+    addOpt("spinodoid_theta_y", "Lattice", "double", "deg", "90", "Spinodoid: cone half-angle about Y, 0 (closed) or 5..90 deg");
+    addOpt("spinodoid_theta_z", "Lattice", "double", "deg", "90", "Spinodoid: cone half-angle about Z, 0 (closed) or 5..90 deg");
+    addOpt("fourier_terms", "Lattice", "int", "n", "24", "Fourier series: number of random waves (2..256)");
+    addOpt("fourier_kmin", "Lattice", "double", "k", "1", "Fourier series: smallest wave number, waves per cube edge");
+    addOpt("fourier_kmax", "Lattice", "double", "k", "4", "Fourier series: largest wave number, waves per cube edge");
+    addOpt("fourier_decay", "Lattice", "double", "p", "1", "Fourier series: amplitude ~ |k|^-decay (0..4)");
+    addOpt("fourier_file", "Lattice", "string", "path", "", "Fourier series: text file with one wave per line (kx ky kz amplitude phase)");
 
     // Probability
     addOpt("prob_preset", "Probability", "string", "preset", "", "Kernel shape preset",
@@ -1131,6 +1158,56 @@ bool Commandline_Parser::applyParameter(const QString& key, const QString& value
         return true;
     }
 
+    if (normKey == "spinodoid_theta_x" || normKey == "spinodoid_theta_y" || normKey == "spinodoid_theta_z") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (!(v == 0.0 || (v >= 5.0 && v <= 90.0))) {
+            return setErr(QString("Option %1 expects 0 or a value in [5, 90] degrees; got %2").arg(normKey, value));
+        }
+        if (normKey.endsWith('x'))      params->setSpinodoidThetaX(v);
+        else if (normKey.endsWith('y')) params->setSpinodoidThetaY(v);
+        else                            params->setSpinodoidThetaZ(v);
+        return true;
+    }
+
+    if (normKey == "fourier_terms") {
+        int v = 0;
+        if (!parseInt(v, true)) return false;
+        if (v < 2 || v > 256) {
+            return setErr(QString("Option fourier_terms expects 2..256; got %1").arg(v));
+        }
+        params->setFourierTerms(v);
+        return true;
+    }
+
+    if (normKey == "fourier_kmin" || normKey == "fourier_kmax") {
+        double v = 0.0;
+        if (!parseDouble(v, true)) return false;
+        if (v < 1.0) {
+            return setErr(QString("Option %1 expects a value >= 1; got %2").arg(normKey, value));
+        }
+        if (normKey == "fourier_kmin") params->setFourierKmin(v); else params->setFourierKmax(v);
+        return true;
+    }
+
+    if (normKey == "fourier_decay") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0.0 || v > 4.0) {
+            return setErr(QString("Option fourier_decay expects a value in [0, 4]; got %1").arg(value));
+        }
+        params->setFourierDecay(v);
+        return true;
+    }
+
+    if (normKey == "fourier_file") {
+        if (value.trimmed().isEmpty()) {
+            return setErr(QStringLiteral("Option fourier_file expects a path"));
+        }
+        params->setFourierFile(value);
+        return true;
+    }
+
     return setErr(QString("Unknown parameter key: '%1'").arg(key));
 }
 
@@ -1230,6 +1307,14 @@ bool Commandline_Parser::processOptions(const QCommandLineParser& parser, QStrin
     if (parser.isSet("relative_density"))        if (!applyCliOption("relative_density", parser.value("relative_density"))) return false;
     if (parser.isSet("lattice_grading"))         if (!applyCliOption("lattice_grading", parser.value("lattice_grading"))) return false;
     if (parser.isSet("lattice_jitter"))          if (!applyCliOption("lattice_jitter", parser.value("lattice_jitter"))) return false;
+    if (parser.isSet("spinodoid_theta_x"))       if (!applyCliOption("spinodoid_theta_x", parser.value("spinodoid_theta_x"))) return false;
+    if (parser.isSet("spinodoid_theta_y"))       if (!applyCliOption("spinodoid_theta_y", parser.value("spinodoid_theta_y"))) return false;
+    if (parser.isSet("spinodoid_theta_z"))       if (!applyCliOption("spinodoid_theta_z", parser.value("spinodoid_theta_z"))) return false;
+    if (parser.isSet("fourier_terms"))           if (!applyCliOption("fourier_terms", parser.value("fourier_terms"))) return false;
+    if (parser.isSet("fourier_kmin"))            if (!applyCliOption("fourier_kmin", parser.value("fourier_kmin"))) return false;
+    if (parser.isSet("fourier_kmax"))            if (!applyCliOption("fourier_kmax", parser.value("fourier_kmax"))) return false;
+    if (parser.isSet("fourier_decay"))           if (!applyCliOption("fourier_decay", parser.value("fourier_decay"))) return false;
+    if (parser.isSet("fourier_file"))            if (!applyCliOption("fourier_file", parser.value("fourier_file"))) return false;
 
     if (parser.isSet("prob_preset"))             if (!applyCliOption("prob_preset", parser.value("prob_preset"))) return false;
     if (parser.isSet("prob_matrix_mode"))        if (!applyCliOption("prob_matrix_mode", parser.value("prob_matrix_mode"))) return false;

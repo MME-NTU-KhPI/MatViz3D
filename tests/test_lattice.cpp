@@ -1,5 +1,6 @@
 #include "test_lattice.h"
 #include <QTest>
+#include <QTemporaryFile>
 #include <cmath>
 #include <vector>
 #include <omp.h>
@@ -238,6 +239,138 @@ void TestLattice::testSeedReproducesSpinodoid()
     QVERIFY(a.flat() != c.flat());
 }
 
+void TestLattice::testSpinodoidConesMakeLamellae()
+{
+    // Only the cone about Z open: every admissible wave vector points along
+    // +-Z (plus a few that are nearly so), so the field is a stack of layers
+    // normal to Z -- nearly invariant along X and Y, varying along Z.
+    Parameters* p = Parameters::instance();
+    const int N = 32;
+    p->setSize(N);
+    p->setCellsPerEdge(4);
+    p->setRelativeDensity(0.40);
+    p->setLatticeFamily("spinodoid");
+    p->setSpinodoidThetaX(0.0);
+    p->setSpinodoidThetaY(0.0);
+    p->setSpinodoidThetaZ(15.0);
+
+    TestableLattice L(N);
+    L.Initialization(false);
+    L.Generate_To_End();
+
+    long long changesX = 0, changesZ = 0;
+    const long long pairs = static_cast<long long>(N) * N * (N - 1);
+    for (int x = 0; x < N; ++x)
+        for (int y = 0; y < N; ++y)
+            for (int z = 0; z < N; ++z) {
+                if (x + 1 < N && L.voxels[x][y][z] != L.voxels[x + 1][y][z]) ++changesX;
+                if (z + 1 < N && L.voxels[x][y][z] != L.voxels[x][y][z + 1]) ++changesZ;
+            }
+    const double fx = static_cast<double>(changesX) / pairs;
+    const double fz = static_cast<double>(changesZ) / pairs;
+    QVERIFY2(fx < 0.05, qPrintable(QString("solid/void changes along X: %1").arg(fx)));
+    QVERIFY2(fz > 0.05, qPrintable(QString("solid/void changes along Z: %1").arg(fz)));
+    QVERIFY(!Parameters::lattice_wave_terms.empty());
+    for (const auto& t : Parameters::lattice_wave_terms)
+        QVERIFY2(std::abs(t[2]) >= std::abs(t[0]) && std::abs(t[2]) >= std::abs(t[1]),
+                 "a wave of a Z-cone spinodoid must lean along Z");
+}
+
+void TestLattice::testFourierFileRoundTrip()
+{
+    Parameters* p = Parameters::instance();
+    const int N = 16;
+    p->setSize(N);
+    p->setCellsPerEdge(1);
+    p->setRelativeDensity(0.35);
+    p->setLatticeFamily("fourier_sheet");
+
+    QTemporaryFile file;
+    QVERIFY(file.open());
+    file.write("# kx ky kz amplitude phase\n");
+    file.write("1 0 0 1.0 0.0\n");
+    file.write("0 2 0 0.5 1.0\n");
+    file.write("\n0 0 0 9.0 0.0\n");     // a constant term is ignored
+    file.flush();
+    p->setFourierFile(file.fileName());
+
+    TestableLattice L(N);
+    L.Initialization(false);
+    QCOMPARE(static_cast<int>(Parameters::lattice_wave_terms.size()), 2);
+
+    // fieldAt() takes voxel units; the formula lives in cube fractions.
+    const double pi = 3.14159265358979323846;
+    const double probes[][3] = { { 3.5, 7.5, 11.5 }, { 0.5, 0.5, 0.5 }, { 12.5, 2.5, 9.5 } };
+    for (const double* q : probes) {
+        const double X = q[0] / N, Y = q[1] / N;
+        const double f = 1.0 * std::cos(2 * pi * X) + 0.5 * std::cos(2 * pi * 2 * Y + 1.0);
+        QVERIFY2(std::abs(L.fieldAt(q[0], q[1], q[2]) - std::abs(f)) < 1e-9, "sheet field = |sum of the file's waves|");
+    }
+
+    p->setLatticeFamily("fourier_skeletal");
+    TestableLattice K(N);
+    K.Initialization(false);
+    const double X = 3.5 / N, Y = 7.5 / N;
+    const double f = std::cos(2 * pi * X) + 0.5 * std::cos(2 * pi * 2 * Y + 1.0);
+    QVERIFY(std::abs(K.fieldAt(3.5, 7.5, 11.5) - f) < 1e-9);
+
+    // An unreadable file falls back to a random draw rather than an empty cube.
+    p->setFourierFile("/nonexistent/terms.txt");
+    TestableLattice R(N);
+    R.Initialization(false);
+    R.Generate_To_End();
+    QVERIFY(R.achievedDensity() > 0.3);
+    QVERIFY(static_cast<int>(Parameters::lattice_wave_terms.size()) == p->getFourierTerms());
+}
+
+void TestLattice::testFourierRandomIsReproducibleAndPublished()
+{
+    Parameters* p = Parameters::instance();
+    const int N = 16;
+    p->setSize(N);
+    p->setRelativeDensity(0.30);
+    p->setLatticeFamily("fourier_sheet");
+    p->setFourierTerms(12);
+    p->setFourierKmin(1.0);
+    p->setFourierKmax(3.0);
+    p->setFourierDecay(1.0);
+
+    Parameters::seed = 99;
+    TestableLattice a(N);
+    a.Initialization(false);
+    a.Generate_To_End();
+    const auto termsA = Parameters::lattice_wave_terms;
+    QCOMPARE(static_cast<int>(termsA.size()), 12);
+    // Unit variance: sum of amp^2 / 2 == 1.
+    double var = 0.0;
+    for (const auto& t : termsA) var += 0.5 * t[3] * t[3];
+    QVERIFY(std::abs(var - 1.0) < 1e-6);
+    // Wave numbers stay inside the requested band.
+    for (const auto& t : termsA) {
+        const double n = std::sqrt(t[0] * t[0] + t[1] * t[1] + t[2] * t[2]);
+        QVERIFY(n >= 1.0 - 1e-9 && n <= 3.0 + 1e-9);
+    }
+
+    Parameters::seed = 99;
+    TestableLattice b(N);
+    b.Initialization(false);
+    b.Generate_To_End();
+    QVERIFY(a.flat() == b.flat());
+    QVERIFY(Parameters::lattice_wave_terms == termsA);
+
+    Parameters::seed = 100;
+    TestableLattice c(N);
+    c.Initialization(false);
+    c.Generate_To_End();
+    QVERIFY(a.flat() != c.flat());
+
+    // Other families publish no waves.
+    p->setLatticeFamily("bcc");
+    TestableLattice d(N);
+    d.Initialization(false);
+    QVERIFY(Parameters::lattice_wave_terms.empty());
+}
+
 void TestLattice::testCliOptions()
 {
     Parameters* p = Parameters::instance();
@@ -273,5 +406,26 @@ void TestLattice::testCliOptions()
     QVERIFY(!applyParameter("lattice_jitter", "-0.1", &err));
 
     QVERIFY(Commandline_Parser::isValidLatticeFamily("gyroid_sheet"));
+    QVERIFY(Commandline_Parser::isValidLatticeFamily("fourier_skeletal"));
     QVERIFY(!Commandline_Parser::isValidLatticeFamily("gyroid_cube"));
+
+    QVERIFY(applyParameter("spinodoid_theta_z", "30", &err));
+    QCOMPARE(p->getSpinodoidThetaZ(), 30.0);
+    QVERIFY(applyParameter("spinodoid_theta_x", "0", &err));
+    QCOMPARE(p->getSpinodoidThetaX(), 0.0);
+    QVERIFY(!applyParameter("spinodoid_theta_y", "3", &err));
+    QVERIFY(!applyParameter("spinodoid_theta_y", "95", &err));
+
+    QVERIFY(applyParameter("fourier_terms", "32", &err));
+    QCOMPARE(p->getFourierTerms(), 32);
+    QVERIFY(!applyParameter("fourier_terms", "1", &err));
+    QVERIFY(applyParameter("fourier_kmax", "6", &err));
+    QCOMPARE(p->getFourierKmax(), 6.0);
+    QVERIFY(!applyParameter("fourier_kmin", "0.5", &err));
+    QVERIFY(applyParameter("fourier_decay", "1.5", &err));
+    QCOMPARE(p->getFourierDecay(), 1.5);
+    QVERIFY(!applyParameter("fourier_decay", "5", &err));
+    QVERIFY(applyParameter("fourier_file", "terms.txt", &err));
+    QCOMPARE(p->getFourierFile(), QString("terms.txt"));
+    QVERIFY(!applyParameter("fourier_file", "  ", &err));
 }

@@ -139,8 +139,18 @@ int main(int argc, char *argv[])
             qDebug().noquote() << "CSV saved:" << Parameters::csv_output;
         }
 
-        if (parser.isSet("run_stress_calc"))
+        if (parser.isSet("run_stress_calc")) {
             handler.runStressCalculation();
+        } else if (parser.isSet("output")) {
+            // No solve requested: still persist the structure, so a
+            // generation-only dataset run leaves a file behind.
+            QString err;
+            if (!ExportController::writeGeometryHDF5(Parameters::filename, Parameters::voxels,
+                                                     Parameters::instance()->getSize(), &err)) {
+                qCritical().noquote() << "HDF5 export failed:" << err;
+                return 1;
+            }
+        }
 
         return 0;
     }

@@ -88,6 +88,15 @@ double  Parameters::lattice_grading        = 0.0;
 double  Parameters::lattice_jitter         = 0.0;
 double  Parameters::lattice_achieved_density = 0.0;
 double  Parameters::lattice_wall_voxels    = 0.0;
+std::vector<std::array<float,5>> Parameters::lattice_wave_terms;
+double  Parameters::spinodoid_theta_x      = 90.0;
+double  Parameters::spinodoid_theta_y      = 90.0;
+double  Parameters::spinodoid_theta_z      = 90.0;
+int     Parameters::fourier_terms          = 24;
+double  Parameters::fourier_kmin           = 1.0;
+double  Parameters::fourier_kmax           = 4.0;
+double  Parameters::fourier_decay          = 1.0;
+QString Parameters::fourier_file;
 QString Parameters::fft_scheme             = "auto";
 double  Parameters::fft_tol                = 1e-5;
 int     Parameters::fft_max_iter           = 1000;
@@ -172,6 +181,15 @@ void Parameters::resetDefaults()
     lattice_jitter   = 0.0;
     lattice_achieved_density = 0.0;
     lattice_wall_voxels      = 0.0;
+    lattice_wave_terms.clear();
+    spinodoid_theta_x = 90.0;
+    spinodoid_theta_y = 90.0;
+    spinodoid_theta_z = 90.0;
+    fourier_terms = 24;
+    fourier_kmin  = 1.0;
+    fourier_kmax  = 4.0;
+    fourier_decay = 1.0;
+    fourier_file.clear();
     fft_scheme = "auto";
     fft_tol = 1e-5;
     fft_max_iter = 1000;
@@ -1168,4 +1186,72 @@ void Parameters::setFftMaxIter(int value)
     if (fft_max_iter == value) return;
     fft_max_iter = value;
     emit fftSchemeChanged();
+}
+
+// ── Spinodoid cones and Fourier series ──────────────────────────────────────
+
+static bool validTheta(double v) { return v == 0.0 || (v >= 5.0 && v <= 90.0); }
+
+void Parameters::setSpinodoidThetaX(double value)
+{
+    if (!validTheta(value)) { qWarning() << "spinodoid_theta_x expects 0 or 5..90 degrees; got" << value; return; }
+    if (spinodoid_theta_x == value) return;
+    spinodoid_theta_x = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setSpinodoidThetaY(double value)
+{
+    if (!validTheta(value)) { qWarning() << "spinodoid_theta_y expects 0 or 5..90 degrees; got" << value; return; }
+    if (spinodoid_theta_y == value) return;
+    spinodoid_theta_y = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setSpinodoidThetaZ(double value)
+{
+    if (!validTheta(value)) { qWarning() << "spinodoid_theta_z expects 0 or 5..90 degrees; got" << value; return; }
+    if (spinodoid_theta_z == value) return;
+    spinodoid_theta_z = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setFourierTerms(int value)
+{
+    if (value < 2 || value > 256) { qWarning() << "fourier_terms expects 2..256; got" << value; return; }
+    if (fourier_terms == value) return;
+    fourier_terms = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setFourierKmin(double value)
+{
+    if (!(value >= 1.0)) { qWarning() << "fourier_kmin expects a value >= 1; got" << value; return; }
+    if (fourier_kmin == value) return;
+    fourier_kmin = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setFourierKmax(double value)
+{
+    if (!(value >= 1.0)) { qWarning() << "fourier_kmax expects a value >= 1; got" << value; return; }
+    if (fourier_kmax == value) return;
+    fourier_kmax = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setFourierDecay(double value)
+{
+    if (value < 0.0 || value > 4.0) { qWarning() << "fourier_decay expects 0..4; got" << value; return; }
+    if (fourier_decay == value) return;
+    fourier_decay = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setFourierFile(const QString& value)
+{
+    const QString v = value.trimmed();
+    if (fourier_file == v) return;
+    fourier_file = v;
+    emit latticeSettingsChanged();
 }

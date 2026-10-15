@@ -20,7 +20,8 @@ enum class LatticeFamily {
     IWPSheet, IWPSkeletal,
     SimpleCubic, BCC, FCC, Octet,
     Honeycomb, Reentrant,
-    Spinodoid
+    Spinodoid,
+    FourierSheet, FourierSkeletal
 };
 
 struct LatticeFamilyInfo {
@@ -52,6 +53,8 @@ inline const std::vector<LatticeFamilyInfo>& latticeFamilies()
         { LatticeFamily::Honeycomb,        "honeycomb",          "Hexagonal honeycomb",            false },
         { LatticeFamily::Reentrant,        "reentrant",          "Re-entrant honeycomb (auxetic)", false },
         { LatticeFamily::Spinodoid,        "spinodoid",          "Spinodoid (stochastic)",         true  },
+        { LatticeFamily::FourierSheet,     "fourier_sheet",      "Fourier series (sheet)",         false },
+        { LatticeFamily::FourierSkeletal,  "fourier_skeletal",   "Fourier series (skeletal)",      true  },
     };
     return t;
 }
@@ -120,6 +123,8 @@ inline bool parseLatticeFamily(const QString& text, LatticeFamily& out)
         { "auxetic",            LatticeFamily::Reentrant },
         { "reentranthoneycomb", LatticeFamily::Reentrant },
         { "spinodal",           LatticeFamily::Spinodoid },
+        { "fourier",            LatticeFamily::FourierSheet },
+        { "waves",              LatticeFamily::FourierSheet },
     };
     for (const Alias& a : aliases)
         if (q == QLatin1String(a.text)) { out = a.family; return true; }

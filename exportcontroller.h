@@ -53,6 +53,16 @@ public:
     static bool writeVoxelsCSV(const QString& path, int32_t*** voxels,
                                int numCubes, QString* error = nullptr);
 
+    /**
+     * @brief Headless geometry-only HDF5 export: the voxel grid plus the
+     *        geometry metadata under the next /<last_set>/ group, the same
+     *        layout the stress solvers write, minus the fields. Used by
+     *        --nogui --output when no stress calculation is requested, so a
+     *        dataset run that only needs the structure (e.g. for an external
+     *        nonlinear solver) still gets a file.
+     */
+    static bool writeGeometryHDF5(const QString& path, int32_t*** voxels, int size, QString* error = nullptr);
+
     static void overlayColorBar(QImage& img, bool vertical = false, QQuickItem* item = nullptr);
     static QImage processScreenshot(const QImage& rawImg, bool replaceWhiteBg, bool autoCrop,
                                     bool verticalLegend, int targetDpi = 300, QQuickItem* item = nullptr,

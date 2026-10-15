@@ -1064,6 +1064,34 @@ void ExportController::exportToVRML()
     emit exportFinished(fileName);
 }
 
+bool ExportController::writeGeometryHDF5(const QString& path, int32_t*** voxels, int size, QString* error)
+{
+    if (!voxels || size <= 0) {
+        if (error) *error = QStringLiteral("no voxel grid to write");
+        return false;
+    }
+    QString fileName = path;
+    if (!fileName.endsWith(".h5", Qt::CaseInsensitive) &&
+        !fileName.endsWith(".hdf5", Qt::CaseInsensitive) &&
+        !fileName.endsWith(".hdf", Qt::CaseInsensitive)) {
+        fileName += ".hdf5";
+    }
+
+    HDF5Wrapper hdf5(fileName.toStdString());
+    int last_set = hdf5.readInt("/", "last_set");
+    if (last_set == -1) { last_set = 1; hdf5.write("/", "last_set", last_set); }
+    else                { last_set += 1; hdf5.update("/", "last_set", last_set); }
+    const std::string prefix = ("/" + QString::number(last_set)).toStdString();
+
+    hdf5.write(prefix, "voxels",    voxels, size);
+    hdf5.write(prefix, "cubeSize",  size);
+    hdf5.write(prefix, "numPoints", Parameters::instance()->getPoints());
+    hdf5.write(prefix, "seed",      int(Parameters::seed));
+    saveGeometryMetadataToHDF5(hdf5, prefix);
+    qDebug().noquote() << "[HDF5] geometry written to" << fileName << "group" << QString::fromStdString(prefix);
+    return true;
+}
+
 void ExportController::exportToHDF5()
 {
     QString fileName = QFileDialog::getSaveFileName(

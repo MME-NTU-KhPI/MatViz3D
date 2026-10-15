@@ -26,7 +26,17 @@
  *     along Y is rounded and the cells stretched to fit (reported).
  *   - Spinodoid: a Gaussian random field built from waves on the integer
  *     lattice (periodic in the cube by construction), seeded by
- *     Parameters::seed. F = the field, c its level.
+ *     Parameters::seed. F = the field, c its level. The wave directions can
+ *     be confined to cones about the axes (`spinodoid_theta_x/y/z`, Kumar
+ *     et al. 2020): all 90 deg = isotropic, one cone = lamellar, two =
+ *     columnar, so the statistics, not a name, define the geometry.
+ *   - Fourier series: an open family. F is a sum of `fourier_terms` cosine
+ *     waves on the integer lattice with amplitudes ~ |k|^-decay in the band
+ *     [kmin, kmax] waves per edge, drawn from the seed -- or read from a
+ *     text file (`fourier_file`: kx ky kz amplitude phase per line), which
+ *     is how a property-to-geometry network hands over a design. Sheet
+ *     (|F| <= c) and skeletal (F <= c) variants. The waves actually used
+ *     are published to Parameters::lattice_wave_terms and the HDF5 file.
  *
  * ## Relative density is the input
  *
@@ -98,12 +108,14 @@ public:
 
 private:
     struct Segment { double ax, ay, az, bx, by, bz; };
-    struct Wave    { double kx, ky, kz, phase; };
+    struct Wave    { double kx, ky, kz, phase, amp; };
 
     void   readParameters();
     void   buildRotation();
     void   buildSegments();
     void   buildWaves();
+    bool   loadFourierFile(const QString& path);
+    void   publishWaves();
     /// Family field at a point in cube fractions [0,1)^3 (already rotated).
     double rawField(double X, double Y, double Z) const;
     /// Unnormalized thickness-jitter field at a point in cube fractions.
@@ -130,6 +142,13 @@ private:
     bool    m_periodic       = true;
     QString m_material;
     double  m_angles[3]      = { 0.0, 0.0, 0.0 };   ///< radians
+    double  m_theta[3]       = { 90.0, 90.0, 90.0 }; ///< spinodoid cone half-angles about X, Y, Z, degrees (0 = off)
+    int     m_fourierTerms   = 24;
+    double  m_fourierKmin    = 1.0;    ///< waves per cube edge
+    double  m_fourierKmax    = 4.0;
+    double  m_fourierDecay   = 1.0;    ///< amplitude ~ |k|^-decay
+    QString m_fourierFile;
+    size_t  m_directions     = 0;      ///< distinct wave directions available to the random families
     double  m_R[3][3]        = { {1,0,0}, {0,1,0}, {0,0,1} };
     bool    m_rotated        = false;
 

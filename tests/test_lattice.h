@@ -17,6 +17,9 @@ private slots:
     void testLayerRevealMatchesOneShot();
     void testGradingThickensTowardsTop();
     void testSeedReproducesSpinodoid();
+    void testSpinodoidConesMakeLamellae();
+    void testFourierFileRoundTrip();
+    void testFourierRandomIsReproducibleAndPublished();
     void testCliOptions();
 };
 

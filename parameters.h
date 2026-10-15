@@ -3,6 +3,8 @@
 
 #include <QObject>
 #include <QString>
+#include <array>
+#include <vector>
 #include <vector>
 #include "texturelibrary.h"
 #include "phasematerial.h"
@@ -105,6 +107,18 @@ class Parameters : public QObject
     Q_PROPERTY(double  relative_density READ getRelativeDensity WRITE setRelativeDensity NOTIFY latticeSettingsChanged)
     Q_PROPERTY(double  lattice_grading  READ getLatticeGrading  WRITE setLatticeGrading  NOTIFY latticeSettingsChanged)
     Q_PROPERTY(double  lattice_jitter   READ getLatticeJitter   WRITE setLatticeJitter   NOTIFY latticeSettingsChanged)
+    // Spinodoid: half-angles of the cones of admissible wave directions about
+    // X, Y, Z in degrees (0 = that cone closed, 90 = whole sphere).
+    Q_PROPERTY(double  spinodoid_theta_x READ getSpinodoidThetaX WRITE setSpinodoidThetaX NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  spinodoid_theta_y READ getSpinodoidThetaY WRITE setSpinodoidThetaY NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  spinodoid_theta_z READ getSpinodoidThetaZ WRITE setSpinodoidThetaZ NOTIFY latticeSettingsChanged)
+    // Fourier-series families: random draw controls, or a coefficient file
+    // (kx ky kz amplitude phase per line) that overrides the draw.
+    Q_PROPERTY(int     fourier_terms READ getFourierTerms WRITE setFourierTerms NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  fourier_kmin  READ getFourierKmin  WRITE setFourierKmin  NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  fourier_kmax  READ getFourierKmax  WRITE setFourierKmax  NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  fourier_decay READ getFourierDecay WRITE setFourierDecay NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(QString fourier_file  READ getFourierFile  WRITE setFourierFile  NOTIFY latticeSettingsChanged)
 
     // FFT solver scheme: "auto" (CG for porous or high-contrast cells, basic
     // otherwise), "basic" (Moulinec-Suquet fixed point) or "cg" (conjugate
@@ -328,6 +342,23 @@ public:
     Q_INVOKABLE void setLatticeGrading(double value);
     Q_INVOKABLE void setLatticeJitter(double value);
 
+    double  getSpinodoidThetaX() const { return spinodoid_theta_x; }
+    double  getSpinodoidThetaY() const { return spinodoid_theta_y; }
+    double  getSpinodoidThetaZ() const { return spinodoid_theta_z; }
+    int     getFourierTerms()    const { return fourier_terms; }
+    double  getFourierKmin()     const { return fourier_kmin; }
+    double  getFourierKmax()     const { return fourier_kmax; }
+    double  getFourierDecay()    const { return fourier_decay; }
+    QString getFourierFile()     const { return fourier_file; }
+    Q_INVOKABLE void setSpinodoidThetaX(double value);
+    Q_INVOKABLE void setSpinodoidThetaY(double value);
+    Q_INVOKABLE void setSpinodoidThetaZ(double value);
+    Q_INVOKABLE void setFourierTerms(int value);
+    Q_INVOKABLE void setFourierKmin(double value);
+    Q_INVOKABLE void setFourierKmax(double value);
+    Q_INVOKABLE void setFourierDecay(double value);
+    Q_INVOKABLE void setFourierFile(const QString& value);
+
     /// The stored CLI key of the current family ("gyroid_sheet", ...).
     static QString latticeFamilyKeyStored() { return lattice_family; }
     static QString latticeFamilyLabelOf(const QString& key);
@@ -434,6 +465,9 @@ public:
     // estimated wall / strut thickness in voxels (0 = no estimate).
     static double lattice_achieved_density;
     static double lattice_wall_voxels;
+    // The waves a spinodoid or Fourier-series cell was built from, one row
+    // per wave: kx, ky, kz, amplitude, phase. Empty for the other families.
+    static std::vector<std::array<float,5>> lattice_wave_terms;
 
     // "auto" | "basic" | "cg"; both FFT entry points read it at construction.
     static QString fft_scheme;
@@ -579,6 +613,14 @@ private:
     static double  relative_density;
     static double  lattice_grading;
     static double  lattice_jitter;
+    static double  spinodoid_theta_x;
+    static double  spinodoid_theta_y;
+    static double  spinodoid_theta_z;
+    static int     fourier_terms;
+    static double  fourier_kmin;
+    static double  fourier_kmax;
+    static double  fourier_decay;
+    static QString fourier_file;
 };
 
 #endif // PARAMETERS_H
