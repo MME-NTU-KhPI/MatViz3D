@@ -7,6 +7,7 @@
 #include <cfloat>
 #include <random>
 #include <array>
+#include <algorithm>
 #include "ansyswrapper.h"
 #include "stressresult.h"
 #include "parameters.h"
@@ -488,6 +489,7 @@ void ansysWrapper::createFEfromArray8Node(int32_t*** voxels, short int numCubes,
 {
     this->ansys_to_voxel_map.clear();
     this->m_numCubes = numCubes;
+    m_weakSpringDone = false;   // new mesh -> springs must be created again
     QVector<QVector<int>> seedsData;
     QFile file("crystallization_seeds.csv");
 
@@ -1027,16 +1029,61 @@ void ansysWrapper::applyPeriodicBC(double x1, double y1, double z1,
     refKey.data[1] = static_cast<float>(y1);
     refKey.data[2] = static_cast<float>(z1);
 
-    if (!nodes.contains(refKey)) {
-        qWarning() << "[applyPeriodicBC] Reference corner node not found -- skipping periodic BC.";
-        return;
-    }
-    int refId = nodes[refKey] + 1;
-    apdl << "D," << refId << ",UX,0" << Qt::endl;
-    apdl << "D," << refId << ",UY,0" << Qt::endl;
-    apdl << "D," << refId << ",UZ,0" << Qt::endl;
+    const int refId = nodes.contains(refKey) ? nodes[refKey] + 1 : 0;
+    if (refId) {
+        // Dense case: pin the reference corner -> removes rigid-body translation.
+        apdl << "D," << refId << ",UX,0" << Qt::endl;
+        apdl << "D," << refId << ",UY,0" << Qt::endl;
+        apdl << "D," << refId << ",UZ,0" << Qt::endl;
+    } else {
+        // Porous case: the reference corner lies in a pore. Tie the nearest
+        // existing node to an extra "ground" node with three very weak
+        // COMBIN14 springs (one per direction). The springs only remove the
+        // rigid-body translation; their stiffness is ~1e-6 of the material,
+        // so they carry practically no load.
+        int nearId = 0;
+        double nearPos[3] = {0, 0, 0}, best = 1e300;
+        for (auto it = nodes.constBegin(); it != nodes.constEnd(); ++it) {
+            const double dx = it.key()[0] - x1, dy = it.key()[1] - y1, dz = it.key()[2] - z1;
+            const double r2 = dx * dx + dy * dy + dz * dz;
+            if (r2 < best) {
+                best = r2; nearId = it.value() + 1;
+                nearPos[0] = it.key()[0]; nearPos[1] = it.key()[1]; nearPos[2] = it.key()[2];
+            }
+        }
+        if (!nearId) {
+            qWarning() << "[applyPeriodicBC] Mesh has no nodes -- skipping periodic BC.";
+            return;
+        }
+        const int groundId = nodes.size() + 1;  // first free node number
 
-    int nCorner = 1, nCornerMissing = 0;
+        if (!m_weakSpringDone) {               // model edits: once per mesh
+            const double kWeak = 1e-6 * (m_maxC11 > 0 ? m_maxC11 : 1e11);
+            apdl << "N," << groundId << "," << nearPos[0] << "," << nearPos[1] << "," << nearPos[2] << Qt::endl;
+            for (int dir = 1; dir <= 3; ++dir) {   // ET/REAL 2,3,4 = UX,UY,UZ springs
+                const int et = dir + 1;
+                apdl << "ET," << et << ",COMBIN14" << Qt::endl;
+                apdl << "KEYOPT," << et << ",2," << dir << Qt::endl;  // 1-D spring along UX/UY/UZ
+                apdl << "R," << et << "," << kWeak << Qt::endl;
+                apdl << "TYPE," << et << Qt::endl << "REAL," << et << Qt::endl;
+                apdl << "E," << nearId << "," << groundId << Qt::endl;  // auto element number
+            }
+            apdl << "TYPE,1" << Qt::endl << "REAL,1" << Qt::endl;
+            m_weakSpringDone = true;
+            qDebug() << "[applyPeriodicBC] Reference corner in a pore: weak springs (k =" << kWeak
+                     << ") from node" << nearId << "at" << nearPos[0] << nearPos[1] << nearPos[2]
+                     << "to ground node" << groundId;
+        }
+
+        // Ground follows the affine field u = eps . (x - x1): re-applied every
+        // load case, because clearBC() (LSCLEAR,ALL) deletes all constraints.
+        const auto g = jump(nearPos[0] - x1, nearPos[1] - y1, nearPos[2] - z1);
+        apdl << "D," << groundId << ",UX," << g[0] << Qt::endl;
+        apdl << "D," << groundId << ",UY," << g[1] << Qt::endl;
+        apdl << "D," << groundId << ",UZ," << g[2] << Qt::endl;
+    }
+
+    int nCorner = refId ? 1 : 0, nCornerMissing = refId ? 0 : 1;
     for (int c = 1; c < 8; ++c) {
         n3d::node3d k;
         k.data[0] = static_cast<float>(cornerOffsets[c][0]);
@@ -1051,9 +1098,45 @@ void ansysWrapper::applyPeriodicBC(double x1, double y1, double z1,
         ++nCorner;
     }
 
-    // ── Edges and faces: single pass over all nodes, classified by how many
-    //    of the 6 bounding planes each one sits on. ──
-    int nEdgeSlave = 0, nEdgeMissing = 0, nEdgeFree = 0;
+    // ── Edges: for every position t along each edge direction there are 4
+    //    periodic images (one per parallel edge). Couple ALL existing images
+    //    to the first existing one. The old scheme coupled only to the fixed
+    //    reference edge; in a porous RVE that image is often missing, the
+    //    remaining images stayed free and acted as hinges -> small pivot. ──
+    int nEdgeSlave = 0, nEdgeGroups = 0, nEdgeLone = 0;
+    const double lo[3] = {x1, y1, z1}, hi[3] = {x2, y2, z2};
+    for (int axis = 0; axis < 3; ++axis) {               // free axis of the edge
+        const int a = (axis + 1) % 3, b = (axis + 2) % 3; // the two fixed axes
+        for (int t = int(lo[axis]) + 1; t < int(hi[axis]); ++t) {  // corners excluded
+            double pos[4][3];
+            int id[4], master = -1, nExist = 0;
+            for (int i = 0; i < 4; ++i) {
+                pos[i][axis] = t;
+                pos[i][a] = (i & 1) ? hi[a] : lo[a];
+                pos[i][b] = (i & 2) ? hi[b] : lo[b];
+                n3d::node3d k;
+                k.data[0] = float(pos[i][0]); k.data[1] = float(pos[i][1]); k.data[2] = float(pos[i][2]);
+                const auto f = nodes.constFind(k);
+                id[i] = (f == nodes.constEnd()) ? 0 : f.value() + 1;
+                if (id[i]) { ++nExist; if (master < 0) master = i; }
+            }
+            if (nExist == 0) continue;
+            if (nExist == 1) { ++nEdgeLone; continue; }   // nothing to tie it to
+            ++nEdgeGroups;
+            for (int i = 0; i < 4; ++i) {
+                if (!id[i] || i == master) continue;
+                // d = eps . (master_pos - slave_pos), see coupleNode()
+                coupleNode(id[i], id[master],
+                           jump(pos[master][0] - pos[i][0],
+                                pos[master][1] - pos[i][1],
+                                pos[master][2] - pos[i][2]));
+                ++nEdgeSlave;
+            }
+        }
+    }
+
+    // ── Faces: single pass over all nodes, classified by how many of the
+    //    6 bounding planes each one sits on (edges handled above). ──
     int nFaceSlave = 0, nFaceMissing = 0, nFaceFree = 0;
     int nInterior = 0;
     for (auto it = nodes.constBegin(); it != nodes.constEnd(); ++it) {
@@ -1067,31 +1150,7 @@ void ansysWrapper::applyPeriodicBC(double x1, double y1, double z1,
 
         if (numPlanes == 0) { ++nInterior; continue; }
         if (numPlanes == 3) continue; // corner, handled above
-
-        if (numPlanes == 2) {
-            // Edge node: couple to the reference edge of its direction-group
-            // (the edge sharing the min-plane on both of the fixed axes).
-            // This node sits at reference + offset, so it is the SLAVE and the
-            // reference is the MASTER -- master - slave = -eps.offset, hence
-            // the negated arguments to jump() (see coupleNode above).
-            if (!onX1 && !onX2) {
-                if (onY1 && onZ1) { ++nEdgeFree; continue; } // this is the reference edge
-                n3d::node3d mk; mk.data[0] = key[0]; mk.data[1] = static_cast<float>(y1); mk.data[2] = static_cast<float>(z1);
-                if (!nodes.contains(mk)) { ++nEdgeMissing; continue; }
-                coupleNode(it.value() + 1, nodes[mk] + 1, jump(0, -(ny - y1), -(nz - z1))); ++nEdgeSlave;
-            } else if (!onY1 && !onY2) {
-                if (onX1 && onZ1) { ++nEdgeFree; continue; }
-                n3d::node3d mk; mk.data[0] = static_cast<float>(x1); mk.data[1] = key[1]; mk.data[2] = static_cast<float>(z1);
-                if (!nodes.contains(mk)) { ++nEdgeMissing; continue; }
-                coupleNode(it.value() + 1, nodes[mk] + 1, jump(-(nx - x1), 0, -(nz - z1))); ++nEdgeSlave;
-            } else { // free axis Z
-                if (onX1 && onY1) { ++nEdgeFree; continue; }
-                n3d::node3d mk; mk.data[0] = static_cast<float>(x1); mk.data[1] = static_cast<float>(y1); mk.data[2] = key[2];
-                if (!nodes.contains(mk)) { ++nEdgeMissing; continue; }
-                coupleNode(it.value() + 1, nodes[mk] + 1, jump(-(nx - x1), -(ny - y1), 0)); ++nEdgeSlave;
-            }
-            continue;
-        }
+        if (numPlanes == 2) continue; // edge, handled by the edge pass above
 
         // numPlanes == 1: face node. Only emit from the min-plane side,
         // referencing its exact counterpart on the opposite (max) face --
@@ -1119,7 +1178,7 @@ void ansysWrapper::applyPeriodicBC(double x1, double y1, double z1,
     qDebug() << "[applyPeriodicBC] [DEBUG] nodes total =" << nodes.size()
              << " interior =" << nInterior
              << " | corners: pinned+prescribed =" << nCorner << " missing =" << nCornerMissing
-             << " | edges: slave(CE) =" << nEdgeSlave << " free(ref) =" << nEdgeFree << " missing =" << nEdgeMissing
+             << " | edges: slave(CE) =" << nEdgeSlave << " groups =" << nEdgeGroups << " lone =" << nEdgeLone
              << " | faces: slave(CE) =" << nFaceSlave << " free(master) =" << nFaceFree << " missing =" << nFaceMissing
              << " | CE equations written =" << eqn;
 
@@ -1272,6 +1331,7 @@ void ansysWrapper::setMaterial(double E, double nu, double rho = 0)
     m_apdl += "MPTEMP,,,,,,,,\n";
     m_apdl += "MPTEMP,1,0\n";
     m_apdl += QString::asprintf("MPDATA,EX,1,,%g \nMPDATA,PRXY,1,,%g \nMPDATA,DENS,1,,%g \n", E, nu, rho);
+    m_maxC11 = std::max(m_maxC11, E);   // stiffness scale for the weak springs
 
 }
 
@@ -1307,6 +1367,8 @@ void ansysWrapper::setAnisoMaterial(double c11, double c12, double c13, double c
 // coupling, which makes the permutation invisible.
 void ansysWrapper::setAnisoMaterial(int matId, const double C[6][6])
 {
+    m_maxC11 = std::max(m_maxC11, C[0][0]);   // stiffness scale for the weak springs
+
     QString block;
     QTextStream s(&block);
     s << "\n!*\nTB,ANEL," << matId << ",1,21,0\nTBTEMP,0\n";
@@ -2275,7 +2337,8 @@ set,first
 *do,i_set_e,1,numb_sets_e,1
     *GET,current_time,ACTIVE,0,SET,TIME
 
-    ESEL,S,,,ALL
+    ! solid elements only (TYPE 1): weak COMBIN14 springs must not enter the averages
+    ESEL,S,TYPE,,1
     *get,nummax_e,ELEM,,num,max
     *get,numelem,ELEM,,count
     *dim,mask_e,array,nummax_e

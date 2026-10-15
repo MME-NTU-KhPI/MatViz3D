@@ -87,6 +87,8 @@ protected:
     QHash <n3d::node3d, int> nodes;
     TextureLibrary m_texture;
     bool m_useCustomTexture = false;
+    bool   m_weakSpringDone = false;  // weak springs already written for this mesh
+    double m_maxC11 = 0.0;            // largest C11 seen, Pa: scale for spring stiffness
 
     QHash <n3d::node3d, int> result_nodes;
 
