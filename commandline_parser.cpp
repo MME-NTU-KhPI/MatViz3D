@@ -232,6 +232,12 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
         "[Stress] Prescribed macroscopic strain tensor for '--stress_mode single': exx,eyy,ezz,exy,eyz,exz", "strains"));
     parser.addOption(QCommandLineOption("num_rnd_loads",
         "[Stress] Number of random loads for Hill yield criterion fit in dataset mode (default: 150).", "count"));
+    parser.addOption(QCommandLineOption("local_criterion",
+        "[Stress] Local yield criterion for dataset yield points: auto | schmid | vonmises. Default: auto (per algorithm)", "criterion"));
+    parser.addOption(QCommandLineOption("hill_space",
+        "[Stress] Hill fit space: auto | deviatoric5d | full6d (keeps the hydrostatic axis). Default: auto (per algorithm)", "space"));
+    parser.addOption(QCommandLineOption("yield_stress",
+        "[Stress] Von Mises yield threshold in Pa for --local_criterion vonmises (default: 120e6).", "Pa"));
     parser.addOption(QCommandLineOption("working_directory",
         "[Stress] Working directory for ANSYS scratch and APDL files.", "dir"));
 
@@ -410,6 +416,9 @@ void Commandline_Parser::printJsonHelp()
     addOpt("stress_mode", "Stress", "string", "mode", "dataset", "Calculation mode: stiffness (fast 6 solves) | single | dataset (full 300 loads)", QStringList() << "dataset" << "stiffness" << "single");
     addOpt("eps", "Stress", "string", "strains", "", "Applied strain tensor for --stress_mode single: exx,eyy,ezz,exy,eyz,exz");
     addOpt("num_rnd_loads", "Stress", "uint", "count", "150", "Number of random loads for Hill yield criterion fit in dataset mode");
+    addOpt("local_criterion", "Stress", "string", "criterion", "auto", "Local yield criterion for dataset yield points (auto: per algorithm)", QStringList() << "auto" << "schmid" << "vonmises");
+    addOpt("hill_space", "Stress", "string", "space", "auto", "Hill fit space; full6d keeps the hydrostatic axis (auto: per algorithm)", QStringList() << "auto" << "deviatoric5d" << "full6d");
+    addOpt("yield_stress", "Stress", "double", "Pa", "120e6", "Von Mises yield threshold in Pa for local_criterion vonmises");
     addOpt("working_directory", "Stress", "string", "dir", "", "Working directory for ANSYS scratch and APDL files");
 
     // Agent Metadata
@@ -956,6 +965,31 @@ bool Commandline_Parser::applyParameter(const QString& key, const QString& value
         return true;
     }
 
+    if (normKey == "local_criterion") {
+        const QString v = value.trimmed().toLower();
+        if (v != "auto" && v != "schmid" && v != "vonmises") {
+            return setErr(QString("Option local_criterion expects auto, schmid or vonmises; got \"%1\"").arg(value));
+        }
+        Parameters::local_criterion = v;
+        return true;
+    }
+
+    if (normKey == "hill_space") {
+        const QString v = value.trimmed().toLower();
+        if (v != "auto" && v != "deviatoric5d" && v != "full6d") {
+            return setErr(QString("Option hill_space expects auto, deviatoric5d or full6d; got \"%1\"").arg(value));
+        }
+        Parameters::hill_space = v;
+        return true;
+    }
+
+    if (normKey == "yield_stress") {
+        double v = 0.0;
+        if (!parseDouble(v, true)) return false;
+        Parameters::yield_stress = v;
+        return true;
+    }
+
     if (normKey == "eps" || normKey == "stress_eps") {
         const QStringList parts = value.split(',');
         if (parts.size() != 6) {
@@ -1146,6 +1180,9 @@ bool Commandline_Parser::processOptions(const QCommandLineParser& parser, QStrin
     if (parser.isSet("num_rnd_loads"))           if (!applyCliOption("num_rnd_loads", parser.value("num_rnd_loads"))) return false;
     if (parser.isSet("solver"))                  if (!applyCliOption("solver", parser.value("solver"))) return false;
     if (parser.isSet("stress_mode"))             if (!applyCliOption("stress_mode", parser.value("stress_mode"))) return false;
+    if (parser.isSet("local_criterion"))         if (!applyCliOption("local_criterion", parser.value("local_criterion"))) return false;
+    if (parser.isSet("hill_space"))              if (!applyCliOption("hill_space", parser.value("hill_space"))) return false;
+    if (parser.isSet("yield_stress"))            if (!applyCliOption("yield_stress", parser.value("yield_stress"))) return false;
     if (parser.isSet("eps"))                     if (!applyCliOption("eps", parser.value("eps"))) return false;
     if (parser.isSet("output"))                  if (!applyCliOption("output", parser.value("output"))) return false;
     if (parser.isSet("working_directory"))       if (!applyCliOption("working_directory", parser.value("working_directory"))) return false;

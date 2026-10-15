@@ -1,6 +1,7 @@
 #include "parameters.h"
 #include "openglwidgetqml.h"
 #include "dbmanager.h"
+#include "algorithmfactory.h"
 #include <QDebug>
 #include <QDir>
 
@@ -25,6 +26,9 @@ unsigned int Parameters::num_rnd_loads = 0;
 QString Parameters::prob_preset = "Sphere (Circle)";
 QString Parameters::polycrystall_neighborhood = "Moore (26)";
 QString Parameters::prob_matrix_mode = "Volume Sampling";
+QString Parameters::local_criterion = "auto";
+QString Parameters::hill_space = "auto";
+double  Parameters::yield_stress = 120e6;   // = 2*CRSS: uniaxial yield at Schmid factor 0.5
 float Parameters::halfaxis_a = 1.5f;
 float Parameters::halfaxis_b = 1.5f;
 float Parameters::halfaxis_c = 1.5f;
@@ -156,6 +160,9 @@ void Parameters::resetDefaults()
     fiber_material = "C-fiber";
     stressSolver = "ansys";
     stressMode = "dataset";
+    local_criterion = "auto";
+    hill_space = "auto";
+    yield_stress = 120e6;
     for (int i = 0; i < 6; ++i) stressEps[i] = 0.0;
     textureComponents.clear();
     phaseAssignment.clear();
@@ -929,6 +936,33 @@ bool Parameters::materialStiffnessPa(const QString& name, double C[6][6])
     for (int i = 0; i < 6; ++i)
         for (int j = 0; j < 6; ++j) C[i][j] = G[i][j] * 1e9;
     return true;
+}
+
+void Parameters::resolveYieldSettings(const QString& algorithm, QString& criterion, QString& space,
+                                      bool* criterionAuto, bool* spaceAuto)
+{
+    // Canonicalise aliases ("Moore", "Probability Circle", ...) via the registry.
+    QString name = algorithm.trimmed();
+    if (const AlgorithmPlugin* plugin = AlgorithmFactory::instance().pluginFor(name))
+        name = plugin->name;
+
+    // Porous (DLCA) structures are pressure-sensitive -> keep the hydrostatic axis.
+    // Unknown / no algorithm keeps the historical Schmid + deviatoric behaviour.
+    QString autoCriterion = "schmid";
+    QString autoSpace     = "deviatoric5d";
+    if (name.compare("DLCA", Qt::CaseInsensitive) == 0) {
+        autoCriterion = "vonmises";
+        autoSpace     = "full6d";
+    } else if (name.compare("Composite", Qt::CaseInsensitive) == 0) {
+        autoCriterion = "vonmises";
+    }
+
+    const bool cAuto = criterion.trimmed().isEmpty() || criterion.trimmed().toLower() == "auto";
+    const bool sAuto = space.trimmed().isEmpty() || space.trimmed().toLower() == "auto";
+    criterion = cAuto ? autoCriterion : criterion.trimmed().toLower();
+    space     = sAuto ? autoSpace     : space.trimmed().toLower();
+    if (criterionAuto) *criterionAuto = cAuto;
+    if (spaceAuto)     *spaceAuto     = sAuto;
 }
 
 void Parameters::setLatticeOverride(const QString& value)

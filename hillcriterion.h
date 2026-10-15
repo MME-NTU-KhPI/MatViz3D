@@ -31,6 +31,15 @@ public:
 
     bool isValid() const { return m_isValid; }
 
+    // Resolved settings (see Parameters::resolveYieldSettings). Defaults are
+    // schmid + deviatoric5d, i.e. the historical behaviour.
+    void setYieldSettings(const QString& localCriterion, const QString& hillSpace, double yieldStress);
+    // Active local criterion and its threshold, for logs, e.g. "von Mises, yield_stress = 1.2000e+08 Pa"
+    QString criterionDescription() const {
+        return m_vonMises ? QString("von Mises, yield_stress = %1 Pa").arg(m_yieldStress, 0, 'e', 4)
+                          : QString("Schmid, CRSS = %1 Pa").arg(CRSS, 0, 'e', 4);
+    }
+
     std::optional<std::array<double,6>> computeYieldPointForStep(
         const std::vector<std::array<double,6>>& voxel_stress,
         const std::vector<int>&                  voxel_grain,
@@ -46,6 +55,14 @@ private:
     double m_Linv_5D[5][5]   = {0}; // Inverse of L
     bool   m_isValid         = false;
 
+    bool   m_vonMises        = false;  // local criterion: von Mises instead of Schmid
+    bool   m_full6D          = false;  // Hill fit space: full 6D instead of 5D deviatoric
+    double m_yieldStress     = 120e6;  // von Mises threshold (Pa)
+    bool   m_fittedFull6D    = false;  // space actually used by the last successful fit
+
+    static double vonMisesStress(const double s[6]);
+    bool fitFull6D(const std::vector<std::array<double,6>>& yield_points, QString* reason);
+
     void eulerToBungeMatrix(double phi1, double Phi, double phi2, double R[3][3]);
     double resolvedShearStress(const double stress[3][3], const double n[3], const double b[3]);
 
@@ -57,6 +74,7 @@ private:
 
     bool computeCholesky5D();
     bool solveSystem15x15(double A[15][15], double b[15], double x[15]);
+    bool solveSystem21x21(double A[21][21], double b[21], double x[21]);
 
     // 48 slip systems for BCC
     static const int NUM_SLIP_SYSTEMS = 48;

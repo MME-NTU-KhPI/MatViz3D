@@ -364,6 +364,9 @@ public:
     static QString prob_preset;
     static QString polycrystall_neighborhood;
     static QString prob_matrix_mode;
+    static QString local_criterion;   // "auto" | "schmid" | "vonmises"
+    static QString hill_space;        // "auto" | "deviatoric5d" | "full6d"
+    static double  yield_stress;      // Pa, von Mises threshold
     static float halfaxis_a;
     static float halfaxis_b;
     static float halfaxis_c;
@@ -394,6 +397,17 @@ public:
      * the material is unknown or has no usable constants.
      */
     static bool materialStiffnessPa(const QString& name, double C[6][6]);
+
+    /**
+     * @brief Resolves "auto" local yield criterion / Hill fit space from the
+     *        generation algorithm name (aliases accepted).
+     *
+     * criterion and space are in/out: an explicit (non-"auto") value is kept,
+     * "auto" is replaced by the per-algorithm default. criterionAuto/spaceAuto
+     * report whether the value came from the auto table.
+     */
+    static void resolveYieldSettings(const QString& algorithm, QString& criterion, QString& space,
+                                     bool* criterionAuto = nullptr, bool* spaceAuto = nullptr);
 
 signals:
     void sizeChanged();
