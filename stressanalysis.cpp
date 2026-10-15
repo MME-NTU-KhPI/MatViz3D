@@ -114,6 +114,20 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
     qDebug() << "  strain_val  =" << strain_val  << "(strain amplitude for all load cases)";
     qDebug() << "  num_samples =" << num_samples << "(final load cases in phase 2.0)";
 
+    // Resolve local yield criterion / Hill fit space once per run ("auto" -> per algorithm)
+    {
+        QString criterion = Parameters::local_criterion;
+        QString space     = Parameters::hill_space;
+        bool criterionAuto = false, spaceAuto = false;
+        const QString algo = Parameters::instance()->getAlgorithm().trimmed();
+        Parameters::resolveYieldSettings(algo, criterion, space, &criterionAuto, &spaceAuto);
+        const QString src = "auto: " + (algo.isEmpty() ? QString("none") : algo);
+        qInfo().noquote() << QString("[%1] local criterion = %2 (%3), hill space = %4 (%5)")
+                                 .arg("StressAnalysis", criterion, criterionAuto ? src : "explicit",
+                                      space, spaceAuto ? src : "explicit");
+        m_hill.setYieldSettings(criterion, space, Parameters::yield_stress);
+    }
+
     // ─── PHASE 1.0 ──────────────────────────────────────────────────────────
     double S_matrix[6][6] = {0};
     qDebug() << "\n[StressAnalysis] ╔══════════════════════════════════════════════╗";
@@ -560,7 +574,7 @@ bool StressAnalysis::calibrateHillMatrix(short int numCubes, short int numPoints
     }
     qDebug() << "[StressAnalysis::calibrateHillMatrix] v ANSYS finished.";
 
-    qDebug() << "[StressAnalysis::calibrateHillMatrix]   Extracting yield points (Schmid CRSS criterion)...";
+    qDebug().noquote() << "[StressAnalysis::calibrateHillMatrix]   Extracting yield points (" + m_hill.criterionDescription() + ")...";
     auto yield_points = m_hill.computeYieldPoints(&temp_wr, temp_wr.local_cs, numCubes, voxels);
     temp_wr.clear_temp_data();
 

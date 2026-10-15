@@ -122,6 +122,20 @@ void StressAnalysisFFT::estimateStressWithFFT(short int numCubes, short int numP
 
     applyThreadLimit("estimateStressWithFFT");
 
+    // Resolve local yield criterion / Hill fit space once per run ("auto" -> per algorithm)
+    {
+        QString criterion = Parameters::local_criterion;
+        QString space     = Parameters::hill_space;
+        bool criterionAuto = false, spaceAuto = false;
+        const QString algo = Parameters::instance()->getAlgorithm().trimmed();
+        Parameters::resolveYieldSettings(algo, criterion, space, &criterionAuto, &spaceAuto);
+        const QString src = "auto: " + (algo.isEmpty() ? QString("none") : algo);
+        qInfo().noquote() << QString("[%1] local criterion = %2 (%3), hill space = %4 (%5)")
+                                 .arg("StressAnalysisFFT", criterion, criterionAuto ? src : "explicit",
+                                      space, spaceAuto ? src : "explicit");
+        m_hill.setYieldSettings(criterion, space, Parameters::yield_stress);
+    }
+
     const int N = numCubes;
     // strain_val / num_samples / num_calib are member fields (editable from the UI).
 
