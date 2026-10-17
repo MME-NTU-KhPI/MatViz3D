@@ -174,9 +174,25 @@ PrintabilityReport checkPrintability(int32_t*** voxels, int N, const Printabilit
     {
         const Components cs = components(solid, N, t.periodic);
         r.components = cs.count;
-        std::size_t anchoredSolid = cs.anchoredVoxels;
-        if (!t.periodic || anchoredSolid == 0) anchoredSolid = std::max(anchoredSolid, cs.largest);
-        r.island_fraction = 1.0 - double(anchoredSolid) / double(nsolid);
+        // Periodic: the body is every component that wraps the torus (when
+        // none does, the largest one); non-periodic: the body is the largest
+        // component. Everything else is an island.
+        bool anyAnchored = false;
+        if (t.periodic)
+            for (int k = 0; k < cs.count; ++k) if (cs.anchored[k]) { anyAnchored = true; break; }
+        std::size_t bodyVoxels = 0;
+        r.islands = 0; r.largest_island_vox = 0;
+        for (int k = 0; k < cs.count; ++k) {
+            const bool body = anyAnchored ? (cs.anchored[k] != 0) : (cs.size[k] == cs.largest);
+            if (body) { bodyVoxels += cs.size[k]; continue; }
+            ++r.islands;
+            r.largest_island_vox = std::max(r.largest_island_vox, cs.size[k]);
+        }
+        r.island_fraction = 1.0 - double(bodyVoxels) / double(nsolid);
+        // The cube cut out as a plain box: whatever is not the largest
+        // component hangs loose at the side faces of a finite part.
+        const Components cb = t.periodic ? components(solid, N, false) : cs;
+        r.island_fraction_box = 1.0 - double(cb.largest) / double(nsolid);
         if (nsolid < M) {
             const Components cv = components(voidm, N, t.periodic);
             r.void_components = cv.count;
@@ -248,8 +264,9 @@ PrintabilityReport checkPrintability(int32_t*** voxels, int N, const Printabilit
 
     // 4. Verdict.
     std::string why;
-    if (r.island_fraction > t.max_island_fraction)
-        why += "islands " + std::to_string(r.island_fraction * 100.0).substr(0, 5) + " % of the solid; ";
+    if (r.largest_island_vox > static_cast<std::size_t>(std::max(0, t.max_island_vox)))
+        why += std::to_string(r.islands) + " floating island(s), largest " + std::to_string(r.largest_island_vox)
+             + " voxels (" + std::to_string(r.island_fraction * 100.0).substr(0, 5) + " % of the solid); ";
     if (r.thin_fraction > t.max_thin_fraction)
         why += "walls thinner than " + std::to_string(t.min_wall_mm).substr(0, 4) + " mm in " + std::to_string(r.thin_fraction * 100.0).substr(0, 5) + " % of the solid; ";
     if (r.unsupported_best > t.max_unsupported_fraction)

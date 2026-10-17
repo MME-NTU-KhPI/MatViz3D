@@ -57,9 +57,50 @@ void TestPrintability::testIslandsAreCounted()
     const PrintabilityReport r = checkPrintability(c.v, c.N, thresholds());
     QVERIFY(r.computed);
     QCOMPARE(r.components, 2);
+    QCOMPARE(r.islands, 1);
+    QCOMPARE(static_cast<int>(r.largest_island_vox), 27);
     QVERIFY(std::abs(r.island_fraction - 27.0 / 1027.0) < 1e-9);
+    QVERIFY(std::abs(r.island_fraction_box - 27.0 / 1027.0) < 1e-9);
     QVERIFY(!r.ok);
-    QVERIFY(r.verdict.find("islands") != std::string::npos);
+    QVERIFY(r.verdict.find("island") != std::string::npos);
+
+    // A single-voxel speck is a voxelization artefact and is tolerated. The
+    // block stands on the bed (z = 0) so no overhang rule fires.
+    Cube d(24, [](int x, int y, int z) {
+        const bool big = x >= 2 && x < 12 && y >= 2 && y < 12 && z < 10;
+        return big || (x == 20 && y == 20 && z == 20);
+    });
+    const PrintabilityReport rd = checkPrintability(d.v, d.N, thresholds());
+    QCOMPARE(rd.islands, 1);
+    QCOMPARE(static_cast<int>(rd.largest_island_vox), 1);
+    QVERIFY(rd.ok);
+
+    // A finite piece that straddles a periodic face is still a finite piece
+    // in the tiled lattice: an island. A bar that runs the whole way round
+    // is anchored (it meets its own image), even though it never touches the
+    // body -- but cut out as a box it hangs loose.
+    Cube e(24, [](int x, int y, int z) {
+        const bool body  = y >= 10 && y < 14 && z >= 10 && z < 14;              // bar along X, wraps
+        const bool piece = (x < 3 || x >= 21) && y >= 20 && y < 23 && z >= 20 && z < 23;
+        return body || piece;
+    });
+    const PrintabilityReport re = checkPrintability(e.v, e.N, thresholds());
+    QCOMPARE(re.components, 2);
+    QCOMPARE(re.islands, 1);
+    QCOMPARE(static_cast<int>(re.largest_island_vox), 54);
+    QVERIFY(!re.ok);
+
+    Cube f(24, [](int x, int y, int z) {
+        const bool body = y >= 10 && y < 14 && z >= 10 && z < 14;
+        const bool bar  = y >= 20 && y < 23 && z >= 20 && z < 23;               // second bar along X, wraps
+        (void)x;
+        return body || bar;
+    });
+    const PrintabilityReport rf = checkPrintability(f.v, f.N, thresholds());
+    QCOMPARE(rf.components, 2);
+    QCOMPARE(rf.islands, 0);
+    QVERIFY(rf.island_fraction < 1e-9);
+    QVERIFY2(rf.island_fraction_box > 0.3, qPrintable(QString("box-cut island fraction %1").arg(rf.island_fraction_box)));
 }
 
 void TestPrintability::testPeriodicWrapJoinsAcrossFaces()
@@ -208,14 +249,15 @@ void TestPrintability::testCliOptions()
     QVERIFY(applyParameter("print_max_overhang_deg", "60", &err));
     QCOMPARE(p->getPrintMaxOverhangDeg(), 60.0);
     QVERIFY(!applyParameter("print_max_overhang_deg", "95", &err));
-    QVERIFY(applyParameter("print_max_island_fraction", "0.01", &err));
-    QCOMPARE(p->getPrintMaxIslandFraction(), 0.01);
+    QVERIFY(applyParameter("print_max_island_vox", "27", &err));
+    QCOMPARE(p->getPrintMaxIslandVox(), 27);
+    QVERIFY(!applyParameter("print_max_island_vox", "-1", &err));
     QVERIFY(!applyParameter("print_max_thin_fraction", "1.5", &err));
     QVERIFY(applyParameter("require_printable", "true", &err));
     QVERIFY(p->getRequirePrintable());
     const PrintabilityThresholds t = Parameters::printThresholds(0.25);
     QCOMPARE(t.min_wall_mm, 1.2);
     QCOMPARE(t.max_overhang_deg, 60.0);
-    QCOMPARE(t.max_island_fraction, 0.01);
+    QCOMPARE(t.max_island_vox, 27);
     QCOMPARE(t.voxel_mm, 0.25);
 }

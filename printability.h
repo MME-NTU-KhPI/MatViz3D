@@ -11,9 +11,12 @@
  * and is independent of Qt, so it is unit-testable on its own. Four
  * measures, all fractions of the solid volume unless stated:
  *
- *   - islands: solid voxels not in the largest 6-connected solid component
- *     (periodic across the cube faces when `periodic`); a floating piece has
- *     nothing to be printed on;
+ *   - islands: 6-connected solid components that do not wrap the periodic
+ *     cube (reach their own image across a face); a floating piece has
+ *     nothing to be printed on. The verdict fails on any island larger than
+ *     `max_island_vox` voxels, so only voxelization specks are tolerated.
+ *     The same measure on the cube taken as a plain box is reported too:
+ *     that is what hangs loose at the cut side faces of a finite part;
  *   - thin walls: solid removed by a morphological opening with a ball of
  *     radius min_wall/2, i.e. material that no ball of the minimum wall
  *     diameter fits into. Uses an exact Euclidean distance transform, so a
@@ -36,7 +39,7 @@ struct PrintabilityThresholds {
     double min_wall_mm              = 0.8;   ///< two nozzle diameters
     double max_overhang_deg         = 45.0;
     double max_thin_fraction        = 0.02;
-    double max_island_fraction      = 0.005;
+    int    max_island_vox           = 8;     ///< largest floating piece tolerated, voxels (2x2x2 specks)
     double max_unsupported_fraction = 0.05;
     bool   periodic                 = true;
 };
@@ -45,7 +48,10 @@ struct PrintabilityReport {
     bool   computed              = false;
     double solid_fraction        = 0.0;
     int    components            = 0;      ///< solid components (6-connected)
-    double island_fraction       = 0.0;
+    int    islands               = 0;      ///< solid components that do not wrap (periodic) / touch a face
+    double island_fraction       = 0.0;    ///< solid in islands, fraction of the solid
+    std::size_t largest_island_vox = 0;
+    double island_fraction_box   = 0.0;    ///< same measure on the cube cut out as a box: what hangs loose at a part's side faces
     int    void_components       = 0;
     double closed_pore_fraction  = 0.0;
     double thin_fraction         = 0.0;

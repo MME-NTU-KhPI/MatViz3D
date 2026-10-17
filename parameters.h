@@ -131,7 +131,7 @@ class Parameters : public QObject
     Q_PROPERTY(double  print_min_wall_mm              READ getPrintMinWallMm            WRITE setPrintMinWallMm            NOTIFY latticeSettingsChanged)
     Q_PROPERTY(double  print_max_overhang_deg         READ getPrintMaxOverhangDeg       WRITE setPrintMaxOverhangDeg       NOTIFY latticeSettingsChanged)
     Q_PROPERTY(double  print_max_thin_fraction        READ getPrintMaxThinFraction      WRITE setPrintMaxThinFraction      NOTIFY latticeSettingsChanged)
-    Q_PROPERTY(double  print_max_island_fraction      READ getPrintMaxIslandFraction    WRITE setPrintMaxIslandFraction    NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(int     print_max_island_vox           READ getPrintMaxIslandVox         WRITE setPrintMaxIslandVox         NOTIFY latticeSettingsChanged)
     Q_PROPERTY(double  print_max_unsupported_fraction READ getPrintMaxUnsupportedFraction WRITE setPrintMaxUnsupportedFraction NOTIFY latticeSettingsChanged)
     Q_PROPERTY(bool    require_printable              READ getRequirePrintable          WRITE setRequirePrintable          NOTIFY latticeSettingsChanged)
 
@@ -380,14 +380,14 @@ public:
     double getPrintMinWallMm()              const { return print_min_wall_mm; }
     double getPrintMaxOverhangDeg()         const { return print_max_overhang_deg; }
     double getPrintMaxThinFraction()        const { return print_max_thin_fraction; }
-    double getPrintMaxIslandFraction()      const { return print_max_island_fraction; }
+    int    getPrintMaxIslandVox()           const { return print_max_island_vox; }
     double getPrintMaxUnsupportedFraction() const { return print_max_unsupported_fraction; }
     bool   getRequirePrintable()            const { return require_printable; }
     Q_INVOKABLE void setLatticeCellMm(double value);
     Q_INVOKABLE void setPrintMinWallMm(double value);
     Q_INVOKABLE void setPrintMaxOverhangDeg(double value);
     Q_INVOKABLE void setPrintMaxThinFraction(double value);
-    Q_INVOKABLE void setPrintMaxIslandFraction(double value);
+    Q_INVOKABLE void setPrintMaxIslandVox(int value);
     Q_INVOKABLE void setPrintMaxUnsupportedFraction(double value);
     Q_INVOKABLE void setRequirePrintable(bool value);
     /// Thresholds for checkPrintability(), built from the fields above.
@@ -664,7 +664,7 @@ private:
     static double  print_min_wall_mm;
     static double  print_max_overhang_deg;
     static double  print_max_thin_fraction;
-    static double  print_max_island_fraction;
+    static int     print_max_island_vox;
     static double  print_max_unsupported_fraction;
     static bool    require_printable;
 };

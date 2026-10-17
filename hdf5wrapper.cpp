@@ -908,7 +908,13 @@ void saveGeometryMetadataToHDF5(HDF5Wrapper& hdf5, const std::string& prefix, co
             hdf5.write(geomGroup, "lattice_wall_mm",           float(Parameters::lattice_wall_voxels * Parameters::lattice_voxel_mm));
             hdf5.write(geomGroup, "print_ok",                  pr.ok ? 1 : 0);
             hdf5.write(geomGroup, "print_components",          pr.components);
+            hdf5.write(geomGroup, "print_islands",             pr.islands);
+            hdf5.write(geomGroup, "print_largest_island_vox",  int(pr.largest_island_vox));
             hdf5.write(geomGroup, "print_island_fraction",     float(pr.island_fraction));
+            hdf5.write(geomGroup, "print_island_fraction_box", float(pr.island_fraction_box));
+            paramsObj["print_islands"]              = pr.islands;
+            paramsObj["print_largest_island_vox"]   = int(pr.largest_island_vox);
+            paramsObj["print_island_fraction_box"]  = pr.island_fraction_box;
             hdf5.write(geomGroup, "print_closed_pore_fraction",float(pr.closed_pore_fraction));
             hdf5.write(geomGroup, "print_thin_fraction",       float(pr.thin_fraction));
             hdf5.write(geomGroup, "print_unsupported_best",    float(pr.unsupported_best));

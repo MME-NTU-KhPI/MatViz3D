@@ -843,12 +843,17 @@ void Lattice::checkPrintable()
     }
 
     qInfo().noquote()
-        << QString("[Lattice] printability (voxel %1 mm, wall ≈ %2 mm): %3 solid component(s), islands %4 %, "
-                   "thin walls %5 %, closed pores %6 %, unsupported %7 % along %8 (best of six); %9")
+        << QString("[Lattice] printability (voxel %1 mm, wall ≈ %2 mm): %3 solid component(s), %4 floating island(s), "
+                   "largest %5 vox ≈ %6 mm, islands %7 % of the solid (%8 % if the cube is cut out as a box), "
+                   "thin walls %9 %, closed pores %10 %, unsupported %11 % along %12 (best of six); %13")
                .arg(voxel_mm, 0, 'f', 3)
                .arg(m_wallVox > 0.0 ? QString::number(m_wallVox * voxel_mm, 'f', 2) : QStringLiteral("?"))
                .arg(r.components)
+               .arg(r.islands)
+               .arg(static_cast<qulonglong>(r.largest_island_vox))
+               .arg(std::cbrt(static_cast<double>(r.largest_island_vox)) * voxel_mm, 0, 'f', 2)
                .arg(r.island_fraction * 100.0, 0, 'f', 2)
+               .arg(r.island_fraction_box * 100.0, 0, 'f', 2)
                .arg(r.thin_fraction * 100.0, 0, 'f', 2)
                .arg(r.closed_pore_fraction * 100.0, 0, 'f', 2)
                .arg(r.unsupported_best * 100.0, 0, 'f', 2)

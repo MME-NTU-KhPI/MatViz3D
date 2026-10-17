@@ -102,7 +102,7 @@ bool    Parameters::lattice_uniform_wall   = false;
 double  Parameters::print_min_wall_mm      = 0.8;
 double  Parameters::print_max_overhang_deg = 45.0;
 double  Parameters::print_max_thin_fraction        = 0.02;
-double  Parameters::print_max_island_fraction      = 0.005;
+int     Parameters::print_max_island_vox           = 8;
 double  Parameters::print_max_unsupported_fraction = 0.05;
 bool    Parameters::require_printable      = false;
 PrintabilityReport Parameters::printability;
@@ -205,7 +205,7 @@ void Parameters::resetDefaults()
     print_min_wall_mm = 0.8;
     print_max_overhang_deg = 45.0;
     print_max_thin_fraction = 0.02;
-    print_max_island_fraction = 0.005;
+    print_max_island_vox = 8;
     print_max_unsupported_fraction = 0.05;
     require_printable = false;
     printability = PrintabilityReport();
@@ -1312,11 +1312,11 @@ void Parameters::setPrintMaxThinFraction(double value)
     emit latticeSettingsChanged();
 }
 
-void Parameters::setPrintMaxIslandFraction(double value)
+void Parameters::setPrintMaxIslandVox(int value)
 {
-    if (!validFraction(value)) { qWarning() << "print_max_island_fraction expects 0..1; got" << value; return; }
-    if (print_max_island_fraction == value) return;
-    print_max_island_fraction = value;
+    if (value < 0) { qWarning() << "print_max_island_vox expects a non-negative voxel count; got" << value; return; }
+    if (print_max_island_vox == value) return;
+    print_max_island_vox = value;
     emit latticeSettingsChanged();
 }
 
@@ -1342,7 +1342,7 @@ PrintabilityThresholds Parameters::printThresholds(double voxel_mm)
     t.min_wall_mm              = print_min_wall_mm;
     t.max_overhang_deg         = print_max_overhang_deg;
     t.max_thin_fraction        = print_max_thin_fraction;
-    t.max_island_fraction      = print_max_island_fraction;
+    t.max_island_vox           = print_max_island_vox;
     t.max_unsupported_fraction = print_max_unsupported_fraction;
     t.periodic                 = true;
     return t;
