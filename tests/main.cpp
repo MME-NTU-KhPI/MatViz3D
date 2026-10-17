@@ -11,6 +11,7 @@
 #include "test_commandline_parser.h"
 #include "test_lattice.h"
 #include "test_ffthomog.h"
+#include "test_printability.h"
 
 int main(int argc, char *argv[])
 {
@@ -58,6 +59,9 @@ int main(int argc, char *argv[])
 
     TestFftHomog testFft;
     runSuite(&testFft, "TestFftHomog");
+
+    TestPrintability testPrint;
+    runSuite(&testPrint, "TestPrintability");
 
     std::cout << "\n=======================================================\n";
     if (totalFailures == 0) {

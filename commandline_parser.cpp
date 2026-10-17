@@ -85,6 +85,11 @@ QString Commandline_Parser::buildApplicationDescription()
     desc += "  --spinodoid_theta_x/y/z: spinodoid cone half-angles about the axes, 0 (off) or 5..90 deg (default: 90)\n";
     desc += "  --fourier_terms/kmin/kmax/decay: random Fourier-series draw (default: 24 waves, |k| in [1, 4] per edge, decay 1)\n";
     desc += "  --fourier_file:          text file with one wave per line (kx ky kz amplitude phase); overrides the random draw\n";
+    desc += "  --lattice_cell_mm:       physical size of one cell in mm (default: 10); sets the voxel size for the printability check\n";
+    desc += "  --lattice_uniform_wall:  sheet families: thicken by |f|/|grad f| so the wall thickness is uniform (printable random sheets)\n";
+    desc += "  --print_min_wall_mm / --print_max_overhang_deg: printability thresholds (default: 0.8 mm, 45 deg)\n";
+    desc += "  --print_max_thin_fraction / --print_max_island_fraction / --print_max_unsupported_fraction: tolerated fractions (default: 0.02 / 0.005 / 0.05)\n";
+    desc += "  --require_printable:     headless: stop before the stress solve and exit with code 3 if the structure fails the check\n";
     desc += "  --prob_matrix_mode:      volume ('Volume Sampling') | surface ('Surface Flux')\n";
     desc += "  --texture:               random | extrusion | rolling | recrystallization | shear | scattered_cube\n";
     desc += "  --lattice:               fcc | bcc\n";
@@ -220,6 +225,23 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
         "[Lattice] Fourier series: amplitude ~ |k|^-decay, 0..4 (default: 1).", "p"));
     parser.addOption(QCommandLineOption("fourier_file",
         "[Lattice] Fourier series: text file with one wave per line (kx ky kz amplitude phase); overrides the random draw.", "path"));
+    parser.addOption(QCommandLineOption("lattice_uniform_wall",
+        "[Lattice] Sheet families: thicken the surface by the first-order distance |f|/|grad f| instead of |f|, "
+        "so the wall thickness is nearly uniform. Recommended for random Fourier sheets."));
+    parser.addOption(QCommandLineOption("lattice_cell_mm",
+        "[Lattice] Physical size of one unit cell in mm (default: 10). Voxel size = cells_per_edge * cell_mm / size.", "mm"));
+    parser.addOption(QCommandLineOption("print_min_wall_mm",
+        "[Printability] Thinnest printable wall in mm, typically two nozzle diameters (default: 0.8).", "mm"));
+    parser.addOption(QCommandLineOption("print_max_overhang_deg",
+        "[Printability] Steepest overhang the printer handles without support, degrees from vertical (default: 45).", "deg"));
+    parser.addOption(QCommandLineOption("print_max_thin_fraction",
+        "[Printability] Tolerated fraction of solid thinner than the minimum wall (default: 0.02).", "frac"));
+    parser.addOption(QCommandLineOption("print_max_island_fraction",
+        "[Printability] Tolerated fraction of solid in floating islands (default: 0.005).", "frac"));
+    parser.addOption(QCommandLineOption("print_max_unsupported_fraction",
+        "[Printability] Tolerated fraction of unsupported solid along the best build direction (default: 0.05).", "frac"));
+    parser.addOption(QCommandLineOption("require_printable",
+        "[Printability] Headless: skip the stress solve and exit with code 3 when the structure fails the check."));
 
     // ── Probability Cellular Automaton ────────────────────────────────────
     parser.addOption(QCommandLineOption("prob_preset",
@@ -444,6 +466,14 @@ void Commandline_Parser::printJsonHelp()
     addOpt("fourier_kmax", "Lattice", "double", "k", "4", "Fourier series: largest wave number, waves per cube edge");
     addOpt("fourier_decay", "Lattice", "double", "p", "1", "Fourier series: amplitude ~ |k|^-decay (0..4)");
     addOpt("fourier_file", "Lattice", "string", "path", "", "Fourier series: text file with one wave per line (kx ky kz amplitude phase)");
+    addOpt("lattice_cell_mm", "Lattice", "double", "mm", "10", "Physical size of one unit cell in mm");
+    addOpt("lattice_uniform_wall", "Lattice", "bool", "", "false", "Sheet families: uniform wall thickness via |f|/|grad f|");
+    addOpt("print_min_wall_mm", "Printability", "double", "mm", "0.8", "Thinnest printable wall in mm");
+    addOpt("print_max_overhang_deg", "Printability", "double", "deg", "45", "Steepest unsupported overhang in degrees");
+    addOpt("print_max_thin_fraction", "Printability", "double", "frac", "0.02", "Tolerated fraction of solid thinner than the minimum wall");
+    addOpt("print_max_island_fraction", "Printability", "double", "frac", "0.005", "Tolerated fraction of solid in floating islands");
+    addOpt("print_max_unsupported_fraction", "Printability", "double", "frac", "0.05", "Tolerated unsupported fraction along the best build direction");
+    addOpt("require_printable", "Printability", "bool", "", "false", "Headless: skip the stress solve and exit 3 when the structure is not printable");
 
     // Probability
     addOpt("prob_preset", "Probability", "string", "preset", "", "Kernel shape preset",
@@ -1208,6 +1238,50 @@ bool Commandline_Parser::applyParameter(const QString& key, const QString& value
         return true;
     }
 
+    if (normKey == "lattice_cell_mm" || normKey == "print_min_wall_mm") {
+        double v = 0.0;
+        if (!parseDouble(v, true)) return false;
+        if (normKey == "lattice_cell_mm") params->setLatticeCellMm(v); else params->setPrintMinWallMm(v);
+        return true;
+    }
+
+    if (normKey == "print_max_overhang_deg") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0.0 || v > 89.0) {
+            return setErr(QString("Option print_max_overhang_deg expects 0..89; got %1").arg(value));
+        }
+        params->setPrintMaxOverhangDeg(v);
+        return true;
+    }
+
+    if (normKey == "print_max_thin_fraction" || normKey == "print_max_island_fraction" ||
+        normKey == "print_max_unsupported_fraction") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0.0 || v > 1.0) {
+            return setErr(QString("Option %1 expects a value in [0, 1]; got %2").arg(normKey, value));
+        }
+        if (normKey == "print_max_thin_fraction")        params->setPrintMaxThinFraction(v);
+        else if (normKey == "print_max_island_fraction") params->setPrintMaxIslandFraction(v);
+        else                                              params->setPrintMaxUnsupportedFraction(v);
+        return true;
+    }
+
+    if (normKey == "lattice_uniform_wall") {
+        bool b = false;
+        if (!parseBool(b)) return false;
+        params->setLatticeUniformWall(b);
+        return true;
+    }
+
+    if (normKey == "require_printable") {
+        bool b = false;
+        if (!parseBool(b)) return false;
+        params->setRequirePrintable(b);
+        return true;
+    }
+
     return setErr(QString("Unknown parameter key: '%1'").arg(key));
 }
 
@@ -1315,6 +1389,14 @@ bool Commandline_Parser::processOptions(const QCommandLineParser& parser, QStrin
     if (parser.isSet("fourier_kmax"))            if (!applyCliOption("fourier_kmax", parser.value("fourier_kmax"))) return false;
     if (parser.isSet("fourier_decay"))           if (!applyCliOption("fourier_decay", parser.value("fourier_decay"))) return false;
     if (parser.isSet("fourier_file"))            if (!applyCliOption("fourier_file", parser.value("fourier_file"))) return false;
+    if (parser.isSet("lattice_cell_mm"))         if (!applyCliOption("lattice_cell_mm", parser.value("lattice_cell_mm"))) return false;
+    if (parser.isSet("lattice_uniform_wall"))    if (!applyCliOption("lattice_uniform_wall", "true")) return false;
+    if (parser.isSet("print_min_wall_mm"))       if (!applyCliOption("print_min_wall_mm", parser.value("print_min_wall_mm"))) return false;
+    if (parser.isSet("print_max_overhang_deg"))  if (!applyCliOption("print_max_overhang_deg", parser.value("print_max_overhang_deg"))) return false;
+    if (parser.isSet("print_max_thin_fraction")) if (!applyCliOption("print_max_thin_fraction", parser.value("print_max_thin_fraction"))) return false;
+    if (parser.isSet("print_max_island_fraction")) if (!applyCliOption("print_max_island_fraction", parser.value("print_max_island_fraction"))) return false;
+    if (parser.isSet("print_max_unsupported_fraction")) if (!applyCliOption("print_max_unsupported_fraction", parser.value("print_max_unsupported_fraction"))) return false;
+    if (parser.isSet("require_printable"))       if (!applyCliOption("require_printable", "true")) return false;
 
     if (parser.isSet("prob_preset"))             if (!applyCliOption("prob_preset", parser.value("prob_preset"))) return false;
     if (parser.isSet("prob_matrix_mode"))        if (!applyCliOption("prob_matrix_mode", parser.value("prob_matrix_mode"))) return false;

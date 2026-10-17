@@ -139,6 +139,20 @@ int main(int argc, char *argv[])
             qDebug().noquote() << "CSV saved:" << Parameters::csv_output;
         }
 
+        // A structure that cannot be printed is not worth a stress solve: keep
+        // the geometry and its report, say why, and signal the caller.
+        if (Parameters::instance()->getRequirePrintable() && Parameters::printability.computed && !Parameters::printability.ok) {
+            qWarning().noquote() << "Structure rejected by the printability check:"
+                                 << QString::fromStdString(Parameters::printability.verdict);
+            if (parser.isSet("output")) {
+                QString err;
+                if (!ExportController::writeGeometryHDF5(Parameters::filename, Parameters::voxels,
+                                                         Parameters::instance()->getSize(), &err))
+                    qCritical().noquote() << "HDF5 export failed:" << err;
+            }
+            return 3;
+        }
+
         if (parser.isSet("run_stress_calc")) {
             handler.runStressCalculation();
         } else if (parser.isSet("output")) {

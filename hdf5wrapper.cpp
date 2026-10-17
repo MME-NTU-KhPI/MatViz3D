@@ -901,6 +901,31 @@ void saveGeometryMetadataToHDF5(HDF5Wrapper& hdf5, const std::string& prefix, co
             hdf5.write(geomGroup, "fourier_file", p->getFourierFile());
             paramsObj["fourier_file"] = p->getFourierFile();
         }
+        // Printability of the rasterized cube (printability.h).
+        const PrintabilityReport& pr = Parameters::printability;
+        if (pr.computed) {
+            hdf5.write(geomGroup, "voxel_mm",                  float(Parameters::lattice_voxel_mm));
+            hdf5.write(geomGroup, "lattice_wall_mm",           float(Parameters::lattice_wall_voxels * Parameters::lattice_voxel_mm));
+            hdf5.write(geomGroup, "print_ok",                  pr.ok ? 1 : 0);
+            hdf5.write(geomGroup, "print_components",          pr.components);
+            hdf5.write(geomGroup, "print_island_fraction",     float(pr.island_fraction));
+            hdf5.write(geomGroup, "print_closed_pore_fraction",float(pr.closed_pore_fraction));
+            hdf5.write(geomGroup, "print_thin_fraction",       float(pr.thin_fraction));
+            hdf5.write(geomGroup, "print_unsupported_best",    float(pr.unsupported_best));
+            hdf5.write(geomGroup, "print_unsupported_z",       float(pr.unsupported[4]));
+            hdf5.write(geomGroup, "print_best_direction",      QString::fromLatin1(PrintabilityReport::directionName(pr.best_direction)));
+            hdf5.write(geomGroup, "print_verdict",             QString::fromStdString(pr.verdict));
+            paramsObj["voxel_mm"]                   = Parameters::lattice_voxel_mm;
+            paramsObj["lattice_wall_mm"]            = Parameters::lattice_wall_voxels * Parameters::lattice_voxel_mm;
+            paramsObj["print_ok"]                   = pr.ok;
+            paramsObj["print_components"]           = pr.components;
+            paramsObj["print_island_fraction"]      = pr.island_fraction;
+            paramsObj["print_closed_pore_fraction"] = pr.closed_pore_fraction;
+            paramsObj["print_thin_fraction"]        = pr.thin_fraction;
+            paramsObj["print_unsupported_best"]     = pr.unsupported_best;
+            paramsObj["print_best_direction"]       = QString::fromLatin1(PrintabilityReport::directionName(pr.best_direction));
+            paramsObj["print_verdict"]              = QString::fromStdString(pr.verdict);
+        }
         // The exact waves of a spinodoid / Fourier cell: one row per wave,
         // kx ky kz amplitude phase. This is the geometry vector of the sample.
         if (!Parameters::lattice_wave_terms.empty()) {

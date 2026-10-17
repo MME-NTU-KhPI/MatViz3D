@@ -8,6 +8,7 @@
 #include <vector>
 #include "texturelibrary.h"
 #include "phasematerial.h"
+#include "printability.h"
 
 class Parameters : public QObject
 {
@@ -119,6 +120,20 @@ class Parameters : public QObject
     Q_PROPERTY(double  fourier_kmax  READ getFourierKmax  WRITE setFourierKmax  NOTIFY latticeSettingsChanged)
     Q_PROPERTY(double  fourier_decay READ getFourierDecay WRITE setFourierDecay NOTIFY latticeSettingsChanged)
     Q_PROPERTY(QString fourier_file  READ getFourierFile  WRITE setFourierFile  NOTIFY latticeSettingsChanged)
+    // Physical size of one lattice cell, mm: converts voxels into millimetres
+    // for the printability check and the wall-thickness report.
+    Q_PROPERTY(double  lattice_cell_mm READ getLatticeCellMm WRITE setLatticeCellMm NOTIFY latticeSettingsChanged)
+    // Sheet families: thicken by the first-order distance |f|/|grad f| instead
+    // of |f|, so the wall thickness is (nearly) uniform and printable.
+    Q_PROPERTY(bool    lattice_uniform_wall READ getLatticeUniformWall WRITE setLatticeUniformWall NOTIFY latticeSettingsChanged)
+    // Printability thresholds (see printability.h) and whether a headless run
+    // must stop before the stress solve when the structure fails them.
+    Q_PROPERTY(double  print_min_wall_mm              READ getPrintMinWallMm            WRITE setPrintMinWallMm            NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  print_max_overhang_deg         READ getPrintMaxOverhangDeg       WRITE setPrintMaxOverhangDeg       NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  print_max_thin_fraction        READ getPrintMaxThinFraction      WRITE setPrintMaxThinFraction      NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  print_max_island_fraction      READ getPrintMaxIslandFraction    WRITE setPrintMaxIslandFraction    NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  print_max_unsupported_fraction READ getPrintMaxUnsupportedFraction WRITE setPrintMaxUnsupportedFraction NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(bool    require_printable              READ getRequirePrintable          WRITE setRequirePrintable          NOTIFY latticeSettingsChanged)
 
     // FFT solver scheme: "auto" (CG for porous or high-contrast cells, basic
     // otherwise), "basic" (Moulinec-Suquet fixed point) or "cg" (conjugate
@@ -359,6 +374,25 @@ public:
     Q_INVOKABLE void setFourierDecay(double value);
     Q_INVOKABLE void setFourierFile(const QString& value);
 
+    double getLatticeCellMm()               const { return lattice_cell_mm; }
+    bool   getLatticeUniformWall()          const { return lattice_uniform_wall; }
+    Q_INVOKABLE void setLatticeUniformWall(bool value);
+    double getPrintMinWallMm()              const { return print_min_wall_mm; }
+    double getPrintMaxOverhangDeg()         const { return print_max_overhang_deg; }
+    double getPrintMaxThinFraction()        const { return print_max_thin_fraction; }
+    double getPrintMaxIslandFraction()      const { return print_max_island_fraction; }
+    double getPrintMaxUnsupportedFraction() const { return print_max_unsupported_fraction; }
+    bool   getRequirePrintable()            const { return require_printable; }
+    Q_INVOKABLE void setLatticeCellMm(double value);
+    Q_INVOKABLE void setPrintMinWallMm(double value);
+    Q_INVOKABLE void setPrintMaxOverhangDeg(double value);
+    Q_INVOKABLE void setPrintMaxThinFraction(double value);
+    Q_INVOKABLE void setPrintMaxIslandFraction(double value);
+    Q_INVOKABLE void setPrintMaxUnsupportedFraction(double value);
+    Q_INVOKABLE void setRequirePrintable(bool value);
+    /// Thresholds for checkPrintability(), built from the fields above.
+    static PrintabilityThresholds printThresholds(double voxel_mm);
+
     /// The stored CLI key of the current family ("gyroid_sheet", ...).
     static QString latticeFamilyKeyStored() { return lattice_family; }
     static QString latticeFamilyLabelOf(const QString& key);
@@ -468,6 +502,10 @@ public:
     // The waves a spinodoid or Fourier-series cell was built from, one row
     // per wave: kx, ky, kz, amplitude, phase. Empty for the other families.
     static std::vector<std::array<float,5>> lattice_wave_terms;
+    // Result of the last printability check (Lattice runs it after rasterization).
+    static PrintabilityReport printability;
+    // Voxel edge in mm of the last Lattice run (cells * cell_mm / size).
+    static double lattice_voxel_mm;
 
     // "auto" | "basic" | "cg"; both FFT entry points read it at construction.
     static QString fft_scheme;
@@ -621,6 +659,14 @@ private:
     static double  fourier_kmax;
     static double  fourier_decay;
     static QString fourier_file;
+    static double  lattice_cell_mm;
+    static bool    lattice_uniform_wall;
+    static double  print_min_wall_mm;
+    static double  print_max_overhang_deg;
+    static double  print_max_thin_fraction;
+    static double  print_max_island_fraction;
+    static double  print_max_unsupported_fraction;
+    static bool    require_printable;
 };
 
 #endif // PARAMETERS_H

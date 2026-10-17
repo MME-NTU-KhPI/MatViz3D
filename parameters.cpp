@@ -97,6 +97,16 @@ double  Parameters::fourier_kmin           = 1.0;
 double  Parameters::fourier_kmax           = 4.0;
 double  Parameters::fourier_decay          = 1.0;
 QString Parameters::fourier_file;
+double  Parameters::lattice_cell_mm        = 10.0;
+bool    Parameters::lattice_uniform_wall   = false;
+double  Parameters::print_min_wall_mm      = 0.8;
+double  Parameters::print_max_overhang_deg = 45.0;
+double  Parameters::print_max_thin_fraction        = 0.02;
+double  Parameters::print_max_island_fraction      = 0.005;
+double  Parameters::print_max_unsupported_fraction = 0.05;
+bool    Parameters::require_printable      = false;
+PrintabilityReport Parameters::printability;
+double  Parameters::lattice_voxel_mm       = 0.0;
 QString Parameters::fft_scheme             = "auto";
 double  Parameters::fft_tol                = 1e-5;
 int     Parameters::fft_max_iter           = 1000;
@@ -190,6 +200,16 @@ void Parameters::resetDefaults()
     fourier_kmax  = 4.0;
     fourier_decay = 1.0;
     fourier_file.clear();
+    lattice_cell_mm = 10.0;
+    lattice_uniform_wall = false;
+    print_min_wall_mm = 0.8;
+    print_max_overhang_deg = 45.0;
+    print_max_thin_fraction = 0.02;
+    print_max_island_fraction = 0.005;
+    print_max_unsupported_fraction = 0.05;
+    require_printable = false;
+    printability = PrintabilityReport();
+    lattice_voxel_mm = 0.0;
     fft_scheme = "auto";
     fft_tol = 1e-5;
     fft_max_iter = 1000;
@@ -1253,5 +1273,84 @@ void Parameters::setFourierFile(const QString& value)
     const QString v = value.trimmed();
     if (fourier_file == v) return;
     fourier_file = v;
+    emit latticeSettingsChanged();
+}
+
+// ── Cell size and printability thresholds ───────────────────────────────────
+
+void Parameters::setLatticeCellMm(double value)
+{
+    if (!(value > 0.0)) { qWarning() << "lattice_cell_mm expects a positive size in mm; got" << value; return; }
+    if (lattice_cell_mm == value) return;
+    lattice_cell_mm = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setPrintMinWallMm(double value)
+{
+    if (!(value > 0.0)) { qWarning() << "print_min_wall_mm expects a positive thickness in mm; got" << value; return; }
+    if (print_min_wall_mm == value) return;
+    print_min_wall_mm = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setPrintMaxOverhangDeg(double value)
+{
+    if (value < 0.0 || value > 89.0) { qWarning() << "print_max_overhang_deg expects 0..89 degrees; got" << value; return; }
+    if (print_max_overhang_deg == value) return;
+    print_max_overhang_deg = value;
+    emit latticeSettingsChanged();
+}
+
+static bool validFraction(double v) { return v >= 0.0 && v <= 1.0; }
+
+void Parameters::setPrintMaxThinFraction(double value)
+{
+    if (!validFraction(value)) { qWarning() << "print_max_thin_fraction expects 0..1; got" << value; return; }
+    if (print_max_thin_fraction == value) return;
+    print_max_thin_fraction = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setPrintMaxIslandFraction(double value)
+{
+    if (!validFraction(value)) { qWarning() << "print_max_island_fraction expects 0..1; got" << value; return; }
+    if (print_max_island_fraction == value) return;
+    print_max_island_fraction = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setPrintMaxUnsupportedFraction(double value)
+{
+    if (!validFraction(value)) { qWarning() << "print_max_unsupported_fraction expects 0..1; got" << value; return; }
+    if (print_max_unsupported_fraction == value) return;
+    print_max_unsupported_fraction = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setRequirePrintable(bool value)
+{
+    if (require_printable == value) return;
+    require_printable = value;
+    emit latticeSettingsChanged();
+}
+
+PrintabilityThresholds Parameters::printThresholds(double voxel_mm)
+{
+    PrintabilityThresholds t;
+    t.voxel_mm                 = voxel_mm;
+    t.min_wall_mm              = print_min_wall_mm;
+    t.max_overhang_deg         = print_max_overhang_deg;
+    t.max_thin_fraction        = print_max_thin_fraction;
+    t.max_island_fraction      = print_max_island_fraction;
+    t.max_unsupported_fraction = print_max_unsupported_fraction;
+    t.periodic                 = true;
+    return t;
+}
+
+void Parameters::setLatticeUniformWall(bool value)
+{
+    if (lattice_uniform_wall == value) return;
+    lattice_uniform_wall = value;
     emit latticeSettingsChanged();
 }

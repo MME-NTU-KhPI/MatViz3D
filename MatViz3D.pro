@@ -108,6 +108,7 @@ SOURCES += \
         deformed_state_analyzer.cpp \
         dlca.cpp \
         lattice.cpp \
+        printability.cpp \
         legendview.cpp \
         loadstepmanager.cpp \
         logo_printer.cpp \
@@ -177,6 +178,7 @@ HEADERS += \
     dlca.h \
     lattice.h \
     latticefamily.h \
+    printability.h \
     legendview.h \
     logo_printer.h \
     loadstepmanager.h \

@@ -65,7 +65,8 @@ SOURCES += \
     ../voronoi.cpp \
     ../composite.cpp \
     ../dlca.cpp \
-    ../lattice.cpp
+    ../lattice.cpp \
+    ../printability.cpp
 
 HEADERS += \
     ../parameters.h \
@@ -89,6 +90,7 @@ HEADERS += \
     ../dlca.h \
     ../lattice.h \
     ../latticefamily.h \
+    ../printability.h \
     ../fft_homog.hpp \
     ../fft_solver_session.hpp \
     ../texturemath.hpp \
@@ -107,7 +109,8 @@ SOURCES += \
     test_svgexporter.cpp \
     test_commandline_parser.cpp \
     test_lattice.cpp \
-    test_ffthomog.cpp
+    test_ffthomog.cpp \
+    test_printability.cpp
 
 HEADERS += \
     test_polycrystall_seeding.h \
@@ -118,6 +121,7 @@ HEADERS += \
     test_svgexporter.h \
     test_commandline_parser.h \
     test_lattice.h \
-    test_ffthomog.h
+    test_ffthomog.h \
+    test_printability.h
 
 TARGET = tests

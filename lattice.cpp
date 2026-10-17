@@ -107,6 +107,7 @@ void Lattice::readParameters()
     m_family = f;
     m_signed = latticeFamilyInfo(f).signedLevelSet;
 
+    m_uniformWall = p.getLatticeUniformWall();
     m_cells    = std::clamp(p.getCellsPerEdge(), 1, 64);
     m_target   = std::clamp(p.getRelativeDensity(), 0.01, 0.99);
     m_grading  = std::clamp(p.getLatticeGrading(), 0.0, 0.9);
@@ -414,8 +415,81 @@ void Lattice::publishWaves()
 //  Fields
 // ─────────────────────────────────────────────────────────────────────────────
 
+bool Lattice::isSheet() const
+{
+    switch (m_family) {
+        case LatticeFamily::GyroidSheet: case LatticeFamily::SchwarzPSheet:
+        case LatticeFamily::SchwarzDSheet: case LatticeFamily::IWPSheet:
+        case LatticeFamily::FourierSheet:
+            return true;
+        default:
+            return false;
+    }
+}
+
+// f and grad f (derivatives with respect to the cube-fraction coordinates)
+// for the level-set families. |f| / |grad f| is the first-order distance to
+// the surface f = 0, which makes a sheet of (nearly) uniform thickness.
+bool Lattice::levelSet(double X, double Y, double Z, double& f, double g[3]) const
+{
+    const double a = 2.0 * kPi * m_cells;
+    const double x = a * X, y = a * Y, z = a * Z;
+    const double sx = std::sin(x), cx = std::cos(x);
+    const double sy = std::sin(y), cy = std::cos(y);
+    const double sz = std::sin(z), cz = std::cos(z);
+    switch (m_family) {
+        case LatticeFamily::GyroidSheet:
+        case LatticeFamily::GyroidSkeletal:
+            f = sx * cy + sy * cz + sz * cx;
+            g[0] = a * (cx * cy - sz * sx);
+            g[1] = a * (-sx * sy + cy * cz);
+            g[2] = a * (-sy * sz + cz * cx);
+            return true;
+        case LatticeFamily::SchwarzPSheet:
+        case LatticeFamily::SchwarzPSkeletal:
+            f = cx + cy + cz;
+            g[0] = -a * sx; g[1] = -a * sy; g[2] = -a * sz;
+            return true;
+        case LatticeFamily::SchwarzDSheet:
+        case LatticeFamily::SchwarzDSkeletal:
+            f = sx * sy * sz + sx * cy * cz + cx * sy * cz + cx * cy * sz;
+            g[0] = a * (cx * sy * sz + cx * cy * cz - sx * sy * cz - sx * cy * sz);
+            g[1] = a * (sx * cy * sz - sx * sy * cz + cx * cy * cz - cx * sy * sz);
+            g[2] = a * (sx * sy * cz - sx * cy * sz - cx * sy * sz + cx * cy * cz);
+            return true;
+        case LatticeFamily::IWPSheet:
+        case LatticeFamily::IWPSkeletal:
+            f = 2.0 * (cx * cy + cy * cz + cz * cx) - (std::cos(2 * x) + std::cos(2 * y) + std::cos(2 * z));
+            g[0] = a * (-2.0 * sx * (cy + cz) + 2.0 * std::sin(2 * x));
+            g[1] = a * (-2.0 * sy * (cx + cz) + 2.0 * std::sin(2 * y));
+            g[2] = a * (-2.0 * sz * (cx + cy) + 2.0 * std::sin(2 * z));
+            return true;
+        case LatticeFamily::FourierSheet:
+        case LatticeFamily::FourierSkeletal: {
+            f = 0.0; g[0] = g[1] = g[2] = 0.0;
+            for (const Wave& w : m_waves) {
+                const double ph = 2.0 * kPi * (w.kx * X + w.ky * Y + w.kz * Z) + w.phase;
+                f += w.amp * std::cos(ph);
+                const double d = -w.amp * 2.0 * kPi * std::sin(ph);
+                g[0] += d * w.kx; g[1] += d * w.ky; g[2] += d * w.kz;
+            }
+            return true;
+        }
+        default:
+            return false;
+    }
+}
+
 double Lattice::rawField(double X, double Y, double Z) const
 {
+    if (m_uniformWall && isSheet()) {
+        double f, g[3];
+        levelSet(X, Y, Z, f, g);
+        const double gn = std::sqrt(g[0] * g[0] + g[1] * g[1] + g[2] * g[2]);
+        // At a critical point on the surface (f = 0, grad f = 0) the ratio is
+        // 0/0: that point is on the surface, so it is solid.
+        return std::abs(f) / std::max(gn, 1e-12);
+    }
     switch (m_family) {
         case LatticeFamily::GyroidSheet:
         case LatticeFamily::GyroidSkeletal: {
@@ -606,6 +680,10 @@ void Lattice::estimateWall()
     const double voxPerCell = static_cast<double>(numCubes) / m_cells;
     m_wallVox = 0.0;
 
+    if (m_uniformWall && isSheet()) {
+        m_wallVox = 2.0 * m_c * numCubes;          // c is the half thickness in cube fractions
+        return;
+    }
     switch (m_family) {
         case LatticeFamily::GyroidSheet:
         case LatticeFamily::SchwarzPSheet:
@@ -743,6 +821,44 @@ void Lattice::finish()
     m_step       = m_steps;
     flags.isDone = true;
     reportAchieved();
+    checkPrintable();
+}
+
+// Printability of the rasterized cube: islands, thin walls, overhangs,
+// closed pores (printability.h). Needs a physical scale, which the cell
+// size in mm supplies; the report goes to Parameters::printability and from
+// there to the log and the HDF5 metadata.
+void Lattice::checkPrintable()
+{
+    const Parameters& p = *Parameters::instance();
+    const double voxel_mm = p.getLatticeCellMm() * m_cells / static_cast<double>(numCubes);
+    Parameters::lattice_voxel_mm = voxel_mm;
+
+    const PrintabilityReport r = checkPrintability(voxels, numCubes, Parameters::printThresholds(voxel_mm));
+    Parameters::printability = r;
+    if (!r.computed) return;
+    if (m_wallVox <= 0.0 && r.mean_thickness_vox > 0.0) {
+        m_wallVox = r.mean_thickness_vox;          // families without an analytic estimate
+        Parameters::lattice_wall_voxels = m_wallVox;
+    }
+
+    qInfo().noquote()
+        << QString("[Lattice] printability (voxel %1 mm, wall ≈ %2 mm): %3 solid component(s), islands %4 %, "
+                   "thin walls %5 %, closed pores %6 %, unsupported %7 % along %8 (best of six); %9")
+               .arg(voxel_mm, 0, 'f', 3)
+               .arg(m_wallVox > 0.0 ? QString::number(m_wallVox * voxel_mm, 'f', 2) : QStringLiteral("?"))
+               .arg(r.components)
+               .arg(r.island_fraction * 100.0, 0, 'f', 2)
+               .arg(r.thin_fraction * 100.0, 0, 'f', 2)
+               .arg(r.closed_pore_fraction * 100.0, 0, 'f', 2)
+               .arg(r.unsupported_best * 100.0, 0, 'f', 2)
+               .arg(PrintabilityReport::directionName(r.best_direction))
+               .arg(r.ok ? QStringLiteral("PRINTABLE") : QString("NOT printable: %1").arg(QString::fromStdString(r.verdict)));
+    if (!r.thin_check_resolved)
+        qWarning().noquote()
+            << QString("[Lattice] the thin-wall check needs at least one voxel per half wall; here %1 voxel(s) -- "
+                       "raise the cube size or lower lattice_cell_mm")
+                   .arg(r.opening_radius_vox, 0, 'f', 2);
 }
 
 bool Lattice::getDone() const
@@ -850,6 +966,12 @@ static std::vector<ParamField> latticeSchema()
         { "orientation_angle_c", "Rotation about Z' (deg)", ParamField::Double, 0.0, -180.0, 180.0, {}, "main" },
 
         { "is_periodic", "Periodic cell", ParamField::Bool, true, {}, {}, {}, "main" },
+
+        // Physical scale and printability thresholds (the fractions are CLI/config only).
+        { "lattice_cell_mm",        "Cell size (mm)",               ParamField::Double, 10.0, 0.5, 200.0, {}, "main" },
+        { "lattice_uniform_wall",   "Uniform wall thickness (sheets)", ParamField::Bool, false, {}, {}, {}, "main" },
+        { "print_min_wall_mm",      "Printable wall, min (mm)",     ParamField::Double, 0.8,  0.1, 5.0,   {}, "main" },
+        { "print_max_overhang_deg", "Printable overhang, max (deg)", ParamField::Double, 45.0, 0.0, 89.0,  {}, "main" },
 
         // Spinodoid: cones of admissible wave directions about the axes.
         { "spinodoid_theta_x", "Spinodoid cone about X (deg, 0 = off)", ParamField::Double, 90.0, 0.0, 90.0, {}, "main" },

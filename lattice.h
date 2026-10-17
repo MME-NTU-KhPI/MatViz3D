@@ -118,6 +118,10 @@ private:
     void   publishWaves();
     /// Family field at a point in cube fractions [0,1)^3 (already rotated).
     double rawField(double X, double Y, double Z) const;
+    /// Level-set value f and its gradient (per cube fraction) for the
+    /// surface families; false for families that are not level sets.
+    bool   levelSet(double X, double Y, double Z, double& f, double g[3]) const;
+    bool   isSheet() const;
     /// Unnormalized thickness-jitter field at a point in cube fractions.
     double jitterField(double X, double Y, double Z) const;
     /// Grading + jitter at a point in cube fractions (not rotated).
@@ -129,12 +133,14 @@ private:
     void   publishPhases();
     void   locateSeed();
     void   finish();
+    void   checkPrintable();
     void   report() const;
     void   reportAchieved() const;
 
     // Resolved inputs.
     LatticeFamily m_family   = LatticeFamily::GyroidSheet;
     bool    m_signed         = false;
+    bool    m_uniformWall    = false;  ///< sheets: |f|/|grad f| instead of |f|
     int     m_cells          = 2;
     double  m_target         = 0.30;
     double  m_grading        = 0.0;
