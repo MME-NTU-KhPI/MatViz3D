@@ -961,6 +961,9 @@ static std::vector<ParamField> latticeSchema()
           latticeFamilyLabel(LatticeFamily::GyroidSheet), {}, {},
           latticeFamilyLabels(), "main" },
 
+        // The random families (spinodoid, Fourier) and the jitter draw from
+        // this; the GUI has no seed field of its own, so expose it here.
+        { "seed",             "Seed",                      ParamField::Int,    1,    0,    2147483647, {}, "main" },
         { "cells_per_edge",   "Cells per edge",            ParamField::Int,    2,    1,    64,   {}, "main" },
         { "relative_density", "Relative density",          ParamField::Double, 0.30, 0.01, 0.99, {}, "main" },
         { "lattice_grading",  "Thickness grading along Z", ParamField::Double, 0.0,  0.0,  0.9,  {}, "main" },
