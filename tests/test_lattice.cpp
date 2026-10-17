@@ -141,7 +141,8 @@ void TestLattice::testFieldIsPeriodicInTheCube()
     p->setRelativeDensity(0.25);
 
     const char* families[] = { "gyroid_sheet", "schwarz_d_skeletal", "iwp_sheet",
-                               "bcc", "octet", "honeycomb", "reentrant", "spinodoid" };
+                               "bcc", "octet", "honeycomb", "reentrant", "spinodoid",
+                               "noise_sheet", "noise_skeletal" };
     for (const char* key : families) {
         p->setLatticeFamily(QString::fromLatin1(key));
         TestableLattice L(N);
@@ -369,6 +370,50 @@ void TestLattice::testFourierRandomIsReproducibleAndPublished()
     TestableLattice d(N);
     d.Initialization(false);
     QVERIFY(Parameters::lattice_wave_terms.empty());
+}
+
+void TestLattice::testSmoothedNoiseIsReproducibleAndSmoothingConnects()
+{
+    Parameters* p = Parameters::instance();
+    const int N = 32;
+    p->setSize(N);
+    p->setRelativeDensity(0.40);
+    p->setLatticeFamily("noise_skeletal");
+    p->setNoiseSmooth(0.08);
+
+    Parameters::seed = 31;
+    TestableLattice a(N);
+    a.Initialization(false);
+    a.Generate_To_End();
+    const int componentsSmooth = Parameters::printability.components;
+    QVERIFY(std::abs(a.achievedDensity() - 0.40) < 0.01);
+
+    Parameters::seed = 31;
+    TestableLattice b(N);
+    b.Initialization(false);
+    b.Generate_To_End();
+    QVERIFY(a.flat() == b.flat());
+
+    Parameters::seed = 32;
+    TestableLattice c(N);
+    c.Initialization(false);
+    c.Generate_To_End();
+    QVERIFY(a.flat() != c.flat());
+
+    // Barely smoothed noise at the same density is dust: many more pieces.
+    p->setNoiseSmooth(0.01);
+    Parameters::seed = 31;
+    TestableLattice d(N);
+    d.Initialization(false);
+    d.Generate_To_End();
+    const int componentsRough = Parameters::printability.components;
+    QVERIFY2(componentsRough > 5 * std::max(1, componentsSmooth),
+             qPrintable(QString("components: rough %1, smooth %2").arg(componentsRough).arg(componentsSmooth)));
+
+    QString err;
+    QVERIFY(applyParameter("noise_smooth", "0.1", &err));
+    QCOMPARE(p->getNoiseSmooth(), 0.1);
+    QVERIFY(!applyParameter("noise_smooth", "0.9", &err));
 }
 
 void TestLattice::testCliOptions()

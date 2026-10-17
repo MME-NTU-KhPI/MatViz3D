@@ -30,6 +30,12 @@
  *     be confined to cones about the axes (`spinodoid_theta_x/y/z`, Kumar
  *     et al. 2020): all 90 deg = isotropic, one cone = lamellar, two =
  *     columnar, so the statistics, not a name, define the geometry.
+ *   - Smoothed noise: the most random printable thing. White noise per
+ *     voxel (seeded), blurred with a periodic Gaussian of sigma
+ *     `noise_smooth` cube edges, normalized to unit variance. Skeletal
+ *     (F = field, blobs) and sheet (F = |field|, walls around the zero
+ *     level). The correlation length, and with it the wall thickness, is
+ *     set by the smoothing; cells_per_edge plays no role.
  *   - Fourier series: an open family. F is a sum of `fourier_terms` cosine
  *     waves on the integer lattice with amplitudes ~ |k|^-decay in the band
  *     [kmin, kmax] waves per edge, drawn from the seed -- or read from a
@@ -114,6 +120,7 @@ private:
     void   buildRotation();
     void   buildSegments();
     void   buildWaves();
+    void   buildNoise();
     bool   loadFourierFile(const QString& path);
     void   publishWaves();
     /// Family field at a point in cube fractions [0,1)^3 (already rotated).
@@ -168,6 +175,9 @@ private:
     std::vector<Wave> m_waves;         ///< spinodoid random field
     std::vector<Wave> m_jitterWaves;   ///< thickness-modulation field
     double  m_jitterNorm     = 1.0;
+    std::vector<float> m_noise;        ///< smoothed-noise families: field on the full grid, unit variance
+    double  m_noiseSmooth    = 0.06;   ///< Gaussian sigma as a fraction of the cube edge
+    double  m_noiseSigmaVox  = 0.0;
 
     // Solved / measured.
     double  m_c              = 0.0;

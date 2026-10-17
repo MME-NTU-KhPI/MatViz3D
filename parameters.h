@@ -120,6 +120,8 @@ class Parameters : public QObject
     Q_PROPERTY(double  fourier_kmax  READ getFourierKmax  WRITE setFourierKmax  NOTIFY latticeSettingsChanged)
     Q_PROPERTY(double  fourier_decay READ getFourierDecay WRITE setFourierDecay NOTIFY latticeSettingsChanged)
     Q_PROPERTY(QString fourier_file  READ getFourierFile  WRITE setFourierFile  NOTIFY latticeSettingsChanged)
+    // Smoothed-noise families: Gaussian sigma as a fraction of the cube edge.
+    Q_PROPERTY(double  noise_smooth  READ getNoiseSmooth  WRITE setNoiseSmooth  NOTIFY latticeSettingsChanged)
     // Physical size of one lattice cell, mm: converts voxels into millimetres
     // for the printability check and the wall-thickness report.
     Q_PROPERTY(double  lattice_cell_mm READ getLatticeCellMm WRITE setLatticeCellMm NOTIFY latticeSettingsChanged)
@@ -373,6 +375,8 @@ public:
     Q_INVOKABLE void setFourierKmax(double value);
     Q_INVOKABLE void setFourierDecay(double value);
     Q_INVOKABLE void setFourierFile(const QString& value);
+    double  getNoiseSmooth()     const { return noise_smooth; }
+    Q_INVOKABLE void setNoiseSmooth(double value);
 
     double getLatticeCellMm()               const { return lattice_cell_mm; }
     bool   getLatticeUniformWall()          const { return lattice_uniform_wall; }
@@ -659,6 +663,7 @@ private:
     static double  fourier_kmax;
     static double  fourier_decay;
     static QString fourier_file;
+    static double  noise_smooth;
     static double  lattice_cell_mm;
     static bool    lattice_uniform_wall;
     static double  print_min_wall_mm;

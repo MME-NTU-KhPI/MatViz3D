@@ -142,6 +142,7 @@ void Lattice::readParameters()
     m_fourierKmax  = std::max(m_fourierKmin, p.getFourierKmax());
     m_fourierDecay = std::clamp(p.getFourierDecay(), 0.0, 4.0);
     m_fourierFile  = p.getFourierFile();
+    m_noiseSmooth  = std::clamp(p.getNoiseSmooth(), 0.005, 0.5);
 }
 
 // R = Rz(a) * Rx(b) * Rz(c), applied to coordinates about the cube centre.
@@ -360,6 +361,57 @@ void Lattice::buildWaves()
         drawFrom(candidates(1.0, 2.0 * m_cells, nullptr), 12, m_jitterWaves, 0.0);
 }
 
+// Smoothed noise: Gaussian white noise on the full grid, blurred by a
+// periodic separable Gaussian of sigma = noise_smooth * N voxels, then scaled
+// to unit variance so the level c means the same thing for every draw.
+void Lattice::buildNoise()
+{
+    m_noise.clear();
+    if (m_family != LatticeFamily::NoiseSheet && m_family != LatticeFamily::NoiseSkeletal) return;
+
+    const int N = numCubes;
+    const std::size_t M = static_cast<std::size_t>(N) * N * N;
+    std::vector<float> a(M), b(M);
+    std::normal_distribution<double> gauss(0.0, 1.0);
+    for (std::size_t i = 0; i < M; ++i) a[i] = static_cast<float>(gauss(m_rng));
+
+    m_noiseSigmaVox = m_noiseSmooth * N;
+    const int K = std::max(1, static_cast<int>(std::ceil(3.0 * m_noiseSigmaVox)));
+    std::vector<float> w(2 * K + 1);
+    double wsum = 0.0;
+    for (int d = -K; d <= K; ++d) { w[d + K] = static_cast<float>(std::exp(-0.5 * d * d / (m_noiseSigmaVox * m_noiseSigmaVox))); wsum += w[d + K]; }
+    for (float& v : w) v = static_cast<float>(v / wsum);
+
+    auto idx = [N](int x, int y, int z) { return (static_cast<std::size_t>(x) * N + y) * N + z; };
+    auto wrapi = [N](int i) { return (i % N + N) % N; };
+    // Three periodic 1-D passes; axis 0 = x, 1 = y, 2 = z.
+    for (int axis = 0; axis < 3; ++axis) {
+        #pragma omp parallel for collapse(2) schedule(static)
+        for (int p = 0; p < N; ++p)
+            for (int q = 0; q < N; ++q)
+                for (int i = 0; i < N; ++i) {
+                    double acc = 0.0;
+                    for (int d = -K; d <= K; ++d) {
+                        const int j = wrapi(i + d);
+                        const std::size_t src = axis == 0 ? idx(j, p, q) : axis == 1 ? idx(p, j, q) : idx(p, q, j);
+                        acc += w[d + K] * a[src];
+                    }
+                    const std::size_t dst = axis == 0 ? idx(i, p, q) : axis == 1 ? idx(p, i, q) : idx(p, q, i);
+                    b[dst] = static_cast<float>(acc);
+                }
+        std::swap(a, b);
+    }
+
+    double mean = 0.0, var = 0.0;
+    for (float v : a) mean += v;
+    mean /= static_cast<double>(M);
+    for (float v : a) var += (v - mean) * (v - mean);
+    var /= static_cast<double>(M);
+    const float scale = static_cast<float>(1.0 / std::sqrt(std::max(var, 1e-30)));
+    for (float& v : a) v = (v - static_cast<float>(mean)) * scale;
+    m_noise = std::move(a);
+}
+
 // One term per line: kx ky kz amplitude phase. Blank lines and lines starting
 // with '#' are skipped; wave vectors must be integers so the field stays
 // periodic in the cube.
@@ -564,6 +616,18 @@ double Lattice::rawField(double X, double Y, double Z) const
                 f += w.amp * std::cos(2.0 * kPi * (w.kx * X + w.ky * Y + w.kz * Z) + w.phase);
             return m_signed ? f : std::abs(f);
         }
+        case LatticeFamily::NoiseSheet:
+        case LatticeFamily::NoiseSkeletal: {
+            // The field lives on the voxel grid: nearest voxel, wrapped.
+            if (m_noise.empty()) return 0.0;
+            const int N = numCubes;
+            auto wrapi = [N](int i) { return (i % N + N) % N; };
+            const int ix = wrapi(static_cast<int>(std::floor(X * N)));
+            const int iy = wrapi(static_cast<int>(std::floor(Y * N)));
+            const int iz = wrapi(static_cast<int>(std::floor(Z * N)));
+            const double v = m_noise[(static_cast<std::size_t>(ix) * N + iy) * N + iz];
+            return m_signed ? v : std::abs(v);
+        }
     }
     return 0.0;
 }
@@ -756,6 +820,7 @@ void Lattice::Initialization(bool /*isWaveGeneration*/)
     buildRotation();
     buildSegments();
     buildWaves();
+    buildNoise();
     publishWaves();
 
     numColors = 1;
@@ -878,6 +943,8 @@ void Lattice::CleanUp()
     m_segments.shrink_to_fit();
     m_waves.clear();
     m_jitterWaves.clear();
+    m_noise.clear();
+    m_noise.shrink_to_fit();
     m_solidCount = 0;
     m_zFilled    = 0;
     m_step       = 0;
@@ -907,6 +974,10 @@ void Lattice::report() const
             << QString("[Lattice] spinodoid: cones about X/Y/Z = %1/%2/%3 deg, %4 admissible directions, %5 waves (seed %6)")
                    .arg(m_theta[0], 0, 'f', 0).arg(m_theta[1], 0, 'f', 0).arg(m_theta[2], 0, 'f', 0)
                    .arg(m_directions).arg(m_waves.size()).arg(Parameters::seed);
+    if (m_family == LatticeFamily::NoiseSheet || m_family == LatticeFamily::NoiseSkeletal)
+        qInfo().noquote()
+            << QString("[Lattice] smoothed noise: sigma %1 of the edge = %2 voxels (seed %3)")
+                   .arg(m_noiseSmooth, 0, 'g', 3).arg(m_noiseSigmaVox, 0, 'f', 1).arg(Parameters::seed);
     if (m_family == LatticeFamily::FourierSheet || m_family == LatticeFamily::FourierSkeletal)
         qInfo().noquote()
             << QString("[Lattice] Fourier series: %1 waves%2 (|k| in [%3, %4] per edge, decay %5, seed %6)")
@@ -991,6 +1062,9 @@ static std::vector<ParamField> latticeSchema()
         { "fourier_kmin",  "Fourier min waves per edge",      ParamField::Double, 1.0, 1.0, 32.0, {}, "main" },
         { "fourier_kmax",  "Fourier max waves per edge",      ParamField::Double, 4.0, 1.0, 32.0, {}, "main" },
         { "fourier_decay", "Fourier amplitude decay exponent", ParamField::Double, 1.0, 0.0, 4.0,  {}, "main" },
+
+        // Smoothed noise: Gaussian sigma as a fraction of the cube edge.
+        { "noise_smooth",  "Noise smoothing (fraction of edge)", ParamField::Double, 0.06, 0.005, 0.5, {}, "main" },
     };
 
     // One constituent: the printed base material. Void is the other phase.
@@ -1005,7 +1079,7 @@ MATVIZ_REGISTER_ALGORITHM(AlgorithmPlugin{
     "Lattice",
     "Periodic cellular metamaterial RVE (TPMS sheets and skeletons, strut "
     "lattices, honeycombs, anisotropic spinodoids, open Fourier-series level "
-    "sets): one solid phase plus void, sized to a target relative density, "
+    "sets, smoothed random noise): one solid phase plus void, sized to a target relative density, "
     "with optional thickness grading, jitter and lattice rotation.",
     /*order=*/ 2,
     latticeSchema(),

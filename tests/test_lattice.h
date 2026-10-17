@@ -20,6 +20,7 @@ private slots:
     void testSpinodoidConesMakeLamellae();
     void testFourierFileRoundTrip();
     void testFourierRandomIsReproducibleAndPublished();
+    void testSmoothedNoiseIsReproducibleAndSmoothingConnects();
     void testCliOptions();
 };
 

@@ -77,7 +77,7 @@ QString Commandline_Parser::buildApplicationDescription()
     desc += "  --fft_tol:               FFT convergence tolerance (default: 1e-5); --fft_max_iter: iteration cap per load (default: 1000)\n";
     desc += "  --composite_dim:         1d (fibers along Z) | 2d (along X, Y) | 3d (along X, Y, Z)\n";
     desc += "  --composite_packing:     square | hexagonal\n";
-    desc += "  --lattice_family:        gyroid_sheet | gyroid_skeletal | schwarz_p_sheet | schwarz_p_skeletal | schwarz_d_sheet | schwarz_d_skeletal | iwp_sheet | iwp_skeletal | simple_cubic | bcc | fcc | octet | honeycomb | reentrant | spinodoid | fourier_sheet | fourier_skeletal\n";
+    desc += "  --lattice_family:        gyroid_sheet | gyroid_skeletal | schwarz_p_sheet | schwarz_p_skeletal | schwarz_d_sheet | schwarz_d_skeletal | iwp_sheet | iwp_skeletal | simple_cubic | bcc | fcc | octet | honeycomb | reentrant | spinodoid | fourier_sheet | fourier_skeletal | noise_sheet | noise_skeletal\n";
     desc += "  --cells_per_edge:        unit cells along each cube edge (default: 2)\n";
     desc += "  --relative_density:      target solid fraction of the lattice in (0, 1) (default: 0.3)\n";
     desc += "  --lattice_grading:       linear wall-thickness gradient along Z, 0..0.9 (default: 0)\n";
@@ -85,6 +85,7 @@ QString Commandline_Parser::buildApplicationDescription()
     desc += "  --spinodoid_theta_x/y/z: spinodoid cone half-angles about the axes, 0 (off) or 5..90 deg (default: 90)\n";
     desc += "  --fourier_terms/kmin/kmax/decay: random Fourier-series draw (default: 24 waves, |k| in [1, 4] per edge, decay 1)\n";
     desc += "  --fourier_file:          text file with one wave per line (kx ky kz amplitude phase); overrides the random draw\n";
+    desc += "  --noise_smooth:          smoothed-noise families: Gaussian sigma as a fraction of the cube edge, 0.005..0.5 (default: 0.06)\n";
     desc += "  --lattice_cell_mm:       physical size of one cell in mm (default: 10); sets the voxel size for the printability check\n";
     desc += "  --lattice_uniform_wall:  sheet families: thicken by |f|/|grad f| so the wall thickness is uniform (printable random sheets)\n";
     desc += "  --print_min_wall_mm / --print_max_overhang_deg: printability thresholds (default: 0.8 mm, 45 deg)\n";
@@ -200,7 +201,7 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
     parser.addOption(QCommandLineOption("lattice_family",
         "[Lattice] Unit-cell family: gyroid_sheet | gyroid_skeletal | schwarz_p_sheet | schwarz_p_skeletal | "
         "schwarz_d_sheet | schwarz_d_skeletal | iwp_sheet | iwp_skeletal | simple_cubic | bcc | fcc | octet | "
-        "honeycomb | reentrant | spinodoid | fourier_sheet | fourier_skeletal. Default: gyroid_sheet", "family"));
+        "honeycomb | reentrant | spinodoid | fourier_sheet | fourier_skeletal | noise_sheet | noise_skeletal. Default: gyroid_sheet", "family"));
     parser.addOption(QCommandLineOption("cells_per_edge",
         "[Lattice] Unit cells along each cube edge, 1..64 (default: 2).", "n"));
     parser.addOption(QCommandLineOption("relative_density",
@@ -225,6 +226,8 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
         "[Lattice] Fourier series: amplitude ~ |k|^-decay, 0..4 (default: 1).", "p"));
     parser.addOption(QCommandLineOption("fourier_file",
         "[Lattice] Fourier series: text file with one wave per line (kx ky kz amplitude phase); overrides the random draw.", "path"));
+    parser.addOption(QCommandLineOption("noise_smooth",
+        "[Lattice] Smoothed noise: Gaussian sigma of the blur as a fraction of the cube edge, 0.005..0.5 (default: 0.06).", "frac"));
     parser.addOption(QCommandLineOption("lattice_uniform_wall",
         "[Lattice] Sheet families: thicken the surface by the first-order distance |f|/|grad f| instead of |f|, "
         "so the wall thickness is nearly uniform. Recommended for random Fourier sheets."));
@@ -466,6 +469,7 @@ void Commandline_Parser::printJsonHelp()
     addOpt("fourier_kmax", "Lattice", "double", "k", "4", "Fourier series: largest wave number, waves per cube edge");
     addOpt("fourier_decay", "Lattice", "double", "p", "1", "Fourier series: amplitude ~ |k|^-decay (0..4)");
     addOpt("fourier_file", "Lattice", "string", "path", "", "Fourier series: text file with one wave per line (kx ky kz amplitude phase)");
+    addOpt("noise_smooth", "Lattice", "double", "frac", "0.06", "Smoothed noise: Gaussian sigma as a fraction of the cube edge (0.005..0.5)");
     addOpt("lattice_cell_mm", "Lattice", "double", "mm", "10", "Physical size of one unit cell in mm");
     addOpt("lattice_uniform_wall", "Lattice", "bool", "", "false", "Sheet families: uniform wall thickness via |f|/|grad f|");
     addOpt("print_min_wall_mm", "Printability", "double", "mm", "0.8", "Thinnest printable wall in mm");
@@ -1276,6 +1280,16 @@ bool Commandline_Parser::applyParameter(const QString& key, const QString& value
         return true;
     }
 
+    if (normKey == "noise_smooth") {
+        double v = 0.0;
+        if (!parseDouble(v, true)) return false;
+        if (v < 0.005 || v > 0.5) {
+            return setErr(QString("Option noise_smooth expects a value in [0.005, 0.5]; got %1").arg(value));
+        }
+        params->setNoiseSmooth(v);
+        return true;
+    }
+
     if (normKey == "lattice_uniform_wall") {
         bool b = false;
         if (!parseBool(b)) return false;
@@ -1398,6 +1412,7 @@ bool Commandline_Parser::processOptions(const QCommandLineParser& parser, QStrin
     if (parser.isSet("fourier_decay"))           if (!applyCliOption("fourier_decay", parser.value("fourier_decay"))) return false;
     if (parser.isSet("fourier_file"))            if (!applyCliOption("fourier_file", parser.value("fourier_file"))) return false;
     if (parser.isSet("lattice_cell_mm"))         if (!applyCliOption("lattice_cell_mm", parser.value("lattice_cell_mm"))) return false;
+    if (parser.isSet("noise_smooth"))            if (!applyCliOption("noise_smooth", parser.value("noise_smooth"))) return false;
     if (parser.isSet("lattice_uniform_wall"))    if (!applyCliOption("lattice_uniform_wall", "true")) return false;
     if (parser.isSet("print_min_wall_mm"))       if (!applyCliOption("print_min_wall_mm", parser.value("print_min_wall_mm"))) return false;
     if (parser.isSet("print_max_overhang_deg"))  if (!applyCliOption("print_max_overhang_deg", parser.value("print_max_overhang_deg"))) return false;

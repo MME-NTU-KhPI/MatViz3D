@@ -97,6 +97,7 @@ double  Parameters::fourier_kmin           = 1.0;
 double  Parameters::fourier_kmax           = 4.0;
 double  Parameters::fourier_decay          = 1.0;
 QString Parameters::fourier_file;
+double  Parameters::noise_smooth           = 0.06;
 double  Parameters::lattice_cell_mm        = 10.0;
 bool    Parameters::lattice_uniform_wall   = false;
 double  Parameters::print_min_wall_mm      = 0.8;
@@ -200,6 +201,7 @@ void Parameters::resetDefaults()
     fourier_kmax  = 4.0;
     fourier_decay = 1.0;
     fourier_file.clear();
+    noise_smooth = 0.06;
     lattice_cell_mm = 10.0;
     lattice_uniform_wall = false;
     print_min_wall_mm = 0.8;
@@ -1352,5 +1354,13 @@ void Parameters::setLatticeUniformWall(bool value)
 {
     if (lattice_uniform_wall == value) return;
     lattice_uniform_wall = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setNoiseSmooth(double value)
+{
+    if (!(value >= 0.005 && value <= 0.5)) { qWarning() << "noise_smooth expects 0.005..0.5 of the cube edge; got" << value; return; }
+    if (noise_smooth == value) return;
+    noise_smooth = value;
     emit latticeSettingsChanged();
 }
