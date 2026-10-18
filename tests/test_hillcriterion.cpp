@@ -6,6 +6,10 @@
 #include <random>
 #include <QRegularExpression>
 #include "hillcriterion.h"
+#include "ansyswrapper.h"
+#include <QDir>
+#include <QFile>
+#include <QTextStream>
 
 void TestHillCriterion::init()
 {
@@ -301,4 +305,98 @@ void TestHillCriterion::testGenerateLoadsDefaultEqualsExplicitSchmid5D()
     const auto lc = c.generateLoads(100, 1e-3, S);
     QCOMPARE(lc.size(), size_t(100));
     QVERIFY(lc != la);
+}
+
+void TestHillCriterion::testElasticFitRecoversCouplingInTensorBasis()
+{
+    // calculateElasticProperties() fits eps = S * sigma where eps_as_loading
+    // holds TENSOR shear strains. In that basis the compliance is
+    // D^-1 * S_eng (D = diag(1,1,1,2,2,2)), which is NOT symmetric once there
+    // is normal<->shear coupling, so a symmetric fit directly in that basis
+    // distorts it. Feed exact data generated from a symmetric S_eng with such
+    // coupling and require the fit to return D^-1 * S_eng.
+    //
+    // All values are small integers / halves so they survive the float
+    // storage (eps_as_loading, loadstep_results) and the fixed-width CSV text
+    // exactly; the 1e-10 tolerance then tests the algebra, not round-off.
+    const double S_eng[6][6] = {
+        { 100, -30, -25,  15,   8,   0 },
+        { -30, 120, -20,   0,   0, -12 },
+        { -25, -20,  90,   0,  10,   0 },
+        {  15,   0,   0, 250,   5,   0 },
+        {   8,   0,  10,   5, 230,  -6 },
+        {   0, -12,   0,   0,  -6, 270 },
+    };
+    const double sigmas[8][6] = {
+        {  3,  -1,   2,   1,   0,  -2 },
+        { -2,   4,   1,   0,   3,   1 },
+        {  1,   2,  -3,   2,  -1,   0 },
+        {  0,  -1,   1,  -3,   2,   4 },
+        {  2,   0,   0,   1,   1,  -1 },
+        { -1,   1,   3,   0,  -2,   2 },
+        {  4,   2,  -1,  -1,   0,   3 },
+        {  1,  -3,   0,   2,   4,  -1 },
+    };
+    const int nLoads = 8;
+
+    ansysWrapper wr(true, /*initAnsys=*/false);
+    QDir().mkpath(QDir::tempPath());
+    wr.setWorkingDirectory(QDir::tempPath() + "/matviz_elastic_fit_XXXXXX");
+    const QString dir = wr.getProjectPath();
+    QVERIFY(!dir.isEmpty());
+
+    // load_loadstep() reads 16-char fields on a 17-char pitch.
+    auto field = [](double v) { return QString::number(v, 'g', 12).rightJustified(16) + ' '; };
+
+    for (int k = 0; k < nLoads; ++k) {
+        const double* s = sigmas[k];
+        double e_t[6];   // tensor-shear strain = D^-1 * S_eng * sigma
+        for (int i = 0; i < 6; ++i) {
+            double acc = 0.0;
+            for (int j = 0; j < 6; ++j) acc += S_eng[i][j] * s[j];
+            e_t[i] = (i < 3) ? acc : 0.5 * acc;
+        }
+        std::vector<float> eps_vec(6);
+        for (int i = 0; i < 6; ++i) eps_vec[i] = float(e_t[i]);
+        QCOMPARE(double(eps_vec[0]), e_t[0]); // exactness guard
+        wr.eps_as_loading.push_back(eps_vec);
+
+        // One node row: ID X Y Z UX UY UZ SX SY SZ SXY SYZ SXZ EpsX..EpsXZ
+        QFile ls(QDir(dir).filePath(QString("ls_%1.csv").arg(k + 1)));
+        QVERIFY(ls.open(QIODevice::WriteOnly | QIODevice::Text));
+        QTextStream lo(&ls);
+        lo << "header\n";
+        const double row[19] = { 1, 0, 0, 0, 0, 0, 0,
+                                 s[0], s[1], s[2], s[3], s[4], s[5],
+                                 e_t[0], e_t[1], e_t[2], e_t[3], e_t[4], e_t[5] };
+        for (double v : row) lo << field(v);
+        lo << "\n";
+        ls.close();
+
+        // Element averages: SX..SXZ, EpsX..EpsXZ
+        QFile lse(QDir(dir).filePath(QString("lse_%1.csv").arg(k + 1)));
+        QVERIFY(lse.open(QIODevice::WriteOnly | QIODevice::Text));
+        QTextStream eo(&lse);
+        eo << "header\n";
+        for (int c = 7; c < 19; ++c) eo << field(row[c]);
+        eo << "\n";
+        lse.close();
+    }
+
+    const auto props = wr.calculateElasticProperties();
+    QVERIFY(props.isValid);
+
+    double maxErr = 0.0, scale = 0.0;
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 6; ++j) {
+            const double expected = (i < 3) ? S_eng[i][j] : 0.5 * S_eng[i][j];
+            maxErr = std::max(maxErr, std::abs(props.S[i][j] - expected));
+            scale  = std::max(scale, std::abs(expected));
+        }
+    QVERIFY2(maxErr <= 1e-10 * scale,
+             qPrintable(QString("max |S - D^-1*S_eng| = %1 (scale %2)").arg(maxErr).arg(scale)));
+
+    // The tensor-basis S keeps its exact factor-2 coupling asymmetry.
+    QCOMPARE(props.S[0][3], 15.0);
+    QCOMPARE(props.S[3][0], 7.5);
 }
