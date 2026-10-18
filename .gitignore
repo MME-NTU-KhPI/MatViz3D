@@ -99,3 +99,6 @@ output.dat
 
 # Linux
 *.nix
+
+# generated datasets (tools/dataset)
+data/

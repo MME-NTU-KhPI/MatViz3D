@@ -1,0 +1,38 @@
+# Dataset orchestrator
+
+`make_dataset.py` turns a YAML description of the design space into a table
+"geometry + material law → effective properties" by running MatViz3D headless,
+one process per cell.
+
+```bash
+python3 make_dataset.py plan    dataset.yaml            # sample -> manifest.csv, meta.json
+python3 make_dataset.py run     dataset.yaml --jobs 2   # MatViz3D per row; resumable
+python3 make_dataset.py collect dataset.yaml            # HDF5 -> dataset.parquet, waves.parquet
+python3 make_dataset.py check   dataset.yaml            # sanity checks -> card.md
+python3 make_dataset.py status  dataset.yaml            # progress, ETA
+```
+
+Output folder (`output_dir` in the YAML):
+
+| file | contents |
+|---|---|
+| `manifest.csv` | one row per planned cell: id, group, status, seed, law, every `p_*` parameter, exit code, seconds. Also the journal: `run` skips rows that are not `pending`/`retry`. |
+| `meta.json` | date, MatViz3D commit, grid size, laws |
+| `cells/NNNNNN.hdf5` | the cell: voxels, `C_matrix`, `/1/geometry/*` (achieved density, wall, printability, wave list, law) |
+| `logs/NNNNNN.log` | full command line and program output |
+| `dataset.parquet` | one row per cell with `E_x/y/z`, `G_*`, `nu_*`, Voigt/Reuss averages, universal anisotropy index, Hashin–Shtrikman ratio, density, wall, printability verdict |
+| `waves.parquet` | the geometry vector: `(id, i, kx, ky, kz, amp, phase)` per wave term (Fourier, spinodoid, TPMS anchors) |
+| `card.md` | counts per family, pass rates of the checks, value ranges |
+
+Statuses: `done` (exit 0), `unprintable` (exit 3: geometry saved, no stiffness),
+`retry` → `failed` (anything else, one retry). A cell is regenerated bit-for-bit
+from its manifest row (same seed, same parameters).
+
+Config blocks: `common` (parameters for every family), `laws` (assigned round-robin,
+`aniso` ≠ 1 uses `--material_ti`), `families` (`quota`, `params`, `flags`).
+A parameter is a fixed value, a `[lo, hi]` range (Sobol-sampled; integer bounds
+give integers) or `{choices: [...]}`. `oversample` multiplies quotas to cover
+printability rejection. `dataset_smoke.yaml` is a ten-cell 32³ check of the
+whole pipeline (~3 min).
+
+Dependencies: numpy, scipy, h5py, pandas, pyarrow, pyyaml.
