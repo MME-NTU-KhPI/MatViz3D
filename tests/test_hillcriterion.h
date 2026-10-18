@@ -23,6 +23,7 @@ private slots:
     void testFitFull6DFallbackDeviatoric();
     void testFitFull6DFallbackNearlyPressureInsensitive();
     void testGenerateLoadsDefaultEqualsExplicitSchmid5D();
+    void testElasticFitRecoversCouplingInTensorBasis();
 
 private:
     // Points on the 5D deviatoric sphere of radius R (random directions)

@@ -2034,13 +2034,18 @@ ansysWrapper::ElasticProperties ansysWrapper::calculateElasticProperties()
             avg[SXZ] * m_solid_fraction
         };
 
+        // eps_as_loading holds TENSOR shear strains (pipeline basis). In that
+        // basis the compliance is D^-1 * S_eng (D = diag(1,1,1,2,2,2)), which is
+        // NOT symmetric once there is normal<->shear coupling, so a symmetric
+        // 21-parameter fit there distorts it. Fit in the engineering basis
+        // (shear x2), where S_eng IS symmetric, and convert back below.
         double eps[6] = {
             (double)load[0],
             (double)load[1],
             (double)load[2],
-            (double)load[3],
-            (double)load[4],
-            (double)load[5]
+            2.0 * (double)load[3],
+            2.0 * (double)load[4],
+            2.0 * (double)load[5]
         };
 
         // We construct a row of the design matrix for each of the 6 tensor equations.
@@ -2069,10 +2074,11 @@ ansysWrapper::ElasticProperties ansysWrapper::calculateElasticProperties()
         return res;
     }
 
-    // Filling in the S matrix
+    // Filling in the S matrix, back in the pipeline (tensor-shear) basis that
+    // every consumer and the FFT path use: S = D^-1 * S_eng (shear rows / 2).
     for (int i = 0; i < 6; ++i) {
         for (int j = 0; j < 6; ++j) {
-            res.S[i][j] = x[S_MAP[i][j]];
+            res.S[i][j] = (i < 3 ? 1.0 : 0.5) * x[S_MAP[i][j]];
         }
     }
 
