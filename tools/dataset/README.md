@@ -25,7 +25,10 @@ Output folder (`output_dir` in the YAML):
 | `card.md` | counts per family, pass rates of the checks, value ranges |
 
 Statuses: `done` (exit 0), `unprintable` (exit 3: geometry saved, no stiffness),
-`retry` → `failed` (anything else, one retry). A cell is regenerated bit-for-bit
+`retry` → `failed` (anything else, one retry), `skipped` (the family already has
+its quota of accepted cells). A `quota` counts accepted cells; `oversample`
+(global or per family) says how many rows to draw for it, and rejected rows cost
+~0.3 s each, so a generous oversample is cheap. A cell is regenerated bit-for-bit
 from its manifest row (same seed, same parameters).
 
 Config blocks: `common` (parameters for every family), `laws` (assigned round-robin,

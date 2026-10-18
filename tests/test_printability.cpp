@@ -103,6 +103,27 @@ void TestPrintability::testIslandsAreCounted()
     QVERIFY2(rf.island_fraction_box > 0.3, qPrintable(QString("box-cut island fraction %1").arg(rf.island_fraction_box)));
 }
 
+void TestPrintability::testSeparateBodiesFail()
+{
+    // Three slabs normal to Z: each wraps the periodic cube in X and Y, so none
+    // is an island, yet they are three parts, not one.
+    Cube c(24, [](int x, int y, int z) { (void)x; (void)y; return (z % 8) < 4; });
+    const PrintabilityReport r = checkPrintability(c.v, c.N, thresholds());
+    QCOMPARE(r.components, 3);
+    QCOMPARE(r.islands, 0);
+    QVERIFY(!r.ok);
+    QVERIFY(QString::fromStdString(r.verdict).contains("3 separate solid bodies"));
+    // With the limit lifted the same cube passes (thick slabs, nothing to support).
+    PrintabilityThresholds t = thresholds();
+    t.max_components = 0;
+    QVERIFY(checkPrintability(c.v, c.N, t).ok);
+    // One slab is one body.
+    Cube one(24, [](int x, int y, int z) { (void)x; (void)y; return z < 8; });
+    const PrintabilityReport r1 = checkPrintability(one.v, one.N, thresholds());
+    QCOMPARE(r1.components, 1);
+    QVERIFY(r1.ok);
+}
+
 void TestPrintability::testPeriodicWrapJoinsAcrossFaces()
 {
     // Two slabs touching opposite X faces: one body on the torus, two in a box.
@@ -252,6 +273,9 @@ void TestPrintability::testCliOptions()
     QVERIFY(applyParameter("print_max_island_vox", "27", &err));
     QCOMPARE(p->getPrintMaxIslandVox(), 27);
     QVERIFY(!applyParameter("print_max_island_vox", "-1", &err));
+    QVERIFY(applyParameter("print_max_components", "2", &err));
+    QCOMPARE(p->getPrintMaxComponents(), 2);
+    QVERIFY(!applyParameter("print_max_components", "-1", &err));
     QVERIFY(!applyParameter("print_max_thin_fraction", "1.5", &err));
     QVERIFY(applyParameter("require_printable", "true", &err));
     QVERIFY(p->getRequirePrintable());
@@ -259,5 +283,6 @@ void TestPrintability::testCliOptions()
     QCOMPARE(t.min_wall_mm, 1.2);
     QCOMPARE(t.max_overhang_deg, 60.0);
     QCOMPARE(t.max_island_vox, 27);
+    QCOMPARE(t.max_components, 2);
     QCOMPARE(t.voxel_mm, 0.25);
 }

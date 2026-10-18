@@ -264,6 +264,8 @@ PrintabilityReport checkPrintability(int32_t*** voxels, int N, const Printabilit
 
     // 4. Verdict.
     std::string why;
+    if (t.max_components > 0 && r.components - r.islands > t.max_components)
+        why += std::to_string(r.components - r.islands) + " separate solid bodies (slabs or rods that never join); ";
     if (r.largest_island_vox > static_cast<std::size_t>(std::max(0, t.max_island_vox)))
         why += std::to_string(r.islands) + " floating island(s), largest " + std::to_string(r.largest_island_vox)
              + " voxels (" + std::to_string(r.island_fraction * 100.0).substr(0, 5) + " % of the solid); ";

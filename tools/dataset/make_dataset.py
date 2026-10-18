@@ -11,7 +11,8 @@ journal, so an interrupted run resumes where it stopped.
     make_dataset.py status  dataset.yaml        # progress and ETA
 
 Row statuses: pending -> done | unprintable (exit 3, geometry kept, no stiffness)
-| failed (anything else, retried once).
+| failed (anything else, retried once) | skipped (family quota of accepted cells
+already met).
 
 Everything a row needs is in the manifest (parameters, law, seed), so any cell
 can be regenerated bit-for-bit from one line of it.
@@ -183,7 +184,7 @@ def cmd_plan(cfg, args):
     rid = 1
     seed = int(cfg["seed0"])
     for gi, (group, block) in enumerate(cfg["families"].items()):
-        n = int(math.ceil(block.get("quota", 0) * float(cfg["oversample"])))
+        n = int(math.ceil(block.get("quota", 0) * float(block.get("oversample", cfg["oversample"]))))
         if n <= 0:
             continue
         for p in sample_family(group, block, cfg["common"], n, sobol_seed=1000 * gi + 7):
@@ -264,20 +265,44 @@ def run_one(cfg, row: dict) -> tuple[int, float]:
     return code, time.time() - t0
 
 
+def quotas_of(cfg) -> dict[str, int]:
+    return {g: int(b.get("quota", 0)) for g, b in cfg["families"].items()}
+
+
 def run_pass(cfg, rows: list[dict], todo: list[dict], jobs: int, label: str) -> None:
+    """Run `todo` with `jobs` worker threads (one MatViz3D process each).
+
+    A family's quota counts ACCEPTED cells (status done). Once it is met the
+    family's remaining rows are marked `skipped` instead of being solved, so
+    printability rejection does not unbalance the dataset and no time goes
+    into cells nobody asked for.
+    """
+    import queue
     import threading
-    from concurrent.futures import ThreadPoolExecutor, as_completed
+    quotas = quotas_of(cfg)
+    q: "queue.Queue[dict]" = queue.Queue()
+    for r in todo:
+        q.put(r)
     lock = threading.Lock()
     t_all = time.time()
-    n_done = 0
+    counter = {"n": 0}
 
-    def work(row):
-        return row, run_one(cfg, row)
+    def accepted(group: str) -> int:
+        return sum(1 for r in rows if r["group"] == group and r["status"] == "done")
 
-    with ThreadPoolExecutor(max_workers=jobs) as ex:
-        futs = [ex.submit(work, r) for r in todo]
-        for fut in as_completed(futs):
-            row, (code, secs) = fut.result()
+    def worker():
+        while True:
+            try:
+                row = q.get_nowait()
+            except queue.Empty:
+                return
+            group = row["group"]
+            with lock:
+                if quotas.get(group) and accepted(group) >= quotas[group]:
+                    row["status"] = "skipped"
+                    write_manifest(cfg, rows)
+                    continue
+            code, secs = run_one(cfg, row)
             if code == 0:
                 status = "done"
             elif code == 3:
@@ -285,15 +310,22 @@ def run_pass(cfg, rows: list[dict], todo: list[dict], jobs: int, label: str) -> 
             else:
                 status = "failed" if row["status"] == "retry" else "retry"
             with lock:
-                n_done += 1
+                counter["n"] += 1
                 row.update({"status": status, "exit_code": code, "seconds": round(secs, 1),
                             "finished": datetime.now().isoformat(timespec="seconds")})
                 write_manifest(cfg, rows)
-                finished = sum(1 for r in rows if r["status"] in ("done", "unprintable", "failed"))
+                finished = sum(1 for r in rows if r["status"] not in ("pending", "retry"))
                 left = sum(1 for r in rows if r["status"] in ("pending", "retry"))
-                per_row = (time.time() - t_all) / n_done
-                print(f"{label}[{n_done}/{len(todo)}] {row['id']} {row['group']:16s} -> {status:11s} {secs:6.1f}s | "
-                      f"finished {finished}/{len(rows)}, ETA {left * per_row / 3600:.2f} h", flush=True)
+                per_row = (time.time() - t_all) / counter["n"]
+                print(f"{label}[{counter['n']}/{len(todo)}] {row['id']} {group:16s} -> {status:11s} {secs:6.1f}s | "
+                      f"accepted {accepted(group)}/{quotas.get(group, '?')}, finished {finished}/{len(rows)}, "
+                      f"ETA <= {left * per_row / 3600:.2f} h", flush=True)
+
+    threads = [threading.Thread(target=worker, daemon=True) for _ in range(jobs)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
 
 
 def cmd_run(cfg, args):
@@ -403,6 +435,10 @@ def lattice_props(h5path: Path) -> tuple[dict, list[list[float]]]:
             if "1/iterations_total" in f:
                 row["fft_iterations"] = int(f["1/iterations_total"][()])
         row["has_stiffness"] = "1/C_matrix" in f
+        try:
+            row["connected"] = int(float(row.get("print_components", 1))) == 1
+        except (TypeError, ValueError):
+            row["connected"] = True
     return row, waves
 
 
@@ -458,32 +494,40 @@ def cmd_check(cfg, args):
         st[r["status"]] = st.get(r["status"], 0) + 1
     lines += ["## Manifest", "", "| status | rows |", "|---|---|"] + [f"| {k} | {v} |" for k, v in sorted(st.items())] + [""]
     if len(df):
-        lines += ["## By family", "", "| group | rows | with stiffness | unprintable share | mean s/row |", "|---|---|---|---|---|"]
+        quotas = quotas_of(cfg)
+        lines += ["## By family", "", "| group | quota | accepted | unprintable | unprintable share | mean s/accepted cell |", "|---|---|---|---|---|---|"]
         for g, d in df.groupby("group"):
-            lines.append(f"| {g} | {len(d)} | {int(d['has_stiffness'].sum())} | {(d['status'] == 'unprintable').mean():.0%} | {d['seconds'].mean():.0f} |")
+            acc = d[d["status"] == "done"]
+            lines.append(f"| {g} | {quotas.get(g, '?')} | {len(acc)} | {int((d['status'] == 'unprintable').sum())} | "
+                         f"{(d['status'] == 'unprintable').mean():.0%} | {acc['seconds'].mean() if len(acc) else float('nan'):.0f} |")
         lines.append("")
         s = df[df["has_stiffness"] == True]
-        checks = []
+        checks = []   # (name, boolean Series over the rows the check applies to)
         if len(s):
-            pos = (s[["E_x", "E_y", "E_z", "G_xy", "G_yz", "G_xz"]] > 0).all(axis=1)
-            checks.append(("all moduli positive", pos.mean()))
+            num = lambda col, default=0.0: pd.to_numeric(s[col], errors="coerce").fillna(default) if col in s else pd.Series(default, index=s.index)
+            checks.append(("all moduli positive", (s[["E_x", "E_y", "E_z", "G_xy", "G_yz", "G_xz"]] > 0).all(axis=1)))
             if "E_over_hs" in s:
-                checks.append(("mean E below Hashin–Shtrikman upper bound (x1.05)", (s["E_over_hs"] <= 1.05).mean()))
+                checks.append(("mean E below Hashin–Shtrikman upper bound (x1.05)", s["E_over_hs"] <= 1.05))
             if "E_over_Es" in s:
-                checks.append(("E/E_s within (0, 1)", ((s["E_over_Es"] > 0) & (s["E_over_Es"] < 1)).mean()))
-            cubic = s[s["p_lattice_family"].astype(str).isin(["gyroid_sheet", "gyroid_skeletal", "schwarz_p_sheet", "schwarz_p_skeletal", "schwarz_d_sheet", "schwarz_d_skeletal", "iwp_sheet", "iwp_skeletal", "simple_cubic", "bcc", "fcc", "octet"]) & (s["law_aniso"].astype(float) == 1.0)] if "p_lattice_family" in s else s.iloc[0:0]
-            if len(cubic):
-                checks.append(("cubic cells: E_x = E_y = E_z within 2 %", (cubic["E_ratio"] < 1.02).mean()))
+                checks.append(("E/E_s within (0, 1)", (s["E_over_Es"] > 0) & (s["E_over_Es"] < 1)))
+            cubic_families = ["gyroid_sheet", "gyroid_skeletal", "schwarz_p_sheet", "schwarz_p_skeletal", "schwarz_d_sheet",
+                              "schwarz_d_skeletal", "iwp_sheet", "iwp_skeletal", "simple_cubic", "bcc", "fcc", "octet"]
+            cubic_mask = (s["p_lattice_family"].astype(str).isin(cubic_families) if "p_lattice_family" in s else pd.Series(False, index=s.index)) \
+                & (num("law_aniso", 1.0) == 1.0) & (num("p_lattice_grading") == 0) & (num("p_lattice_jitter") == 0)
+            if cubic_mask.any():
+                checks.append(("cubic cells: E_x = E_y = E_z within 2 %", s.loc[cubic_mask, "E_ratio"] < 1.02))
             if "fft_iterations" in s:
-                checks.append(("FFT converged (iterations < 6 x cap)", (s["fft_iterations"] < 6 * float(cfg["fft_max_iter"])).mean()))
+                checks.append(("FFT converged (iterations < 6 x cap)", num("fft_iterations") < 6 * float(cfg["fft_max_iter"])))
             if "lattice_achieved_density" in s and "p_relative_density" in s:
-                err = (pd.to_numeric(s["lattice_achieved_density"]) - pd.to_numeric(s["p_relative_density"])).abs()
-                checks.append(("achieved density within 0.03 of target", (err <= 0.03).mean()))
-            weak = (s[["E_x", "E_y", "E_z"]].min(axis=1) / pd.to_numeric(s["mat_e_gpa"]) / 1e9 < 1e-3)
-            checks.append(("load path in every direction (min E / E_s >= 1e-3)", (~weak).mean()))
+                checks.append(("achieved density within 0.03 of target", (num("lattice_achieved_density") - num("p_relative_density")).abs() <= 0.03))
+            weak = s[["E_x", "E_y", "E_z"]].min(axis=1) / num("mat_e_gpa", float("nan")) / 1e9 < 1e-3
+            checks.append(("load path in every direction (min E / E_s >= 1e-3)", ~weak))
+            if "connected" in s:
+                checks.append(("one connected solid body", s["connected"].astype(bool)))
             pcols = [c for c in s.columns if c.startswith("p_")]
-            checks.append(("unique parameter rows", 1 - s.duplicated(subset=pcols).mean()))
-            lines += ["## Checks (share of rows passing)", "", "| check | pass |", "|---|---|"] + [f"| {n} | {v:.1%} |" for n, v in checks] + [""]
+            checks.append(("unique parameter rows", ~s.duplicated(subset=pcols)))
+            lines += ["## Checks (accepted cells)", "", "| check | pass | n |", "|---|---|---|"] + \
+                     [f"| {n_} | {m.mean():.1%} | {len(m)} |" for n_, m in checks] + [""]
             lines += ["## Ranges", "", "| quantity | min | median | max |", "|---|---|---|---|"]
             for q in ["lattice_achieved_density", "E_over_Es", "E_ratio", "A_universal", "nu_xy", "lattice_wall_mm", "fft_iterations", "seconds"]:
                 if q in s:
@@ -512,8 +556,9 @@ def cmd_status(cfg, args):
     for r in rows:
         g = groups.setdefault(r["group"], {})
         g[r["status"]] = g.get(r["status"], 0) + 1
+    quotas = quotas_of(cfg)
     for g, d in groups.items():
-        print(f"  {g:18s} " + ", ".join(f"{k} {v}" for k, v in sorted(d.items())))
+        print(f"  {g:18s} accepted {d.get('done', 0)}/{quotas.get(g, '?')} | " + ", ".join(f"{k} {v}" for k, v in sorted(d.items())))
     if secs:
         print(f"mean {mean:.0f} s/row, ETA for the rest {left * mean / 3600:.1f} h")
 

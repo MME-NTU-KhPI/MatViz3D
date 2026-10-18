@@ -144,6 +144,7 @@ class Parameters : public QObject
     Q_PROPERTY(double  print_max_overhang_deg         READ getPrintMaxOverhangDeg       WRITE setPrintMaxOverhangDeg       NOTIFY latticeSettingsChanged)
     Q_PROPERTY(double  print_max_thin_fraction        READ getPrintMaxThinFraction      WRITE setPrintMaxThinFraction      NOTIFY latticeSettingsChanged)
     Q_PROPERTY(int     print_max_island_vox           READ getPrintMaxIslandVox         WRITE setPrintMaxIslandVox         NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(int     print_max_components           READ getPrintMaxComponents        WRITE setPrintMaxComponents        NOTIFY latticeSettingsChanged)
     Q_PROPERTY(double  print_max_unsupported_fraction READ getPrintMaxUnsupportedFraction WRITE setPrintMaxUnsupportedFraction NOTIFY latticeSettingsChanged)
     Q_PROPERTY(bool    require_printable              READ getRequirePrintable          WRITE setRequirePrintable          NOTIFY latticeSettingsChanged)
 
@@ -412,6 +413,7 @@ public:
     double getPrintMaxOverhangDeg()         const { return print_max_overhang_deg; }
     double getPrintMaxThinFraction()        const { return print_max_thin_fraction; }
     int    getPrintMaxIslandVox()           const { return print_max_island_vox; }
+    int    getPrintMaxComponents()          const { return print_max_components; }
     double getPrintMaxUnsupportedFraction() const { return print_max_unsupported_fraction; }
     bool   getRequirePrintable()            const { return require_printable; }
     Q_INVOKABLE void setLatticeCellMm(double value);
@@ -419,6 +421,7 @@ public:
     Q_INVOKABLE void setPrintMaxOverhangDeg(double value);
     Q_INVOKABLE void setPrintMaxThinFraction(double value);
     Q_INVOKABLE void setPrintMaxIslandVox(int value);
+    Q_INVOKABLE void setPrintMaxComponents(int value);
     Q_INVOKABLE void setPrintMaxUnsupportedFraction(double value);
     Q_INVOKABLE void setRequirePrintable(bool value);
     /// Thresholds for checkPrintability(), built from the fields above.
@@ -701,6 +704,7 @@ private:
     static double  print_max_overhang_deg;
     static double  print_max_thin_fraction;
     static int     print_max_island_vox;
+    static int     print_max_components;
     static double  print_max_unsupported_fraction;
     static bool    require_printable;
 };

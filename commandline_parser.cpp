@@ -94,6 +94,7 @@ QString Commandline_Parser::buildApplicationDescription()
     desc += "  --lattice_uniform_wall:  sheet families: thicken by |f|/|grad f| so the wall thickness is uniform (printable random sheets)\n";
     desc += "  --print_min_wall_mm / --print_max_overhang_deg: printability thresholds (default: 0.8 mm, 45 deg)\n";
     desc += "  --print_max_thin_fraction / --print_max_island_vox / --print_max_unsupported_fraction: tolerated thin fraction, largest floating island in voxels, unsupported fraction (default: 0.02 / 8 / 0.05)\n";
+    desc += "  --print_max_components:  separate solid bodies tolerated, 0 = no limit (default: 1 — a stack of slabs is not one part)\n";
     desc += "  --require_printable:     headless: stop before the stress solve and exit with code 3 if the structure fails the check\n";
     desc += "  --prob_matrix_mode:      volume ('Volume Sampling') | surface ('Surface Flux')\n";
     desc += "  --texture:               random | extrusion | rolling | recrystallization | shear | scattered_cube\n";
@@ -251,6 +252,8 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
         "[Printability] Tolerated fraction of solid thinner than the minimum wall (default: 0.02).", "frac"));
     parser.addOption(QCommandLineOption("print_max_island_vox",
         "[Printability] Largest floating island tolerated, in voxels; anything bigger fails (default: 8, a 2x2x2 speck).", "n"));
+    parser.addOption(QCommandLineOption("print_max_components",
+        "[Printability] Separate solid bodies tolerated; 0 = no limit (default: 1, one connected part).", "n"));
     parser.addOption(QCommandLineOption("print_max_unsupported_fraction",
         "[Printability] Tolerated fraction of unsupported solid along the best build direction (default: 0.05).", "frac"));
     parser.addOption(QCommandLineOption("require_printable",
@@ -489,6 +492,7 @@ void Commandline_Parser::printJsonHelp()
     addOpt("print_max_overhang_deg", "Printability", "double", "deg", "45", "Steepest unsupported overhang in degrees");
     addOpt("print_max_thin_fraction", "Printability", "double", "frac", "0.02", "Tolerated fraction of solid thinner than the minimum wall");
     addOpt("print_max_island_vox", "Printability", "int", "n", "8", "Largest floating island tolerated, voxels");
+    addOpt("print_max_components", "Printability", "int", "n", "1", "Separate solid bodies tolerated, 0 = no limit");
     addOpt("print_max_unsupported_fraction", "Printability", "double", "frac", "0.05", "Tolerated unsupported fraction along the best build direction");
     addOpt("require_printable", "Printability", "bool", "", "false", "Headless: skip the stress solve and exit 3 when the structure is not printable");
 
@@ -1293,6 +1297,16 @@ bool Commandline_Parser::applyParameter(const QString& key, const QString& value
         return true;
     }
 
+    if (normKey == "print_max_components") {
+        int v = 0;
+        if (!parseInt(v)) return false;
+        if (v < 0) {
+            return setErr(QString("Option print_max_components expects a non-negative count; got %1").arg(v));
+        }
+        params->setPrintMaxComponents(v);
+        return true;
+    }
+
     if (normKey == "material_iso" || normKey == "material_ti") {
         const QStringList parts = value.split(QRegularExpression("[,;\\s]+"), Qt::SkipEmptyParts);
         const int need = normKey == "material_iso" ? 2 : 3;
@@ -1469,6 +1483,7 @@ bool Commandline_Parser::processOptions(const QCommandLineParser& parser, QStrin
     if (parser.isSet("print_max_overhang_deg"))  if (!applyCliOption("print_max_overhang_deg", parser.value("print_max_overhang_deg"))) return false;
     if (parser.isSet("print_max_thin_fraction")) if (!applyCliOption("print_max_thin_fraction", parser.value("print_max_thin_fraction"))) return false;
     if (parser.isSet("print_max_island_vox"))    if (!applyCliOption("print_max_island_vox", parser.value("print_max_island_vox"))) return false;
+    if (parser.isSet("print_max_components"))    if (!applyCliOption("print_max_components", parser.value("print_max_components"))) return false;
     if (parser.isSet("print_max_unsupported_fraction")) if (!applyCliOption("print_max_unsupported_fraction", parser.value("print_max_unsupported_fraction"))) return false;
     if (parser.isSet("require_printable"))       if (!applyCliOption("require_printable", "true")) return false;
 

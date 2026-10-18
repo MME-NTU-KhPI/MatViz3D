@@ -15,6 +15,9 @@
  *     cube (reach their own image across a face); a floating piece has
  *     nothing to be printed on. The verdict fails on any island larger than
  *     `max_island_vox` voxels, so only voxelization specks are tolerated.
+ *   - bodies: the solid must be ONE connected piece. Several components that
+ *     each wrap the cube (parallel slabs, separate rods) pass the island test
+ *     but fall apart as a part; more than `max_components` of them fail.
  *     The same measure on the cube taken as a plain box is reported too:
  *     that is what hangs loose at the cut side faces of a finite part;
  *   - thin walls: solid removed by a morphological opening with a ball of
@@ -40,6 +43,7 @@ struct PrintabilityThresholds {
     double max_overhang_deg         = 45.0;
     double max_thin_fraction        = 0.02;
     int    max_island_vox           = 8;     ///< largest floating piece tolerated, voxels (2x2x2 specks)
+    int    max_components           = 1;     ///< separate solid bodies tolerated (a stack of slabs is not one part); 0 = no limit
     double max_unsupported_fraction = 0.05;
     bool   periodic                 = true;
 };
