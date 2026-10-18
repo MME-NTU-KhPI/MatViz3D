@@ -123,6 +123,8 @@ private:
     void   buildNoise();
     bool   loadFourierFile(const QString& path);
     void   publishWaves();
+    /// Exact Fourier expansion of the TPMS level sets (k per cube edge), for publishing.
+    std::vector<Wave> tpmsWaves() const;
     /// Family field at a point in cube fractions [0,1)^3 (already rotated).
     double rawField(double X, double Y, double Z) const;
     /// Level-set value f and its gradient (per cube fraction) for the

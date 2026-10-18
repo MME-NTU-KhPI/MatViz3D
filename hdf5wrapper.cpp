@@ -114,8 +114,8 @@ QString saveStiffnessMatrixToHDF5(const QString& filename,
         for (size_t ls = 0; ls < r.load_steps.size(); ++ls) {
             const auto& step = r.load_steps[ls];
             const std::string ls_str = prefix + "/ls_" + std::to_string(ls + 1);
-            if (!step.results.empty()) {
-                hdf5.write(ls_str, "results", step.results);
+            if (!step.results.empty() && Parameters::instance()->getHdf5Fields()) {
+                hdf5.write(ls_str, "results", step.results);   // per-voxel fields; off for dataset runs
             }
             if (!step.results_avg.empty()) {
                 hdf5.write(ls_str, "results_avg", step.results_avg);
@@ -892,6 +892,29 @@ void saveGeometryMetadataToHDF5(HDF5Wrapper& hdf5, const std::string& prefix, co
     // the schema loop wrote above, so a dataset can be filtered on both.
     if (algo.compare("Lattice", Qt::CaseInsensitive) == 0) {
         hdf5.write(geomGroup, "lattice_family_key", Parameters::latticeFamilyKeyStored());
+        // The material the cell was solved with, as numbers: from the override
+        // or from the database row's cubic constants.
+        {
+            double E = Parameters::instance()->getMatEGpa(), nu = Parameters::instance()->getMatNu(), an = Parameters::instance()->getMatAniso();
+            QString src = QStringLiteral("override");
+            if (!Parameters::materialOverrideActive()) {
+                double c11, c12, c44;
+                Parameters::cubicConstantsPa(c11, c12, c44);
+                // Isotropic read-back of a cubic row: E = c44(3c12+2c44)/(c12+c44), nu = c12/(2(c12+c44)).
+                E  = (c12 + c44) > 0.0 ? c44 * (3.0 * c12 + 2.0 * c44) / (c12 + c44) / 1e9 : 0.0;
+                nu = (c12 + c44) > 0.0 ? c12 / (2.0 * (c12 + c44)) : 0.0;
+                an = 1.0;
+                src = "db:" + p->getDbMaterial();
+            }
+            hdf5.write(geomGroup, "mat_e_gpa",  float(E));
+            hdf5.write(geomGroup, "mat_nu",     float(nu));
+            hdf5.write(geomGroup, "mat_aniso",  float(an));
+            hdf5.write(geomGroup, "mat_source", src);
+            paramsObj["mat_e_gpa"]  = E;
+            paramsObj["mat_nu"]     = nu;
+            paramsObj["mat_aniso"]  = an;
+            paramsObj["mat_source"] = src;
+        }
         paramsObj["lattice_family_key"] = Parameters::latticeFamilyKeyStored();
         hdf5.write(geomGroup, "lattice_achieved_density", float(Parameters::lattice_achieved_density));
         hdf5.write(geomGroup, "lattice_wall_voxels",      float(Parameters::lattice_wall_voxels));

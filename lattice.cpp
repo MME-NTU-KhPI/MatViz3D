@@ -118,7 +118,9 @@ void Lattice::readParameters()
     // fallback (copper). Default to the printed polymer the cell is meant for
     // and say so, and write it back so the HDF5 metadata matches what ran.
     m_material = p.getDbMaterial();
-    if (m_material.isEmpty()) {
+    if (Parameters::materialOverrideActive()) {
+        m_material = Parameters::overrideMaterialName();
+    } else if (m_material.isEmpty()) {
         m_material = QStringLiteral("PETG");
         p.setDbMaterial(m_material);
         qInfo() << "[Lattice] no material selected; using PETG";
@@ -460,7 +462,55 @@ void Lattice::publishWaves()
         for (const Wave& w : m_waves)
             Parameters::lattice_wave_terms.push_back({ float(w.kx), float(w.ky), float(w.kz),
                                                        float(w.amp), float(w.phase) });
+        return;
     }
+    // The TPMS level sets are finite Fourier series too, so publish them in
+    // the same representation (k per cube edge = cells * unit vector):
+    //   gyroid    = 1/2 [sin(x+y) + sin(x-y) + sin(y+z) + sin(y-z) + sin(z+x) + sin(z-x)]
+    //   Schwarz P = cos x + cos y + cos z
+    //   Schwarz D = 1/2 [sin(x+y+z) + sin(x+y-z) + sin(x-y+z) + sin(-x+y+z)]
+    //   IWP       = sum over the six (1,1,0)-type pairs of cos - [cos 2x + cos 2y + cos 2z]
+    // with sin t = cos(t - pi/2) and -cos t = cos(t + pi).
+    for (const Wave& w : tpmsWaves())
+        Parameters::lattice_wave_terms.push_back({ float(w.kx), float(w.ky), float(w.kz),
+                                                   float(w.amp), float(w.phase) });
+}
+
+std::vector<Lattice::Wave> Lattice::tpmsWaves() const
+{
+    std::vector<Wave> out;
+    const double c = static_cast<double>(m_cells);
+    const double s = -kPi / 2.0;   // sin -> cos phase
+    auto add = [&](double kx, double ky, double kz, double amp, double phase) {
+        out.push_back({ kx * c, ky * c, kz * c, phase, amp });
+    };
+    switch (m_family) {
+        case LatticeFamily::GyroidSheet:
+        case LatticeFamily::GyroidSkeletal:
+            add( 1, 1, 0, 0.5, s); add( 1,-1, 0, 0.5, s);
+            add( 0, 1, 1, 0.5, s); add( 0, 1,-1, 0.5, s);
+            add( 1, 0, 1, 0.5, s); add(-1, 0, 1, 0.5, s);
+            break;
+        case LatticeFamily::SchwarzPSheet:
+        case LatticeFamily::SchwarzPSkeletal:
+            add(1, 0, 0, 1.0, 0.0); add(0, 1, 0, 1.0, 0.0); add(0, 0, 1, 1.0, 0.0);
+            break;
+        case LatticeFamily::SchwarzDSheet:
+        case LatticeFamily::SchwarzDSkeletal:
+            add( 1, 1, 1, 0.5, s); add( 1, 1,-1, 0.5, s);
+            add( 1,-1, 1, 0.5, s); add(-1, 1, 1, 0.5, s);
+            break;
+        case LatticeFamily::IWPSheet:
+        case LatticeFamily::IWPSkeletal:
+            add( 1, 1, 0, 1.0, 0.0); add( 1,-1, 0, 1.0, 0.0);
+            add( 0, 1, 1, 1.0, 0.0); add( 0, 1,-1, 1.0, 0.0);
+            add( 1, 0, 1, 1.0, 0.0); add(-1, 0, 1, 1.0, 0.0);
+            add( 2, 0, 0, 1.0, kPi); add( 0, 2, 0, 1.0, kPi); add( 0, 0, 2, 1.0, kPi);
+            break;
+        default:
+            break;
+    }
+    return out;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -777,7 +827,10 @@ void Lattice::publishPhases()
 
     PhaseMaterial solid;
     solid.name = m_material;
-    if (!Parameters::materialStiffnessPa(m_material, solid.C)) {
+    const bool resolved = Parameters::materialOverrideActive()
+                              ? Parameters::overrideStiffnessPa(solid.C)
+                              : Parameters::materialStiffnessPa(m_material, solid.C);
+    if (!resolved) {
         qWarning().noquote()
             << QString("[Lattice] could not resolve material \"%1\"; the stress solvers "
                        "will fall back to the cubic constants of the selected material")

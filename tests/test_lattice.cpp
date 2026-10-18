@@ -416,6 +416,71 @@ void TestLattice::testSmoothedNoiseIsReproducibleAndSmoothingConnects()
     QVERIFY(!applyParameter("noise_smooth", "0.9", &err));
 }
 
+void TestLattice::testMaterialOverrideAndTpmsWaves()
+{
+    Parameters* p = Parameters::instance();
+    QString err;
+
+    // Isotropic override: the published phase carries lambda + 2 mu, lambda, mu.
+    QVERIFY(applyParameter("material_iso", "2.0,0.38", &err));
+    QVERIFY(Parameters::materialOverrideActive());
+    const int N = 16;
+    p->setSize(N);
+    p->setLatticeFamily("gyroid_sheet");
+    p->setCellsPerEdge(2);
+    p->setRelativeDensity(0.3);
+    TestableLattice L(N);
+    L.Initialization(false);
+    QCOMPARE(static_cast<int>(Parameters::phaseAssignment.materials.size()), 1);
+    const double E = 2.0e9, nu = 0.38;
+    const double lam = E * nu / ((1 + nu) * (1 - 2 * nu)), mu = E / (2 * (1 + nu));
+    const auto& C = Parameters::phaseAssignment.materials[0].C;
+    QVERIFY(std::abs(C[0][0] - (lam + 2 * mu)) < 1e-3 * E);
+    QVERIFY(std::abs(C[0][1] - lam) < 1e-3 * E);
+    QVERIFY(std::abs(C[3][3] - mu) < 1e-3 * E);
+
+    // Gyroid published as six waves that reproduce the level set exactly.
+    const auto& terms = Parameters::lattice_wave_terms;
+    QCOMPARE(static_cast<int>(terms.size()), 6);
+    const double pi = 3.14159265358979323846;
+    const double probes[][3] = { { 0.13, 0.71, 0.29 }, { 0.5, 0.05, 0.9 }, { 0.77, 0.33, 0.61 } };
+    for (const double* q : probes) {
+        double f = 0.0;
+        for (const auto& t : terms) f += t[3] * std::cos(2 * pi * (t[0] * q[0] + t[1] * q[1] + t[2] * q[2]) + t[4]);
+        const double a = 2 * pi * 2;   // two cells per edge
+        const double g = std::sin(a*q[0]) * std::cos(a*q[1]) + std::sin(a*q[1]) * std::cos(a*q[2]) + std::sin(a*q[2]) * std::cos(a*q[0]);
+        QVERIFY2(std::abs(f - g) < 1e-5, qPrintable(QString("gyroid waves: %1 vs %2").arg(f).arg(g)));   // terms are stored as float
+    }
+    p->setLatticeFamily("iwp_skeletal");
+    TestableLattice I(N);
+    I.Initialization(false);
+    QCOMPARE(static_cast<int>(Parameters::lattice_wave_terms.size()), 9);
+    {
+        const double q[3] = { 0.21, 0.64, 0.37 };
+        double f = 0.0;
+        for (const auto& t : Parameters::lattice_wave_terms) f += t[3] * std::cos(2 * pi * (t[0] * q[0] + t[1] * q[1] + t[2] * q[2]) + t[4]);
+        const double a = 2 * pi * 2, cx = std::cos(a*q[0]), cy = std::cos(a*q[1]), cz = std::cos(a*q[2]);
+        const double g = 2 * (cx*cy + cy*cz + cz*cx) - (std::cos(2*a*q[0]) + std::cos(2*a*q[1]) + std::cos(2*a*q[2]));
+        QVERIFY2(std::abs(f - g) < 1e-5, qPrintable(QString("IWP waves: %1 vs %2").arg(f).arg(g)));
+    }
+
+    // Transversely isotropic override: softer across the layers (axis 3).
+    QVERIFY(applyParameter("material_ti", "2.0,0.38,0.7", &err));
+    double Ct[6][6];
+    QVERIFY(Parameters::overrideStiffnessPa(Ct));
+    QVERIFY(Ct[2][2] < Ct[0][0]);
+    QVERIFY(std::abs(Ct[0][0] - Ct[1][1]) < 1e-6 * E);
+    QVERIFY(Ct[3][3] < Ct[5][5]);                 // G_13 = r * G_12
+
+    // Validation and the fields switch.
+    QVERIFY(!applyParameter("material_iso", "2.0", &err));
+    QVERIFY(!applyParameter("material_iso", "-1,0.3", &err));
+    QVERIFY(!applyParameter("material_ti", "2,0.3,5", &err));
+    QVERIFY(p->getHdf5Fields());
+    QVERIFY(applyParameter("no_fields", "true", &err));
+    QVERIFY(!p->getHdf5Fields());
+}
+
 void TestLattice::testCliOptions()
 {
     Parameters* p = Parameters::instance();

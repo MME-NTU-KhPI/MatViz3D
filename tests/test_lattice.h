@@ -21,6 +21,7 @@ private slots:
     void testFourierFileRoundTrip();
     void testFourierRandomIsReproducibleAndPublished();
     void testSmoothedNoiseIsReproducibleAndSmoothingConnects();
+    void testMaterialOverrideAndTpmsWaves();
     void testCliOptions();
 };
 

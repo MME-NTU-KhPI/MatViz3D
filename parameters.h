@@ -122,6 +122,16 @@ class Parameters : public QObject
     Q_PROPERTY(QString fourier_file  READ getFourierFile  WRITE setFourierFile  NOTIFY latticeSettingsChanged)
     // Smoothed-noise families: Gaussian sigma as a fraction of the cube edge.
     Q_PROPERTY(double  noise_smooth  READ getNoiseSmooth  WRITE setNoiseSmooth  NOTIFY latticeSettingsChanged)
+    // Material given as numbers instead of a database row (dataset runs): E in
+    // GPa (0 = use db_material), Poisson's ratio, and the ratio of the modulus
+    // across the print layers (Z) to the in-plane one (1 = isotropic).
+    Q_PROPERTY(double  mat_e_gpa  READ getMatEGpa  WRITE setMatEGpa  NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  mat_nu     READ getMatNu    WRITE setMatNu    NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  mat_aniso  READ getMatAniso WRITE setMatAniso NOTIFY latticeSettingsChanged)
+    // Write per-voxel stress/strain fields to HDF5 (off for dataset runs: the
+    // six load cases of a 64^3 cell are ~40 MB of fields next to <1 MB of
+    // matrices and metadata).
+    Q_PROPERTY(bool    hdf5_fields READ getHdf5Fields WRITE setHdf5Fields NOTIFY latticeSettingsChanged)
     // Physical size of one lattice cell, mm: converts voxels into millimetres
     // for the printability check and the wall-thickness report.
     Q_PROPERTY(double  lattice_cell_mm READ getLatticeCellMm WRITE setLatticeCellMm NOTIFY latticeSettingsChanged)
@@ -377,6 +387,23 @@ public:
     Q_INVOKABLE void setFourierFile(const QString& value);
     double  getNoiseSmooth()     const { return noise_smooth; }
     Q_INVOKABLE void setNoiseSmooth(double value);
+    double getMatEGpa()    const { return mat_e_gpa; }
+    double getMatNu()      const { return mat_nu; }
+    double getMatAniso()   const { return mat_aniso; }
+    bool   getHdf5Fields() const { return hdf5_fields; }
+    Q_INVOKABLE void setMatEGpa(double value);
+    Q_INVOKABLE void setMatNu(double value);
+    Q_INVOKABLE void setMatAniso(double value);
+    Q_INVOKABLE void setHdf5Fields(bool value);
+    /// True when the material comes from mat_e_gpa / mat_nu / mat_aniso rather than the database.
+    static bool materialOverrideActive() { return mat_e_gpa > 0.0; }
+    /// Voigt 6x6 stiffness in Pa of the override material: isotropic when
+    /// mat_aniso == 1, otherwise transversely isotropic about axis 3 (the build
+    /// direction) with E3 = aniso*E, G13 = G23 = aniso*G and the in-plane
+    /// Poisson's ratio carried over. Returns false if the constants are not
+    /// positive definite.
+    static bool overrideStiffnessPa(double C[6][6]);
+    static QString overrideMaterialName();
 
     double getLatticeCellMm()               const { return lattice_cell_mm; }
     bool   getLatticeUniformWall()          const { return lattice_uniform_wall; }
@@ -664,6 +691,10 @@ private:
     static double  fourier_decay;
     static QString fourier_file;
     static double  noise_smooth;
+    static double  mat_e_gpa;
+    static double  mat_nu;
+    static double  mat_aniso;
+    static bool    hdf5_fields;
     static double  lattice_cell_mm;
     static bool    lattice_uniform_wall;
     static double  print_min_wall_mm;

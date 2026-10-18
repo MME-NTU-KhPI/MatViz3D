@@ -1,5 +1,6 @@
 #include "parameters.h"
 #include "latticefamily.h"
+#include "fft_solver_session.hpp"
 #include "openglwidgetqml.h"
 #include "dbmanager.h"
 #include <QDebug>
@@ -98,6 +99,10 @@ double  Parameters::fourier_kmax           = 4.0;
 double  Parameters::fourier_decay          = 1.0;
 QString Parameters::fourier_file;
 double  Parameters::noise_smooth           = 0.06;
+double  Parameters::mat_e_gpa              = 0.0;
+double  Parameters::mat_nu                 = 0.38;
+double  Parameters::mat_aniso              = 1.0;
+bool    Parameters::hdf5_fields            = true;
 double  Parameters::lattice_cell_mm        = 10.0;
 bool    Parameters::lattice_uniform_wall   = false;
 double  Parameters::print_min_wall_mm      = 0.8;
@@ -202,6 +207,10 @@ void Parameters::resetDefaults()
     fourier_decay = 1.0;
     fourier_file.clear();
     noise_smooth = 0.06;
+    mat_e_gpa = 0.0;
+    mat_nu = 0.38;
+    mat_aniso = 1.0;
+    hdf5_fields = true;
     lattice_cell_mm = 10.0;
     lattice_uniform_wall = false;
     print_min_wall_mm = 0.8;
@@ -1363,4 +1372,70 @@ void Parameters::setNoiseSmooth(double value)
     if (noise_smooth == value) return;
     noise_smooth = value;
     emit latticeSettingsChanged();
+}
+
+// ── Material as numbers ──────────────────────────────────────────────────────
+
+void Parameters::setMatEGpa(double value)
+{
+    if (value < 0.0) { qWarning() << "mat_e_gpa expects 0 (use the database) or a positive modulus in GPa; got" << value; return; }
+    if (mat_e_gpa == value) return;
+    mat_e_gpa = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setMatNu(double value)
+{
+    if (!(value > -1.0 && value < 0.5)) { qWarning() << "mat_nu expects a Poisson's ratio in (-1, 0.5); got" << value; return; }
+    if (mat_nu == value) return;
+    mat_nu = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setMatAniso(double value)
+{
+    if (!(value >= 0.1 && value <= 3.0)) { qWarning() << "mat_aniso expects E_across / E_in-plane in [0.1, 3]; got" << value; return; }
+    if (mat_aniso == value) return;
+    mat_aniso = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setHdf5Fields(bool value)
+{
+    if (hdf5_fields == value) return;
+    hdf5_fields = value;
+    emit latticeSettingsChanged();
+}
+
+QString Parameters::overrideMaterialName()
+{
+    return QString("E=%1GPa nu=%2 aniso=%3").arg(mat_e_gpa).arg(mat_nu).arg(mat_aniso);
+}
+
+bool Parameters::overrideStiffnessPa(double C[6][6])
+{
+    if (!materialOverrideActive()) return false;
+    const double E  = mat_e_gpa * 1e9;
+    const double nu = mat_nu;
+    const double r  = mat_aniso;
+    for (int i = 0; i < 6; ++i) for (int j = 0; j < 6; ++j) C[i][j] = 0.0;
+    if (std::abs(r - 1.0) < 1e-12) {
+        isotropicVoigt(E, nu, C);
+        return true;
+    }
+    // Transversely isotropic about axis 3: compliance in Voigt order
+    // 11, 22, 33, 23, 13, 12, then inverted.
+    const double Ep = E, Et = r * E;
+    const double Gp = E / (2.0 * (1.0 + nu)), Gt = r * Gp;
+    fftsa::Mat6 S{}; for (auto& row : S) row.fill(0.0);
+    S[0][0] = S[1][1] = 1.0 / Ep;
+    S[2][2] = 1.0 / Et;
+    S[0][1] = S[1][0] = -nu / Ep;
+    S[0][2] = S[2][0] = S[1][2] = S[2][1] = -nu / Ep;   // nu_13/E_1 = nu_31/E_3
+    S[3][3] = S[4][4] = 1.0 / Gt;
+    S[5][5] = 1.0 / Gp;
+    fftsa::Mat6 Cm{};
+    if (!fftsa::invert6x6(S, Cm)) return false;
+    for (int i = 0; i < 6; ++i) for (int j = 0; j < 6; ++j) C[i][j] = Cm[i][j];
+    return Cm[0][0] > 0.0 && Cm[2][2] > 0.0 && Cm[3][3] > 0.0;
 }

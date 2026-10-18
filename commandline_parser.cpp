@@ -10,6 +10,7 @@
 #include <ctime>
 #include "algorithmfactory.h"
 #include "latticefamily.h"
+#include <QRegularExpression>
 #include "cpuinfo.hpp"
 #include "commandline_parser.h"
 #include "config_source.h"
@@ -86,6 +87,9 @@ QString Commandline_Parser::buildApplicationDescription()
     desc += "  --fourier_terms/kmin/kmax/decay: random Fourier-series draw (default: 24 waves, |k| in [1, 4] per edge, decay 1)\n";
     desc += "  --fourier_file:          text file with one wave per line (kx ky kz amplitude phase); overrides the random draw\n";
     desc += "  --noise_smooth:          smoothed-noise families: Gaussian sigma as a fraction of the cube edge, 0.005..0.5 (default: 0.06)\n";
+    desc += "  --material_iso E,nu:     solid material as numbers instead of a database row: Young's modulus in GPa and Poisson's ratio\n";
+    desc += "  --material_ti E,nu,r:    the same, transversely isotropic about the build axis Z with E_z = r*E, G_xz = G_yz = r*G\n";
+    desc += "  --no_fields:             do not store per-voxel stress/strain fields in HDF5 (matrices and metadata only; dataset runs)\n";
     desc += "  --lattice_cell_mm:       physical size of one cell in mm (default: 10); sets the voxel size for the printability check\n";
     desc += "  --lattice_uniform_wall:  sheet families: thicken by |f|/|grad f| so the wall thickness is uniform (printable random sheets)\n";
     desc += "  --print_min_wall_mm / --print_max_overhang_deg: printability thresholds (default: 0.8 mm, 45 deg)\n";
@@ -226,6 +230,12 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
         "[Lattice] Fourier series: amplitude ~ |k|^-decay, 0..4 (default: 1).", "p"));
     parser.addOption(QCommandLineOption("fourier_file",
         "[Lattice] Fourier series: text file with one wave per line (kx ky kz amplitude phase); overrides the random draw.", "path"));
+    parser.addOption(QCommandLineOption("material_iso",
+        "[Material] Solid material as numbers instead of a database row: 'E_GPa,nu' (isotropic).", "E,nu"));
+    parser.addOption(QCommandLineOption("material_ti",
+        "[Material] Solid material as numbers, transversely isotropic about the build axis Z: 'E_GPa,nu,r' with E_z = r*E, G_xz = G_yz = r*G.", "E,nu,r"));
+    parser.addOption(QCommandLineOption("no_fields",
+        "[Output] Do not store per-voxel stress/strain fields in HDF5; keep matrices, voxels and metadata (dataset runs)."));
     parser.addOption(QCommandLineOption("noise_smooth",
         "[Lattice] Smoothed noise: Gaussian sigma of the blur as a fraction of the cube edge, 0.005..0.5 (default: 0.06).", "frac"));
     parser.addOption(QCommandLineOption("lattice_uniform_wall",
@@ -470,6 +480,9 @@ void Commandline_Parser::printJsonHelp()
     addOpt("fourier_decay", "Lattice", "double", "p", "1", "Fourier series: amplitude ~ |k|^-decay (0..4)");
     addOpt("fourier_file", "Lattice", "string", "path", "", "Fourier series: text file with one wave per line (kx ky kz amplitude phase)");
     addOpt("noise_smooth", "Lattice", "double", "frac", "0.06", "Smoothed noise: Gaussian sigma as a fraction of the cube edge (0.005..0.5)");
+    addOpt("material_iso", "Material", "string", "E,nu", "", "Solid material as numbers: Young's modulus in GPa and Poisson's ratio (isotropic)");
+    addOpt("material_ti", "Material", "string", "E,nu,r", "", "Solid material as numbers, transversely isotropic about Z: E_z = r*E, G_xz = G_yz = r*G");
+    addOpt("no_fields", "Output", "bool", "", "false", "Do not store per-voxel stress/strain fields in HDF5");
     addOpt("lattice_cell_mm", "Lattice", "double", "mm", "10", "Physical size of one unit cell in mm");
     addOpt("lattice_uniform_wall", "Lattice", "bool", "", "false", "Sheet families: uniform wall thickness via |f|/|grad f|");
     addOpt("print_min_wall_mm", "Printability", "double", "mm", "0.8", "Thinnest printable wall in mm");
@@ -1280,6 +1293,41 @@ bool Commandline_Parser::applyParameter(const QString& key, const QString& value
         return true;
     }
 
+    if (normKey == "material_iso" || normKey == "material_ti") {
+        const QStringList parts = value.split(QRegularExpression("[,;\\s]+"), Qt::SkipEmptyParts);
+        const int need = normKey == "material_iso" ? 2 : 3;
+        if (parts.size() != need) {
+            return setErr(QString("Option %1 expects %2 comma-separated numbers; got \"%3\"").arg(normKey).arg(need).arg(value));
+        }
+        bool okE = false, okN = false, okR = true;
+        const double E  = parts[0].toDouble(&okE);
+        const double nu = parts[1].toDouble(&okN);
+        const double r  = need == 3 ? parts[2].toDouble(&okR) : 1.0;
+        if (!okE || !okN || !okR || !(E > 0.0) || !(nu > -1.0 && nu < 0.5) || !(r >= 0.1 && r <= 3.0)) {
+            return setErr(QString("Option %1: E must be > 0 GPa, nu in (-1, 0.5), r in [0.1, 3]; got \"%2\"").arg(normKey, value));
+        }
+        params->setMatEGpa(E);
+        params->setMatNu(nu);
+        params->setMatAniso(r);
+        return true;
+    }
+
+    if (normKey == "mat_e_gpa" || normKey == "mat_nu" || normKey == "mat_aniso") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (normKey == "mat_e_gpa")      params->setMatEGpa(v);
+        else if (normKey == "mat_nu")    params->setMatNu(v);
+        else                              params->setMatAniso(v);
+        return true;
+    }
+
+    if (normKey == "no_fields" || normKey == "hdf5_fields") {
+        bool b = false;
+        if (!parseBool(b)) return false;
+        params->setHdf5Fields(normKey == "no_fields" ? !b : b);
+        return true;
+    }
+
     if (normKey == "noise_smooth") {
         double v = 0.0;
         if (!parseDouble(v, true)) return false;
@@ -1413,6 +1461,9 @@ bool Commandline_Parser::processOptions(const QCommandLineParser& parser, QStrin
     if (parser.isSet("fourier_file"))            if (!applyCliOption("fourier_file", parser.value("fourier_file"))) return false;
     if (parser.isSet("lattice_cell_mm"))         if (!applyCliOption("lattice_cell_mm", parser.value("lattice_cell_mm"))) return false;
     if (parser.isSet("noise_smooth"))            if (!applyCliOption("noise_smooth", parser.value("noise_smooth"))) return false;
+    if (parser.isSet("material_iso"))            if (!applyCliOption("material_iso", parser.value("material_iso"))) return false;
+    if (parser.isSet("material_ti"))             if (!applyCliOption("material_ti", parser.value("material_ti"))) return false;
+    if (parser.isSet("no_fields"))               if (!applyCliOption("no_fields", "true")) return false;
     if (parser.isSet("lattice_uniform_wall"))    if (!applyCliOption("lattice_uniform_wall", "true")) return false;
     if (parser.isSet("print_min_wall_mm"))       if (!applyCliOption("print_min_wall_mm", parser.value("print_min_wall_mm"))) return false;
     if (parser.isSet("print_max_overhang_deg"))  if (!applyCliOption("print_max_overhang_deg", parser.value("print_max_overhang_deg"))) return false;

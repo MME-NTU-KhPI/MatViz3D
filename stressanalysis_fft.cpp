@@ -317,7 +317,8 @@ void StressAnalysisFFT::estimateStressWithFFT(short int numCubes, short int numP
             for (int i = 0; i < 6; ++i) eps_load[i] = float(eps[i]);
 
             const std::string ls_str = prefix + "/ls_" + std::to_string(ls);
-            hdf5.write(ls_str, "results",        results);
+            if (Parameters::instance()->getHdf5Fields())
+                hdf5.write(ls_str, "results",    results);   // per-voxel fields; off for dataset runs
             hdf5.write(ls_str, "results_avg",    avg);
             hdf5.write(ls_str, "results_max",    mx);
             hdf5.write(ls_str, "results_min",    mn);
