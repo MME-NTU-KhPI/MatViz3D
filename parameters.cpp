@@ -764,6 +764,14 @@ void Parameters::setDbMaterial(const QString& value)
         std::copy(&G[0][0], &G[0][0] + 36, &mat_C[0][0]);
     } else if (DBManager::stiffnessMatrix(value, G, gType) && G[0][0] > 0.0) {
         std::copy(&G[0][0], &G[0][0] + 36, &mat_C[0][0]);
+    } else {
+        // No usable full matrix: leaving mat_C alone would keep the previous
+        // material's stiffness behind this one's name, so rebuild it from the
+        // cubic constants resolved above instead.
+        qWarning() << "material" << value
+                   << "has no usable 6x6 stiffness in the database; using the cubic"
+                   << "matrix from C11/C12/C44 =" << mat_c11 << mat_c12 << mat_c44 << "GPa";
+        cubicVoigt(mat_c11, mat_c12, mat_c44, mat_C);
     }
 
     // The lattice may have flipped fcc <-> bcc, and the presets differ per
