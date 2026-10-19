@@ -53,6 +53,14 @@ int main(int argc, char *argv[])
 
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+#ifdef Q_OS_MACOS
+    // Qt >= 6.8 turns Qt Quick Controls menus into native macOS menus: the
+    // in-window File / Window menu bars (custom-drawn in MainWindow.qml)
+    // vanish and their blank-titled menus land in the system menu bar.
+    // Keep the menus inside the window, as on Windows and Linux.
+    QCoreApplication::setAttribute(Qt::AA_DontUseNativeMenuBar);
+    QCoreApplication::setAttribute(Qt::AA_DontUseNativeMenuWindows);
+#endif
 #endif
 #ifdef QT_DEBUG
     qputenv("QML_DISABLE_DISK_CACHE", "1");
