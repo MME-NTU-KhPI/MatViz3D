@@ -67,7 +67,14 @@ families:
     params: {lattice_cell_mm: [8.0, 15.0], relative_density: [0.25, 0.50],
              lattice_family: {choices: [plate_sc, plate_sc_fcc, plate_bcc]},
              lattice_union: {choices: [octet, bcc, fcc, simple_cubic]},
-             plate_hole: [0.2, 0.5], cells_per_edge: [1, 2]}
+             plate_hole: [0.2, 0.5], lattice_smooth: [0.0, 0.04], cells_per_edge: [1, 2]}
+  carved:
+    quota: 500
+    oversample: 1.8
+    params: {lattice_cell_mm: [8.0, 15.0], relative_density: [0.25, 0.50],
+             lattice_family: {choices: [plate_sc, plate_sc_fcc, plate_sc_bcc, plate_bcc, octet, bcc]},
+             lattice_subtract: {choices: [spheres_sc, spheres_bcc, spheres_fcc, cylinders_axes]},
+             lattice_subtract_size: [0.15, 0.4], lattice_smooth: [0.0, 0.05], cells_per_edge: [1, 2]}
   anchors:
     quota: 1500
     oversample: 1.6

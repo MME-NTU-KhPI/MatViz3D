@@ -90,6 +90,8 @@ QString Commandline_Parser::buildApplicationDescription()
     desc += "  --fourier_symmetry:      none | cubic -- expand every Fourier wave to its orbit under the cubic group (default: none)\n";
     desc += "  --plate_hole:            plate lattices: hole diameter through every panel centre, in cell edges, 0..0.9 (default: 0)\n";
     desc += "  --lattice_union:         second cell family united with the first (plates + struts, ...); none = off\n";
+    desc += "  --lattice_subtract / --lattice_subtract_size: family carved out of the solid up to that level in cell edges (default: none / 0.3)\n";
+    desc += "  --lattice_smooth:        Gaussian blur of the field before the level is solved, sigma in cell edges, 0..0.3 (default: 0 = off)\n";
     desc += "  --material_iso E,nu:     solid material as numbers instead of a database row: Young's modulus in GPa and Poisson's ratio\n";
     desc += "  --material_ti E,nu,r:    the same, transversely isotropic about the build axis Z with E_z = r*E, G_xz = G_yz = r*G\n";
     desc += "  --no_fields:             do not store per-voxel stress/strain fields in HDF5 (matrices and metadata only; dataset runs)\n";
@@ -253,6 +255,14 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
     parser.addOption(QCommandLineOption("lattice_union",
         "[Lattice] Second cell family united with the first, one shared level (e.g. plate_sc_fcc + octet); "
         "not a random family, not two strut/honeycomb families (default: none).", "family"));
+    parser.addOption(QCommandLineOption("lattice_subtract",
+        "[Lattice] Family carved out of the solid (e.g. spheres_bcc for spherical windows, cylinders_axes for channels); "
+        "not a random family (default: none).", "family"));
+    parser.addOption(QCommandLineOption("lattice_subtract_size",
+        "[Lattice] Level of the carved-out family in cell edges: sphere / cylinder radius, plate half-thickness (default: 0.3).", "frac"));
+    parser.addOption(QCommandLineOption("lattice_smooth",
+        "[Lattice] Gaussian blur of the field before the level is solved, sigma in cell edges, 0..0.3: rounded corners and "
+        "blended junctions (default: 0 = off).", "frac"));
     parser.addOption(QCommandLineOption("lattice_cell_mm",
         "[Lattice] Physical size of one unit cell in mm (default: 10). Voxel size = cells_per_edge * cell_mm / size.", "mm"));
     parser.addOption(QCommandLineOption("print_min_wall_mm",
@@ -497,6 +507,9 @@ void Commandline_Parser::printJsonHelp()
     addOpt("fourier_symmetry", "Lattice", "string", "mode", "none", "Fourier families: none | cubic (waves expanded to their cubic orbits)");
     addOpt("plate_hole", "Lattice", "double", "frac", "0", "Plate lattices: hole diameter through every panel centre, cell edges (0..0.9)");
     addOpt("lattice_union", "Lattice", "string", "family", "none", "Second cell family united with the first (none = off)");
+    addOpt("lattice_subtract", "Lattice", "string", "family", "none", "Family carved out of the solid (none = off)");
+    addOpt("lattice_subtract_size", "Lattice", "double", "frac", "0.3", "Level of the carved-out family, cell edges (0.01..1)");
+    addOpt("lattice_smooth", "Lattice", "double", "frac", "0", "Gaussian blur of the field, sigma in cell edges (0..0.3)");
     addOpt("material_iso", "Material", "string", "E,nu", "", "Solid material as numbers: Young's modulus in GPa and Poisson's ratio (isotropic)");
     addOpt("material_ti", "Material", "string", "E,nu,r", "", "Solid material as numbers, transversely isotropic about Z: E_z = r*E, G_xz = G_yz = r*G");
     addOpt("no_fields", "Output", "bool", "", "false", "Do not store per-voxel stress/strain fields in HDF5");
@@ -1382,6 +1395,33 @@ bool Commandline_Parser::applyParameter(const QString& key, const QString& value
         params->setLatticeUnion(v);
         return true;
     }
+    if (normKey == "lattice_subtract") {
+        const QString v = value.trimmed();
+        if (!v.isEmpty() && v.compare("none", Qt::CaseInsensitive) != 0 && !isValidLatticeFamily(v)) {
+            return setErr(QString("Option lattice_subtract expects none or one of %1; got \"%2\"")
+                              .arg(latticeFamilyKeys().join(", "), value));
+        }
+        params->setLatticeSubtract(v);
+        return true;
+    }
+    if (normKey == "lattice_subtract_size") {
+        double v = 0.0;
+        if (!parseDouble(v, true)) return false;
+        if (v < 0.01 || v > 1.0) {
+            return setErr(QString("Option lattice_subtract_size expects a value in [0.01, 1]; got %1").arg(value));
+        }
+        params->setLatticeSubtractSize(v);
+        return true;
+    }
+    if (normKey == "lattice_smooth") {
+        double v = 0.0;
+        if (!parseDouble(v, true)) return false;
+        if (v < 0.0 || v > 0.3) {
+            return setErr(QString("Option lattice_smooth expects a value in [0, 0.3]; got %1").arg(value));
+        }
+        params->setLatticeSmooth(v);
+        return true;
+    }
     if (normKey == "noise_smooth") {
         double v = 0.0;
         if (!parseDouble(v, true)) return false;
@@ -1518,6 +1558,9 @@ bool Commandline_Parser::processOptions(const QCommandLineParser& parser, QStrin
     if (parser.isSet("fourier_symmetry"))        if (!applyCliOption("fourier_symmetry", parser.value("fourier_symmetry"))) return false;
     if (parser.isSet("plate_hole"))              if (!applyCliOption("plate_hole", parser.value("plate_hole"))) return false;
     if (parser.isSet("lattice_union"))           if (!applyCliOption("lattice_union", parser.value("lattice_union"))) return false;
+    if (parser.isSet("lattice_subtract"))        if (!applyCliOption("lattice_subtract", parser.value("lattice_subtract"))) return false;
+    if (parser.isSet("lattice_subtract_size"))   if (!applyCliOption("lattice_subtract_size", parser.value("lattice_subtract_size"))) return false;
+    if (parser.isSet("lattice_smooth"))          if (!applyCliOption("lattice_smooth", parser.value("lattice_smooth"))) return false;
     if (parser.isSet("material_iso"))            if (!applyCliOption("material_iso", parser.value("material_iso"))) return false;
     if (parser.isSet("material_ti"))             if (!applyCliOption("material_ti", parser.value("material_ti"))) return false;
     if (parser.isSet("no_fields"))               if (!applyCliOption("no_fields", "true")) return false;

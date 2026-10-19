@@ -26,7 +26,12 @@ enum class LatticeFamily {
     // Plate lattices: thin plates on the {100} (SC), {110} (BCC) and {111}
     // (FCC) plane families of the cubic cell, alone or united; optional
     // circular holes at the panel centres (`plate_hole`).
-    PlateSC, PlateBCC, PlateFCC, PlateSCBCC, PlateSCFCC, PlateBCCFCC, PlateSCBCCFCC
+    PlateSC, PlateBCC, PlateFCC, PlateSCBCC, PlateSCFCC, PlateBCCFCC, PlateSCBCCFCC,
+    // Site primitives: spheres at the SC / BCC / FCC lattice sites and
+    // cylinders along the axes through the face centres. Alone they are
+    // sphere packings and a three-way channel cross; their main use is as
+    // the second body of `lattice_union` / `lattice_subtract`.
+    SpheresSC, SpheresBCC, SpheresFCC, CylindersAxes
 };
 
 struct LatticeFamilyInfo {
@@ -69,6 +74,10 @@ inline const std::vector<LatticeFamilyInfo>& latticeFamilies()
         { LatticeFamily::PlateSCFCC,       "plate_sc_fcc",       "Plate lattice SC+FCC",           false },
         { LatticeFamily::PlateBCCFCC,      "plate_bcc_fcc",      "Plate lattice BCC+FCC",          false },
         { LatticeFamily::PlateSCBCCFCC,    "plate_sc_bcc_fcc",   "Plate lattice SC+BCC+FCC",       false },
+        { LatticeFamily::SpheresSC,        "spheres_sc",         "Spheres at SC sites",            false },
+        { LatticeFamily::SpheresBCC,       "spheres_bcc",        "Spheres at BCC sites",           false },
+        { LatticeFamily::SpheresFCC,       "spheres_fcc",        "Spheres at FCC sites",           false },
+        { LatticeFamily::CylindersAxes,    "cylinders_axes",     "Cylinders along the axes",       false },
     };
     return t;
 }
@@ -89,6 +98,13 @@ inline int plateOrientations(LatticeFamily f)
     }
 }
 inline bool isPlateFamily(LatticeFamily f) { return plateOrientations(f) != 0; }
+
+/// Spheres at lattice sites and axis cylinders (distance to a point / line set).
+inline bool isSiteFamily(LatticeFamily f)
+{
+    return f == LatticeFamily::SpheresSC || f == LatticeFamily::SpheresBCC
+        || f == LatticeFamily::SpheresFCC || f == LatticeFamily::CylindersAxes;
+}
 
 /// Families built from strut / wall centre-line segments (one segment table).
 inline bool isSegmentFamily(LatticeFamily f)
@@ -185,6 +201,9 @@ inline bool parseLatticeFamily(const QString& text, LatticeFamily& out)
         { "plate",              LatticeFamily::PlateSC },
         { "plates",             LatticeFamily::PlateSC },
         { "platelattice",       LatticeFamily::PlateSC },
+        { "spheres",            LatticeFamily::SpheresSC },
+        { "cylinders",          LatticeFamily::CylindersAxes },
+        { "channels",           LatticeFamily::CylindersAxes },
     };
     for (const Alias& a : aliases)
         if (q == QLatin1String(a.text)) { out = a.family; return true; }

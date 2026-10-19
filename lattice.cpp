@@ -147,28 +147,38 @@ void Lattice::readParameters()
     m_cubicSym     = p.getFourierSymmetry().compare(QLatin1String("cubic"), Qt::CaseInsensitive) == 0;
     m_noiseSmooth  = std::clamp(p.getNoiseSmooth(), 0.005, 0.5);
     m_plateHole    = std::clamp(p.getPlateHole(), 0.0, 0.9);
+    m_smooth       = std::clamp(p.getLatticeSmooth(), 0.0, 0.3);
+    m_subtractSize = std::clamp(p.getLatticeSubtractSize(), 0.01, 1.0);
 
-    // A second family united with the first. Random families keep state in
-    // the same members as the primary, and two segment families would share
-    // one segment table, so those pairs are refused.
-    m_hasUnion = false;
-    const QString unionKey = Parameters::latticeUnionKeyStored();
-    if (!unionKey.isEmpty()) {
+    // Second and third families (united with / carved out of the first).
+    // Random families keep state in the same members as the primary, and
+    // segment families share one segment table, so those pairs are refused.
+    m_hasUnion = m_hasSubtract = false;
+    auto resolve = [&](const QString& key, const char* what, LatticeFamily& out) -> bool {
+        if (key.isEmpty()) return false;
         LatticeFamily u;
-        if (!parseLatticeFamily(unionKey, u)) {
-            qWarning().noquote() << QString("[Lattice] unknown union family \"%1\"; ignored").arg(unionKey);
-        } else if (u == m_family) {
-            qWarning() << "[Lattice] lattice_union equals the cell family; ignored";
-        } else if (isRandomFamily(u)) {
-            qWarning().noquote() << QString("[Lattice] lattice_union cannot be a random family (%1); ignored").arg(unionKey);
-        } else if (isSegmentFamily(u) && isSegmentFamily(m_family)) {
-            qWarning().noquote() << QString("[Lattice] two strut/honeycomb families cannot be united (%1 + %2); ignored")
-                                        .arg(latticeFamilyKey(m_family), unionKey);
-        } else {
-            m_union = u;
-            m_hasUnion = true;
+        if (!parseLatticeFamily(key, u)) {
+            qWarning().noquote() << QString("[Lattice] unknown %1 family \"%2\"; ignored").arg(what, key);
+            return false;
         }
-    }
+        if (u == m_family) {
+            qWarning().noquote() << QString("[Lattice] %1 equals the cell family; ignored").arg(what);
+            return false;
+        }
+        if (isRandomFamily(u)) {
+            qWarning().noquote() << QString("[Lattice] %1 cannot be a random family (%2); ignored").arg(what, key);
+            return false;
+        }
+        const bool segTaken = isSegmentFamily(m_family) || (m_hasUnion && isSegmentFamily(m_union));
+        if (isSegmentFamily(u) && segTaken) {
+            qWarning().noquote() << QString("[Lattice] only one strut/honeycomb family per cell; %1 = %2 ignored").arg(what, key);
+            return false;
+        }
+        out = u;
+        return true;
+    };
+    m_hasUnion    = resolve(Parameters::latticeUnionKeyStored(),    "lattice_union",    m_union);
+    m_hasSubtract = resolve(Parameters::latticeSubtractKeyStored(), "lattice_subtract", m_subtract);
 }
 
 // R = Rz(a) * Rx(b) * Rz(c), applied to coordinates about the cube centre.
@@ -248,9 +258,10 @@ void Lattice::buildSegments()
         m_hcStretch = (m_cells * W) / (m_cellsY * P);
     };
 
-    // The segment table belongs to whichever of the two families needs it.
-    const LatticeFamily segFam = (m_hasUnion && isSegmentFamily(m_union) && !isSegmentFamily(m_family))
-                                 ? m_union : m_family;
+    // The segment table belongs to whichever of the families needs it (at most one).
+    LatticeFamily segFam = m_family;
+    if (!isSegmentFamily(segFam) && m_hasUnion && isSegmentFamily(m_union))       segFam = m_union;
+    if (!isSegmentFamily(segFam) && m_hasSubtract && isSegmentFamily(m_subtract)) segFam = m_subtract;
     switch (segFam) {
         case LatticeFamily::SimpleCubic:
             add(0, 0, 0,  1, 0, 0);  add(0, 0, 0,  0, 1, 0);  add(0, 0, 0,  0, 0, 1);
@@ -439,12 +450,29 @@ void Lattice::buildNoise()
     for (std::size_t i = 0; i < M; ++i) a[i] = static_cast<float>(gauss(m_rng));
 
     m_noiseSigmaVox = m_noiseSmooth * N;
-    const int K = std::max(1, static_cast<int>(std::ceil(3.0 * m_noiseSigmaVox)));
+    b.clear(); b.shrink_to_fit();
+    periodicBlur(a, N, m_noiseSigmaVox);
+
+    double mean = 0.0, var = 0.0;
+    for (float v : a) mean += v;
+    mean /= static_cast<double>(M);
+    for (float v : a) var += (v - mean) * (v - mean);
+    var /= static_cast<double>(M);
+    const float scale = static_cast<float>(1.0 / std::sqrt(std::max(var, 1e-30)));
+    for (float& v : a) v = (v - static_cast<float>(mean)) * scale;
+    m_noise = std::move(a);
+}
+
+void Lattice::periodicBlur(std::vector<float>& a, int N, double sigmaVox)
+{
+    if (sigmaVox <= 0.0) return;
+    const int K = std::max(1, static_cast<int>(std::ceil(3.0 * sigmaVox)));
     std::vector<float> w(2 * K + 1);
     double wsum = 0.0;
-    for (int d = -K; d <= K; ++d) { w[d + K] = static_cast<float>(std::exp(-0.5 * d * d / (m_noiseSigmaVox * m_noiseSigmaVox))); wsum += w[d + K]; }
+    for (int d = -K; d <= K; ++d) { w[d + K] = static_cast<float>(std::exp(-0.5 * d * d / (sigmaVox * sigmaVox))); wsum += w[d + K]; }
     for (float& v : w) v = static_cast<float>(v / wsum);
 
+    std::vector<float> b(a.size());
     auto idx = [N](int x, int y, int z) { return (static_cast<std::size_t>(x) * N + y) * N + z; };
     auto wrapi = [N](int i) { return (i % N + N) % N; };
     // Three periodic 1-D passes; axis 0 = x, 1 = y, 2 = z.
@@ -464,15 +492,33 @@ void Lattice::buildNoise()
                 }
         std::swap(a, b);
     }
+}
 
-    double mean = 0.0, var = 0.0;
-    for (float v : a) mean += v;
-    mean /= static_cast<double>(M);
-    for (float v : a) var += (v - mean) * (v - mean);
-    var /= static_cast<double>(M);
-    const float scale = static_cast<float>(1.0 / std::sqrt(std::max(var, 1e-30)));
-    for (float& v : a) v = (v - static_cast<float>(mean)) * scale;
-    m_noise = std::move(a);
+// `lattice_smooth`: the complete field (family, union, carving, grading,
+// jitter) on the full grid, carved-out voxels set to the largest finite
+// value so they stay void, blurred with a periodic Gaussian of sigma
+// `lattice_smooth` cell edges. fieldAt() then reads this grid, so the level
+// is solved and the cube rasterized on the rounded field.
+void Lattice::buildSmoothed()
+{
+    m_smoothed.clear();
+    if (m_smooth <= 0.0) return;
+    const int N = numCubes;
+    const std::size_t M = static_cast<std::size_t>(N) * N * N;
+    std::vector<float> a(M);
+    double finiteMax = -1e300;
+    #pragma omp parallel for collapse(3) schedule(static) reduction(max:finiteMax)
+    for (int x = 0; x < N; ++x)
+        for (int y = 0; y < N; ++y)
+            for (int z = 0; z < N; ++z) {
+                const double v = fieldAt(x + 0.5, y + 0.5, z + 0.5);
+                a[(static_cast<std::size_t>(x) * N + y) * N + z] = static_cast<float>(std::min(v, 1e30));
+                if (v < 1e100 && v > finiteMax) finiteMax = v;
+            }
+    const float cap = static_cast<float>(finiteMax > -1e300 ? finiteMax : 0.0);
+    for (float& v : a) if (v > 1e29f) v = cap;
+    periodicBlur(a, N, m_smooth * N / m_cells);
+    m_smoothed = std::move(a);
 }
 
 // One term per line: kx ky kz amplitude phase. Blank lines and lines starting
@@ -647,6 +693,9 @@ double Lattice::rawField(double X, double Y, double Z) const
 {
     double F = familyField(m_family, X, Y, Z);
     if (m_hasUnion) F = std::min(F, familyField(m_union, X, Y, Z));
+    // Carving: inside {F2 <= s} the solid is gone whatever the level, so the
+    // field is +inf there and the density is solved on what remains.
+    if (m_hasSubtract && familyField(m_subtract, X, Y, Z) <= m_subtractSize) return 1e300;
     return F;
 }
 
@@ -751,8 +800,43 @@ double Lattice::familyField(LatticeFamily fam, double X, double Y, double Z) con
         case LatticeFamily::PlateSCBCC: case LatticeFamily::PlateSCFCC: case LatticeFamily::PlateBCCFCC:
         case LatticeFamily::PlateSCBCCFCC:
             return plateField(fam, X, Y, Z);
+        case LatticeFamily::SpheresSC: case LatticeFamily::SpheresBCC: case LatticeFamily::SpheresFCC:
+        case LatticeFamily::CylindersAxes:
+            return siteField(fam, X, Y, Z);
     }
     return 0.0;
+}
+
+// Spheres: distance to the nearest lattice site (corners; + the centre for
+// BCC; + the face centres for FCC), so c is the sphere radius in cell units.
+// Cylinders: distance to the nearest of the three axis lines through the
+// face centres, c the cylinder radius. Snapped like the plates so symmetric
+// voxels tie exactly.
+double Lattice::siteField(LatticeFamily fam, double X, double Y, double Z) const
+{
+    const double u[3] = { wrap01(X * m_cells), wrap01(Y * m_cells), wrap01(Z * m_cells) };
+    auto wrapc = [](double v) { return v - std::round(v); };
+    double best = 1e300;
+    if (fam == LatticeFamily::CylindersAxes) {
+        for (int i = 0; i < 3; ++i) {
+            const int j = (i + 1) % 3, k = (i + 2) % 3;
+            const double a = wrapc(u[j] - 0.5), b = wrapc(u[k] - 0.5);
+            best = std::min(best, std::sqrt(a * a + b * b));
+        }
+    } else {
+        static const double corner[1][3] = { {0, 0, 0} };
+        static const double bcc[2][3]    = { {0, 0, 0}, {0.5, 0.5, 0.5} };
+        static const double fcc[4][3]    = { {0, 0, 0}, {0.5, 0.5, 0}, {0.5, 0, 0.5}, {0, 0.5, 0.5} };
+        const double (*sites)[3] = corner; int n = 1;
+        if (fam == LatticeFamily::SpheresBCC) { sites = bcc; n = 2; }
+        if (fam == LatticeFamily::SpheresFCC) { sites = fcc; n = 4; }
+        for (int s = 0; s < n; ++s) {
+            double d2 = 0.0;
+            for (int i = 0; i < 3; ++i) { const double w = wrapc(u[i] - sites[s][i]); d2 += w * w; }
+            best = std::min(best, std::sqrt(d2));
+        }
+    }
+    return std::round(best * 1e9) / 1e9;
 }
 
 // Plates on the {100}, {110}, {111} plane families of the unit cell, in cell
@@ -860,6 +944,14 @@ double Lattice::modulation(double X, double Y, double Z) const
 
 double Lattice::fieldAt(double x, double y, double z) const
 {
+    if (!m_smoothed.empty()) {
+        const int N = numCubes;
+        auto wrapi = [N](int i) { return (i % N + N) % N; };
+        const int ix = wrapi(static_cast<int>(std::floor(x)));
+        const int iy = wrapi(static_cast<int>(std::floor(y)));
+        const int iz = wrapi(static_cast<int>(std::floor(z)));
+        return m_smoothed[(static_cast<std::size_t>(ix) * N + iy) * N + iz];
+    }
     const double invN = 1.0 / static_cast<double>(numCubes);
     const double X = x * invN, Y = y * invN, Z = z * invN;
 
@@ -885,23 +977,27 @@ double Lattice::fieldAt(double x, double y, double z) const
 //  Density -> threshold
 // ─────────────────────────────────────────────────────────────────────────────
 
+void Lattice::normalizeJitter()
+{
+    m_jitterNorm = 1.0;
+    if (m_jitter <= 0.0 || m_jitterWaves.empty()) return;
+    const int Nc = m_coarseN;
+    double mx = 0.0;
+    #pragma omp parallel for collapse(3) reduction(max:mx) schedule(static)
+    for (int i = 0; i < Nc; ++i)
+        for (int j = 0; j < Nc; ++j)
+            for (int k = 0; k < Nc; ++k) {
+                const double v = std::abs(jitterField((i + 0.5) / Nc, (j + 0.5) / Nc, (k + 0.5) / Nc));
+                if (v > mx) mx = v;
+            }
+    m_jitterNorm = std::max(1e-9, mx);
+}
+
 double Lattice::solveThreshold()
 {
     const int    Nc   = m_coarseN;
     const double step = static_cast<double>(numCubes) / Nc;
     const size_t n    = static_cast<size_t>(Nc) * Nc * Nc;
-
-    if (m_jitter > 0.0 && !m_jitterWaves.empty()) {
-        double mx = 0.0;
-        #pragma omp parallel for collapse(3) reduction(max:mx) schedule(static)
-        for (int i = 0; i < Nc; ++i)
-            for (int j = 0; j < Nc; ++j)
-                for (int k = 0; k < Nc; ++k) {
-                    const double v = std::abs(jitterField((i + 0.5) / Nc, (j + 0.5) / Nc, (k + 0.5) / Nc));
-                    if (v > mx) mx = v;
-                }
-        m_jitterNorm = std::max(1e-9, mx);
-    }
 
     std::vector<double> vals(n);
     #pragma omp parallel for collapse(3) schedule(static)
@@ -976,8 +1072,9 @@ void Lattice::estimateWall()
             break;
         default:
             // Plates: voxel centres sit at half-integers, so {F <= c} is
-            // 2c + 1 voxels thick (c = 1.5 voxels -> 4-voxel plate).
-            if (isPlateFamily(m_family))
+            // 2c + 1 voxels thick (c = 1.5 voxels -> 4-voxel plate). Spheres
+            // and cylinders: the same for their diameter.
+            if (isPlateFamily(m_family) || isSiteFamily(m_family))
                 m_wallVox = 2.0 * m_c * voxPerCell + 1.0;
             break;   // skeletal / spinodoid: no simple estimate
     }
@@ -1042,6 +1139,8 @@ void Lattice::Initialization(bool /*isWaveGeneration*/)
     numColors = 1;
     m_coarseN = std::min<int>(numCubes, 64);
     m_achieved = 0.0;
+    normalizeJitter();
+    buildSmoothed();
     m_c = solveThreshold();
     estimateWall();
     publishPhases();
@@ -1161,6 +1260,8 @@ void Lattice::CleanUp()
     m_jitterWaves.clear();
     m_noise.clear();
     m_noise.shrink_to_fit();
+    m_smoothed.clear();
+    m_smoothed.shrink_to_fit();
     m_solidCount = 0;
     m_zFilled    = 0;
     m_step       = 0;
@@ -1211,6 +1312,13 @@ void Lattice::report() const
     if (m_hasUnion)
         qInfo().noquote()
             << QString("[Lattice] united with %1 (one level c for both)").arg(latticeFamilyLabel(m_union));
+    if (m_hasSubtract)
+        qInfo().noquote()
+            << QString("[Lattice] carved out: %1 up to level %2 cell units").arg(latticeFamilyLabel(m_subtract)).arg(m_subtractSize, 0, 'g', 3);
+    if (m_smooth > 0.0)
+        qInfo().noquote()
+            << QString("[Lattice] field smoothed with sigma %1 cell edges = %2 voxels")
+                   .arg(m_smooth, 0, 'g', 3).arg(m_smooth * numCubes / m_cells, 0, 'f', 1);
 
     if (m_rotated)
         qInfo().noquote()
@@ -1300,6 +1408,12 @@ static std::vector<ParamField> latticeSchema()
         // A second family united with the first (plates + struts, ...).
         { "lattice_union", "Unite with family", ParamField::Enum, QStringLiteral("none"), {}, {},
           QStringList{ QStringLiteral("none") } + latticeFamilyLabels(), "main" },
+        // A third family carved out of the solid, with its own level.
+        { "lattice_subtract", "Carve out family", ParamField::Enum, QStringLiteral("none"), {}, {},
+          QStringList{ QStringLiteral("none") } + latticeFamilyLabels(), "main" },
+        { "lattice_subtract_size", "Carve-out size (cell edges)", ParamField::Double, 0.3, 0.01, 1.0, {}, "main" },
+        // Gaussian blur of the field before the level is solved: fillets.
+        { "lattice_smooth", "Smoothing (cell edges)", ParamField::Double, 0.0, 0.0, 0.3, {}, "main" },
     };
 
     // One constituent: the printed base material. Void is the other phase.
@@ -1313,8 +1427,8 @@ static std::vector<ParamField> latticeSchema()
 MATVIZ_REGISTER_ALGORITHM(AlgorithmPlugin{
     "Lattice",
     "Periodic cellular metamaterial RVE (TPMS sheets and skeletons, strut "
-    "lattices, plate lattices with holes, honeycombs, anisotropic spinodoids, open Fourier-series level "
-    "sets with optional cubic symmetry, smoothed random noise, unions of two families): one solid phase plus void, "
+    "lattices, plate lattices with holes, spheres and cylinders, honeycombs, anisotropic spinodoids, open Fourier-series level "
+    "sets with optional cubic symmetry, smoothed random noise; unions, carve-outs and smoothing of families): one solid phase plus void, "
     "sized to a target relative density, with optional thickness grading, jitter and lattice rotation.",
     /*order=*/ 2,
     latticeSchema(),

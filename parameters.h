@@ -128,6 +128,10 @@ class Parameters : public QObject
     Q_PROPERTY(double  plate_hole    READ getPlateHole    WRITE setPlateHole    NOTIFY latticeSettingsChanged)
     // Second cell family united with the first; stored as the key, read back as the label ("none" = off).
     Q_PROPERTY(QString lattice_union READ getLatticeUnion WRITE setLatticeUnion NOTIFY latticeSettingsChanged)
+    // Third family carved out of the solid up to its own level (cell edges), and a Gaussian blur of the field (cell edges).
+    Q_PROPERTY(QString lattice_subtract      READ getLatticeSubtract     WRITE setLatticeSubtract     NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  lattice_subtract_size READ getLatticeSubtractSize WRITE setLatticeSubtractSize NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  lattice_smooth        READ getLatticeSmooth       WRITE setLatticeSmooth       NOTIFY latticeSettingsChanged)
     // Material given as numbers instead of a database row (dataset runs): E in
     // GPa (0 = use db_material), Poisson's ratio, and the ratio of the modulus
     // across the print layers (Z) to the in-plane one (1 = isotropic).
@@ -401,6 +405,13 @@ public:
     QString getLatticeUnion()    const { return lattice_union.isEmpty() ? QStringLiteral("none") : latticeFamilyLabelOf(lattice_union); }
     Q_INVOKABLE void setLatticeUnion(const QString& value);
     static QString latticeUnionKeyStored() { return lattice_union; }
+    QString getLatticeSubtract() const { return lattice_subtract.isEmpty() ? QStringLiteral("none") : latticeFamilyLabelOf(lattice_subtract); }
+    Q_INVOKABLE void setLatticeSubtract(const QString& value);
+    static QString latticeSubtractKeyStored() { return lattice_subtract; }
+    double  getLatticeSubtractSize() const { return lattice_subtract_size; }
+    Q_INVOKABLE void setLatticeSubtractSize(double value);
+    double  getLatticeSmooth()       const { return lattice_smooth; }
+    Q_INVOKABLE void setLatticeSmooth(double value);
     double getMatEGpa()    const { return mat_e_gpa; }
     double getMatNu()      const { return mat_nu; }
     double getMatAniso()   const { return mat_aniso; }
@@ -710,6 +721,9 @@ private:
     static QString fourier_symmetry;     // "none" | "cubic"
     static double  plate_hole;
     static QString lattice_union;        // CLI key of the second family, empty = none
+    static QString lattice_subtract;     // CLI key of the carved-out family, empty = none
+    static double  lattice_subtract_size;
+    static double  lattice_smooth;
     static double  mat_e_gpa;
     static double  mat_nu;
     static double  mat_aniso;

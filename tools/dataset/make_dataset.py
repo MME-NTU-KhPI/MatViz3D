@@ -52,6 +52,7 @@ PARAM_KEYS = {
     "fourier_terms", "fourier_kmin", "fourier_kmax", "fourier_decay",
     "noise_smooth", "lattice_cell_mm",
     "fourier_symmetry", "plate_hole", "lattice_union",
+    "lattice_subtract", "lattice_subtract_size", "lattice_smooth",
     "print_min_wall_mm", "print_max_overhang_deg", "print_max_thin_fraction",
     "print_max_island_vox", "print_max_unsupported_fraction",
 }

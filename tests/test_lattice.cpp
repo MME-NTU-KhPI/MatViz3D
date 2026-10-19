@@ -106,8 +106,10 @@ void TestLattice::testDensityIsHitForEveryFamily()
     for (const LatticeFamilyInfo& i : latticeFamilies()) {
         // Plates sit on whole-voxel shells (2, 4, 6 ... voxels thick), so on
         // 12 voxels per cell the reachable densities are 0.42 and 0.70 and no
-        // level hits 0.30; testPlateLatticesSymmetryAndUnion covers them.
-        if (isPlateFamily(i.family)) continue;
+        // level hits 0.30; spheres and cylinders are quantized the same way.
+        // testPlateLatticesSymmetryAndUnion / testSitesCarvingAndSmoothing
+        // cover them on a finer cell.
+        if (isPlateFamily(i.family) || isSiteFamily(i.family)) continue;
         p->setLatticeFamily(QString::fromLatin1(i.key));
 
         TestableLattice L(N);
@@ -128,7 +130,7 @@ void TestLattice::testDensityIsHitForEveryFamily()
         const bool shells = (i.family == LatticeFamily::SimpleCubic || i.family == LatticeFamily::BCC ||
                              i.family == LatticeFamily::FCC || i.family == LatticeFamily::Octet ||
                              i.family == LatticeFamily::Honeycomb || i.family == LatticeFamily::Reentrant ||
-                             isPlateFamily(i.family));
+                             isPlateFamily(i.family) || isSiteFamily(i.family));
         QVERIFY2(std::abs(rho - 0.30) < (shells ? 0.03 : 0.01),
                  qPrintable(QString("%1: achieved %2").arg(i.key).arg(rho)));
         QCOMPARE(maxId, 1);
@@ -582,6 +584,76 @@ void TestLattice::testPlateLatticesSymmetryAndUnion()
     }
 }
 
+void TestLattice::testSitesCarvingAndSmoothing()
+{
+    Parameters* p = Parameters::instance();
+    const int N = 32;
+    p->setSize(N);
+    p->setCellsPerEdge(1);
+    p->setRelativeDensity(0.30);
+
+    // Spheres at the SC sites: distance to the nearest corner; cylinders:
+    // distance to the axis lines through the face centres.
+    {
+        p->setLatticeFamily("spheres_sc");
+        TestableLattice L(N);
+        L.Initialization(false);
+        QVERIFY(std::abs(L.fieldAt(0.5 * N, 0.5 * N, 0.5 * N) - std::sqrt(3.0) / 2.0) < 1e-9);
+        QVERIFY(L.fieldAt(0.5, 0.5, 0.5) < 0.03);
+        p->setLatticeFamily("spheres_bcc");
+        TestableLattice B(N);
+        B.Initialization(false);
+        QVERIFY(B.fieldAt(0.5 * N, 0.5 * N, 0.5 * N) < 1e-9);          // site at the centre
+        p->setLatticeFamily("cylinders_axes");
+        TestableLattice C(N);
+        C.Initialization(false);
+        QVERIFY(C.fieldAt(0.5, 0.5 * N, 0.5 * N) < 1e-9);               // on the x axis line
+        QVERIFY(std::abs(C.fieldAt(0.5, 0.5, 0.5) - std::sqrt(0.5)) < 0.03);   // corner: 0.707 from every line
+        C.Generate_To_End();
+        QVERIFY(std::abs(C.achievedDensity() - 0.30) < 0.03);
+    }
+    // Carving: plates minus spheres at the BCC sites of radius 0.3. The cell
+    // centre and the corners are gone; a plate point away from the spheres
+    // stays; the density is solved on what remains.
+    {
+        p->setLatticeFamily("plate_sc");
+        p->setLatticeSubtract("spheres_bcc");
+        p->setLatticeSubtractSize(0.3);
+        QCOMPARE(Parameters::latticeSubtractKeyStored(), QString("spheres_bcc"));
+        TestableLattice L(N);
+        L.Initialization(false);
+        QVERIFY(L.fieldAt(0.5 * N, 0.5 * N, 0.5 * N) > 1e100);
+        QVERIFY(L.fieldAt(0.5, 0.05 * N, 0.05 * N) > 1e100);
+        QVERIFY(L.fieldAt(0.5, 0.5 * N, 0.2 * N) < 0.02);
+        L.Generate_To_End();
+        QVERIFY2(std::abs(L.achievedDensity() - 0.30) < 0.08, qPrintable(QString::number(L.achievedDensity())));
+        // A random family cannot be carved out: ignored, the plates are intact.
+        p->setLatticeSubtract("spinodoid");
+        TestableLattice M(N);
+        M.Initialization(false);
+        QVERIFY(std::abs(M.fieldAt(0.5 * N, 0.5 * N, 0.5 * N) - 0.5) < 1e-9);
+        p->setLatticeSubtract("none");
+        QVERIFY(Parameters::latticeSubtractKeyStored().isEmpty());
+    }
+    // Smoothing: the blurred field is read from the grid, is continuous
+    // (no jump larger than a fraction of the plate step) and still gives
+    // the requested density because the level is solved on it.
+    {
+        p->setLatticeFamily("plate_sc");
+        p->setLatticeSmooth(0.05);
+        TestableLattice L(N);
+        L.Initialization(false);
+        double maxJump = 0.0;
+        for (int i = 0; i < N - 1; ++i)
+            maxJump = std::max(maxJump, std::abs(L.fieldAt(i + 1.5, 0.5 * N, 0.2 * N) - L.fieldAt(i + 0.5, 0.5 * N, 0.2 * N)));
+        QVERIFY2(maxJump < 0.5 / N * 2.0, qPrintable(QString::number(maxJump)));   // < 2 voxels of distance per voxel step
+        QVERIFY(L.fieldAt(0.5, 0.5 * N, 0.5 * N) < L.fieldAt(0.5 * N, 0.5 * N, 0.5 * N));
+        L.Generate_To_End();
+        QVERIFY2(std::abs(L.achievedDensity() - 0.30) < 0.02, qPrintable(QString::number(L.achievedDensity())));
+        p->setLatticeSmooth(0.0);
+    }
+}
+
 void TestLattice::testCliOptions()
 {
     Parameters* p = Parameters::instance();
@@ -655,4 +727,18 @@ void TestLattice::testCliOptions()
     QVERIFY(applyParameter("lattice_family", "plate_sc_fcc", &err));
     QCOMPARE(Parameters::latticeFamilyKeyStored(), QString("plate_sc_fcc"));
     QVERIFY(Commandline_Parser::isValidLatticeFamily("plate_bcc"));
+
+    QVERIFY(applyParameter("lattice_subtract", "spheres_fcc", &err));
+    QCOMPARE(Parameters::latticeSubtractKeyStored(), QString("spheres_fcc"));
+    QVERIFY(!applyParameter("lattice_subtract", "kagome", &err));
+    QVERIFY(applyParameter("lattice_subtract", "none", &err));
+    QVERIFY(Parameters::latticeSubtractKeyStored().isEmpty());
+    QVERIFY(applyParameter("lattice_subtract_size", "0.35", &err));
+    QCOMPARE(p->getLatticeSubtractSize(), 0.35);
+    QVERIFY(!applyParameter("lattice_subtract_size", "0", &err));
+    QVERIFY(!applyParameter("lattice_subtract_size", "1.5", &err));
+    QVERIFY(applyParameter("lattice_smooth", "0.05", &err));
+    QCOMPARE(p->getLatticeSmooth(), 0.05);
+    QVERIFY(!applyParameter("lattice_smooth", "0.5", &err));
+    QVERIFY(Commandline_Parser::isValidLatticeFamily("cylinders_axes"));
 }

@@ -101,6 +101,9 @@ QString Parameters::fourier_file;
 QString Parameters::fourier_symmetry = QStringLiteral("none");
 double  Parameters::plate_hole = 0.0;
 QString Parameters::lattice_union;
+QString Parameters::lattice_subtract;
+double  Parameters::lattice_subtract_size = 0.3;
+double  Parameters::lattice_smooth = 0.0;
 double  Parameters::noise_smooth           = 0.06;
 double  Parameters::mat_e_gpa              = 0.0;
 double  Parameters::mat_nu                 = 0.38;
@@ -213,6 +216,9 @@ void Parameters::resetDefaults()
     fourier_symmetry = QStringLiteral("none");
     plate_hole = 0.0;
     lattice_union.clear();
+    lattice_subtract.clear();
+    lattice_subtract_size = 0.3;
+    lattice_smooth = 0.0;
     noise_smooth = 0.06;
     mat_e_gpa = 0.0;
     mat_nu = 0.38;
@@ -1330,6 +1336,40 @@ void Parameters::setLatticeUnion(const QString& value)
     }
     if (lattice_union == stored) return;
     lattice_union = stored;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setLatticeSubtract(const QString& value)
+{
+    const QString v = value.trimmed();
+    QString stored;
+    if (!v.isEmpty() && v.compare(QLatin1String("none"), Qt::CaseInsensitive) != 0) {
+        LatticeFamily f;
+        if (!parseLatticeFamily(v, f)) {
+            qWarning() << "lattice_subtract expects none or one of" << latticeFamilyKeys().join(", ")
+                       << "; got" << value << "-- keeping" << lattice_subtract;
+            return;
+        }
+        stored = latticeFamilyKey(f);
+    }
+    if (lattice_subtract == stored) return;
+    lattice_subtract = stored;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setLatticeSubtractSize(double value)
+{
+    if (value < 0.01 || value > 1.0) { qWarning() << "lattice_subtract_size expects 0.01..1 cell edges; got" << value; return; }
+    if (lattice_subtract_size == value) return;
+    lattice_subtract_size = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setLatticeSmooth(double value)
+{
+    if (value < 0.0 || value > 0.3) { qWarning() << "lattice_smooth expects 0..0.3 cell edges; got" << value; return; }
+    if (lattice_smooth == value) return;
+    lattice_smooth = value;
     emit latticeSettingsChanged();
 }
 

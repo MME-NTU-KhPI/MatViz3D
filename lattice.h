@@ -57,6 +57,21 @@
  *     octet struts. Both fields are distances for the strut, plate,
  *     honeycomb and uniform-wall sheet families, so c then means the same
  *     thickness for both. The second family cannot be a random one.
+ *   - `lattice_subtract` + `lattice_subtract_size` s: the sublevel set
+ *     {F2 <= s} of a third family is carved out of the solid (F = +inf
+ *     there, so the level is solved on what remains): plates minus spheres
+ *     at the BCC sites give spherical windows, minus `cylinders_axes` give
+ *     round channels through the face centres.
+ *   - Site primitives: `spheres_sc/bcc/fcc` (F = distance to the nearest
+ *     lattice site, c the sphere radius) and `cylinders_axes` (distance to
+ *     the three axis lines through the face centres). Meant as the second
+ *     body of a union or subtraction; alone, spheres below the touching
+ *     radius are separate bodies.
+ *   - `lattice_smooth` sigma (cell edges): the full field (after grading and
+ *     jitter) is sampled on the grid, values of carved-out voxels are set to
+ *     the largest finite value, and a periodic Gaussian blur of sigma is
+ *     applied before the level is solved. Sharp corners and junctions come
+ *     out rounded, like fillets; walls thinner than ~2 sigma vanish.
  *
  * ## Relative density is the input
  *
@@ -146,6 +161,14 @@ private:
     double familyField(LatticeFamily fam, double X, double Y, double Z) const;
     /// Plate lattices: distance to the nearest plate mid-plane, +inf inside a hole.
     double plateField(LatticeFamily fam, double X, double Y, double Z) const;
+    /// Spheres at lattice sites / cylinders along the axes: distance to the site set.
+    double siteField(LatticeFamily fam, double X, double Y, double Z) const;
+    /// Jitter normalisation (max |jitter field| on the coarse grid).
+    void   normalizeJitter();
+    /// `lattice_smooth`: sample, clamp and blur the full field into m_smoothed.
+    void   buildSmoothed();
+    /// Periodic separable Gaussian blur of a N^3 grid in place (three 1-D passes).
+    static void periodicBlur(std::vector<float>& a, int N, double sigmaVox);
     /// Replace every wave by its orbit under the cubic point group.
     void   symmetrizeWaves();
     /// Level-set value f and its gradient (per cube fraction) for the
@@ -190,6 +213,11 @@ private:
     double  m_plateHole      = 0.0;    ///< plate lattices: hole diameter, cell edges (0 = none)
     bool    m_hasUnion       = false;
     LatticeFamily m_union    = LatticeFamily::GyroidSheet;   ///< second family united with the first
+    bool    m_hasSubtract    = false;
+    LatticeFamily m_subtract = LatticeFamily::SpheresBCC;    ///< family carved out of the solid
+    double  m_subtractSize   = 0.3;    ///< its level, cell units (sphere radius, channel radius, ...)
+    double  m_smooth         = 0.0;    ///< Gaussian sigma of the field blur, cell edges (0 = off)
+    std::vector<float> m_smoothed;     ///< blurred full field when m_smooth > 0
     size_t  m_directions     = 0;      ///< distinct wave directions available to the random families
     double  m_R[3][3]        = { {1,0,0}, {0,1,0}, {0,0,1} };
     bool    m_rotated        = false;

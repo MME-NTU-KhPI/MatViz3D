@@ -23,6 +23,7 @@ private slots:
     void testSmoothedNoiseIsReproducibleAndSmoothingConnects();
     void testMaterialOverrideAndTpmsWaves();
     void testPlateLatticesSymmetryAndUnion();
+    void testSitesCarvingAndSmoothing();
     void testCliOptions();
 };
 
