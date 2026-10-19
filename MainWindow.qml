@@ -118,6 +118,19 @@ Window {
                     Layout.preferredHeight: 49
                     Layout.alignment: Qt.AlignVCenter
 
+                    // The label lives outside the MenuBar: Qt 6.8+ no longer draws a
+                    // Text given as a MenuBar's contentItem on macOS.
+                    Text {
+                        id: menuFileText
+                        text: qsTr("File")
+                        font.pixelSize: 24
+                        font.family: montserrat.name
+                        color: "#CFCECE"
+                        horizontalAlignment: Text.AlignLeft
+                        verticalAlignment: Text.AlignVCenter
+                        anchors.centerIn: parent
+                    }
+
                     MenuBar {
                         id: fileMenuBar
                         width: 43
@@ -130,16 +143,8 @@ Window {
                             height: 49
                         }
 
-                        contentItem: Text {
-                            id: menuFileText
-                            text: qsTr("File")
-                            font.pixelSize: 24
-                            font.family: montserrat.name
-                            color: "#CFCECE"
-                            horizontalAlignment: Text.AlignLeft
-                            verticalAlignment: Text.AlignVCenter
-                            anchors.centerIn: parent
-                        }
+                        padding: 0
+                        contentItem: Item { }
 
                         Menu {
                             id: fileMenu
@@ -242,6 +247,19 @@ Window {
                     Layout.preferredHeight: 49
                     Layout.alignment: Qt.AlignVCenter
 
+                    // The label lives outside the MenuBar: Qt 6.8+ no longer draws a
+                    // Text given as a MenuBar's contentItem on macOS.
+                    Text {
+                        id: menuWindowText
+                        text: qsTr("Window")
+                        font.pixelSize: 24
+                        font.family: montserrat.name
+                        color: "#CFCECE"
+                        horizontalAlignment: Text.AlignLeft
+                        verticalAlignment: Text.AlignVCenter
+                        anchors.centerIn: parent
+                    }
+
                     MenuBar {
                         id: windowMenuBar
                         width: 88
@@ -254,16 +272,8 @@ Window {
                             height: 49
                         }
 
-                        contentItem: Text {
-                            id: menuWindowText
-                            text: qsTr("Window")
-                            font.pixelSize: 24
-                            font.family: montserrat.name
-                            color: "#CFCECE"
-                            horizontalAlignment: Text.AlignLeft
-                            verticalAlignment: Text.AlignVCenter
-                            anchors.centerIn: parent
-                        }
+                        padding: 0
+                        contentItem: Item { }
 
                         Menu {
                             id: windowMenu
