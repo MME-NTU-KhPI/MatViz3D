@@ -1135,6 +1135,7 @@ void ExportController::exportToHDF5()
             hdf5Wrapper.write(prefix, "S_matrix",         mat_S);
             hdf5Wrapper.write(prefix, "C_matrix",         mat_C);
             hdf5Wrapper.write(prefix, "P_matrix",         mat_P);
+            writeShearBasisAttribute(hdf5Wrapper, prefix);
             hdf5Wrapper.write(prefix, "Effective_Moduli", moduli);
             hdf5Wrapper.write(prefix, "solver",           solver);
             if (r.isFFT) hdf5Wrapper.write(prefix, "iterations_total", r.totalIterations);

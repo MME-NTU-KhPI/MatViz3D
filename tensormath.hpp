@@ -339,15 +339,13 @@ inline Mat6 voigtC_to_mandel(const double Cv[6][6])
     return M;
 }
 
-/// Pipeline-basis stiffness (StiffnessMatrixResult::C -- unit TENSOR strain in,
-/// physical stress out, Pa) -> Mandel.
+/// Pipeline-basis stiffness (StiffnessMatrixResult::C -- unit ENGINEERING
+/// strain in (gamma = 2*eps for shear, so C44 = G), physical stress out, Pa)
+/// -> Mandel.
 ///
-/// Four cases, because only one side of each entry carries the sqrt2.  Working
-/// a shear column through strain_pipeline_to_mandel / stress_mandel_to_pipeline
-/// gives Cp[i][j] == 2 * Cp[j][i] for i<3<=j: the normal<->shear coupling block
-/// of a pipeline C is asymmetric BY CONSTRUCTION.  Averaging it (as the solvers
-/// historically did) destroys both entries -- see symmetrizePipelineC() in
-/// stressresult.h.  This function assumes the un-averaged form.
+/// Only the pipeline -> Mandel index permutation plus the usual Mandel scaling
+/// of an engineering (Voigt) stiffness: normal-normal C, normal<->shear
+/// sqrt2*C (both sides, C is symmetric), shear-shear 2*C.
 inline Mat6 pipelineC_to_mandel(const double Cp[6][6])
 {
     const double s2 = std::sqrt(2.0);
@@ -356,9 +354,8 @@ inline Mat6 pipelineC_to_mandel(const double Cp[6][6])
         for (int b = 0; b < 6; ++b) {
             const int pa = kMandelToPipeline[a], pb = kMandelToPipeline[b];
             if      (a < 3 && b < 3) M[a][b] = Cp[pa][pb];
-            else if (a < 3)          M[a][b] = Cp[pa][pb] / s2;
-            else if (b < 3)          M[a][b] = s2 * Cp[pa][pb];
-            else                     M[a][b] = Cp[pa][pb];
+            else if (a < 3 || b < 3) M[a][b] = s2 * Cp[pa][pb];
+            else                     M[a][b] = 2.0 * Cp[pa][pb];
         }
     }
     return M;

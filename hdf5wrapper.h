@@ -49,6 +49,13 @@ public:
     // result group deliberately has no voxels.
     bool datasetExists(const std::string& dataGroup, const std::string& dataSetName);
 
+    // String attribute on an existing dataset. Reading returns an empty string
+    // when the dataset or the attribute is absent.
+    void writeStringAttribute(const std::string& dataGroup, const std::string& dataSetName,
+                              const std::string& attrName, const QString& value);
+    QString readStringAttribute(const std::string& dataGroup, const std::string& dataSetName,
+                                const std::string& attrName);
+
     std::vector<std::string> listDataGroups(const std::string& path);
     std::vector<std::string> listDataGroups();
 
@@ -66,5 +73,17 @@ private:
 void saveGeometryMetadataToHDF5(HDF5Wrapper& hdf5, const std::string& prefix, const QString& solver = QString());
 GeomMetadata readGeometryMetadataFromHDF5(HDF5Wrapper& hdf5, const std::string& prefix);
 bool applyGeometryMetadataToParameters(const GeomMetadata& meta);
+
+// S_matrix / C_matrix carry a "shear_basis" attribute. Current files are
+// "engineering" (gamma = 2*eps, C44 = G); files written before it was added
+// have no attribute and hold the TENSOR shear basis.
+void writeShearBasisAttribute(HDF5Wrapper& hdf5, const std::string& prefix);
+
+// Reads S_matrix / C_matrix from `prefix` into the engineering shear basis.
+// A legacy file (no attribute) is taken as tensor basis and converted:
+// S_eng = D*S, D = diag(1,1,1,2,2,2); C_eng = inv(S_eng). Returns false when
+// either matrix is missing or malformed, or S_eng is singular.
+bool readElasticMatricesEngineering(HDF5Wrapper& hdf5, const std::string& prefix,
+                                    double S[6][6], double C[6][6]);
 
 #endif // HDF5WRAPPER_H

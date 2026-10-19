@@ -24,6 +24,13 @@ private slots:
     void testFitFull6DFallbackNearlyPressureInsensitive();
     void testGenerateLoadsDefaultEqualsExplicitSchmid5D();
 
+    void testElasticPropertiesEngineeringShearBasis();
+    void testSymmetrizeKeepsSymmetricEngineeringC();
+    void testStressToStrainLoadHalvesShear();
+    void testGenerateLoadsUsesEngineeringCompliance();
+    void testPipelineCToMandelIsotropic();
+    void testHdf5LegacyTensorBasisConverted();
+
 private:
     // Points on the 5D deviatoric sphere of radius R (random directions)
     static std::vector<std::array<double, 6>> deviatoricSpherePoints(int n, double R, unsigned seed);

@@ -399,6 +399,12 @@ public:
     static bool materialStiffnessPa(const QString& name, double C[6][6]);
 
     /**
+     * @brief Cached full 6x6 stiffness of the selected material (mat_C), in Pa.
+     *        Thread-safe for solver worker threads: no QSqlDatabase access.
+     */
+    static void stiffnessPa(double C[6][6]);
+
+    /**
      * @brief Resolves "auto" local yield criterion / Hill fit space from the
      *        generation algorithm name (aliases accepted).
      *
@@ -513,6 +519,8 @@ private:
     // stores; cubicConstantsPa() converts. Defaults are the Cu values the
     // solvers used to hardcode, so an unset material changes nothing.
     static double  mat_c11, mat_c12, mat_c44;
+    // Full 6x6 stiffness of db_material in GPa (Voigt), cached by setDbMaterial().
+    static double  mat_C[6][6];
     static QString mat_type;
 
     static QString texture_preset;

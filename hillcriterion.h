@@ -26,6 +26,12 @@ public:
         const double S[6][6]
         );
 
+    // Stress direction -> solver loading: eps = S*sigma with S in the
+    // engineering shear basis, shear halved to TENSOR strain, scaled to norm
+    // strain_val. Shared by generateLoads() and both Hill calibrations.
+    static bool stressToStrainLoad(const double S[6][6], const double d_sigma[6],
+                                   double strain_val, double eps_out[6]);
+
     void saveToHDF5(HDF5Wrapper& hdf5, const std::string& prefix);
     bool loadFromHDF5(HDF5Wrapper& hdf5, const std::string& prefix);
 

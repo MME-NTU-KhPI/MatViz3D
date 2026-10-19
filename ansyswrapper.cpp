@@ -2038,9 +2038,9 @@ ansysWrapper::ElasticProperties ansysWrapper::calculateElasticProperties()
             (double)load[0],
             (double)load[1],
             (double)load[2],
-            (double)load[3],
-            (double)load[4],
-            (double)load[5]
+            2 * (double)load[3],   // tensor shear -> engineering gamma = 2*eps
+            2 * (double)load[4],
+            2 * (double)load[5]
         };
 
         // We construct a row of the design matrix for each of the 6 tensor equations.

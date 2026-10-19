@@ -68,45 +68,17 @@ inline bool invert6x6(const double A[6][6], double out[6][6])
 }
 
 // Symmetrize a PIPELINE-basis stiffness matrix, i.e. one whose column j is the
-// macroscopic stress produced by a unit *tensor* strain e[j] = 1, in the
-// pipeline component order (xx, yy, zz, xy, yz, xz).
+// macroscopic stress produced by a unit *engineering* strain (gamma_j = 1 for
+// shear), in the pipeline component order (xx, yy, zz, xy, yz, xz).
 //
-// Such a matrix is NOT symmetric in the normal<->shear coupling block, and the
-// asymmetry is exact rather than numerical. For a shear column j >= 3 the
-// applied strain has eps_xy = eps_yx = 1, i.e. twice the tensor component, so
-// working a column through strain_pipeline_to_mandel/stress_mandel_to_pipeline
-// gives, for i < 3 <= j:
-//
-//     C[i][j] == 2 * C[j][i]        (exactly, by construction)
-//
-// The obvious 0.5*(C[i][j] + C[j][i]) average therefore destroys BOTH entries
-// rather than removing numerical noise. This routine averages the two blocks
-// that really are symmetric (normal-normal and shear-shear) and reconstructs
-// the coupling block in its correct 2X / X form.
-//
-// This only changes results for aggregates with non-zero normal<->shear
-// coupling -- cubic and orthotropic aggregates have none, which is why the old
-// averaging never visibly misbehaved. A textured, non-orthotropic aggregate
-// does.
+// In the engineering shear basis C is symmetric (C44 = G), so this is the plain
+// (C + C^T) / 2 average that removes numerical noise only.
 inline void symmetrizePipelineC(double C[6][6])
 {
-    for (int i = 0; i < 3; ++i)                     // normal-normal: truly symmetric
-        for (int j = i + 1; j < 3; ++j) {
-            const double m = 0.5 * (C[i][j] + C[j][i]);
-            C[i][j] = C[j][i] = m;
-        }
-
-    for (int i = 3; i < 6; ++i)                     // shear-shear: truly symmetric
+    for (int i = 0; i < 6; ++i)
         for (int j = i + 1; j < 6; ++j) {
             const double m = 0.5 * (C[i][j] + C[j][i]);
             C[i][j] = C[j][i] = m;
-        }
-
-    for (int i = 0; i < 3; ++i)                     // coupling: the pair is (2X, X)
-        for (int j = 3; j < 6; ++j) {
-            const double X = 0.5 * (0.5 * C[i][j] + C[j][i]);
-            C[i][j] = 2.0 * X;
-            C[j][i] = X;
         }
 }
 
@@ -358,7 +330,8 @@ inline GrainMaterials resolveGrainMaterials(
     const std::array<double,3>* forceOrientation,
     const std::vector<TextureLibrary::Component>& texture,
     const PhaseAssignment& phases,
-    double fallbackC11, double fallbackC12, double fallbackC44)
+    double fallbackC11, double fallbackC12, double fallbackC44,
+    const PhaseMaterial* single = nullptr)
 {
     GrainMaterials out;
 
@@ -379,6 +352,19 @@ inline GrainMaterials resolveGrainMaterials(
 
     if (!usable) {
         out.maxC11 = fallbackC11;
+        // A non-cubic single material (hcp, ti, ...) keeps its full 6x6
+        // stiffness by going through the per-grain Voigt path as one phase.
+        if (single && !single->isCubic()) {
+            std::array<std::array<double,6>,6> Cv{};
+            for (int i = 0; i < 6; ++i)
+                for (int j = 0; j < 6; ++j) Cv[i][j] = single->C[i][j];
+            out.multiPhase   = true;
+            out.phaseNames   = { single->name };
+            out.phaseVoigtPa = { Cv };
+            out.phaseOfGrain.assign(static_cast<size_t>(nGrains) + 1, 0);
+            out.voigtPa.assign(static_cast<size_t>(nGrains) + 1, Cv);
+            out.maxC11 = Cv[0][0];
+        }
         return out;
     }
 

@@ -46,6 +46,36 @@ HDF5Wrapper::~HDF5Wrapper()
         H5Fclose(file);
 }
 
+void writeShearBasisAttribute(HDF5Wrapper& hdf5, const std::string& prefix)
+{
+    hdf5.writeStringAttribute(prefix, "S_matrix", "shear_basis", QStringLiteral("engineering"));
+    hdf5.writeStringAttribute(prefix, "C_matrix", "shear_basis", QStringLiteral("engineering"));
+}
+
+bool readElasticMatricesEngineering(HDF5Wrapper& hdf5, const std::string& prefix,
+                                    double S[6][6], double C[6][6])
+{
+    const auto mat_S = hdf5.readVectorVectorFloat(prefix, "S_matrix");
+    const auto mat_C = hdf5.readVectorVectorFloat(prefix, "C_matrix");
+    if (mat_S.size() != 6 || mat_C.size() != 6) return false;
+    for (int i = 0; i < 6; ++i) {
+        if (mat_S[i].size() != 6 || mat_C[i].size() != 6) return false;
+        for (int j = 0; j < 6; ++j) { S[i][j] = mat_S[i][j]; C[i][j] = mat_C[i][j]; }
+    }
+
+    const QString basis = hdf5.readStringAttribute(prefix, "S_matrix", "shear_basis");
+    if (basis == QLatin1String("engineering"))
+        return true;
+
+    qWarning().noquote() << QString("HDF5 %1: S_matrix has no shear_basis attribute; "
+                                    "treating it as legacy TENSOR shear basis and converting "
+                                    "to engineering (S_eng = D*S, C_eng = inv(S_eng))")
+                                .arg(QString::fromStdString(prefix));
+    for (int i = 3; i < 6; ++i)
+        for (int j = 0; j < 6; ++j) S[i][j] *= 2.0;
+    return invert6x6(S, C);
+}
+
 // See stressresult.h for what this writes and why it lives here.
 QString saveStiffnessMatrixToHDF5(const QString& filename,
                                   const StiffnessMatrixResult& r,
@@ -104,6 +134,7 @@ QString saveStiffnessMatrixToHDF5(const QString& filename,
     hdf5.write(prefix, "S_matrix",         mat_S);
     hdf5.write(prefix, "C_matrix",         mat_C);
     hdf5.write(prefix, "P_matrix",         mat_P);
+    writeShearBasisAttribute(hdf5, prefix);
     hdf5.write(prefix, "Effective_Moduli", moduli);
     hdf5.write(prefix, "seed",             int(seed));
     hdf5.write(prefix, "solver",           solver);
@@ -283,6 +314,61 @@ bool HDF5Wrapper::datasetExists(const std::string& dataGroup, const std::string&
     // component traversal failures return <= 0 silently without terminal spam.
     H5Eset_auto(H5E_DEFAULT, NULL, NULL);
     return H5Lexists(file, fullPath(dataGroup, dataSetName).c_str(), H5P_DEFAULT) > 0;
+}
+
+void HDF5Wrapper::writeStringAttribute(const std::string& dataGroup, const std::string& dataSetName,
+                                       const std::string& attrName, const QString& value)
+{
+    if (!datasetExists(dataGroup, dataSetName)) {
+        qWarning() << "HDF5: no dataset" << fullPath(dataGroup, dataSetName).c_str()
+                   << "-- cannot write attribute" << attrName.c_str();
+        return;
+    }
+    hid_t dataset = H5Dopen(file, fullPath(dataGroup, dataSetName).c_str(), H5P_DEFAULT);
+    if (checkError(dataset, "writeStringAttribute: Failed to open dataset"))
+        return;
+
+    if (H5Aexists(dataset, attrName.c_str()) > 0)
+        H5Adelete(dataset, attrName.c_str());
+
+    const QByteArray bytes = value.toUtf8();
+    hid_t type = H5Tcopy(H5T_C_S1);
+    H5Tset_size(type, std::max<size_t>(1, static_cast<size_t>(bytes.size())));
+    H5Tset_strpad(type, H5T_STR_NULLPAD);
+    hid_t space = H5Screate(H5S_SCALAR);
+    hid_t attr = H5Acreate2(dataset, attrName.c_str(), type, space, H5P_DEFAULT, H5P_DEFAULT);
+    if (!checkError(attr, "writeStringAttribute: Failed to create attribute " + attrName)) {
+        H5Awrite(attr, type, bytes.constData());
+        H5Aclose(attr);
+    }
+    H5Sclose(space);
+    H5Tclose(type);
+    H5Dclose(dataset);
+}
+
+QString HDF5Wrapper::readStringAttribute(const std::string& dataGroup, const std::string& dataSetName,
+                                         const std::string& attrName)
+{
+    if (!datasetExists(dataGroup, dataSetName))
+        return {};
+    hid_t dataset = H5Dopen(file, fullPath(dataGroup, dataSetName).c_str(), H5P_DEFAULT);
+    if (dataset < 0)
+        return {};
+
+    QString out;
+    if (H5Aexists(dataset, attrName.c_str()) > 0) {
+        hid_t attr = H5Aopen(dataset, attrName.c_str(), H5P_DEFAULT);
+        hid_t type = H5Aget_type(attr);
+        if (H5Tget_class(type) == H5T_STRING && !H5Tis_variable_str(type)) {
+            QByteArray buf(static_cast<int>(H5Tget_size(type)), 0);
+            H5Aread(attr, type, buf.data());
+            out = QString::fromUtf8(buf.constData(), static_cast<int>(qstrnlen(buf.constData(), buf.size())));
+        }
+        H5Tclose(type);
+        H5Aclose(attr);
+    }
+    H5Dclose(dataset);
+    return out;
 }
 
 bool HDF5Wrapper::checkError(hid_t id, const std::string& message)
