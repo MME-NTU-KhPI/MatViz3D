@@ -161,15 +161,15 @@ void Hdf5ProjectController::reloadGeometryMetadata(int geomSetNum)
     }
 
     if (hdf5.datasetExists(prefix, "C_matrix")) {
-        auto mat_C = hdf5.readVectorVectorFloat(prefix, "C_matrix");
-        auto mat_S = hdf5.readVectorVectorFloat(prefix, "S_matrix");
+        double S_eng[6][6], C_eng[6][6];
+        const bool okSC = readElasticMatricesEngineering(hdf5, prefix, S_eng, C_eng);
         auto moduli = hdf5.readVectorFloat(prefix, "Effective_Moduli");
 
-        if (mat_C.size() == 6 && mat_S.size() == 6) {
+        if (okSC) {
             for (int i = 0; i < 6; ++i) {
                 for (int j = 0; j < 6; ++j) {
-                    m_C[i][j] = mat_C[i][j];
-                    m_S[i][j] = mat_S[i][j];
+                    m_C[i][j] = C_eng[i][j];
+                    m_S[i][j] = S_eng[i][j];
                 }
             }
             if (moduli.size() >= 6) {

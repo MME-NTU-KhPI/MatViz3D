@@ -110,7 +110,7 @@ Even so, the basic scheme converges linearly in phase contrast, and it is slower
 
 Useful self-checks, all cheap and all falsifiable. Every one of these holds for **both** backends, and the first three are exact because a homogeneous cell is BC-independent:
 - both phases the same material must return that material's own constants (Epoxy -> E = 3.509 GPa, E-glass -> 71.99 GPa);
-- a 1D cell of C-fiber must return C-fiber's own constants (Ez = 230, Ex = Ey = 15, Gxy = 7.01, Gyz = Gxz = 15 GPa — note the moduli are reported as 1/S_ii, so the shears print at 2x);
+- a 1D cell of C-fiber must return C-fiber's own constants (Ez = 230, Ex = Ey = 15, Gxy = 7.01, Gyz = Gxz = 15 GPa — S/C are in the engineering shear basis (gamma = 2*eps), so C44 = G and 1/S_ii prints the shear moduli directly);
 - a two-material cell whose materials happen to be identical must return the same, which is what proves material 2 is defined and its mat_id resolves;
 - a 2D crossed cell must give Ex == Ey, and a 3D orthogonal cell with an isotropic matrix Ex == Ey == Ez (FFT only — periodic);
 - a UD carbon/epoxy cell must match the rule of mixtures on the axial modulus: at the achieved Vf = 0.4444, `Vf*230 + (1-Vf)*3.5` = 104.2 GPa, and ANSYS returns 104.2 GPa.

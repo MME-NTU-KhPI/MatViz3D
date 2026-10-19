@@ -836,6 +836,25 @@ bool HillCriterion::computeCholesky5D() {
 //    4. Convert to strain via elastic compliance tensor S
 //    5. Normalise to target strain_val
 // ─────────────────────────────────────────────────────────────────────────────
+// S is the ENGINEERING-shear compliance (gamma = 2*eps), so S*sigma yields
+// engineering shear; the loading the solvers take (eps_as_loading) carries
+// TENSOR shear, hence the halving. The tensor strain is then scaled to norm
+// strain_val. Returns false for a (numerically) zero strain.
+bool HillCriterion::stressToStrainLoad(const double S[6][6], const double d_sigma[6],
+                                       double strain_val, double eps_out[6])
+{
+    double d_eps[6] = {0}, eps_norm_sq = 0;
+    for (int i = 0; i < 6; ++i) {
+        for (int j = 0; j < 6; ++j) d_eps[i] += S[i][j] * d_sigma[j];
+        if (i >= 3) d_eps[i] *= 0.5;            // gamma -> tensor shear
+        eps_norm_sq += d_eps[i] * d_eps[i];
+    }
+    const double eps_norm = std::sqrt(eps_norm_sq);
+    if (eps_norm < 1e-30) return false;
+    for (int i = 0; i < 6; ++i) eps_out[i] = (d_eps[i] / eps_norm) * strain_val;
+    return true;
+}
+
 std::vector<std::vector<double>> HillCriterion::generateLoads(
     int num_samples, double strain_val, const double S[6][6])
 {
@@ -911,15 +930,8 @@ std::vector<std::vector<double>> HillCriterion::generateLoads(
     int n_edges   = num_samples - n_uniform;
 
     auto addLoad = [&](const std::array<double,6>& d_sigma) {
-        double d_eps[6]={0}, eps_norm_sq=0;
-        for(int i=0;i<6;i++){
-            for(int j=0;j<6;j++) d_eps[i]+=S[i][j]*d_sigma[j];
-            eps_norm_sq+=d_eps[i]*d_eps[i];
-        }
-        double eps_norm=std::sqrt(eps_norm_sq);
-        if(eps_norm<1e-30) return false;
         std::vector<double> eps(6);
-        for(int i=0;i<6;i++) eps[i]=(d_eps[i]/eps_norm)*strain_val;
+        if(!stressToStrainLoad(S, d_sigma.data(), strain_val, eps.data())) return false;
         load_cases.push_back(eps);
         return true;
     };

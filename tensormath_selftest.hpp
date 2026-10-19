@@ -634,8 +634,8 @@ inline void testElastic(Ctx& c)
         c.check(gMean >= gMin && gMean <= gMax, "G mean lies within [min, max]");
     }
 
-    // Pipeline <-> Mandel round trip.  Build a pipeline C by inverting
-    // pipelineC_to_mandel's four cases, then convert back.
+    // Pipeline <-> Mandel round trip.  Build an engineering-basis pipeline C
+    // by inverting pipelineC_to_mandel's cases, then convert back.
     {
         const double s2 = std::sqrt(2.0);
         double Cp[6][6] = {{0}};
@@ -643,9 +643,8 @@ inline void testElastic(Ctx& c)
             for (int b = 0; b < 6; ++b) {
                 const int pa = kMandelToPipeline[a], pb = kMandelToPipeline[b];
                 if      (a < 3 && b < 3) Cp[pa][pb] = Cm[a][b];
-                else if (a < 3)          Cp[pa][pb] = s2 * Cm[a][b];
-                else if (b < 3)          Cp[pa][pb] = Cm[a][b] / s2;
-                else                     Cp[pa][pb] = Cm[a][b];
+                else if (a < 3 || b < 3) Cp[pa][pb] = Cm[a][b] / s2;
+                else                     Cp[pa][pb] = Cm[a][b] / 2.0;
             }
 
         const Mat6 back = pipelineC_to_mandel(Cp);
@@ -658,25 +657,24 @@ inline void testElastic(Ctx& c)
         c.check(maxErr <= 1e-9 * scale, "pipeline <-> Mandel round trip", maxErr, 0.0);
     }
 
-    // The factor-2 asymmetry of a pipeline-basis C is real and load-bearing.
-    // Build one with non-zero normal<->shear coupling (a monoclinic-ish matrix)
-    // and confirm Cp[i][j] == 2 * Cp[j][i] across the coupling block.
+    // An engineering-basis pipeline C is symmetric and its coupling block is
+    // the Voigt one. Build one with non-zero normal<->shear coupling (a
+    // monoclinic-ish matrix) and confirm both across the coupling block.
     {
-        const double s2 = std::sqrt(2.0);
         double Vm[6][6];
         cubicVoigt(c11, c12, c44, Vm);
         Vm[0][5] = Vm[5][0] = 17.0;          // xx <-> xy coupling, Voigt
         Vm[1][5] = Vm[5][1] = -9.0;
         const Mat6 Mm = voigtC_to_mandel(Vm);
 
+        const double s2 = std::sqrt(2.0);
         double Cp[6][6] = {{0}};
         for (int a = 0; a < 6; ++a)
             for (int b = 0; b < 6; ++b) {
                 const int pa = kMandelToPipeline[a], pb = kMandelToPipeline[b];
                 if      (a < 3 && b < 3) Cp[pa][pb] = Mm[a][b];
-                else if (a < 3)          Cp[pa][pb] = s2 * Mm[a][b];
-                else if (b < 3)          Cp[pa][pb] = Mm[a][b] / s2;
-                else                     Cp[pa][pb] = Mm[a][b];
+                else if (a < 3 || b < 3) Cp[pa][pb] = Mm[a][b] / s2;
+                else                     Cp[pa][pb] = Mm[a][b] / 2.0;
             }
 
         bool sawCoupling = false;
@@ -684,10 +682,13 @@ inline void testElastic(Ctx& c)
             for (int j = 3; j < 6; ++j) {
                 if (std::abs(Cp[j][i]) < 1e-9) continue;
                 sawCoupling = true;
-                c.near(Cp[i][j], 2.0 * Cp[j][i], 1e-9 * std::abs(Cp[i][j]),
-                       "pipeline C coupling block satisfies C[i][j] == 2*C[j][i]");
+                c.near(Cp[i][j], Cp[j][i], 1e-9 * std::abs(Cp[i][j]),
+                       "pipeline C coupling block is symmetric (engineering basis)");
             }
         c.check(sawCoupling, "coupling test actually exercised a non-zero coupling term");
+        c.near(Cp[0][3], 17.0, 1e-9, "pipeline C xx<->xy coupling equals the Voigt value");
+        const Mat6 back = pipelineC_to_mandel(Cp);
+        c.near(back[0][5], Mm[0][5], 1e-9 * std::abs(Mm[0][5]), "coupling survives pipeline -> Mandel");
     }
 }
 

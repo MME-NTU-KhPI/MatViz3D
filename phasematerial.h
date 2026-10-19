@@ -38,6 +38,27 @@ struct PhaseMaterial {
                sameAs(C[4][4], c44) && sameAs(C[5][5], c44) &&
                sameAs(c44, expect44);
     }
+
+    /// True when C has cubic symmetry in its own axes: C11=C22=C33,
+    /// C12=C13=C23, C44=C55=C66 and no normal-shear or shear-shear coupling.
+    bool isCubic(double tol = 1e-6) const
+    {
+        const double c11 = C[0][0], c12 = C[0][1], c44 = C[3][3];
+        if (c11 <= 0.0) return false;
+        auto sameAs = [&](double a, double b) {
+            return std::abs(a - b) <= tol * std::max(1.0, std::abs(c11));
+        };
+        if (!(sameAs(C[1][1], c11) && sameAs(C[2][2], c11) &&
+              sameAs(C[0][2], c12) && sameAs(C[1][2], c12) &&
+              sameAs(C[4][4], c44) && sameAs(C[5][5], c44)))
+            return false;
+        for (int i = 0; i < 6; ++i)
+            for (int j = 0; j < 6; ++j) {
+                const bool normalBlock = (i < 3 && j < 3);
+                if (!normalBlock && i != j && !sameAs(C[i][j], 0.0)) return false;
+            }
+        return true;
+    }
 };
 
 /**

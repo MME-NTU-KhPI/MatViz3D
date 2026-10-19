@@ -35,13 +35,29 @@ static FFTSolverSession makeSession(int N, const std::vector<int>& grain_field,
                                     double C11, double C12, double C44,
                                     GrainMaterials& gm)
 {
+    // Full 6x6 of the selected material, so non-cubic materials survive
+    PhaseMaterial single;
+    single.name = Parameters::instance()->getDbMaterial();
+    Parameters::stiffnessPa(single.C);
+
     gm = resolveGrainMaterials(nGrains, Parameters::seed, forced,
                                Parameters::textureComponents,
                                Parameters::phaseAssignment,
-                               C11, C12, C44);
+                               C11, C12, C44, &single);
 
-    if (!gm.multiPhase)
-        return FFTSolverSession(N, N, N, grain_field, gm.orientation, C11, C12, C44);
+    if (!gm.multiPhase) {
+        fftsa::Mat6 base_voigt = {};
+        double C_raw[6][6] = {{0}};
+
+        // Full stiffness matrix from the mat_C cache (no database access on
+        // this worker thread)
+        Parameters::stiffnessPa(C_raw);
+        for (int i = 0; i < 6; ++i)
+            for (int j = 0; j < 6; ++j)
+                base_voigt[i][j] = C_raw[i][j];
+
+        return FFTSolverSession(N, N, N, grain_field, gm.orientation, base_voigt);
+    }
 
     // Count the grains per phase so the log says what was actually solved
     // rather than just what was configured.
@@ -192,16 +208,11 @@ void StressAnalysisFFT::estimateStressWithFFT(short int numCubes, short int numP
             if (norm < 1e-12) { --n; continue; }
             for (int i = 0; i < 6; ++i) d_sigma[i] /= norm;
 
-            // stress dir -> strain dir via S, renormalised to strain_val
-            Vec6 eps{}; double eps_ns = 0.0;
-            for (int i = 0; i < 6; ++i) {
-                double acc = 0.0;
-                for (int j = 0; j < 6; ++j) acc += S_matrix[i][j] * d_sigma[j];
-                eps[i] = acc; eps_ns += acc*acc;
+            // stress dir -> tensor-shear strain via engineering S, renormalised to strain_val
+            Vec6 eps{};
+            if (!HillCriterion::stressToStrainLoad(S_matrix, d_sigma, strain_val, eps.data())) {
+                ++skipped; continue;
             }
-            const double en = std::sqrt(eps_ns);
-            if (en < 1e-30) { ++skipped; continue; }
-            for (int i = 0; i < 6; ++i) eps[i] = eps[i] / en * strain_val;
 
             auto r = session.solveLoadCase(eps);
             ++solved;
@@ -344,6 +355,7 @@ void StressAnalysisFFT::estimateStressWithFFT(short int numCubes, short int numP
         hdf5.write(prefix, "S_matrix", mat_S);
         hdf5.write(prefix, "C_matrix", mat_C);
         hdf5.write(prefix, "P_matrix", mat_P);
+        writeShearBasisAttribute(hdf5, prefix);
 
         auto safe_inv = [](double v){ return (std::abs(v) > 1e-20) ? float(1.0/v) : 0.0f; };
         std::vector<float> moduli = {
@@ -352,7 +364,7 @@ void StressAnalysisFFT::estimateStressWithFFT(short int numCubes, short int numP
         };
         hdf5.write(prefix, "Effective_Moduli", moduli);
         qDebug() << QString("[StressAnalysisFFT] Effective moduli (1/Sii) [Pa]: "
-                            "Ex=%1 Ey=%2 Ez=%3  (shear entries are 2G under tensor-strain S)")
+                            "Ex=%1 Ey=%2 Ez=%3  (shear entries are G, engineering-strain S)")
                         .arg(moduli[0],0,'e',3).arg(moduli[1],0,'e',3).arg(moduli[2],0,'e',3);
 
         // final P_Hill from the main-run yield points
@@ -541,13 +553,15 @@ StiffnessMatrixResult StressAnalysisFFT::computeStiffnessMatrix(short int numCub
              << " tol =" << fft_tol << " max_iter =" << fft_max_iter
              << " textureComponents =" << (int)Parameters::textureComponents.size();
 
-    static const char* comp_names[6] = {"exx", "eyy", "ezz", "exy(tensor)", "eyz(tensor)", "exz(tensor)"};
+    static const char* comp_names[6] = {"exx", "eyy", "ezz", "gxy", "gyz", "gxz"};
     double C[6][6] = {{0}};
     int totalIters = 0;
 
     for (int j = 0; j < 6; ++j) {
-        Vec6 e{}; e.fill(0.0); e[j] = 1.0;
-        qDebug() << QString("[StressAnalysisFFT::computeStiffnessMatrix]   Load #%1: %2 = 1.0 (unit tensor strain)")
+        Vec6 e{}; e.fill(0.0);
+        // Shear components get e[j] = 0.5, i.e. engineering gamma = 1.0
+        e[j] = (j >= 3) ? 0.5 : 1.0;
+        qDebug() << QString("[StressAnalysisFFT::computeStiffnessMatrix]   Load #%1: %2 = 1.0 (unit engineering strain)")
                         .arg(j + 1).arg(comp_names[j]);
 
         auto cb = onIter;
@@ -611,10 +625,8 @@ StiffnessMatrixResult StressAnalysisFFT::computeStiffnessMatrix(short int numCub
                        << ">= tol" << fft_tol << ") -- C/S may be inaccurate for this column";
     }
 
-    // Symmetrize. NOT a plain average: C here is pipeline-basis, built from
-    // unit TENSOR strains, so its normal<->shear coupling block satisfies
-    // C[i][j] == 2*C[j][i] by construction and a plain average would destroy
-    // both entries. See symmetrizePipelineC() in stressresult.h.
+    // Symmetrize: C is in the engineering shear basis, hence symmetric up to
+    // numerical noise. See symmetrizePipelineC() in stressresult.h.
     symmetrizePipelineC(C);
 
     if (!invert6x6(C, r.S)) {

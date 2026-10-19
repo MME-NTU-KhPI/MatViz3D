@@ -6,6 +6,14 @@
 #include <random>
 #include <QRegularExpression>
 #include "hillcriterion.h"
+#include "ansyswrapper.h"
+#include <QFile>
+#include <QTextStream>
+#include <QTemporaryDir>
+#include "stressresult.h"
+#include "fft_solver_session.hpp"
+#include "tensormath.hpp"
+#include "hdf5wrapper.h"
 
 void TestHillCriterion::init()
 {
@@ -301,4 +309,261 @@ void TestHillCriterion::testGenerateLoadsDefaultEqualsExplicitSchmid5D()
     const auto lc = c.generateLoads(100, 1e-3, S);
     QCOMPARE(lc.size(), size_t(100));
     QVERIFY(lc != la);
+}
+
+namespace {
+// Exposes the protected temp dir so the test can drop synthetic result files
+// where load_loadstep() reads them, without launching ANSYS.
+struct ElasticFitWrapper : public ansysWrapper {
+    ElasticFitWrapper() : ansysWrapper(true, false) {}
+    QString filePath(const QString& name) const { return tempDir.filePath(name); }
+};
+
+// One fixed-width field as load_loadstep() slices it: 16 chars + separator.
+QString field(double v) { return QString("%1;").arg(v, 16, 'g', 17); }
+}
+
+void TestHillCriterion::testElasticPropertiesEngineeringShearBasis()
+{
+    // Synthetic anisotropic compliance in the ENGINEERING shear basis
+    // (eps_eng = [exx,eyy,ezz,gxy,gyz,gxz] = S_eng * sigma). Symmetric,
+    // diagonally dominant (so positive definite), with normal-shear coupling.
+    // Dyadic entries + integer stresses keep every value exact in float.
+    const double S_eng[6][6] = {
+        { 4.0,  -1.0,  -1.5,   0.5,   0.0,   0.0 },
+        {-1.0,   4.0,  -1.0,   0.0,   0.25,  0.0 },
+        {-1.5,  -1.0,   5.0,   0.0,   0.0,   0.0 },
+        { 0.5,   0.0,   0.0,   6.0,   0.0,   0.5 },
+        { 0.0,   0.25,  0.0,   0.0,   7.0,   0.0 },
+        { 0.0,   0.0,   0.0,   0.5,   0.0,   8.0 },
+    };
+
+    ElasticFitWrapper wr;
+    std::mt19937 rng(12345);
+    std::uniform_int_distribution<int> dist(-5, 5);
+    const int nSteps = 30;
+
+    for (int k = 0; k < nSteps; ++k) {
+        double sigma[6];
+        for (double& v : sigma) v = dist(rng);
+        double eps_eng[6] = {0};
+        for (int i = 0; i < 6; ++i)
+            for (int j = 0; j < 6; ++j) eps_eng[i] += S_eng[i][j] * sigma[j];
+
+        // The loading is stored the way the pipeline stores it: TENSOR shear.
+        std::vector<float> load(6);
+        for (int i = 0; i < 6; ++i)
+            load[i] = float(i >= 3 ? eps_eng[i] / 2.0 : eps_eng[i]);
+        wr.eps_as_loading.push_back(load);
+
+        // Nodal table: ID;X;Y;Z;UX;UY;UZ;SX..SXZ;EpsX..EpsXZ (one node).
+        QFile ls(wr.filePath(QString("ls_%1.csv").arg(k + 1)));
+        QVERIFY(ls.open(QIODevice::WriteOnly | QIODevice::Text));
+        QTextStream out(&ls);
+        out << "header\n" << field(1);
+        for (int c = 0; c < 6; ++c) out << field(0);
+        for (double v : sigma) out << field(v);
+        for (float v : load) out << field(v);
+        out << "\n";
+        ls.close();
+
+        // Element table: SX..SXZ;EpsX..EpsXZ (the exact volume average).
+        QFile lse(wr.filePath(QString("lse_%1.csv").arg(k + 1)));
+        QVERIFY(lse.open(QIODevice::WriteOnly | QIODevice::Text));
+        QTextStream oute(&lse);
+        oute << "header\n";
+        for (double v : sigma) oute << field(v);
+        for (float v : load) oute << field(v);
+        oute << "\n";
+        lse.close();
+    }
+
+    const auto res = wr.calculateElasticProperties();
+    QVERIFY(res.isValid);
+
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 6; ++j) {
+            const double scale = std::max(std::abs(S_eng[i][j]), std::abs(S_eng[i][i]));
+            const double relErr = std::abs(res.S[i][j] - S_eng[i][j]) / scale;
+            if (relErr >= 1e-6)
+                QFAIL(qPrintable(QString("S[%1][%2] = %3, expected %4 (rel err %5)")
+                                     .arg(i).arg(j).arg(res.S[i][j]).arg(S_eng[i][j]).arg(relErr)));
+            QVERIFY(std::abs(res.S[i][j] - res.S[j][i]) <= 1e-12 * scale);
+        }
+}
+
+namespace {
+// Engineering-basis compliance (pipeline order xx,yy,zz,xy,yz,xz) with
+// normal<->shear coupling, in 1/Pa. Symmetric and diagonally dominant.
+void engineeringComplianceWithCoupling(double S[6][6])
+{
+    const double base[6][6] = {
+        { 4.0,  -1.0,  -1.5,   0.5,   0.0,   0.0 },
+        {-1.0,   4.0,  -1.0,   0.0,   0.25,  0.0 },
+        {-1.5,  -1.0,   5.0,   0.0,   0.0,   0.3 },
+        { 0.5,   0.0,   0.0,   6.0,   0.0,   0.5 },
+        { 0.0,   0.25,  0.0,   0.0,   7.0,   0.0 },
+        { 0.0,   0.0,   0.3,   0.5,   0.0,   8.0 },
+    };
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 6; ++j) S[i][j] = base[i][j] * 1e-12;
+}
+}
+
+void TestHillCriterion::testSymmetrizeKeepsSymmetricEngineeringC()
+{
+    double S[6][6], C[6][6];
+    engineeringComplianceWithCoupling(S);
+    QVERIFY(invert6x6(S, C));
+    for (int i = 0; i < 6; ++i)                    // exact symmetry
+        for (int j = i + 1; j < 6; ++j) C[j][i] = C[i][j];
+    QVERIFY(std::abs(C[0][3]) > 0.0);              // coupling really present
+
+    double Cq[6][6];
+    std::copy(&C[0][0], &C[0][0] + 36, &Cq[0][0]);
+    symmetrizePipelineC(Cq);
+
+    fftsa::Mat6 Cm{};
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 6; ++j) Cm[i][j] = C[i][j];
+    fftsa::symmetrize_pipeline_C(Cm);
+
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 6; ++j) {
+            QCOMPARE(Cq[i][j], C[i][j]);
+            QCOMPARE(Cm[i][j], C[i][j]);
+        }
+}
+
+void TestHillCriterion::testStressToStrainLoadHalvesShear()
+{
+    double S[6][6];
+    engineeringComplianceWithCoupling(S);
+    const double sigma[6] = { 0.3, -0.7, 0.2, 0.5, -0.4, 0.6 };
+    const double strain_val = 1e-3;
+
+    double eps_eng[6] = {0};
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 6; ++j) eps_eng[i] += S[i][j] * sigma[j];
+    double expected[6], n2 = 0;
+    for (int i = 0; i < 6; ++i) {
+        expected[i] = (i >= 3) ? eps_eng[i] / 2.0 : eps_eng[i];
+        n2 += expected[i] * expected[i];
+    }
+    for (double& v : expected) v *= strain_val / std::sqrt(n2);
+
+    double eps[6];
+    QVERIFY(HillCriterion::stressToStrainLoad(S, sigma, strain_val, eps));
+    for (int i = 0; i < 6; ++i)
+        QVERIFY2(std::abs(eps[i] - expected[i]) <= 1e-12 * strain_val,
+                 qPrintable(QString("eps[%1] = %2, expected %3").arg(i).arg(eps[i]).arg(expected[i])));
+    // Shear entries are exactly half the engineering strain, on the same scale
+    const double k = eps[0] / eps_eng[0];
+    for (int i = 3; i < 6; ++i)
+        QVERIFY(std::abs(eps[i] - k * eps_eng[i] / 2.0) <= 1e-12 * strain_val);
+}
+
+void TestHillCriterion::testGenerateLoadsUsesEngineeringCompliance()
+{
+    // von Mises + deviatoric5d: every load comes from a deviatoric stress
+    // direction. Undoing the loading (D*eps -> sigma = C_eng*eps_eng) must
+    // give back a traceless stress; skipping the shear halving would not,
+    // because the compliance couples shear into the normal block.
+    double S[6][6], C[6][6];
+    engineeringComplianceWithCoupling(S);
+    QVERIFY(invert6x6(S, C));
+
+    HillCriterion h;
+    h.setYieldSettings("vonmises", "deviatoric5d", 120e6);
+    QVERIFY(h.fit(deviatoricSpherePoints(40, 100.0e6, 3)));
+    const auto loads = h.generateLoads(50, 1e-3, S);
+    QCOMPARE(loads.size(), size_t(50));
+
+    for (const auto& eps : loads) {
+        double eps_eng[6];
+        for (int i = 0; i < 6; ++i) eps_eng[i] = (i >= 3) ? 2.0 * eps[i] : eps[i];
+        double sig[6] = {0}, n2 = 0;
+        for (int i = 0; i < 6; ++i) {
+            for (int j = 0; j < 6; ++j) sig[i] += C[i][j] * eps_eng[j];
+            n2 += sig[i] * sig[i];
+        }
+        const double tr = sig[0] + sig[1] + sig[2];
+        QVERIFY2(std::abs(tr) <= 1e-9 * std::sqrt(n2),
+                 qPrintable(QString("recovered stress not deviatoric: tr/|s| = %1")
+                                .arg(tr / std::sqrt(n2))));
+    }
+}
+
+void TestHillCriterion::testPipelineCToMandelIsotropic()
+{
+    const double E = 200e9, nu = 0.3;
+    const double G = E / (2.0 * (1.0 + nu));
+    double Cv[6][6];
+    isotropicVoigt(E, nu, Cv);                     // engineering: C44 = G
+    QVERIFY(std::abs(Cv[3][3] - G) <= 1e-9 * G);
+
+    const mvt::Mat6 M = mvt::pipelineC_to_mandel(Cv);
+    for (int a = 0; a < 3; ++a)
+        QVERIFY(std::abs(M[a][a] - Cv[0][0]) <= 1e-9 * Cv[0][0]);
+    for (int a = 3; a < 6; ++a)
+        QVERIFY2(std::abs(M[a][a] - 2.0 * G) <= 1e-9 * G,
+                 qPrintable(QString("Mandel[%1][%1] = %2, expected 2G = %3").arg(a).arg(M[a][a]).arg(2.0 * G)));
+}
+
+void TestHillCriterion::testHdf5LegacyTensorBasisConverted()
+{
+    double S_eng[6][6], C_eng[6][6];
+    engineeringComplianceWithCoupling(S_eng);
+    QVERIFY(invert6x6(S_eng, C_eng));
+
+    // The same material as a legacy file would hold it: tensor shear rows.
+    double S_ten[6][6], C_ten[6][6];
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 6; ++j) S_ten[i][j] = (i >= 3) ? S_eng[i][j] / 2.0 : S_eng[i][j];
+    QVERIFY(invert6x6(S_ten, C_ten));
+
+    auto toFloat = [](const double M[6][6]) {
+        std::vector<std::vector<float>> out(6, std::vector<float>(6));
+        for (int i = 0; i < 6; ++i)
+            for (int j = 0; j < 6; ++j) out[i][j] = float(M[i][j]);
+        return out;
+    };
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const std::string newPath = dir.filePath("new.h5").toStdString();
+    const std::string oldPath = dir.filePath("legacy.h5").toStdString();
+    {
+        HDF5Wrapper h(newPath);
+        h.write("/1", "S_matrix", toFloat(S_eng));
+        h.write("/1", "C_matrix", toFloat(C_eng));
+        writeShearBasisAttribute(h, "/1");
+    }
+    {
+        HDF5Wrapper h(oldPath);
+        h.write("/1", "S_matrix", toFloat(S_ten));
+        h.write("/1", "C_matrix", toFloat(C_ten));
+    }
+
+    double Sn[6][6], Cn[6][6], So[6][6], Co[6][6];
+    {
+        HDF5Wrapper h(newPath);
+        QCOMPARE(h.readStringAttribute("/1", "S_matrix", "shear_basis"), QString("engineering"));
+        QVERIFY(readElasticMatricesEngineering(h, "/1", Sn, Cn));
+    }
+    {
+        HDF5Wrapper h(oldPath);
+        QTest::ignoreMessage(QtWarningMsg, QRegularExpression("no shear_basis attribute"));
+        QVERIFY(readElasticMatricesEngineering(h, "/1", So, Co));
+    }
+
+    double scale = 0;
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 6; ++j) scale = std::max(scale, std::abs(C_eng[i][j]));
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 6; ++j) {
+            QVERIFY(std::abs(Cn[i][j] - C_eng[i][j]) <= 1e-5 * scale);
+            QVERIFY2(std::abs(Co[i][j] - Cn[i][j]) <= 1e-5 * scale,
+                     qPrintable(QString("C[%1][%2]: legacy %3 vs new %4").arg(i).arg(j).arg(Co[i][j]).arg(Cn[i][j])));
+        }
 }

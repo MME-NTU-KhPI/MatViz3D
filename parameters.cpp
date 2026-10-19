@@ -66,6 +66,14 @@ double  Parameters::mat_c11 = 168.40;    // GPa, Cu -- the solvers' historical d
 double  Parameters::mat_c12 = 121.40;
 double  Parameters::mat_c44 = 75.40;
 QString Parameters::mat_type = "fcc";
+double  Parameters::mat_C[6][6] = {    // GPa, Cu default (cubic)
+    {168.40, 121.40, 121.40,  0.00,  0.00,  0.00},
+    {121.40, 168.40, 121.40,  0.00,  0.00,  0.00},
+    {121.40, 121.40, 168.40,  0.00,  0.00,  0.00},
+    {  0.00,   0.00,   0.00, 75.40,  0.00,  0.00},
+    {  0.00,   0.00,   0.00,  0.00, 75.40,  0.00},
+    {  0.00,   0.00,   0.00,  0.00,  0.00, 75.40},
+};
 
 QString Parameters::texture_preset   = "random";
 double  Parameters::texture_scatter  = 11.0;
@@ -145,6 +153,10 @@ void Parameters::resetDefaults()
     mat_c12 = 121.40;
     mat_c44 = 75.40;
     mat_type = "fcc";
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 6; ++j)
+            mat_C[i][j] = (i < 3 && j < 3) ? (i == j ? 168.40 : 121.40)
+                                           : (i == j ? 75.40 : 0.0);
     texture_preset = "random";
     texture_scatter = 11.0;
     lattice_override = "";
@@ -740,6 +752,28 @@ void Parameters::setDbMaterial(const QString& value)
                    << mat_c11 << mat_c12 << mat_c44 << "GPa";
     }
 
+    // Cache the full 6x6 stiffness so the solvers keep non-cubic components.
+    double G[6][6] = {{0}};
+    QString gType;
+    if (value.isEmpty()) {
+        // Back to the built-in Cu constants.
+        for (int i = 0; i < 6; ++i)
+            for (int j = 0; j < 6; ++j)
+                G[i][j] = (i < 3 && j < 3) ? (i == j ? 168.40 : 121.40)
+                                           : (i == j ? 75.40 : 0.0);
+        std::copy(&G[0][0], &G[0][0] + 36, &mat_C[0][0]);
+    } else if (DBManager::stiffnessMatrix(value, G, gType) && G[0][0] > 0.0) {
+        std::copy(&G[0][0], &G[0][0] + 36, &mat_C[0][0]);
+    } else {
+        // No usable full matrix: leaving mat_C alone would keep the previous
+        // material's stiffness behind this one's name, so rebuild it from the
+        // cubic constants resolved above instead.
+        qWarning() << "material" << value
+                   << "has no usable 6x6 stiffness in the database; using the cubic"
+                   << "matrix from C11/C12/C44 =" << mat_c11 << mat_c12 << mat_c44 << "GPa";
+        cubicVoigt(mat_c11, mat_c12, mat_c44, mat_C);
+    }
+
     // The lattice may have flipped fcc <-> bcc, and the presets differ per
     // lattice, so the texture has to follow the material.
     rebuildTextureFromPreset();
@@ -918,6 +952,13 @@ void Parameters::cubicConstantsPa(double& c11, double& c12, double& c44)
     c11 = mat_c11 * 1e9;
     c12 = mat_c12 * 1e9;
     c44 = mat_c44 * 1e9;
+}
+
+void Parameters::stiffnessPa(double C[6][6])
+{
+    // GPa -> Pa for the solvers.
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 6; ++j) C[i][j] = mat_C[i][j] * 1e9;
 }
 
 bool Parameters::materialStiffnessPa(const QString& name, double C[6][6])

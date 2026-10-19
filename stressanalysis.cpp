@@ -38,11 +38,17 @@ static GrainMaterials sharedGrainMaterialsFor(short int numCubes,
 
     // Same resolver StressAnalysisFFT::makeSession() calls, so for one seed the
     // two backends see the identical per-grain orientation AND constituent.
+    // Full 6x6 of the selected material, so non-cubic materials (hcp, ti)
+    // keep C13, C33, C66 instead of being flattened onto a cubic triple.
+    PhaseMaterial single;
+    single.name = Parameters::instance()->getDbMaterial();
+    Parameters::stiffnessPa(single.C);          // cached, thread-safe
+
     GrainMaterials gm = resolveGrainMaterials(nGrains, Parameters::seed,
                                               useForced ? &forcedOrient : nullptr,
                                               Parameters::textureComponents,
                                               Parameters::phaseAssignment,
-                                              c11, c12, c44);
+                                              c11, c12, c44, &single);
 
     const double r2d = 180.0 / M_PI;
     if (useForced)
@@ -67,12 +73,14 @@ static void applyGrainMaterials(ansysWrapper& wr, const GrainMaterials& gm,
                                 const char* who)
 {
     if (!gm.multiPhase) {
-        double c11 = 0, c12 = 0, c44 = 0;
-        Parameters::cubicConstantsPa(c11, c12, c44);
-        qDebug() << "[" << who << "] Material (cubic anisotropic):"
-                 << Parameters::instance()->getDbMaterial()
-                 << " C11 =" << c11 << " C12 =" << c12 << " C44 =" << c44 << "Pa";
-        wr.setAnisoMaterial(c11, c12, c12, c11, c12, c11, c44, c44, c44);
+        double C[6][6] = {{0}};
+        QString matName = Parameters::instance()->getDbMaterial();
+
+        // Full 6x6 from the mat_C cache (no database access on this worker thread)
+        Parameters::stiffnessPa(C);
+        qDebug() << "[" << who << "] Material (anisotropic, cached):" << matName
+                 << " C11 =" << C[0][0] << " C33 =" << C[2][2] << "Pa";
+        wr.setAnisoMaterial(1, C);
         return;
     }
 
@@ -299,6 +307,7 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
             hdf5.write(prefix, "S_matrix", mat_S);
             hdf5.write(prefix, "C_matrix", mat_C);
             hdf5.write(prefix, "P_matrix", mat_P);
+            writeShearBasisAttribute(hdf5, prefix);
 
             auto safe_inv = [](double val) { return (std::abs(val) > 1e-20) ? static_cast<float>(1.0 / val) : 0.0f; };
             std::vector<float> moduli = {
@@ -526,19 +535,12 @@ bool StressAnalysis::calibrateHillMatrix(short int numCubes, short int numPoints
         if (norm < 1e-12) { --n; ++retries; continue; }
         for (int i = 0; i < 6; ++i) d_sigma[i] /= norm;
 
-        // Strain from stress via S: eps = S * sigma
-        double d_eps[6] = {0}, eps_norm_sq = 0.0;
-        for (int i = 0; i < 6; ++i) {
-            for (int j = 0; j < 6; ++j)
-                d_eps[i] += S_matrix[i][j] * d_sigma[j];
-            eps_norm_sq += d_eps[i] * d_eps[i];
-        }
-        double eps_norm = std::sqrt(eps_norm_sq);
-
-        // Normalise strain to strain_val
+        // Strain from stress via engineering S, as tensor-shear loading
+        // normalised to strain_val
         std::vector<double> eps(6);
-        for (int i = 0; i < 6; ++i)
-            eps[i] = (d_eps[i] / eps_norm) * strain_val;
+        if (!HillCriterion::stressToStrainLoad(S_matrix, d_sigma, strain_val, eps.data())) {
+            --n; ++retries; continue;
+        }
         load_cases.push_back(eps);
     }
 

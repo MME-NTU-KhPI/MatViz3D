@@ -580,16 +580,16 @@ bool StressAnalysisController::loadFromHDF5(const QString& filePath)
 
     std::string prefix = "/" + std::to_string(last_set);
     if (hdf5.datasetExists(prefix, "C_matrix")) {
-        auto mat_C = hdf5.readVectorVectorFloat(prefix, "C_matrix");
-        auto mat_S = hdf5.readVectorVectorFloat(prefix, "S_matrix");
+        double S_eng[6][6], C_eng[6][6];
+        const bool okSC = readElasticMatricesEngineering(hdf5, prefix, S_eng, C_eng);
         auto mat_P = hdf5.readVectorVectorFloat(prefix, "P_matrix");
         auto moduli = hdf5.readVectorFloat(prefix, "Effective_Moduli");
 
-        if (mat_C.size() == 6 && mat_S.size() == 6 && mat_P.size() == 6) {
+        if (okSC && mat_P.size() == 6) {
             for (int i = 0; i < 6; ++i) {
                 for (int j = 0; j < 6; ++j) {
-                    m_lastStiffness.C[i][j] = mat_C[i][j];
-                    m_lastStiffness.S[i][j] = mat_S[i][j];
+                    m_lastStiffness.C[i][j] = C_eng[i][j];
+                    m_lastStiffness.S[i][j] = S_eng[i][j];
                     m_lastStiffness.P[i][j] = mat_P[i][j];
                 }
             }
