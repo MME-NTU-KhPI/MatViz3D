@@ -144,7 +144,31 @@ void Lattice::readParameters()
     m_fourierKmax  = std::max(m_fourierKmin, p.getFourierKmax());
     m_fourierDecay = std::clamp(p.getFourierDecay(), 0.0, 4.0);
     m_fourierFile  = p.getFourierFile();
+    m_cubicSym     = p.getFourierSymmetry().compare(QLatin1String("cubic"), Qt::CaseInsensitive) == 0;
     m_noiseSmooth  = std::clamp(p.getNoiseSmooth(), 0.005, 0.5);
+    m_plateHole    = std::clamp(p.getPlateHole(), 0.0, 0.9);
+
+    // A second family united with the first. Random families keep state in
+    // the same members as the primary, and two segment families would share
+    // one segment table, so those pairs are refused.
+    m_hasUnion = false;
+    const QString unionKey = Parameters::latticeUnionKeyStored();
+    if (!unionKey.isEmpty()) {
+        LatticeFamily u;
+        if (!parseLatticeFamily(unionKey, u)) {
+            qWarning().noquote() << QString("[Lattice] unknown union family \"%1\"; ignored").arg(unionKey);
+        } else if (u == m_family) {
+            qWarning() << "[Lattice] lattice_union equals the cell family; ignored";
+        } else if (isRandomFamily(u)) {
+            qWarning().noquote() << QString("[Lattice] lattice_union cannot be a random family (%1); ignored").arg(unionKey);
+        } else if (isSegmentFamily(u) && isSegmentFamily(m_family)) {
+            qWarning().noquote() << QString("[Lattice] two strut/honeycomb families cannot be united (%1 + %2); ignored")
+                                        .arg(latticeFamilyKey(m_family), unionKey);
+        } else {
+            m_union = u;
+            m_hasUnion = true;
+        }
+    }
 }
 
 // R = Rz(a) * Rx(b) * Rz(c), applied to coordinates about the cube centre.
@@ -224,7 +248,10 @@ void Lattice::buildSegments()
         m_hcStretch = (m_cells * W) / (m_cellsY * P);
     };
 
-    switch (m_family) {
+    // The segment table belongs to whichever of the two families needs it.
+    const LatticeFamily segFam = (m_hasUnion && isSegmentFamily(m_union) && !isSegmentFamily(m_family))
+                                 ? m_union : m_family;
+    switch (segFam) {
         case LatticeFamily::SimpleCubic:
             add(0, 0, 0,  1, 0, 0);  add(0, 0, 0,  0, 1, 0);  add(0, 0, 0,  0, 0, 1);
             break;
@@ -347,6 +374,12 @@ void Lattice::buildWaves()
             } else {
                 drawFrom(cand, m_fourierTerms, m_waves, m_fourierDecay);
             }
+        }
+        // Cubic symmetry: each wave stands for its whole orbit under the 48
+        // symmetries of the cube. Applied to file terms too: the file then
+        // lists the generators.
+        if (m_cubicSym) symmetrizeWaves();
+        if (!loaded) {
             // Unit variance, so the level c means the same thing for every
             // draw. Terms from a file are kept exactly as given: a uniform
             // scale changes c, not the geometry, and the file is the record.
@@ -361,6 +394,34 @@ void Lattice::buildWaves()
 
     if (m_jitter > 0.0)
         drawFrom(candidates(1.0, 2.0 * m_cells, nullptr), 12, m_jitterWaves, 0.0);
+}
+
+// Every wave k -> the distinct images P S k over the 6 axis permutations P
+// and 8 sign patterns S, with the wave's amplitude and phase. Because the
+// cubic group is closed under inversion, the orbit sum is invariant under
+// every element of the group for any phase, so the field has full cubic
+// symmetry and the homogenized stiffness is cubic (Ex = Ey = Ez).
+void Lattice::symmetrizeWaves()
+{
+    static const int perms[6][3] = { {0,1,2}, {0,2,1}, {1,0,2}, {1,2,0}, {2,0,1}, {2,1,0} };
+    std::vector<Wave> out;
+    for (const Wave& w : m_waves) {
+        const double k[3] = { w.kx, w.ky, w.kz };
+        std::vector<std::array<double,3>> seen;
+        for (const int* p : perms)
+            for (int s = 0; s < 8; ++s) {
+                const std::array<double,3> q = { (s & 1 ? -1.0 : 1.0) * k[p[0]],
+                                                 (s & 2 ? -1.0 : 1.0) * k[p[1]],
+                                                 (s & 4 ? -1.0 : 1.0) * k[p[2]] };
+                bool dup = false;
+                for (const std::array<double,3>& r : seen)
+                    if (std::abs(r[0] - q[0]) < 1e-9 && std::abs(r[1] - q[1]) < 1e-9 && std::abs(r[2] - q[2]) < 1e-9) { dup = true; break; }
+                if (dup) continue;
+                seen.push_back(q);
+                out.push_back({ q[0], q[1], q[2], w.phase, w.amp });
+            }
+    }
+    m_waves.swap(out);
 }
 
 // Smoothed noise: Gaussian white noise on the full grid, blurred by a
@@ -517,9 +578,9 @@ std::vector<Lattice::Wave> Lattice::tpmsWaves() const
 //  Fields
 // ─────────────────────────────────────────────────────────────────────────────
 
-bool Lattice::isSheet() const
+bool Lattice::isSheet(LatticeFamily fam) const
 {
-    switch (m_family) {
+    switch (fam) {
         case LatticeFamily::GyroidSheet: case LatticeFamily::SchwarzPSheet:
         case LatticeFamily::SchwarzDSheet: case LatticeFamily::IWPSheet:
         case LatticeFamily::FourierSheet:
@@ -532,14 +593,14 @@ bool Lattice::isSheet() const
 // f and grad f (derivatives with respect to the cube-fraction coordinates)
 // for the level-set families. |f| / |grad f| is the first-order distance to
 // the surface f = 0, which makes a sheet of (nearly) uniform thickness.
-bool Lattice::levelSet(double X, double Y, double Z, double& f, double g[3]) const
+bool Lattice::levelSet(LatticeFamily fam, double X, double Y, double Z, double& f, double g[3]) const
 {
     const double a = 2.0 * kPi * m_cells;
     const double x = a * X, y = a * Y, z = a * Z;
     const double sx = std::sin(x), cx = std::cos(x);
     const double sy = std::sin(y), cy = std::cos(y);
     const double sz = std::sin(z), cz = std::cos(z);
-    switch (m_family) {
+    switch (fam) {
         case LatticeFamily::GyroidSheet:
         case LatticeFamily::GyroidSkeletal:
             f = sx * cy + sy * cz + sz * cx;
@@ -584,38 +645,46 @@ bool Lattice::levelSet(double X, double Y, double Z, double& f, double g[3]) con
 
 double Lattice::rawField(double X, double Y, double Z) const
 {
-    if (m_uniformWall && isSheet()) {
+    double F = familyField(m_family, X, Y, Z);
+    if (m_hasUnion) F = std::min(F, familyField(m_union, X, Y, Z));
+    return F;
+}
+
+double Lattice::familyField(LatticeFamily fam, double X, double Y, double Z) const
+{
+    if (m_uniformWall && isSheet(fam)) {
         double f, g[3];
-        levelSet(X, Y, Z, f, g);
+        levelSet(fam, X, Y, Z, f, g);
         const double gn = std::sqrt(g[0] * g[0] + g[1] * g[1] + g[2] * g[2]);
         // At a critical point on the surface (f = 0, grad f = 0) the ratio is
         // 0/0: that point is on the surface, so it is solid.
         return std::abs(f) / std::max(gn, 1e-12);
     }
-    switch (m_family) {
+    const bool sgn = latticeFamilyInfo(fam).signedLevelSet;
+    switch (fam) {
         case LatticeFamily::GyroidSheet:
         case LatticeFamily::GyroidSkeletal: {
             const double a = 2.0 * kPi * m_cells;
             const double f = gyroidF(a * X, a * Y, a * Z);
-            return m_signed ? f : std::abs(f);
+            return sgn ? f : std::abs(f);
         }
         case LatticeFamily::SchwarzPSheet:
         case LatticeFamily::SchwarzPSkeletal: {
             const double a = 2.0 * kPi * m_cells;
             const double f = schwarzPF(a * X, a * Y, a * Z);
-            return m_signed ? f : std::abs(f);
+            return sgn ? f : std::abs(f);
         }
         case LatticeFamily::SchwarzDSheet:
         case LatticeFamily::SchwarzDSkeletal: {
             const double a = 2.0 * kPi * m_cells;
             const double f = schwarzDF(a * X, a * Y, a * Z);
-            return m_signed ? f : std::abs(f);
+            return sgn ? f : std::abs(f);
         }
         case LatticeFamily::IWPSheet:
         case LatticeFamily::IWPSkeletal: {
             const double a = 2.0 * kPi * m_cells;
             const double f = iwpF(a * X, a * Y, a * Z);
-            return m_signed ? f : std::abs(f);
+            return sgn ? f : std::abs(f);
         }
         case LatticeFamily::SimpleCubic:
         case LatticeFamily::BCC:
@@ -664,7 +733,7 @@ double Lattice::rawField(double X, double Y, double Z) const
             double f = 0.0;
             for (const Wave& w : m_waves)
                 f += w.amp * std::cos(2.0 * kPi * (w.kx * X + w.ky * Y + w.kz * Z) + w.phase);
-            return m_signed ? f : std::abs(f);
+            return sgn ? f : std::abs(f);
         }
         case LatticeFamily::NoiseSheet:
         case LatticeFamily::NoiseSkeletal: {
@@ -676,10 +745,100 @@ double Lattice::rawField(double X, double Y, double Z) const
             const int iy = wrapi(static_cast<int>(std::floor(Y * N)));
             const int iz = wrapi(static_cast<int>(std::floor(Z * N)));
             const double v = m_noise[(static_cast<std::size_t>(ix) * N + iy) * N + iz];
-            return m_signed ? v : std::abs(v);
+            return sgn ? v : std::abs(v);
         }
+        case LatticeFamily::PlateSC: case LatticeFamily::PlateBCC: case LatticeFamily::PlateFCC:
+        case LatticeFamily::PlateSCBCC: case LatticeFamily::PlateSCFCC: case LatticeFamily::PlateBCCFCC:
+        case LatticeFamily::PlateSCBCCFCC:
+            return plateField(fam, X, Y, Z);
     }
     return 0.0;
+}
+
+// Plates on the {100}, {110}, {111} plane families of the unit cell, in cell
+// units: F = distance to the nearest mid-plane, so the level c is half the
+// plate thickness. A hole is a cylinder of diameter `plate_hole` along the
+// plate normal through the panel centre; inside it the plate's own field is
+// +inf, so the hole is void for that plate only and other plates passing
+// through keep their material. Panel centres: face centres for {100}; the
+// cell centre for {110} (all six diagonal planes meet there); the centroids
+// +-(1/3, 1/3, 1/3) (with the plane's signs) of the triangular panels for {111}.
+double Lattice::plateField(LatticeFamily fam, double X, double Y, double Z) const
+{
+    const int orient = plateOrientations(fam);
+    const double u[3] = { wrap01(X * m_cells), wrap01(Y * m_cells), wrap01(Z * m_cells) };
+    const double r  = 0.5 * m_plateHole;
+    const double r2 = r * r;
+    constexpr double BIG = 1e300;
+    double best = BIG;
+
+    auto wrapc = [](double v) { return v - std::round(v); };   // nearest image, [-0.5, 0.5]
+
+    if (orient & 1) {                                           // {100}: planes x_i = n
+        for (int i = 0; i < 3; ++i) {
+            const int j = (i + 1) % 3, k = (i + 2) % 3;
+            if (r > 0.0) {
+                const double dj = u[j] - 0.5, dk = u[k] - 0.5;
+                if (dj * dj + dk * dk < r2) continue;           // in the hole of this plate
+            }
+            best = std::min(best, std::abs(wrapc(u[i])));
+        }
+    }
+    // A hole belongs to the NEAREST plate of its orientation only: the panel
+    // centres of parallel plates do not line up ({110}: they alternate by
+    // parity; {111}: the axis through one centroid hits the next-but-one
+    // plate at a corner), so an infinite cylinder would notch the neighbours.
+    if (orient & 2) {                                           // {110}: planes x_i + sgn x_j = n
+        for (int i = 0; i < 3; ++i) {
+            const int j = (i + 1) % 3, k = (i + 2) % 3;
+            for (int sgn = -1; sgn <= 1; sgn += 2) {
+                const double sv = u[i] + sgn * u[j];
+                if (r > 0.0) {
+                    // Nearest plane n; its panel centres sit at u_i - sgn u_j = n + 1 (mod 2),
+                    // u_k = 0.5 (mod 1). In-plane distance to the nearest centre:
+                    const double n  = std::round(sv);
+                    double dw = (u[i] - sgn * u[j]) - n - 1.0;
+                    dw -= 2.0 * std::round(dw / 2.0);
+                    const double a = dw / std::sqrt(2.0);
+                    const double b = wrapc(u[k] - 0.5);
+                    if (a * a + b * b < r2) continue;
+                }
+                best = std::min(best, std::abs(wrapc(sv)) / std::sqrt(2.0));
+            }
+        }
+    }
+    if (orient & 4) {                                           // {111}: planes s.x = n, s in {+-1}^3, s_x = +1
+        static const double S[4][3] = { {1,1,1}, {1,1,-1}, {1,-1,1}, {-1,1,1} };
+        for (const double* s : S) {
+            const double su = u[0] * s[0] + u[1] * s[1] + u[2] * s[2];
+            if (r > 0.0) {
+                // Nearest plane n; its triangular panels have centroids sg*s/3 + t
+                // with s.t = n - sg (t integer). In-plane distance to the nearest.
+                const int n = static_cast<int>(std::lround(su));
+                bool inHole = false;
+                for (int sg = -1; sg <= 1 && !inHole; sg += 2) {
+                    const int need = n - sg;
+                    for (int tx = -1; tx <= 2 && !inHole; ++tx)
+                        for (int ty = -1; ty <= 2 && !inHole; ++ty)
+                            for (int tz = -1; tz <= 2 && !inHole; ++tz) {
+                                if (static_cast<int>(s[0]) * tx + static_cast<int>(s[1]) * ty + static_cast<int>(s[2]) * tz != need) continue;
+                                const double v[3] = { u[0] - (sg * s[0] / 3.0 + tx),
+                                                      u[1] - (sg * s[1] / 3.0 + ty),
+                                                      u[2] - (sg * s[2] / 3.0 + tz) };
+                                const double along = (v[0] * s[0] + v[1] * s[1] + v[2] * s[2]) / 3.0;
+                                double d2 = 0.0;
+                                for (int i = 0; i < 3; ++i) { const double w = v[i] - along * s[i]; d2 += w * w; }
+                                if (d2 < r2) inHole = true;
+                            }
+                }
+                if (inHole) continue;
+            }
+            best = std::min(best, std::abs(wrapc(su)) / std::sqrt(3.0));
+        }
+    }
+    // Snap away rounding noise: the two sides of a plate must tie exactly, or
+    // the quantile solve splits the shell and the plate comes out one-sided.
+    return best < BIG ? std::round(best * 1e9) / 1e9 : best;
 }
 
 double Lattice::jitterField(double X, double Y, double Z) const
@@ -816,6 +975,10 @@ void Lattice::estimateWall()
             m_wallVox = 2.0 * m_c * numCubes / (m_cells * m_hcW);     // wall thickness
             break;
         default:
+            // Plates: voxel centres sit at half-integers, so {F <= c} is
+            // 2c + 1 voxels thick (c = 1.5 voxels -> 4-voxel plate).
+            if (isPlateFamily(m_family))
+                m_wallVox = 2.0 * m_c * voxPerCell + 1.0;
             break;   // skeletal / spinodoid: no simple estimate
     }
 }
@@ -1033,11 +1196,21 @@ void Lattice::report() const
                    .arg(m_noiseSmooth, 0, 'g', 3).arg(m_noiseSigmaVox, 0, 'f', 1).arg(Parameters::seed);
     if (m_family == LatticeFamily::FourierSheet || m_family == LatticeFamily::FourierSkeletal)
         qInfo().noquote()
-            << QString("[Lattice] Fourier series: %1 waves%2 (|k| in [%3, %4] per edge, decay %5, seed %6)")
+            << QString("[Lattice] Fourier series: %1 waves%2 (|k| in [%3, %4] per edge, decay %5, seed %6)%7")
                    .arg(m_waves.size())
                    .arg(m_fourierFile.isEmpty() ? QString() : QString(" from \"%1\"").arg(m_fourierFile))
                    .arg(m_fourierKmin, 0, 'g', 3).arg(m_fourierKmax, 0, 'g', 3)
-                   .arg(m_fourierDecay, 0, 'g', 3).arg(Parameters::seed);
+                   .arg(m_fourierDecay, 0, 'g', 3).arg(Parameters::seed)
+                   .arg(m_cubicSym ? QStringLiteral(", cubic symmetry (waves expanded to their orbits)") : QString());
+    if (isPlateFamily(m_family) || (m_hasUnion && isPlateFamily(m_union)))
+        qInfo().noquote()
+            << QString("[Lattice] plate lattice: plane families %1%2")
+                   .arg([&]{ const int o = plateOrientations(isPlateFamily(m_family) ? m_family : m_union);
+                             QStringList l; if (o & 1) l << "{100}"; if (o & 2) l << "{110}"; if (o & 4) l << "{111}"; return l.join("+"); }())
+                   .arg(m_plateHole > 0.0 ? QString(", holes of %1 cell edges through the panel centres").arg(m_plateHole, 0, 'g', 3) : QString());
+    if (m_hasUnion)
+        qInfo().noquote()
+            << QString("[Lattice] united with %1 (one level c for both)").arg(latticeFamilyLabel(m_union));
 
     if (m_rotated)
         qInfo().noquote()
@@ -1118,6 +1291,15 @@ static std::vector<ParamField> latticeSchema()
 
         // Smoothed noise: Gaussian sigma as a fraction of the cube edge.
         { "noise_smooth",  "Noise smoothing (fraction of edge)", ParamField::Double, 0.06, 0.005, 0.5, {}, "main" },
+
+        // Fourier families: full cubic symmetry of the random cell.
+        { "fourier_symmetry", "Fourier symmetry", ParamField::Enum, QStringLiteral("none"), {}, {},
+          QStringList{ QStringLiteral("none"), QStringLiteral("cubic") }, "main" },
+        // Plate lattices: hole diameter through every panel centre, cell edges.
+        { "plate_hole", "Plate hole diameter (cell edges)", ParamField::Double, 0.0, 0.0, 0.9, {}, "main" },
+        // A second family united with the first (plates + struts, ...).
+        { "lattice_union", "Unite with family", ParamField::Enum, QStringLiteral("none"), {}, {},
+          QStringList{ QStringLiteral("none") } + latticeFamilyLabels(), "main" },
     };
 
     // One constituent: the printed base material. Void is the other phase.
@@ -1131,9 +1313,9 @@ static std::vector<ParamField> latticeSchema()
 MATVIZ_REGISTER_ALGORITHM(AlgorithmPlugin{
     "Lattice",
     "Periodic cellular metamaterial RVE (TPMS sheets and skeletons, strut "
-    "lattices, honeycombs, anisotropic spinodoids, open Fourier-series level "
-    "sets, smoothed random noise): one solid phase plus void, sized to a target relative density, "
-    "with optional thickness grading, jitter and lattice rotation.",
+    "lattices, plate lattices with holes, honeycombs, anisotropic spinodoids, open Fourier-series level "
+    "sets with optional cubic symmetry, smoothed random noise, unions of two families): one solid phase plus void, "
+    "sized to a target relative density, with optional thickness grading, jitter and lattice rotation.",
     /*order=*/ 2,
     latticeSchema(),
     [](const Parameters& p) {

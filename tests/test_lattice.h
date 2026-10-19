@@ -22,6 +22,7 @@ private slots:
     void testFourierRandomIsReproducibleAndPublished();
     void testSmoothedNoiseIsReproducibleAndSmoothingConnects();
     void testMaterialOverrideAndTpmsWaves();
+    void testPlateLatticesSymmetryAndUnion();
     void testCliOptions();
 };
 

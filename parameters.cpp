@@ -98,6 +98,9 @@ double  Parameters::fourier_kmin           = 1.0;
 double  Parameters::fourier_kmax           = 4.0;
 double  Parameters::fourier_decay          = 1.0;
 QString Parameters::fourier_file;
+QString Parameters::fourier_symmetry = QStringLiteral("none");
+double  Parameters::plate_hole = 0.0;
+QString Parameters::lattice_union;
 double  Parameters::noise_smooth           = 0.06;
 double  Parameters::mat_e_gpa              = 0.0;
 double  Parameters::mat_nu                 = 0.38;
@@ -207,6 +210,9 @@ void Parameters::resetDefaults()
     fourier_kmax  = 4.0;
     fourier_decay = 1.0;
     fourier_file.clear();
+    fourier_symmetry = QStringLiteral("none");
+    plate_hole = 0.0;
+    lattice_union.clear();
     noise_smooth = 0.06;
     mat_e_gpa = 0.0;
     mat_nu = 0.38;
@@ -1286,6 +1292,44 @@ void Parameters::setFourierFile(const QString& value)
     const QString v = value.trimmed();
     if (fourier_file == v) return;
     fourier_file = v;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setFourierSymmetry(const QString& value)
+{
+    const QString v = value.trimmed().toLower();
+    if (v != QLatin1String("none") && v != QLatin1String("cubic")) {
+        qWarning() << "fourier_symmetry expects none or cubic; got" << value;
+        return;
+    }
+    if (fourier_symmetry == v) return;
+    fourier_symmetry = v;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setPlateHole(double value)
+{
+    if (value < 0.0 || value > 0.9) { qWarning() << "plate_hole expects 0..0.9 cell edges; got" << value; return; }
+    if (plate_hole == value) return;
+    plate_hole = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setLatticeUnion(const QString& value)
+{
+    const QString v = value.trimmed();
+    QString stored;
+    if (!v.isEmpty() && v.compare(QLatin1String("none"), Qt::CaseInsensitive) != 0) {
+        LatticeFamily f;
+        if (!parseLatticeFamily(v, f)) {
+            qWarning() << "lattice_union expects none or one of" << latticeFamilyKeys().join(", ")
+                       << "; got" << value << "-- keeping" << lattice_union;
+            return;
+        }
+        stored = latticeFamilyKey(f);
+    }
+    if (lattice_union == stored) return;
+    lattice_union = stored;
     emit latticeSettingsChanged();
 }
 

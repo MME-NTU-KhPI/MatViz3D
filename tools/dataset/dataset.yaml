@@ -49,6 +49,25 @@ families:
     quota: 1000
     oversample: 2.5
     params: {lattice_cell_mm: [10.0, 15.0], relative_density: [0.30, 0.50], noise_smooth: [0.10, 0.25], cells_per_edge: 1}
+  fourier_cubic:
+    quota: 800
+    oversample: 2.5
+    params: {lattice_cell_mm: [10.0, 15.0], relative_density: [0.30, 0.50], fourier_symmetry: cubic,
+             fourier_terms: [2, 8], fourier_kmin: 1.0, fourier_kmax: [2.0, 4.0], fourier_decay: [1.0, 2.0], cells_per_edge: 1}
+    flags: [lattice_uniform_wall]
+  plates:
+    quota: 700
+    oversample: 1.6
+    params: {lattice_cell_mm: [8.0, 15.0], relative_density: [0.25, 0.50],
+             lattice_family: {choices: [plate_sc, plate_bcc, plate_fcc, plate_sc_bcc, plate_sc_fcc, plate_bcc_fcc]},
+             plate_hole: [0.0, 0.5], cells_per_edge: [1, 2]}
+  hybrids:
+    quota: 500
+    oversample: 1.6
+    params: {lattice_cell_mm: [8.0, 15.0], relative_density: [0.25, 0.50],
+             lattice_family: {choices: [plate_sc, plate_sc_fcc, plate_bcc]},
+             lattice_union: {choices: [octet, bcc, fcc, simple_cubic]},
+             plate_hole: [0.2, 0.5], cells_per_edge: [1, 2]}
   anchors:
     quota: 1500
     oversample: 1.6

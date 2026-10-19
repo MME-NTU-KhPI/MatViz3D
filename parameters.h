@@ -122,6 +122,12 @@ class Parameters : public QObject
     Q_PROPERTY(QString fourier_file  READ getFourierFile  WRITE setFourierFile  NOTIFY latticeSettingsChanged)
     // Smoothed-noise families: Gaussian sigma as a fraction of the cube edge.
     Q_PROPERTY(double  noise_smooth  READ getNoiseSmooth  WRITE setNoiseSmooth  NOTIFY latticeSettingsChanged)
+    // Fourier families: "none" or "cubic" (waves expanded to their orbits under the cubic group).
+    Q_PROPERTY(QString fourier_symmetry READ getFourierSymmetry WRITE setFourierSymmetry NOTIFY latticeSettingsChanged)
+    // Plate lattices: hole diameter through every panel centre, in cell edges (0 = none).
+    Q_PROPERTY(double  plate_hole    READ getPlateHole    WRITE setPlateHole    NOTIFY latticeSettingsChanged)
+    // Second cell family united with the first; stored as the key, read back as the label ("none" = off).
+    Q_PROPERTY(QString lattice_union READ getLatticeUnion WRITE setLatticeUnion NOTIFY latticeSettingsChanged)
     // Material given as numbers instead of a database row (dataset runs): E in
     // GPa (0 = use db_material), Poisson's ratio, and the ratio of the modulus
     // across the print layers (Z) to the in-plane one (1 = isotropic).
@@ -388,6 +394,13 @@ public:
     Q_INVOKABLE void setFourierFile(const QString& value);
     double  getNoiseSmooth()     const { return noise_smooth; }
     Q_INVOKABLE void setNoiseSmooth(double value);
+    QString getFourierSymmetry() const { return fourier_symmetry; }
+    Q_INVOKABLE void setFourierSymmetry(const QString& value);
+    double  getPlateHole()       const { return plate_hole; }
+    Q_INVOKABLE void setPlateHole(double value);
+    QString getLatticeUnion()    const { return lattice_union.isEmpty() ? QStringLiteral("none") : latticeFamilyLabelOf(lattice_union); }
+    Q_INVOKABLE void setLatticeUnion(const QString& value);
+    static QString latticeUnionKeyStored() { return lattice_union; }
     double getMatEGpa()    const { return mat_e_gpa; }
     double getMatNu()      const { return mat_nu; }
     double getMatAniso()   const { return mat_aniso; }
@@ -694,6 +707,9 @@ private:
     static double  fourier_decay;
     static QString fourier_file;
     static double  noise_smooth;
+    static QString fourier_symmetry;     // "none" | "cubic"
+    static double  plate_hole;
+    static QString lattice_union;        // CLI key of the second family, empty = none
     static double  mat_e_gpa;
     static double  mat_nu;
     static double  mat_aniso;

@@ -43,6 +43,20 @@
  *     is how a property-to-geometry network hands over a design. Sheet
  *     (|F| <= c) and skeletal (F <= c) variants. The waves actually used
  *     are published to Parameters::lattice_wave_terms and the HDF5 file.
+ *     With `fourier_symmetry = cubic` every drawn wave is replaced by its
+ *     orbit under the 48 symmetries of the cube (same amplitude and phase),
+ *     so the random cell has full cubic symmetry and Ex = Ey = Ez.
+ *   - Plate lattices (Tancogne-Dejean et al. 2018, Berger et al. 2017):
+ *     F = distance to the nearest plate mid-plane of the chosen plane
+ *     families, {100} (SC), {110} (BCC), {111} (FCC) or their unions, so c
+ *     is half the plate thickness in cell units. `plate_hole` punches a
+ *     circular hole of that diameter (cell edges) through the centre of
+ *     every panel, along its normal.
+ *   - `lattice_union`: a second family whose solid is united with the
+ *     first (F = min of the two fields, one shared level c), e.g. plates +
+ *     octet struts. Both fields are distances for the strut, plate,
+ *     honeycomb and uniform-wall sheet families, so c then means the same
+ *     thickness for both. The second family cannot be a random one.
  *
  * ## Relative density is the input
  *
@@ -125,12 +139,21 @@ private:
     void   publishWaves();
     /// Exact Fourier expansion of the TPMS level sets (k per cube edge), for publishing.
     std::vector<Wave> tpmsWaves() const;
-    /// Family field at a point in cube fractions [0,1)^3 (already rotated).
+    /// Family field at a point in cube fractions [0,1)^3 (already rotated):
+    /// the primary family, united with `lattice_union` when one is set.
     double rawField(double X, double Y, double Z) const;
+    /// Field of one family (uniform-wall option applied to sheets).
+    double familyField(LatticeFamily fam, double X, double Y, double Z) const;
+    /// Plate lattices: distance to the nearest plate mid-plane, +inf inside a hole.
+    double plateField(LatticeFamily fam, double X, double Y, double Z) const;
+    /// Replace every wave by its orbit under the cubic point group.
+    void   symmetrizeWaves();
     /// Level-set value f and its gradient (per cube fraction) for the
     /// surface families; false for families that are not level sets.
-    bool   levelSet(double X, double Y, double Z, double& f, double g[3]) const;
-    bool   isSheet() const;
+    bool   levelSet(LatticeFamily fam, double X, double Y, double Z, double& f, double g[3]) const;
+    bool   levelSet(double X, double Y, double Z, double& f, double g[3]) const { return levelSet(m_family, X, Y, Z, f, g); }
+    bool   isSheet(LatticeFamily fam) const;
+    bool   isSheet() const { return isSheet(m_family); }
     /// Unnormalized thickness-jitter field at a point in cube fractions.
     double jitterField(double X, double Y, double Z) const;
     /// Grading + jitter at a point in cube fractions (not rotated).
@@ -163,6 +186,10 @@ private:
     double  m_fourierKmax    = 4.0;
     double  m_fourierDecay   = 1.0;    ///< amplitude ~ |k|^-decay
     QString m_fourierFile;
+    bool    m_cubicSym       = false;  ///< Fourier families: symmetrize the waves under the cubic group
+    double  m_plateHole      = 0.0;    ///< plate lattices: hole diameter, cell edges (0 = none)
+    bool    m_hasUnion       = false;
+    LatticeFamily m_union    = LatticeFamily::GyroidSheet;   ///< second family united with the first
     size_t  m_directions     = 0;      ///< distinct wave directions available to the random families
     double  m_R[3][3]        = { {1,0,0}, {0,1,0}, {0,0,1} };
     bool    m_rotated        = false;

@@ -924,6 +924,12 @@ void saveGeometryMetadataToHDF5(HDF5Wrapper& hdf5, const std::string& prefix, co
             hdf5.write(geomGroup, "fourier_file", p->getFourierFile());
             paramsObj["fourier_file"] = p->getFourierFile();
         }
+        hdf5.write(geomGroup, "fourier_symmetry", p->getFourierSymmetry());
+        hdf5.write(geomGroup, "plate_hole",       float(p->getPlateHole()));
+        hdf5.write(geomGroup, "lattice_union",    Parameters::latticeUnionKeyStored().isEmpty() ? QStringLiteral("none") : Parameters::latticeUnionKeyStored());
+        paramsObj["fourier_symmetry"] = p->getFourierSymmetry();
+        paramsObj["plate_hole"]       = p->getPlateHole();
+        paramsObj["lattice_union"]    = Parameters::latticeUnionKeyStored().isEmpty() ? QStringLiteral("none") : Parameters::latticeUnionKeyStored();
         // Printability of the rasterized cube (printability.h).
         const PrintabilityReport& pr = Parameters::printability;
         if (pr.computed) {

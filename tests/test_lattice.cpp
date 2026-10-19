@@ -104,6 +104,10 @@ void TestLattice::testDensityIsHitForEveryFamily()
     p->setRelativeDensity(0.30);
 
     for (const LatticeFamilyInfo& i : latticeFamilies()) {
+        // Plates sit on whole-voxel shells (2, 4, 6 ... voxels thick), so on
+        // 12 voxels per cell the reachable densities are 0.42 and 0.70 and no
+        // level hits 0.30; testPlateLatticesSymmetryAndUnion covers them.
+        if (isPlateFamily(i.family)) continue;
         p->setLatticeFamily(QString::fromLatin1(i.key));
 
         TestableLattice L(N);
@@ -123,7 +127,8 @@ void TestLattice::testDensityIsHitForEveryFamily()
         // shells on a 12-voxel cell, so those families get more slack.
         const bool shells = (i.family == LatticeFamily::SimpleCubic || i.family == LatticeFamily::BCC ||
                              i.family == LatticeFamily::FCC || i.family == LatticeFamily::Octet ||
-                             i.family == LatticeFamily::Honeycomb || i.family == LatticeFamily::Reentrant);
+                             i.family == LatticeFamily::Honeycomb || i.family == LatticeFamily::Reentrant ||
+                             isPlateFamily(i.family));
         QVERIFY2(std::abs(rho - 0.30) < (shells ? 0.03 : 0.01),
                  qPrintable(QString("%1: achieved %2").arg(i.key).arg(rho)));
         QCOMPARE(maxId, 1);
@@ -481,6 +486,102 @@ void TestLattice::testMaterialOverrideAndTpmsWaves()
     QVERIFY(!p->getHdf5Fields());
 }
 
+void TestLattice::testPlateLatticesSymmetryAndUnion()
+{
+    Parameters* p = Parameters::instance();
+    const int N = 32;
+    p->setSize(N);
+    p->setCellsPerEdge(1);
+    // Plates are whole-voxel shells, symmetric about the mid-plane, so the
+    // thickness steps by 2 voxels: 4 voxels on a 32-cube fills exactly
+    // 1 - (28/32)^3 = 0.3301 of the cell. Ask for that.
+    const double rho4 = 1.0 - std::pow(28.0 / 32.0, 3.0);
+    p->setRelativeDensity(rho4);
+
+    // {100} plates, no holes: both sides of every plate tie exactly, so the
+    // density is hit on the nose and the plate is 4 voxels thick.
+    {
+        p->setLatticeFamily("plate_sc");
+        TestableLattice L(N);
+        L.Initialization(false);
+        L.Generate_To_End();
+        QVERIFY2(std::abs(L.achievedDensity() - rho4) < 1e-9, qPrintable(QString::number(L.achievedDensity())));
+        QVERIFY2(std::abs(L.wallVoxels() - 4.0) < 1e-6, qPrintable(QString::number(L.wallVoxels())));
+        QVERIFY(L.fieldAt(0.5, 0.5 * N, 0.5 * N) < 0.02);          // on the x = 0 plate (half a voxel off)
+        QVERIFY(std::abs(L.fieldAt(0.5 * N, 0.5 * N, 0.5 * N) - 0.5) < 1e-9);   // cell centre: half a cell from every plate
+    }
+    // Holes: the face centre becomes void, the rest of the plate stays, and
+    // the level is solved with the holes in place (density within one shell).
+    {
+        p->setLatticeFamily("plate_sc");
+        p->setPlateHole(0.5);
+        TestableLattice L(N);
+        L.Initialization(false);
+        L.Generate_To_End();
+        QVERIFY2(std::abs(L.achievedDensity() - rho4) < 0.08, qPrintable(QString::number(L.achievedDensity())));
+        // Hole through the face centre: the x-plate is gone there, the nearest
+        // remaining plates (y = 0, z = 0) are half a cell away, so the point is void.
+        QVERIFY(std::abs(L.fieldAt(0.5, 0.5 * N, 0.5 * N) - 0.5) < 1e-6);
+        QVERIFY(L.fieldAt(0.5, 0.5 * N, 0.5 * N) > L.threshold());
+        QVERIFY(L.fieldAt(0.5, 0.05 * N, 0.05 * N) < 0.02);        // plate corner is solid
+        p->setPlateHole(0.0);
+    }
+    // SC+FCC: at the cell centre the nearest plate is a {111} one, 0.5/sqrt(3)
+    // away; the field has the symmetry of the cube.
+    {
+        p->setLatticeFamily("plate_sc_fcc");
+        TestableLattice L(N);
+        L.Initialization(false);
+        QVERIFY(std::abs(L.fieldAt(0.5 * N, 0.5 * N, 0.5 * N) - 0.5 / std::sqrt(3.0)) < 1e-9);
+        const double a = L.fieldAt(0.2 * N, 0.35 * N, 0.6 * N);
+        QVERIFY(std::abs(a - L.fieldAt(0.35 * N, 0.2 * N, 0.6 * N)) < 1e-12);
+        QVERIFY(std::abs(a - L.fieldAt(0.8 * N, 0.35 * N, 0.6 * N)) < 1e-12);
+        QVERIFY(std::abs(a - L.fieldAt(0.6 * N, 0.2 * N, 0.35 * N)) < 1e-12);
+    }
+    // Cubic symmetry of a random Fourier cell: the field is invariant under
+    // axis permutations and reflections, and the published wave list holds
+    // the expanded orbits.
+    {
+        p->setLatticeFamily("fourier_sheet");
+        p->setFourierTerms(6);
+        p->setFourierSymmetry("cubic");
+        Parameters::seed = 11;
+        TestableLattice L(N);
+        L.Initialization(false);
+        const double a = L.fieldAt(3.3, 10.1, 20.7);
+        QVERIFY(std::abs(a - L.fieldAt(10.1, 3.3, 20.7)) < 1e-9);
+        QVERIFY(std::abs(a - L.fieldAt(N - 3.3, 10.1, 20.7)) < 1e-9);
+        QVERIFY(std::abs(a - L.fieldAt(20.7, N - 10.1, 3.3)) < 1e-9);
+        L.Generate_To_End();
+        QVERIFY(Parameters::lattice_wave_terms.size() > 6);
+        QVERIFY(Parameters::lattice_wave_terms.size() <= 48 * 6);
+        p->setFourierSymmetry("none");
+        p->setFourierTerms(24);
+    }
+    // Union plates + octet: the field is the smaller of the two distances.
+    {
+        p->setLatticeFamily("plate_sc");
+        p->setLatticeUnion("octet");
+        QCOMPARE(Parameters::latticeUnionKeyStored(), QString("octet"));
+        TestableLattice L(N);
+        L.Initialization(false);
+        // Cell centre: 0.5 from the plates, 0.3536 from the nearest octahedron edge.
+        QVERIFY(std::abs(L.fieldAt(0.5 * N, 0.5 * N, 0.5 * N) - 0.35355339) < 1e-6);
+        QVERIFY(L.fieldAt(0.5, 0.5 * N, 0.2 * N) < 0.02);           // on the plate (half a voxel off), off the struts
+        L.Generate_To_End();
+        QVERIFY2(std::abs(L.achievedDensity() - rho4) < 0.08, qPrintable(QString::number(L.achievedDensity())));
+        p->setLatticeUnion("none");
+        QVERIFY(Parameters::latticeUnionKeyStored().isEmpty());
+        // Two strut families cannot be united: the second is dropped.
+        p->setLatticeFamily("bcc");
+        p->setLatticeUnion("octet");
+        TestableLattice M(N);
+        M.Initialization(false);
+        QVERIFY(std::abs(M.fieldAt(0.5 * N, 0.5 * N, 0.5 * N)) < 1e-9);   // bcc strut through the centre
+        p->setLatticeUnion("none");
+    }
+}
+
 void TestLattice::testCliOptions()
 {
     Parameters* p = Parameters::instance();
@@ -538,4 +639,20 @@ void TestLattice::testCliOptions()
     QVERIFY(applyParameter("fourier_file", "terms.txt", &err));
     QCOMPARE(p->getFourierFile(), QString("terms.txt"));
     QVERIFY(!applyParameter("fourier_file", "  ", &err));
+
+    QVERIFY(applyParameter("fourier_symmetry", "Cubic", &err));
+    QCOMPARE(p->getFourierSymmetry(), QString("cubic"));
+    QVERIFY(!applyParameter("fourier_symmetry", "hex", &err));
+    QVERIFY(applyParameter("plate_hole", "0.4", &err));
+    QCOMPARE(p->getPlateHole(), 0.4);
+    QVERIFY(!applyParameter("plate_hole", "1.5", &err));
+    QVERIFY(applyParameter("lattice_union", "octet", &err));
+    QCOMPARE(Parameters::latticeUnionKeyStored(), QString("octet"));
+    QCOMPARE(p->getLatticeUnion(), QString("Octet truss"));
+    QVERIFY(!applyParameter("lattice_union", "kagome", &err));
+    QVERIFY(applyParameter("lattice_union", "none", &err));
+    QVERIFY(Parameters::latticeUnionKeyStored().isEmpty());
+    QVERIFY(applyParameter("lattice_family", "plate_sc_fcc", &err));
+    QCOMPARE(Parameters::latticeFamilyKeyStored(), QString("plate_sc_fcc"));
+    QVERIFY(Commandline_Parser::isValidLatticeFamily("plate_bcc"));
 }

@@ -51,6 +51,7 @@ PARAM_KEYS = {
     "spinodoid_theta_x", "spinodoid_theta_y", "spinodoid_theta_z",
     "fourier_terms", "fourier_kmin", "fourier_kmax", "fourier_decay",
     "noise_smooth", "lattice_cell_mm",
+    "fourier_symmetry", "plate_hole", "lattice_union",
     "print_min_wall_mm", "print_max_overhang_deg", "print_max_thin_fraction",
     "print_max_island_vox", "print_max_unsupported_fraction",
 }

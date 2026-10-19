@@ -22,7 +22,11 @@ enum class LatticeFamily {
     Honeycomb, Reentrant,
     Spinodoid,
     FourierSheet, FourierSkeletal,
-    NoiseSheet, NoiseSkeletal
+    NoiseSheet, NoiseSkeletal,
+    // Plate lattices: thin plates on the {100} (SC), {110} (BCC) and {111}
+    // (FCC) plane families of the cubic cell, alone or united; optional
+    // circular holes at the panel centres (`plate_hole`).
+    PlateSC, PlateBCC, PlateFCC, PlateSCBCC, PlateSCFCC, PlateBCCFCC, PlateSCBCCFCC
 };
 
 struct LatticeFamilyInfo {
@@ -58,8 +62,56 @@ inline const std::vector<LatticeFamilyInfo>& latticeFamilies()
         { LatticeFamily::FourierSkeletal,  "fourier_skeletal",   "Fourier series (skeletal)",      true  },
         { LatticeFamily::NoiseSheet,       "noise_sheet",        "Smoothed noise (sheet)",         false },
         { LatticeFamily::NoiseSkeletal,    "noise_skeletal",     "Smoothed noise (skeletal)",      true  },
+        { LatticeFamily::PlateSC,          "plate_sc",           "Plate lattice {100} (SC)",       false },
+        { LatticeFamily::PlateBCC,         "plate_bcc",          "Plate lattice {110} (BCC)",      false },
+        { LatticeFamily::PlateFCC,         "plate_fcc",          "Plate lattice {111} (FCC)",      false },
+        { LatticeFamily::PlateSCBCC,       "plate_sc_bcc",       "Plate lattice SC+BCC",           false },
+        { LatticeFamily::PlateSCFCC,       "plate_sc_fcc",       "Plate lattice SC+FCC",           false },
+        { LatticeFamily::PlateBCCFCC,      "plate_bcc_fcc",      "Plate lattice BCC+FCC",          false },
+        { LatticeFamily::PlateSCBCCFCC,    "plate_sc_bcc_fcc",   "Plate lattice SC+BCC+FCC",       false },
     };
     return t;
+}
+
+/// Bit mask of the plane families a plate lattice uses: 1 = {100}, 2 = {110},
+/// 4 = {111}; 0 for every other family.
+inline int plateOrientations(LatticeFamily f)
+{
+    switch (f) {
+        case LatticeFamily::PlateSC:       return 1;
+        case LatticeFamily::PlateBCC:      return 2;
+        case LatticeFamily::PlateFCC:      return 4;
+        case LatticeFamily::PlateSCBCC:    return 1 | 2;
+        case LatticeFamily::PlateSCFCC:    return 1 | 4;
+        case LatticeFamily::PlateBCCFCC:   return 2 | 4;
+        case LatticeFamily::PlateSCBCCFCC: return 1 | 2 | 4;
+        default:                           return 0;
+    }
+}
+inline bool isPlateFamily(LatticeFamily f) { return plateOrientations(f) != 0; }
+
+/// Families built from strut / wall centre-line segments (one segment table).
+inline bool isSegmentFamily(LatticeFamily f)
+{
+    switch (f) {
+        case LatticeFamily::SimpleCubic: case LatticeFamily::BCC: case LatticeFamily::FCC:
+        case LatticeFamily::Octet: case LatticeFamily::Honeycomb: case LatticeFamily::Reentrant:
+            return true;
+        default:
+            return false;
+    }
+}
+
+/// Families drawn from the seed (random field state that cannot be shared).
+inline bool isRandomFamily(LatticeFamily f)
+{
+    switch (f) {
+        case LatticeFamily::Spinodoid: case LatticeFamily::FourierSheet: case LatticeFamily::FourierSkeletal:
+        case LatticeFamily::NoiseSheet: case LatticeFamily::NoiseSkeletal:
+            return true;
+        default:
+            return false;
+    }
 }
 
 inline const LatticeFamilyInfo& latticeFamilyInfo(LatticeFamily f)
@@ -130,6 +182,9 @@ inline bool parseLatticeFamily(const QString& text, LatticeFamily& out)
         { "waves",              LatticeFamily::FourierSheet },
         { "noise",              LatticeFamily::NoiseSkeletal },
         { "smoothednoise",      LatticeFamily::NoiseSkeletal },
+        { "plate",              LatticeFamily::PlateSC },
+        { "plates",             LatticeFamily::PlateSC },
+        { "platelattice",       LatticeFamily::PlateSC },
     };
     for (const Alias& a : aliases)
         if (q == QLatin1String(a.text)) { out = a.family; return true; }
