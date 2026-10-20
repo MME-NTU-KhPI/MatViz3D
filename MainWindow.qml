@@ -645,6 +645,83 @@ Window {
                             }
                         }
 
+                        // Placement of the initial crystallization seeds.
+                        // Composite builds its fibers on a lattice and has none.
+                        Item {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: visible ? seedColumn.implicitHeight + 10 : 0
+                            visible: comboBox.currentIndex !== -1 && Parameters.algorithm !== "Composite"
+
+                            Column {
+                                id: seedColumn
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                anchors.top: parent.top
+                                anchors.topMargin: 10
+                                width: 224
+                                spacing: 6
+
+                                Text {
+                                    text: qsTr("Seed distribution:")
+                                    color: "#c6c6c6"
+                                    font.pixelSize: 18
+                                    font.styleName: "Bold"
+                                    font.family: inter.name
+                                }
+
+                                ComboBox {
+                                    id: seedMethodCombo
+                                    width: 224
+                                    height: 28
+                                    leftPadding: 10
+                                    font.pointSize: 10
+                                    font.family: montserrat.name
+                                    // Index == Parameters.SeedMethod value
+                                    model: [qsTr("Random"), qsTr("Sobol")]
+                                    currentIndex: Parameters.seed_method
+                                    background: Rectangle {
+                                        color: "#282828"; radius: 11; border.color: "#969696"
+                                    }
+                                    onActivated: (index) => Parameters.setSeedMethod(index)
+                                }
+
+                                Text {
+                                    visible: Parameters.seed_method === Parameters.Sobol
+                                    topPadding: 6
+                                    text: qsTr("Dispersion σ:")
+                                    color: "#c6c6c6"
+                                    font.pixelSize: 18
+                                    font.styleName: "Bold"
+                                    font.family: inter.name
+                                }
+
+                                // Integer SpinBox in hundredths: 0..100 step 5 == 0..1 step 0.05
+                                SpinBox {
+                                    id: seedSigmaSpin
+                                    visible: Parameters.seed_method === Parameters.Sobol
+                                    width: 224
+                                    height: 28
+                                    from: 0
+                                    to: 100
+                                    stepSize: 5
+                                    editable: true
+                                    font.pointSize: 10
+                                    font.family: montserrat.name
+                                    value: Math.round(Parameters.seed_sigma * 100)
+                                    validator: DoubleValidator { bottom: 0.0; top: 1.0; decimals: 2 }
+                                    textFromValue: (value, locale) => (value / 100).toFixed(2)
+                                    valueFromText: (text, locale) => Math.round(parseFloat(text.replace(",", ".")) * 100)
+                                    onValueModified: Parameters.setSeedSigma(value / 100)
+                                    background: Rectangle {
+                                        color: "#282828"; radius: 11; border.color: "#969696"
+                                    }
+
+                                    hoverEnabled: true
+                                    ToolTip.visible: hovered
+                                    ToolTip.text: qsTr("0 = most uniform grains, 1 ≈ random")
+                                }
+                            }
+                        }
+
                         Item {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 80

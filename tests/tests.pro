@@ -80,7 +80,8 @@ HEADERS += \
     ../dlca.h \
     ../texturemath.hpp \
     ../svgexporter.hpp \
-    ../cpuinfo.hpp
+    ../cpuinfo.hpp \
+    ../lowdiscrepancy.hpp
 
 # Test sources
 SOURCES += \
@@ -92,7 +93,8 @@ SOURCES += \
     test_texturemath.cpp \
     test_hillcriterion.cpp \
     test_svgexporter.cpp \
-    test_commandline_parser.cpp
+    test_commandline_parser.cpp \
+    test_seed_distribution.cpp
 
 HEADERS += \
     test_polycrystall_seeding.h \
@@ -101,6 +103,7 @@ HEADERS += \
     test_texturemath.h \
     test_hillcriterion.h \
     test_svgexporter.h \
-    test_commandline_parser.h
+    test_commandline_parser.h \
+    test_seed_distribution.h
 
 TARGET = tests

@@ -920,6 +920,9 @@ void saveGeometryMetadataToHDF5(HDF5Wrapper& hdf5, const std::string& prefix, co
     hdf5.write(geomGroup, "points_mode",  p->getPointsMode());
     hdf5.write(geomGroup, "is_periodic",  p->getIsPeriodic() ? 1 : 0);
     hdf5.write(geomGroup, "minkowski_p",  float(p->getMinkowskiP()));
+    hdf5.write(geomGroup, "seed_method",
+               QString(p->getSeedMethod() == Parameters::Sobol ? "sobol" : "random"));
+    hdf5.write(geomGroup, "seed_sigma",   float(p->getSeedSigma()));
 
     if (!solver.isEmpty()) {
         hdf5.write(geomGroup, "solver", solver);

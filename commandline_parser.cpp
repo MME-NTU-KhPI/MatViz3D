@@ -114,6 +114,10 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
         "[System] Number of OpenMP worker threads (default: physical CPU cores).", "threads"));
     parser.addOption(QCommandLineOption("seed",
         "[System] RNG seed for reproducibility (default: current timestamp).", "uint"));
+    parser.addOption(QCommandLineOption(QStringList() << "seed-method" << "seed_method",
+        "[Grid] Placement of the initial crystallization seeds: 'random' | 'sobol' (default: random).", "method"));
+    parser.addOption(QCommandLineOption(QStringList() << "seed-sigma" << "seed_sigma",
+        "[Grid] Sobol seed dispersion sigma >= 0: 0 = most uniform grains, 1 ~ random (default: 0.3).", "sigma"));
     parser.addOption(QCommandLineOption("output",
         "[Output] Output HDF5 file path for structure and fields (default: current_ls.hdf5).", "file"));
     parser.addOption(QCommandLineOption("csv",
@@ -341,6 +345,9 @@ void Commandline_Parser::printJsonHelp()
     addOpt("animate", "Execution", "bool", "", "false", "Grow structure iteration by iteration instead of one-shot generation");
     addOpt("np", "System", "int", "threads", "CPU cores", "Number of OpenMP worker threads for algorithm execution");
     addOpt("seed", "System", "uint", "uint", "timestamp", "RNG seed for reproducible structure generation");
+    addOpt("seed-method", "Grid", "string", "method", "random", "Placement of the initial crystallization seeds",
+           QStringList() << "random" << "sobol");
+    addOpt("seed-sigma", "Grid", "double", "sigma", "0.3", "Sobol seed dispersion: 0 = most uniform grains, 1 ~ random");
     addOpt("output", "Output", "string", "file", "current_ls.hdf5", "Output HDF5 filepath for structure and fields");
     addOpt("csv", "Output", "string", "file", "", "CSV export of the voxel grid (X;Y;Z;Color)");
 
@@ -1030,6 +1037,28 @@ bool Commandline_Parser::applyParameter(const QString& key, const QString& value
         return true;
     }
 
+    if (normKey == "seed_method") {
+        const QString v = value.trimmed().toLower();
+        if (v == "random") {
+            params->setSeedMethod(Parameters::Random);
+        } else if (v == "sobol") {
+            params->setSeedMethod(Parameters::Sobol);
+        } else {
+            return setErr(QString("Option seed_method expects 'random' or 'sobol'; got \"%1\"").arg(value));
+        }
+        return true;
+    }
+
+    if (normKey == "seed_sigma") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0.0) {
+            return setErr(QString("Option seed_sigma expects a value >= 0; got %1").arg(value));
+        }
+        params->setSeedSigma(v);
+        return true;
+    }
+
     if (normKey == "np" || normKey == "num_threads") {
         int v = 0;
         if (!parseInt(v, true)) return false;
@@ -1190,6 +1219,12 @@ bool Commandline_Parser::processOptions(const QCommandLineParser& parser, QStrin
 
     if (parser.isSet("seed")) {
         if (!applyCliOption("seed", parser.value("seed"))) return false;
+    }
+    if (parser.isSet("seed-method")) {
+        if (!applyCliOption("seed_method", parser.value("seed-method"))) return false;
+    }
+    if (parser.isSet("seed-sigma")) {
+        if (!applyCliOption("seed_sigma", parser.value("seed-sigma"))) return false;
     }
 
     if (parser.isSet("np")) {

@@ -33,6 +33,7 @@ class Parent_Algorithm
     template <class T> static void Delete3D(T*** array);
 protected:
     void Random_Generate_Points(int currentPoints);
+    int Sobol_Generate_Points(int currentPoints);
     void Grid_Generate_Points(int currentPoints);
     void Thin_Layer_Generate_Points(int currentPoints);
 

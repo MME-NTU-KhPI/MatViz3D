@@ -1,6 +1,7 @@
 #include "dlca.h"
 #include "algorithmplugin.h"
 #include "parameters.h"
+#include "lowdiscrepancy.hpp"
 #include <fstream>
 #include <random>
 #include <QDebug>
@@ -228,14 +229,28 @@ void DLCA::Initialization(bool /*isWaveGeneration*/)
 
     int successfully_placed = 0;
 
+    // Sobol: point i seeds aggregate i + 1 (the points are unique voxels)
+    std::vector<std::array<int, 3>> sobolPts;
+    if (Parameters::seed_method == Parameters::Sobol) {
+        try {
+            sobolPts = qmc::seedVoxels(numColors, numCubes, Parameters::seed, Parameters::seed_sigma);
+        } catch (const std::exception& e) {
+            qWarning() << "Sobol seed generation failed:" << e.what();
+        }
+    }
+
     for (int i = 0; i < numColors; i++)
     {
         Coordinate a;
-        int num_tries = 10;
-        do {
-            a = randomCoord();
-            num_tries--;
-        } while (voxels[a.x][a.y][a.z] != 0 && num_tries > 0);
+        if (i < static_cast<int>(sobolPts.size())) {
+            a = { sobolPts[i][0], sobolPts[i][1], sobolPts[i][2] };
+        } else {
+            int num_tries = 10;
+            do {
+                a = randomCoord();
+                num_tries--;
+            } while (voxels[a.x][a.y][a.z] != 0 && num_tries > 0);
+        }
 
         if (voxels[a.x][a.y][a.z] != 0) {
             bool found = false;

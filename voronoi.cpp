@@ -292,6 +292,9 @@ void Voronoi::Initialization(bool /*isWaveGeneration*/)
     const long long capacity = static_cast<long long>(numCubes) * numCubes * numCubes;
     const int target = static_cast<int>(std::min<long long>(numColors, capacity));
 
+    if (Parameters::seed_method == Parameters::Sobol)
+        Sobol_Generate_Points(target);
+
     long long attempts = 0;
     const long long maxAttempts = 100LL * target + 1000LL;
     while (static_cast<int>(seedPoints.size()) < target && attempts++ < maxAttempts) {

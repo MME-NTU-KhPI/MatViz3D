@@ -14,6 +14,11 @@ class Parameters : public QObject
     Q_PROPERTY(int points READ getPoints WRITE setPoints NOTIFY pointsChanged)
     Q_PROPERTY(QString algorithm READ getAlgorithm WRITE setAlgorithm NOTIFY algorithmChanged)
     Q_PROPERTY(unsigned int seed READ getSeed WRITE setSeed NOTIFY seedChanged)
+    // How the initial crystallization seeds are placed: Random = uniform
+    // rejection sampling (historical behaviour), Sobol = scrambled Sobol
+    // sequence with Gaussian jitter of seed_sigma (see lowdiscrepancy.hpp).
+    Q_PROPERTY(SeedMethod seed_method READ getSeedMethod WRITE setSeedMethod NOTIFY seedMethodChanged)
+    Q_PROPERTY(double seed_sigma READ getSeedSigma WRITE setSeedSigma NOTIFY seedSigmaChanged)
     Q_PROPERTY(QString filename READ getFilename WRITE setFilename NOTIFY filenameChanged)
     Q_PROPERTY(int num_threads READ getNumThreads WRITE setNumThreads NOTIFY numThreadsChanged)
     Q_PROPERTY(QString working_directory READ getWorkingDirectory WRITE setWorkingDirectory NOTIFY workingDirectoryChanged)
@@ -108,6 +113,9 @@ class Parameters : public QObject
     Q_PROPERTY(QString polycrystall_neighborhood READ getPolycrystallNeighborhood WRITE setPolycrystallNeighborhood NOTIFY polycrystallNeighborhoodChanged)
 
 public:
+    enum SeedMethod { Random = 0, Sobol = 1 };
+    Q_ENUM(SeedMethod)
+
     explicit Parameters(QObject* parent = nullptr);
 
     static Parameters* instance()
@@ -127,6 +135,12 @@ public:
 
     unsigned int getSeed() const { return seed; }
     Q_INVOKABLE void setSeed(unsigned int value);
+
+    SeedMethod getSeedMethod() const { return seed_method; }
+    Q_INVOKABLE void setSeedMethod(SeedMethod value);
+
+    double getSeedSigma() const { return seed_sigma; }
+    Q_INVOKABLE void setSeedSigma(double value);
 
     QString getFilename() const { return filename; }
     Q_INVOKABLE void setFilename(const QString& value);
@@ -351,6 +365,8 @@ public:
     static int32_t*** voxels;
 
     static unsigned int seed;
+    static SeedMethod seed_method;
+    static double seed_sigma;
     static QString filename;
     static int num_threads;
     static QString working_directory;
@@ -420,6 +436,8 @@ signals:
     void pointsChanged();
     void algorithmChanged();
     void seedChanged();
+    void seedMethodChanged();
+    void seedSigmaChanged();
     void filenameChanged();
     void numThreadsChanged();
     void workingDirectoryChanged();

@@ -12,6 +12,8 @@ int Parameters::size = 10;
 int Parameters::points = 10;
 QString Parameters::algorithm = "";
 unsigned int Parameters::seed = 0;
+Parameters::SeedMethod Parameters::seed_method = Parameters::Random;
+double Parameters::seed_sigma = 0.3;
 QString Parameters::filename = "";
 int Parameters::num_threads = 1;
 QString Parameters::working_directory = "";
@@ -108,6 +110,8 @@ void Parameters::resetDefaults()
     points = 10;
     algorithm = "";
     seed = 0;
+    seed_method = Random;
+    seed_sigma = 0.3;
     filename = "";
     num_threads = 1;
     working_directory = "";
@@ -249,6 +253,20 @@ void Parameters::setSeed(unsigned int value) {
     if (seed != value) {
         seed = value;
         emit seedChanged();
+    }
+}
+
+void Parameters::setSeedMethod(SeedMethod value) {
+    if (seed_method != value) {
+        seed_method = value;
+        emit seedMethodChanged();
+    }
+}
+
+void Parameters::setSeedSigma(double value) {
+    if (seed_sigma != value) {
+        seed_sigma = value;
+        emit seedSigmaChanged();
     }
 }
 
