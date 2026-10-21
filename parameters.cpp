@@ -104,6 +104,9 @@ QString Parameters::lattice_union;
 QString Parameters::lattice_subtract;
 double  Parameters::lattice_subtract_size = 0.3;
 double  Parameters::lattice_smooth = 0.0;
+bool    Parameters::honeycomb_custom = false;
+double  Parameters::honeycomb_angle = 30.0;
+double  Parameters::honeycomb_rib = 1.0;
 double  Parameters::noise_smooth           = 0.06;
 double  Parameters::mat_e_gpa              = 0.0;
 double  Parameters::mat_nu                 = 0.38;
@@ -219,6 +222,9 @@ void Parameters::resetDefaults()
     lattice_subtract.clear();
     lattice_subtract_size = 0.3;
     lattice_smooth = 0.0;
+    honeycomb_custom = false;
+    honeycomb_angle = 30.0;
+    honeycomb_rib = 1.0;
     noise_smooth = 0.06;
     mat_e_gpa = 0.0;
     mat_nu = 0.38;
@@ -1362,6 +1368,29 @@ void Parameters::setLatticeSubtractSize(double value)
     if (value < 0.01 || value > 1.0) { qWarning() << "lattice_subtract_size expects 0.01..1 cell edges; got" << value; return; }
     if (lattice_subtract_size == value) return;
     lattice_subtract_size = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setHoneycombCustom(bool value)
+{
+    if (honeycomb_custom == value) return;
+    honeycomb_custom = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setHoneycombAngle(double value)
+{
+    if (value < -50.0 || value > 50.0) { qWarning() << "honeycomb_angle expects -50..50 degrees; got" << value; return; }
+    if (honeycomb_angle == value) return;
+    honeycomb_angle = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setHoneycombRib(double value)
+{
+    if (value < 0.2 || value > 5.0) { qWarning() << "honeycomb_rib expects 0.2..5; got" << value; return; }
+    if (honeycomb_rib == value) return;
+    honeycomb_rib = value;
     emit latticeSettingsChanged();
 }
 

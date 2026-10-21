@@ -92,6 +92,7 @@ QString Commandline_Parser::buildApplicationDescription()
     desc += "  --lattice_union:         second cell family united with the first (plates + struts, ...); none = off\n";
     desc += "  --lattice_subtract / --lattice_subtract_size: family carved out of the solid up to that level in cell edges (default: none / 0.3)\n";
     desc += "  --lattice_smooth:        Gaussian blur of the field before the level is solved, sigma in cell edges, 0..0.3 (default: 0 = off)\n";
+    desc += "  --honeycomb_angle / --honeycomb_rib: honeycomb shape, wall angle in degrees (-50..50, < 0 auxetic) and rib / wall length (0.2..5); setting either overrides the family preset\n";
     desc += "  --material_iso E,nu:     solid material as numbers instead of a database row: Young's modulus in GPa and Poisson's ratio\n";
     desc += "  --material_ti E,nu,r:    the same, transversely isotropic about the build axis Z with E_z = r*E, G_xz = G_yz = r*G\n";
     desc += "  --no_fields:             do not store per-voxel stress/strain fields in HDF5 (matrices and metadata only; dataset runs)\n";
@@ -263,6 +264,14 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
     parser.addOption(QCommandLineOption("lattice_smooth",
         "[Lattice] Gaussian blur of the field before the level is solved, sigma in cell edges, 0..0.3: rounded corners and "
         "blended junctions (default: 0 = off).", "frac"));
+    parser.addOption(QCommandLineOption("honeycomb_angle",
+        "[Lattice] Honeycombs: inclined wall angle to the horizontal in degrees, -50..50; 30 = regular hexagon, 0 = rectangles, "
+        "negative = re-entrant (auxetic). Overrides the family preset.", "deg"));
+    parser.addOption(QCommandLineOption("honeycomb_rib",
+        "[Lattice] Honeycombs: vertical rib length over inclined wall length, 0.2..5 (1 regular, 2 the re-entrant preset). "
+        "Overrides the family preset.", "ratio"));
+    parser.addOption(QCommandLineOption("honeycomb_custom",
+        "[Lattice] Honeycombs: use honeycomb_angle / honeycomb_rib instead of the family preset (true|false).", "bool"));
     parser.addOption(QCommandLineOption("lattice_cell_mm",
         "[Lattice] Physical size of one unit cell in mm (default: 10). Voxel size = cells_per_edge * cell_mm / size.", "mm"));
     parser.addOption(QCommandLineOption("print_min_wall_mm",
@@ -510,6 +519,9 @@ void Commandline_Parser::printJsonHelp()
     addOpt("lattice_subtract", "Lattice", "string", "family", "none", "Family carved out of the solid (none = off)");
     addOpt("lattice_subtract_size", "Lattice", "double", "frac", "0.3", "Level of the carved-out family, cell edges (0.01..1)");
     addOpt("lattice_smooth", "Lattice", "double", "frac", "0", "Gaussian blur of the field, sigma in cell edges (0..0.3)");
+    addOpt("honeycomb_custom", "Lattice", "bool", "", "false", "Honeycombs: use honeycomb_angle / honeycomb_rib instead of the preset");
+    addOpt("honeycomb_angle", "Lattice", "double", "deg", "30", "Honeycombs: inclined wall angle, degrees (-50..50, < 0 auxetic)");
+    addOpt("honeycomb_rib", "Lattice", "double", "ratio", "1", "Honeycombs: rib length / wall length (0.2..5)");
     addOpt("material_iso", "Material", "string", "E,nu", "", "Solid material as numbers: Young's modulus in GPa and Poisson's ratio (isotropic)");
     addOpt("material_ti", "Material", "string", "E,nu,r", "", "Solid material as numbers, transversely isotropic about Z: E_z = r*E, G_xz = G_yz = r*G");
     addOpt("no_fields", "Output", "bool", "", "false", "Do not store per-voxel stress/strain fields in HDF5");
@@ -1413,6 +1425,32 @@ bool Commandline_Parser::applyParameter(const QString& key, const QString& value
         params->setLatticeSubtractSize(v);
         return true;
     }
+    if (normKey == "honeycomb_custom") {
+        bool v = false;
+        if (!parseBool(v)) return false;
+        params->setHoneycombCustom(v);
+        return true;
+    }
+    if (normKey == "honeycomb_angle") {
+        double v = 0.0;
+        if (!parseDouble(v, true)) return false;
+        if (v < -50.0 || v > 50.0) {
+            return setErr(QString("Option honeycomb_angle expects a value in [-50, 50] degrees; got %1").arg(value));
+        }
+        params->setHoneycombAngle(v);
+        params->setHoneycombCustom(true);
+        return true;
+    }
+    if (normKey == "honeycomb_rib") {
+        double v = 0.0;
+        if (!parseDouble(v, true)) return false;
+        if (v < 0.2 || v > 5.0) {
+            return setErr(QString("Option honeycomb_rib expects a value in [0.2, 5]; got %1").arg(value));
+        }
+        params->setHoneycombRib(v);
+        params->setHoneycombCustom(true);
+        return true;
+    }
     if (normKey == "lattice_smooth") {
         double v = 0.0;
         if (!parseDouble(v, true)) return false;
@@ -1561,6 +1599,9 @@ bool Commandline_Parser::processOptions(const QCommandLineParser& parser, QStrin
     if (parser.isSet("lattice_subtract"))        if (!applyCliOption("lattice_subtract", parser.value("lattice_subtract"))) return false;
     if (parser.isSet("lattice_subtract_size"))   if (!applyCliOption("lattice_subtract_size", parser.value("lattice_subtract_size"))) return false;
     if (parser.isSet("lattice_smooth"))          if (!applyCliOption("lattice_smooth", parser.value("lattice_smooth"))) return false;
+    if (parser.isSet("honeycomb_angle"))         if (!applyCliOption("honeycomb_angle", parser.value("honeycomb_angle"))) return false;
+    if (parser.isSet("honeycomb_rib"))           if (!applyCliOption("honeycomb_rib", parser.value("honeycomb_rib"))) return false;
+    if (parser.isSet("honeycomb_custom"))        if (!applyCliOption("honeycomb_custom", parser.value("honeycomb_custom"))) return false;
     if (parser.isSet("material_iso"))            if (!applyCliOption("material_iso", parser.value("material_iso"))) return false;
     if (parser.isSet("material_ti"))             if (!applyCliOption("material_ti", parser.value("material_ti"))) return false;
     if (parser.isSet("no_fields"))               if (!applyCliOption("no_fields", "true")) return false;

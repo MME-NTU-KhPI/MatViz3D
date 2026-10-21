@@ -53,10 +53,11 @@ PARAM_KEYS = {
     "noise_smooth", "lattice_cell_mm",
     "fourier_symmetry", "plate_hole", "lattice_union",
     "lattice_subtract", "lattice_subtract_size", "lattice_smooth",
+    "honeycomb_angle", "honeycomb_rib",
     "print_min_wall_mm", "print_max_overhang_deg", "print_max_thin_fraction",
     "print_max_island_vox", "print_max_unsupported_fraction",
 }
-FLAG_KEYS = {"lattice_uniform_wall"}
+FLAG_KEYS = {"lattice_uniform_wall", "honeycomb_custom"}
 INT_KEYS = {"cells_per_edge", "fourier_terms", "print_max_island_vox"}
 
 

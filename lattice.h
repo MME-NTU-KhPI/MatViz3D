@@ -22,6 +22,10 @@
  *     nearest strut centre-line, so c is the strut radius in cell units.
  *   - Honeycombs (hexagonal, re-entrant): F = in-plane distance to the
  *     nearest wall centre-line, extruded along Z; c is half the wall thickness.
+ *     The presets (+30 deg / rib 1, -30 deg / rib 2) can be overridden by
+ *     `honeycomb_angle` (inclined wall to the horizontal, negative folds it
+ *     inward) and `honeycomb_rib` (vertical rib length over wall length):
+ *     0 deg gives brick-like rectangles, a large rib stretches the cells.
  *     A hexagonal tiling is not periodic on a square, so the number of cells
  *     along Y is rounded and the cells stretched to fit (reported).
  *   - Spinodoid: a Gaussian random field built from waves on the integer
@@ -229,6 +233,9 @@ private:
     double  m_hcP            = 1.0;    ///< honeycomb cell height (period along Y)
     int     m_cellsY         = 1;      ///< honeycomb: cells along Y
     double  m_hcStretch      = 1.0;
+    bool    m_hcCustom       = false;  ///< honeycomb shape from honeycomb_angle / honeycomb_rib instead of the family preset
+    double  m_hcAngle        = 30.0;   ///< inclined wall angle to the horizontal, degrees (< 0 = re-entrant)
+    double  m_hcRib          = 1.0;    ///< vertical rib length / inclined wall length
     std::vector<Wave> m_waves;         ///< spinodoid random field
     std::vector<Wave> m_jitterWaves;   ///< thickness-modulation field
     double  m_jitterNorm     = 1.0;

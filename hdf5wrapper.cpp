@@ -936,6 +936,12 @@ void saveGeometryMetadataToHDF5(HDF5Wrapper& hdf5, const std::string& prefix, co
         paramsObj["lattice_subtract"]      = Parameters::latticeSubtractKeyStored().isEmpty() ? QStringLiteral("none") : Parameters::latticeSubtractKeyStored();
         paramsObj["lattice_subtract_size"] = p->getLatticeSubtractSize();
         paramsObj["lattice_smooth"]        = p->getLatticeSmooth();
+        hdf5.write(geomGroup, "honeycomb_custom", p->getHoneycombCustom() ? 1 : 0);
+        hdf5.write(geomGroup, "honeycomb_angle",  float(p->getHoneycombAngle()));
+        hdf5.write(geomGroup, "honeycomb_rib",    float(p->getHoneycombRib()));
+        paramsObj["honeycomb_custom"] = p->getHoneycombCustom();
+        paramsObj["honeycomb_angle"]  = p->getHoneycombAngle();
+        paramsObj["honeycomb_rib"]    = p->getHoneycombRib();
         // Printability of the rasterized cube (printability.h).
         const PrintabilityReport& pr = Parameters::printability;
         if (pr.computed) {

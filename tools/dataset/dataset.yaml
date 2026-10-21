@@ -75,6 +75,12 @@ families:
              lattice_family: {choices: [plate_sc, plate_sc_fcc, plate_sc_bcc, plate_bcc, octet, bcc]},
              lattice_subtract: {choices: [spheres_sc, spheres_bcc, spheres_fcc, cylinders_axes]},
              lattice_subtract_size: [0.15, 0.4], lattice_smooth: [0.0, 0.05], cells_per_edge: [1, 2]}
+  honeycombs:
+    quota: 400
+    oversample: 1.6
+    params: {lattice_cell_mm: [8.0, 15.0], relative_density: [0.20, 0.45],
+             lattice_family: {choices: [honeycomb, reentrant]},
+             honeycomb_angle: [-45.0, 45.0], honeycomb_rib: [0.5, 2.5], cells_per_edge: [2, 4]}
   anchors:
     quota: 1500
     oversample: 1.6

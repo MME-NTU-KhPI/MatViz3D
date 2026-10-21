@@ -132,6 +132,10 @@ class Parameters : public QObject
     Q_PROPERTY(QString lattice_subtract      READ getLatticeSubtract     WRITE setLatticeSubtract     NOTIFY latticeSettingsChanged)
     Q_PROPERTY(double  lattice_subtract_size READ getLatticeSubtractSize WRITE setLatticeSubtractSize NOTIFY latticeSettingsChanged)
     Q_PROPERTY(double  lattice_smooth        READ getLatticeSmooth       WRITE setLatticeSmooth       NOTIFY latticeSettingsChanged)
+    // Honeycomb shape: custom on/off, inclined wall angle (deg, negative = re-entrant), rib / wall length.
+    Q_PROPERTY(bool    honeycomb_custom READ getHoneycombCustom WRITE setHoneycombCustom NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  honeycomb_angle  READ getHoneycombAngle  WRITE setHoneycombAngle  NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  honeycomb_rib    READ getHoneycombRib    WRITE setHoneycombRib    NOTIFY latticeSettingsChanged)
     // Material given as numbers instead of a database row (dataset runs): E in
     // GPa (0 = use db_material), Poisson's ratio, and the ratio of the modulus
     // across the print layers (Z) to the in-plane one (1 = isotropic).
@@ -412,6 +416,12 @@ public:
     Q_INVOKABLE void setLatticeSubtractSize(double value);
     double  getLatticeSmooth()       const { return lattice_smooth; }
     Q_INVOKABLE void setLatticeSmooth(double value);
+    bool    getHoneycombCustom()     const { return honeycomb_custom; }
+    Q_INVOKABLE void setHoneycombCustom(bool value);
+    double  getHoneycombAngle()      const { return honeycomb_angle; }
+    Q_INVOKABLE void setHoneycombAngle(double value);
+    double  getHoneycombRib()        const { return honeycomb_rib; }
+    Q_INVOKABLE void setHoneycombRib(double value);
     double getMatEGpa()    const { return mat_e_gpa; }
     double getMatNu()      const { return mat_nu; }
     double getMatAniso()   const { return mat_aniso; }
@@ -724,6 +734,9 @@ private:
     static QString lattice_subtract;     // CLI key of the carved-out family, empty = none
     static double  lattice_subtract_size;
     static double  lattice_smooth;
+    static bool    honeycomb_custom;
+    static double  honeycomb_angle;
+    static double  honeycomb_rib;
     static double  mat_e_gpa;
     static double  mat_nu;
     static double  mat_aniso;

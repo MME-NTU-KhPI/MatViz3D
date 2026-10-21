@@ -146,6 +146,14 @@ void Lattice::readParameters()
     m_fourierFile  = p.getFourierFile();
     m_cubicSym     = p.getFourierSymmetry().compare(QLatin1String("cubic"), Qt::CaseInsensitive) == 0;
     m_noiseSmooth  = std::clamp(p.getNoiseSmooth(), 0.005, 0.5);
+    m_hcCustom     = p.getHoneycombCustom();
+    m_hcAngle      = std::clamp(p.getHoneycombAngle(), -50.0, 50.0);
+    m_hcRib        = std::clamp(p.getHoneycombRib(), 0.2, 5.0);
+    if (m_hcCustom && m_hcRib + std::sin(m_hcAngle * kPi / 180.0) <= 0.1) {
+        qWarning().noquote() << QString("[Lattice] honeycomb angle %1 deg with rib %2 folds the cell onto itself; using the family preset")
+                                    .arg(m_hcAngle, 0, 'f', 1).arg(m_hcRib, 0, 'f', 2);
+        m_hcCustom = false;
+    }
     m_plateHole    = std::clamp(p.getPlateHole(), 0.0, 0.9);
     m_smooth       = std::clamp(p.getLatticeSmooth(), 0.0, 0.3);
     m_subtractSize = std::clamp(p.getLatticeSubtractSize(), 0.01, 1.0);
@@ -286,8 +294,8 @@ void Lattice::buildSegments()
                 }
             break;
         }
-        case LatticeFamily::Honeycomb:  honeycomb( 30.0, 1.0); break;
-        case LatticeFamily::Reentrant:  honeycomb(-30.0, 2.0); break;
+        case LatticeFamily::Honeycomb:  honeycomb(m_hcCustom ? m_hcAngle : 30.0, m_hcCustom ? m_hcRib : 1.0); break;
+        case LatticeFamily::Reentrant:  honeycomb(m_hcCustom ? m_hcAngle : -30.0, m_hcCustom ? m_hcRib : 2.0); break;
         default:
             break;
     }
@@ -1283,8 +1291,11 @@ void Lattice::report() const
     if (m_segments2D)
         qInfo().noquote()
             << QString("[Lattice] honeycomb: %1 cells along Y; cells stretched by %2 along Y "
-                       "to tile the square cube")
-                   .arg(m_cellsY).arg(m_hcStretch, 0, 'f', 3);
+                       "to tile the square cube%3")
+                   .arg(m_cellsY).arg(m_hcStretch, 0, 'f', 3)
+                   .arg(m_hcCustom ? QString("; custom shape: wall angle %1 deg, rib %2")
+                                         .arg(m_hcAngle, 0, 'f', 1).arg(m_hcRib, 0, 'f', 2)
+                                   : QString());
 
     if (m_family == LatticeFamily::Spinodoid)
         qInfo().noquote()
@@ -1414,6 +1425,11 @@ static std::vector<ParamField> latticeSchema()
         { "lattice_subtract_size", "Carve-out size (cell edges)", ParamField::Double, 0.3, 0.01, 1.0, {}, "main" },
         // Gaussian blur of the field before the level is solved: fillets.
         { "lattice_smooth", "Smoothing (cell edges)", ParamField::Double, 0.0, 0.0, 0.3, {}, "main" },
+
+        // Honeycombs: override the family presets (+30 deg / 1, -30 deg / 2).
+        { "honeycomb_custom", "Custom honeycomb shape",             ParamField::Bool,   false, {}, {}, {}, "main" },
+        { "honeycomb_angle",  "Honeycomb wall angle (deg, <0 auxetic)", ParamField::Double, 30.0, -50.0, 50.0, {}, "main" },
+        { "honeycomb_rib",    "Honeycomb rib / wall length",       ParamField::Double, 1.0,  0.2,   5.0,  {}, "main" },
     };
 
     // One constituent: the printed base material. Void is the other phase.

@@ -24,6 +24,7 @@ private slots:
     void testMaterialOverrideAndTpmsWaves();
     void testPlateLatticesSymmetryAndUnion();
     void testSitesCarvingAndSmoothing();
+    void testHoneycombShape();
     void testCliOptions();
 };
 

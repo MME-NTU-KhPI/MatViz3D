@@ -654,6 +654,54 @@ void TestLattice::testSitesCarvingAndSmoothing()
     }
 }
 
+void TestLattice::testHoneycombShape()
+{
+    Parameters* p = Parameters::instance();
+    const int N = 32;
+    p->setSize(N);
+    p->setCellsPerEdge(2);
+    p->setRelativeDensity(0.30);
+
+    // The custom shape -30 deg / rib 2 on the hexagonal family is exactly the
+    // re-entrant preset.
+    p->setLatticeFamily("reentrant");
+    TestableLattice R(N);
+    R.Initialization(false);
+    p->setLatticeFamily("honeycomb");
+    p->setHoneycombCustom(true);
+    p->setHoneycombAngle(-30.0);
+    p->setHoneycombRib(2.0);
+    TestableLattice H(N);
+    H.Initialization(false);
+    QCOMPARE(H.cellsAlongY(), R.cellsAlongY());
+    QVERIFY(std::abs(H.honeycombStretch() - R.honeycombStretch()) < 1e-12);
+    for (double x : { 1.3, 7.9, 20.2 })
+        for (double y : { 2.1, 15.5, 29.7 })
+            QVERIFY(std::abs(H.fieldAt(x, y, 4.5) - R.fieldAt(x, y, 4.5)) < 1e-12);
+
+    // 0 deg with rib 1: cell width 2, period 2 -> as many cells along Y as along X, no stretch.
+    p->setHoneycombAngle(0.0);
+    p->setHoneycombRib(1.0);
+    TestableLattice B(N);
+    B.Initialization(false);
+    QCOMPARE(B.cellsAlongY(), 2);
+    QVERIFY(std::abs(B.honeycombStretch() - 1.0) < 1e-12);
+    B.Generate_To_End();
+    // Axis-aligned walls sit on whole-voxel shells (like plates), so on 16
+    // voxels per cell the density is quantized: within one shell is enough.
+    QVERIFY2(std::abs(B.achievedDensity() - 0.30) < 0.08, qPrintable(QString::number(B.achievedDensity())));
+
+    // A fold-over (rib + sin(angle) <= 0.1) falls back to the preset.
+    p->setHoneycombAngle(-50.0);
+    p->setHoneycombRib(0.8);
+    TestableLattice F(N);
+    F.Initialization(false);
+    p->setHoneycombCustom(false);
+    TestableLattice P(N);
+    P.Initialization(false);
+    QVERIFY(std::abs(F.honeycombStretch() - P.honeycombStretch()) < 1e-12);
+}
+
 void TestLattice::testCliOptions()
 {
     Parameters* p = Parameters::instance();
@@ -741,4 +789,15 @@ void TestLattice::testCliOptions()
     QCOMPARE(p->getLatticeSmooth(), 0.05);
     QVERIFY(!applyParameter("lattice_smooth", "0.5", &err));
     QVERIFY(Commandline_Parser::isValidLatticeFamily("cylinders_axes"));
+
+    QVERIFY(!p->getHoneycombCustom());
+    QVERIFY(applyParameter("honeycomb_angle", "15", &err));
+    QCOMPARE(p->getHoneycombAngle(), 15.0);
+    QVERIFY(p->getHoneycombCustom());                      // setting the angle switches the custom shape on
+    QVERIFY(!applyParameter("honeycomb_angle", "60", &err));
+    QVERIFY(applyParameter("honeycomb_rib", "2.5", &err));
+    QCOMPARE(p->getHoneycombRib(), 2.5);
+    QVERIFY(!applyParameter("honeycomb_rib", "0.1", &err));
+    QVERIFY(applyParameter("honeycomb_custom", "false", &err));
+    QVERIFY(!p->getHoneycombCustom());
 }
