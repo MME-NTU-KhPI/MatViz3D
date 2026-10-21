@@ -795,6 +795,10 @@ void TestLattice::testCliOptions()
     QCOMPARE(p->getHoneycombAngle(), 15.0);
     QVERIFY(p->getHoneycombCustom());                      // setting the angle switches the custom shape on
     QVERIFY(!applyParameter("honeycomb_angle", "60", &err));
+    QVERIFY(applyParameter("honeycomb_angle", "-30", &err));   // re-entrant: negative is valid
+    QCOMPARE(p->getHoneycombAngle(), -30.0);
+    QVERIFY(applyParameter("honeycomb_angle", "0", &err));
+    QCOMPARE(p->getHoneycombAngle(), 0.0);
     QVERIFY(applyParameter("honeycomb_rib", "2.5", &err));
     QCOMPARE(p->getHoneycombRib(), 2.5);
     QVERIFY(!applyParameter("honeycomb_rib", "0.1", &err));

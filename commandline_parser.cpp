@@ -1433,7 +1433,7 @@ bool Commandline_Parser::applyParameter(const QString& key, const QString& value
     }
     if (normKey == "honeycomb_angle") {
         double v = 0.0;
-        if (!parseDouble(v, true)) return false;
+        if (!parseDouble(v, false)) return false;          // zero and negative angles are valid
         if (v < -50.0 || v > 50.0) {
             return setErr(QString("Option honeycomb_angle expects a value in [-50, 50] degrees; got %1").arg(value));
         }
