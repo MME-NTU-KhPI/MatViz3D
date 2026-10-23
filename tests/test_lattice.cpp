@@ -131,7 +131,10 @@ void TestLattice::testDensityIsHitForEveryFamily()
                              i.family == LatticeFamily::FCC || i.family == LatticeFamily::Octet ||
                              i.family == LatticeFamily::Honeycomb || i.family == LatticeFamily::Reentrant ||
                              isPlateFamily(i.family) || isSiteFamily(i.family));
-        QVERIFY2(std::abs(rho - 0.30) < (shells ? 0.03 : 0.01),
+        // Shell families on 12 voxels per cell reach the density in steps of
+        // up to 0.1 (the fields are snapped, so a shell is all in or all out
+        // and the level lands on the nearer shell): one shell of slack.
+        QVERIFY2(std::abs(rho - 0.30) < (shells ? 0.07 : 0.01),
                  qPrintable(QString("%1: achieved %2").arg(i.key).arg(rho)));
         QCOMPARE(maxId, 1);
         QCOMPARE(L.achievedDensity(), rho);

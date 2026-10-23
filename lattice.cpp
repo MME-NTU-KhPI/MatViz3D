@@ -759,7 +759,9 @@ double Lattice::familyField(LatticeFamily fam, double X, double Y, double Z) con
                                                              s.ax, s.ay, s.az, s.bx, s.by, s.bz);
                             if (d < best) best = d;
                         }
-            return best;
+            // Snap away rounding noise so the voxel shells around a strut tie
+            // exactly in the quantile solve (see plateField).
+            return std::round(best * 1e9) / 1e9;
         }
         case LatticeFamily::Honeycomb:
         case LatticeFamily::Reentrant: {
@@ -775,7 +777,7 @@ double Lattice::familyField(LatticeFamily fam, double X, double Y, double Z) con
                                                          s.ax, s.ay, 0.0, s.bx, s.by, 0.0);
                         if (d < best) best = d;
                     }
-            return best;
+            return std::round(best * 1e9) / 1e9;   // exact ties for axis-aligned walls
         }
         case LatticeFamily::Spinodoid: {
             if (m_waves.empty()) return 0.0;
