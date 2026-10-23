@@ -1145,7 +1145,11 @@ void Lattice::Initialization(bool /*isWaveGeneration*/)
     publishWaves();
 
     numColors = 1;
-    m_coarseN = std::min<int>(numCubes, 64);
+    // The level is read off the sorted field of this coarse copy. Distance fields of
+    // axis-aligned walls sit on whole-voxel shells, so a coarser copy than the cube
+    // itself picks a level that lands on the wrong shell at 128^3; up to 128^3 the
+    // full grid is cheap enough (2M values, one sort).
+    m_coarseN = std::min<int>(numCubes, 128);
     m_achieved = 0.0;
     normalizeJitter();
     buildSmoothed();

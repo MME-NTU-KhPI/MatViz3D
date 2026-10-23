@@ -183,6 +183,20 @@ def cmd_plan(cfg, args):
     shutil.copyfile(cfg["_config_path"], out / "dataset.yaml")
 
     laws = cfg["laws"]
+    # Laws: either a list of named laws assigned round-robin, or a dict of
+    # ranges {E_GPa: [lo, hi], nu: [lo, hi], aniso: [lo, hi]} sampled per row
+    # (Sobol, own seed), so the material is a continuous axis of the dataset.
+    law_rng = None
+    if isinstance(laws, dict):
+        law_rng = qmc.Sobol(d=3, scramble=True, seed=int(cfg["seed0"]) + 99) if qmc is not None else np.random.default_rng(int(cfg["seed0"]) + 99)
+    def draw_law(k: int) -> dict:
+        if law_rng is None:
+            return laws[k % len(laws)]
+        u = law_rng.random(1)[0] if qmc is not None else law_rng.random(3)
+        def span(key, default):
+            r = laws.get(key, default)
+            return (r[0] + float(u[["E_GPa", "nu", "aniso"].index(key)]) * (r[1] - r[0])) if isinstance(r, (list, tuple)) else float(r)
+        return {"id": "sampled", "E_GPa": round(span("E_GPa", 2.0), 3), "nu": round(span("nu", 0.38), 4), "aniso": round(span("aniso", 1.0), 3)}
     rows: list[dict] = []
     rid = 1
     seed = int(cfg["seed0"])
@@ -191,7 +205,7 @@ def cmd_plan(cfg, args):
         if n <= 0:
             continue
         for p in sample_family(group, block, cfg["common"], n, sobol_seed=1000 * gi + 7):
-            law = laws[(rid - 1) % len(laws)]
+            law = draw_law(rid - 1)
             row = {"id": f"{rid:06d}", "group": group, "status": "pending", "seed": seed,
                    "law_id": law["id"], "law_E_GPa": law["E_GPa"], "law_nu": law["nu"], "law_aniso": law.get("aniso", 1.0)}
             for k, v in p.items():
@@ -491,7 +505,7 @@ def cmd_check(cfg, args):
     lines = [f"# Dataset card — {out.name}", "",
              f"generated {datetime.now().isoformat(timespec='minutes')}; planned {meta.get('created', '?')}; "
              f"MatViz3D commit {meta.get('matviz_commit') or '?'}; grid {cfg['size']}^3; FFT tol {cfg['fft_tol']}", "",
-             "Material laws: " + "; ".join(f"{l['id']} (E={l['E_GPa']} GPa, nu={l['nu']}, aniso={l.get('aniso', 1.0)})" for l in cfg["laws"]), ""]
+             ("Material laws: " + ("; ".join(f"{l['id']} (E={l['E_GPa']} GPa, nu={l['nu']}, aniso={l.get('aniso', 1.0)})" for l in cfg["laws"]) if isinstance(cfg["laws"], list) else f"sampled per row: {cfg['laws']}")), ""]
     st = {}
     for r in rows:
         st[r["status"]] = st.get(r["status"], 0) + 1
