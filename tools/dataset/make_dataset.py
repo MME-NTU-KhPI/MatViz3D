@@ -239,7 +239,8 @@ def build_command(cfg, row: dict, out_file: Path) -> list[str]:
         key = k[2:]
         if key in FLAG_KEYS:
             if str(v).lower() in ("true", "1", "yes"):
-                cmd.append("--" + key)
+                # honeycomb_custom is a valued option in the CLI (true|false); the others are bare flags
+                cmd += ["--" + key, "true"] if key == "honeycomb_custom" else ["--" + key]
             continue
         if key not in PARAM_KEYS or v in ("", None):
             continue
