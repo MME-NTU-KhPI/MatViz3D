@@ -15,6 +15,7 @@ private slots:
     void testCgConvergesOnSolidVoidLaminate();
     void testSessionAutoPicksScheme();
     void testCliOption();
+    void testSensitivityIndex();
 };
 
 #endif // TEST_FFTHOMOG_H

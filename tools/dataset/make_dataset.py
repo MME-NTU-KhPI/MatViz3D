@@ -542,12 +542,14 @@ def cmd_check(cfg, args):
             checks.append(("load path in every direction (min E / E_s >= 1e-3)", ~weak))
             if "connected" in s:
                 checks.append(("one connected solid body", s["connected"].astype(bool)))
+            if "sensitivity_index" in s:
+                checks.append(("strain concentration index >= 1", num("sensitivity_index") >= 0.999))
             pcols = [c for c in s.columns if c.startswith("p_")]
             checks.append(("unique parameter rows", ~s.duplicated(subset=pcols)))
             lines += ["## Checks (accepted cells)", "", "| check | pass | n |", "|---|---|---|"] + \
                      [f"| {n_} | {m.mean():.1%} | {len(m)} |" for n_, m in checks] + [""]
             lines += ["## Ranges", "", "| quantity | min | median | max |", "|---|---|---|---|"]
-            for q in ["lattice_achieved_density", "E_over_Es", "E_ratio", "A_universal", "nu_xy", "lattice_wall_mm", "fft_iterations", "seconds"]:
+            for q in ["lattice_achieved_density", "E_over_Es", "E_ratio", "A_universal", "nu_xy", "lattice_wall_mm", "sensitivity_index", "solid_strain_ratio", "fft_iterations", "seconds"]:
                 if q in s:
                     v = pd.to_numeric(s[q], errors="coerce").dropna()
                     if len(v):

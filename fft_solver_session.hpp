@@ -302,6 +302,55 @@ public:
         return r;
     }
 
+    // Frobenius norm squared of a strain given as engineering components
+    // [exx, eyy, ezz, gxy, gyz, gxz]: the shear entries enter as gamma^2/2.
+    static double eng_strain_norm2(const Vec6& g) {
+        return g[0] * g[0] + g[1] * g[1] + g[2] * g[2]
+             + 0.5 * (g[3] * g[3] + g[4] * g[4] + g[5] * g[5]);
+    }
+
+    // Strain-concentration (sensitivity) index of one load case:
+    //     <|eps|^2>_solid / |<eps>_solid|^2
+    // the mean square of the local strain over the SOLID voxels divided by the
+    // square of the mean strain of that same material. It is exactly 1 when
+    // the material deforms uniformly (stretching-dominated plates, a solid
+    // block) and grows when the strain localises in joints and bending walls,
+    // where an error in the material law is amplified most (theorem T7 of the
+    // lattice work). Pure bending drives the mean strain towards zero, so the
+    // value is capped at 1e6. Normalising by the material's own mean strain,
+    // not by the macroscopic strain, keeps the measure independent of how much
+    // of the cell's deformation the voids absorb (see solid_strain_ratio).
+    static double strain_concentration_index(const std::vector<Vec6>& voxel_strain_eng) {
+        if (voxel_strain_eng.empty()) return 0.0;
+        const double n = static_cast<double>(voxel_strain_eng.size());
+        double acc = 0.0; Vec6 mean{}; mean.fill(0.0);
+        for (const Vec6& g : voxel_strain_eng) {
+            acc += eng_strain_norm2(g);
+            for (int c = 0; c < 6; ++c) mean[c] += g[c];
+        }
+        for (int c = 0; c < 6; ++c) mean[c] /= n;
+        const double num = acc / n, den = eng_strain_norm2(mean);
+        if (!(num > 0.0)) return 0.0;
+        return den > num * 1e-6 ? num / den : 1e6;
+    }
+
+    // Share of the macroscopic strain actually carried by the material:
+    //     <|eps|^2>_solid / |E|^2
+    // 1 for a homogeneous solid; below 1 when the voids take up most of the
+    // cell's deformation (a strut lattice loaded across its struts, a laminate
+    // loaded across its void layers); above 1 when the material is strained
+    // more than the cell as a whole. Tensor macro shear enters as 2 e^2.
+    static double solid_strain_ratio(const std::vector<Vec6>& voxel_strain_eng,
+                                     const Vec6& macro_strain_pipeline) {
+        if (voxel_strain_eng.empty()) return 0.0;
+        double acc = 0.0;
+        for (const Vec6& g : voxel_strain_eng) acc += eng_strain_norm2(g);
+        const Vec6& E = macro_strain_pipeline;
+        const double En = E[0] * E[0] + E[1] * E[1] + E[2] * E[2]
+                        + 2.0 * (E[3] * E[3] + E[4] * E[4] + E[5] * E[5]);
+        return En > 0.0 ? (acc / static_cast<double>(voxel_strain_eng.size())) / En : 0.0;
+    }
+
     // Same as solveLoadCase but also returns per-voxel strain (engineering) so
     // the caller can fill full 22-column HDF5 rows.  Used only in phase 2.0.
     StepResult solveLoadCaseFull(const Vec6& macro_strain_pipeline,

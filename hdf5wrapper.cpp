@@ -107,7 +107,18 @@ QString saveStiffnessMatrixToHDF5(const QString& filename,
     hdf5.write(prefix, "Effective_Moduli", moduli);
     hdf5.write(prefix, "seed",             int(seed));
     hdf5.write(prefix, "solver",           solver);
-    if (r.isFFT) hdf5.write(prefix, "iterations_total", r.totalIterations);
+    if (r.isFFT) {
+        hdf5.write(prefix, "iterations_total", r.totalIterations);
+        // The sensitivity index lives next to the geometry metadata when that
+        // group exists: the dataset tools read every scalar of /geometry.
+        const std::string sensGroup = hdf5.datasetExists(prefix, "geometry") ? prefix + "/geometry" : prefix;
+        hdf5.write(sensGroup, "sensitivity_index", r.sensitivityIndex);
+        hdf5.write(sensGroup, "sensitivity_index_loads",
+                   std::vector<float>(r.sensitivityLoads, r.sensitivityLoads + 6));
+        hdf5.write(sensGroup, "solid_strain_ratio", r.solidStrainRatio);
+        hdf5.write(sensGroup, "solid_strain_ratio_loads",
+                   std::vector<float>(r.solidStrainRatioLoads, r.solidStrainRatioLoads + 6));
+    }
 
     if (!r.load_steps.empty()) {
         hdf5.write(prefix, "num_samples", int(r.load_steps.size()));

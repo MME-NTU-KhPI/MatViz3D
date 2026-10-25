@@ -132,6 +132,16 @@ struct StiffnessMatrixResult
     bool isFFT           = false;
     int  totalIterations = 0;   // FFT only; 0 for ANSYS
 
+    // Strain-concentration (sensitivity) index, FFT only:
+    // <|eps|^2>_solid / |<eps>_solid|^2 per unit load, and their mean. 1 when
+    // the material deforms uniformly; large where strain localises (bending
+    // walls, joints). solidStrainRatio = <|eps|^2>_solid / |E|^2 is the share
+    // of the macroscopic strain the material carries (voids absorb the rest).
+    double sensitivityIndex       = 0.0;
+    double sensitivityLoads[6]    = {0};
+    double solidStrainRatio       = 0.0;
+    double solidStrainRatioLoads[6] = {0};
+
     struct LoadDebug {
         int    iterations = 0;    // FFT only
         double error       = 0.0; // FFT only, final equilibrium error

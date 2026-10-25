@@ -175,3 +175,78 @@ void TestFftHomog::testCliOption()
     QVERIFY(Commandline_Parser::isValidFftScheme("auto"));
     QVERIFY(!Commandline_Parser::isValidFftScheme(""));
 }
+
+
+void TestFftHomog::testSensitivityIndex()
+{
+    // Strain concentration <|eps|^2>_solid / |<eps>_solid|^2 and the solid
+    // strain ratio <|eps|^2>_solid / |E|^2. A homogeneous solid deforms
+    // uniformly: both are exactly 1 for every unit load. In a solid/void
+    // laminate (layers normal to X) each solid layer still deforms uniformly,
+    // so the concentration stays 1, while the ratio tells how much of the
+    // cell's strain the material carries: above 1 for e_yy (in-plane strain
+    // plus free contraction across the layers), near 0 for e_xx (the void
+    // layers take it). A block with a cubic hole strains unevenly around the
+    // hole, so its concentration index exceeds 1.
+    const int n = 8;
+    const double E = 2.0e9, nu = 0.38;
+    const double mu = E / (2 * (1 + nu)), lam = E * nu / ((1 + nu) * (1 - 2 * nu));
+    const std::vector<std::array<double,3>> orient = { {0,0,0}, {0,0,0} };
+    using fftsa::FFTSolverSession;
+
+    {
+        std::vector<int> grain(static_cast<size_t>(n) * n * n, 1);
+        FFTSolverSession s(n, n, n, grain, orient, lam + 2 * mu, lam, mu);
+        s.set_tolerance(1e-8);
+        for (int j = 0; j < 6; ++j) {
+            fftsa::Vec6 e{}; e.fill(0.0); e[j] = 1.0;
+            std::vector<fftsa::Vec6> eng;
+            s.solveLoadCaseFull(e, eng);
+            const double idx = FFTSolverSession::strain_concentration_index(eng);
+            const double ratio = FFTSolverSession::solid_strain_ratio(eng, e);
+            QVERIFY2(std::abs(idx - 1.0) < 1e-6, qPrintable(QString("solid cube, load %1: index %2").arg(j).arg(idx)));
+            QVERIFY2(std::abs(ratio - 1.0) < 1e-6, qPrintable(QString("solid cube, load %1: ratio %2").arg(j).arg(ratio)));
+        }
+    }
+    {
+        std::vector<int> grain(static_cast<size_t>(n) * n * n, 0);
+        for (int z = 0; z < n; ++z)
+            for (int y = 0; y < n; ++y)
+                for (int x = 0; x < n; ++x)
+                    grain[(static_cast<size_t>(z) * n + y) * n + x] = (x < n / 2) ? 1 : 0;
+        FFTSolverSession s(n, n, n, grain, orient, lam + 2 * mu, lam, mu);
+        s.set_tolerance(1e-8);
+        s.set_max_iters(2000);
+        s.set_scheme(FFTSolverSession::Scheme::CG);
+        fftsa::Vec6 eyy{}; eyy.fill(0.0); eyy[1] = 1.0;
+        fftsa::Vec6 exx{}; exx.fill(0.0); exx[0] = 1.0;
+        std::vector<fftsa::Vec6> eng;
+        s.solveLoadCaseFull(eyy, eng);
+        const double idx_yy = FFTSolverSession::strain_concentration_index(eng);
+        const double in_plane = FFTSolverSession::solid_strain_ratio(eng, eyy);
+        s.solveLoadCaseFull(exx, eng);
+        const double idx_xx = FFTSolverSession::strain_concentration_index(eng);
+        const double across = FFTSolverSession::solid_strain_ratio(eng, exx);
+        QVERIFY2(std::abs(idx_yy - 1.0) < 1e-3, qPrintable(QString("laminate e_yy concentration %1").arg(idx_yy)));
+        QVERIFY2(std::abs(idx_xx - 1.0) < 1e-3, qPrintable(QString("laminate e_xx concentration %1").arg(idx_xx)));
+        QVERIFY2(in_plane > 1.0 && in_plane < 2.0, qPrintable(QString("laminate in-plane ratio %1").arg(in_plane)));
+        QVERIFY2(across < 0.1, qPrintable(QString("laminate across-layer ratio %1").arg(across)));
+    }
+    {
+        const int m = 16;
+        std::vector<int> grain(static_cast<size_t>(m) * m * m, 1);
+        for (int z = 4; z < 12; ++z)
+            for (int y = 4; y < 12; ++y)
+                for (int x = 4; x < 12; ++x)
+                    grain[(static_cast<size_t>(z) * m + y) * m + x] = 0;   // cubic hole
+        FFTSolverSession s(m, m, m, grain, orient, lam + 2 * mu, lam, mu);
+        s.set_tolerance(1e-7);
+        s.set_max_iters(2000);
+        s.set_scheme(FFTSolverSession::Scheme::CG);
+        fftsa::Vec6 exx{}; exx.fill(0.0); exx[0] = 1.0;
+        std::vector<fftsa::Vec6> eng;
+        s.solveLoadCaseFull(exx, eng);
+        const double idx = FFTSolverSession::strain_concentration_index(eng);
+        QVERIFY2(idx > 1.05 && idx < 1e3, qPrintable(QString("block with a hole: concentration %1").arg(idx)));
+    }
+}

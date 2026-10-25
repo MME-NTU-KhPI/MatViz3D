@@ -571,6 +571,8 @@ StiffnessMatrixResult StressAnalysisFFT::computeStiffnessMatrix(short int numCub
         r.loads[j].iterations = step.iterations;
         r.loads[j].error      = step.error;
         for (int i = 0; i < 6; ++i) r.loads[j].macroStress[i] = step.macro_stress[i];
+        r.sensitivityLoads[j]      = FFTSolverSession::strain_concentration_index(vstrain_eng);
+        r.solidStrainRatioLoads[j] = FFTSolverSession::solid_strain_ratio(vstrain_eng, e);
 
         const int nv = (int)step.voxel_idx.size();
         LoadStepData lsData;
@@ -640,6 +642,23 @@ StiffnessMatrixResult StressAnalysisFFT::computeStiffnessMatrix(short int numCub
 
     r.totalIterations = totalIters;
     r.local_cs = session.local_cs();
+    r.sensitivityIndex = 0.0; r.solidStrainRatio = 0.0;
+    for (int j = 0; j < 6; ++j) {
+        r.sensitivityIndex += r.sensitivityLoads[j] / 6.0;
+        r.solidStrainRatio += r.solidStrainRatioLoads[j] / 6.0;
+    }
+    qDebug() << QString("[StressAnalysisFFT::computeStiffnessMatrix]   strain concentration <|eps|^2>/|<eps>|^2 (solid): "
+                        "mean=%1  loads=[%2, %3, %4, %5, %6, %7]")
+                    .arg(r.sensitivityIndex, 0, 'f', 3)
+                    .arg(r.sensitivityLoads[0], 0, 'f', 3).arg(r.sensitivityLoads[1], 0, 'f', 3)
+                    .arg(r.sensitivityLoads[2], 0, 'f', 3).arg(r.sensitivityLoads[3], 0, 'f', 3)
+                    .arg(r.sensitivityLoads[4], 0, 'f', 3).arg(r.sensitivityLoads[5], 0, 'f', 3);
+    qDebug() << QString("[StressAnalysisFFT::computeStiffnessMatrix]   solid strain ratio <|eps|^2>_solid/|E|^2: "
+                        "mean=%1  loads=[%2, %3, %4, %5, %6, %7]")
+                    .arg(r.solidStrainRatio, 0, 'f', 3)
+                    .arg(r.solidStrainRatioLoads[0], 0, 'f', 3).arg(r.solidStrainRatioLoads[1], 0, 'f', 3)
+                    .arg(r.solidStrainRatioLoads[2], 0, 'f', 3).arg(r.solidStrainRatioLoads[3], 0, 'f', 3)
+                    .arg(r.solidStrainRatioLoads[4], 0, 'f', 3).arg(r.solidStrainRatioLoads[5], 0, 'f', 3);
     r.ok = true;
 
     qDebug() << "[StressAnalysisFFT::computeStiffnessMatrix] v DONE (" << totalIters << "total iters).";
