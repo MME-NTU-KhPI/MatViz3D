@@ -7,7 +7,11 @@ output_dir: ../../data/v1
 matviz: ../../build/MatViz3D.app/Contents/MacOS/MatViz3D
 size: 64
 fft_tol: 1e-5
-fft_max_iter: 3000
+# Willot rotated scheme: converges for true pores; void stiffness 1e-6 of C11 so the
+# moduli no longer depend on it (1e-4 overstated a re-entrant honeycomb twofold).
+fft_discretization: rotated
+fft_void_eta: 1e-6
+fft_max_iter: 10000
 timeout_s: 3600
 oversample: 1.6
 grid:
@@ -15,7 +19,7 @@ grid:
   - 64
   - 96
   - 128
-  min_wall_vox: 8
+  min_wall_vox: 6
   probe: 64
   pinned:
     noise_sheet: 64
