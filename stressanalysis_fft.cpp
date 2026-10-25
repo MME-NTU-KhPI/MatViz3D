@@ -33,7 +33,7 @@ static FFTSolverSession makeSession(int N, const std::vector<int>& grain_field,
                                     int nGrains,
                                     const std::array<double,3>* forced,
                                     double C11, double C12, double C44,
-                                    GrainMaterials& gm)
+                                    GrainMaterials& gm, double void_eta = 1e-4)
 {
     gm = resolveGrainMaterials(nGrains, Parameters::seed, forced,
                                Parameters::textureComponents,
@@ -41,7 +41,7 @@ static FFTSolverSession makeSession(int N, const std::vector<int>& grain_field,
                                C11, C12, C44);
 
     if (!gm.multiPhase)
-        return FFTSolverSession(N, N, N, grain_field, gm.orientation, C11, C12, C44);
+        return FFTSolverSession(N, N, N, grain_field, gm.orientation, C11, C12, C44, void_eta);
 
     // Count the grains per phase so the log says what was actually solved
     // rather than just what was configured.
@@ -54,7 +54,7 @@ static FFTSolverSession makeSession(int N, const std::vector<int>& grain_field,
         parts << QString("%1 x %2").arg(perPhase[p]).arg(gm.phaseNames[p]);
     qDebug().noquote() << "[StressAnalysisFFT] multi-phase:" << parts.join(", ");
 
-    return FFTSolverSession(N, N, N, grain_field, gm.orientation, gm.voigtPa, gm.maxC11);
+    return FFTSolverSession(N, N, N, grain_field, gm.orientation, gm.voigtPa, gm.maxC11, void_eta);
 }
 // The constants come from the material picked in the UI/CLI rather than from a
 // literal here, so the ANSYS and FFT backends are guaranteed to be solving the
@@ -65,6 +65,8 @@ StressAnalysisFFT::StressAnalysisFFT()
     Parameters::cubicConstantsPa(C11, C12, C44);
     fft_scheme   = Parameters::fft_scheme;
     fft_tol      = Parameters::fft_tol;
+    fft_void_eta = Parameters::fft_void_eta;
+    fft_discretization = Parameters::fft_discretization;
     fft_max_iter = Parameters::fft_max_iter;
 }
 
@@ -154,10 +156,13 @@ void StressAnalysisFFT::estimateStressWithFFT(short int numCubes, short int numP
     // draws.
     GrainMaterials gm;
     FFTSolverSession session = makeSession(N, grain_field, nGrains, nullptr,
-                                           C11, C12, C44, gm);
+                                           C11, C12, C44, gm, fft_void_eta);
     session.set_tolerance(fft_tol);
     session.set_max_iters(fft_max_iter);
     applyScheme(session, fft_scheme);
+    session.set_discretization(fft_discretization == "rotated" ? ffth::FFTHomogenizer::Discretization::Rotated
+                                                               : ffth::FFTHomogenizer::Discretization::Continuous);
+    qDebug() << "[StressAnalysisFFT] discretization =" << session.discretization_name() << " void eta =" << fft_void_eta;
     qDebug() << "[StressAnalysisFFT] grains =" << nGrains
              << " solid fraction =" << session.solid_fraction();
 
@@ -412,7 +417,7 @@ SingleShotResult StressAnalysisFFT::solveSingleLoadCase(short int numCubes, shor
     GrainMaterials gm;
     FFTSolverSession session = makeSession(N, grain_field, nGrains,
                                            useForced ? &forcedOrient : nullptr,
-                                           C11, C12, C44, gm);
+                                           C11, C12, C44, gm, fft_void_eta);
     const std::vector<std::array<double,3>>& orient = gm.orientation;
     if (useForced) {
         const double r2d = 180.0 / M_PI;
@@ -433,6 +438,9 @@ SingleShotResult StressAnalysisFFT::solveSingleLoadCase(short int numCubes, shor
     session.set_tolerance(fft_tol);
     session.set_max_iters(fft_max_iter);
     applyScheme(session, fft_scheme);
+    session.set_discretization(fft_discretization == "rotated" ? ffth::FFTHomogenizer::Discretization::Rotated
+                                                               : ffth::FFTHomogenizer::Discretization::Continuous);
+    qDebug() << "[StressAnalysisFFT] discretization =" << session.discretization_name() << " void eta =" << fft_void_eta;
     qDebug() << "[StressAnalysisFFT]   [DEBUG] solid_fraction =" << session.solid_fraction()
              << " tol =" << fft_tol << " max_iter =" << fft_max_iter;
 
@@ -540,10 +548,13 @@ StiffnessMatrixResult StressAnalysisFFT::computeStiffnessMatrix(short int numCub
 
     GrainMaterials gm;
     FFTSolverSession session = makeSession(N, grain_field, nGrains, nullptr,
-                                           C11, C12, C44, gm);
+                                           C11, C12, C44, gm, fft_void_eta);
     session.set_tolerance(fft_tol);
     session.set_max_iters(fft_max_iter);
     applyScheme(session, fft_scheme);
+    session.set_discretization(fft_discretization == "rotated" ? ffth::FFTHomogenizer::Discretization::Rotated
+                                                               : ffth::FFTHomogenizer::Discretization::Continuous);
+    qDebug() << "[StressAnalysisFFT] discretization =" << session.discretization_name() << " void eta =" << fft_void_eta;
     qDebug() << "[StressAnalysisFFT::computeStiffnessMatrix]   grains =" << nGrains
              << " solid fraction =" << session.solid_fraction()
              << " tol =" << fft_tol << " max_iter =" << fft_max_iter
@@ -552,6 +563,7 @@ StiffnessMatrixResult StressAnalysisFFT::computeStiffnessMatrix(short int numCub
     static const char* comp_names[6] = {"exx", "eyy", "ezz", "exy(tensor)", "eyz(tensor)", "exz(tensor)"};
     double C[6][6] = {{0}};
     int totalIters = 0;
+    std::vector<std::vector<Vec6>> strain_fields(6);   // per load, per solid voxel (engineering)
 
     for (int j = 0; j < 6; ++j) {
         Vec6 e{}; e.fill(0.0); e[j] = 1.0;
@@ -573,6 +585,7 @@ StiffnessMatrixResult StressAnalysisFFT::computeStiffnessMatrix(short int numCub
         for (int i = 0; i < 6; ++i) r.loads[j].macroStress[i] = step.macro_stress[i];
         r.sensitivityLoads[j]      = FFTSolverSession::strain_concentration_index(vstrain_eng);
         r.solidStrainRatioLoads[j] = FFTSolverSession::solid_strain_ratio(vstrain_eng, e);
+        strain_fields[static_cast<std::size_t>(j)] = vstrain_eng;
 
         const int nv = (int)step.voxel_idx.size();
         LoadStepData lsData;
@@ -642,6 +655,32 @@ StiffnessMatrixResult StressAnalysisFFT::computeStiffnessMatrix(short int numCub
 
     r.totalIterations = totalIters;
     r.local_cs = session.local_cs();
+    {
+        const std::vector<double> T = FFTSolverSession::sensitivity_tensor(
+            strain_fields, static_cast<std::size_t>(N) * static_cast<std::size_t>(N) * static_cast<std::size_t>(N));
+        r.sensitivityTensor.assign(T.begin(), T.end());
+        strain_fields.clear(); strain_fields.shrink_to_fit();
+        // Solid share of the strain energy: sum_ab T[i][i][a][b] C_s[a][b] equals
+        // C[i][i] exactly when the solid carries all the energy (Hill); the
+        // rest is carried by the fictitious soft void phase, i.e. an artifact.
+        const Mat6& CsH = session.grain_stiffness_mandel(1);          // homogenizer Mandel order (yz, xz, xy)
+        static const int perm[6] = {0, 1, 2, 5, 3, 4};                 // pipeline index -> homogenizer index
+        Mat6 Cs{};
+        for (int a = 0; a < 6; ++a) for (int b = 0; b < 6; ++b) Cs[a][b] = CsH[perm[a]][perm[b]];
+        const Mat6 predC = FFTSolverSession::predict_stiffness_change(T, Cs);
+        r.solidEnergyShare = 0.0;
+        for (int i = 0; i < 6; ++i) {
+            r.solidEnergyShareLoads[i] = (std::abs(C[i][i]) > 0.0) ? predC[i][i] / C[i][i] : 0.0;
+            r.solidEnergyShare += r.solidEnergyShareLoads[i] / 6.0;
+        }
+        qDebug() << QString("[StressAnalysisFFT::computeStiffnessMatrix]   solid energy share (1 = no void artifact): "
+                            "mean=%1  loads=[%2, %3, %4, %5, %6, %7]  (void eta %8)")
+                        .arg(r.solidEnergyShare, 0, 'f', 3)
+                        .arg(r.solidEnergyShareLoads[0], 0, 'f', 3).arg(r.solidEnergyShareLoads[1], 0, 'f', 3)
+                        .arg(r.solidEnergyShareLoads[2], 0, 'f', 3).arg(r.solidEnergyShareLoads[3], 0, 'f', 3)
+                        .arg(r.solidEnergyShareLoads[4], 0, 'f', 3).arg(r.solidEnergyShareLoads[5], 0, 'f', 3)
+                        .arg(fft_void_eta, 0, 'g', 2);
+    }
     r.sensitivityIndex = 0.0; r.solidStrainRatio = 0.0;
     for (int j = 0; j < 6; ++j) {
         r.sensitivityIndex += r.sensitivityLoads[j] / 6.0;

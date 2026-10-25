@@ -250,3 +250,151 @@ void TestFftHomog::testSensitivityIndex()
         QVERIFY2(idx > 1.05 && idx < 1e3, qPrintable(QString("block with a hole: concentration %1").arg(idx)));
     }
 }
+
+
+void TestFftHomog::testSensitivityTensor()
+{
+    // Block with a soft cubic inclusion (1 % of E, so both schemes converge
+    // tightly on this sharp-cornered 16^3 cell; a 1e-4 void makes CG break down
+    // on the shear load and the basic scheme crawl). (1) With dC = eta * C_s the
+    // tensor must give eta * C up to the inclusion's own share of the strain
+    // energy, which sits outside the solid sum (< 1 % here). (2) For a change
+    // of the Poisson ratio the prediction must match a direct recompute to
+    // first order.
+    const int m = 16;
+    const double E = 2.0e9, nu = 0.38;
+    auto lame = [](double E_, double nu_) {
+        return std::pair<double,double>{E_ * nu_ / ((1 + nu_) * (1 - 2 * nu_)), E_ / (2 * (1 + nu_))};
+    };
+    const std::vector<std::array<double,3>> orient = { {0,0,0}, {0,0,0} };
+    std::vector<int> grain(static_cast<size_t>(m) * m * m, 1);
+    for (int z = 4; z < 12; ++z)
+        for (int y = 4; y < 12; ++y)
+            for (int x = 4; x < 12; ++x)
+                grain[(static_cast<size_t>(z) * m + y) * m + x] = 0;
+    using fftsa::FFTSolverSession;
+    auto solve = [&](double nu_, double C_out[6][6], std::vector<std::vector<fftsa::Vec6>>* fields) {
+        auto [lam, mu] = lame(E, nu_);
+        FFTSolverSession s(m, m, m, grain, orient, lam + 2 * mu, lam, mu, 1e-2 /*inclusion / solid stiffness*/);
+        s.set_tolerance(1e-9); s.set_max_iters(20000); s.set_scheme(FFTSolverSession::Scheme::CG);
+        fftsa::Mat6 C{}; for (auto& row : C) row.fill(0.0);
+        if (fields) fields->assign(6, {});
+        for (int j = 0; j < 6; ++j) {
+            fftsa::Vec6 e{}; e.fill(0.0); e[j] = 1.0;
+            std::vector<fftsa::Vec6> eng;
+            auto step = s.solveLoadCaseFull(e, eng);
+            QVERIFY2(step.error < 1e-7, qPrintable(QString("load %1 did not converge: err %2 after %3 iterations").arg(j).arg(step.error).arg(step.iterations)));
+            for (int i = 0; i < 6; ++i) C[i][j] = step.macro_stress[i];
+            if (fields) (*fields)[static_cast<size_t>(j)] = eng;
+        }
+        for (int i = 0; i < 6; ++i) for (int j = 0; j < 6; ++j) C_out[i][j] = C[i][j];   // raw pipeline C, no symmetrisation
+    };
+    double C0[6][6], C1[6][6];
+    std::vector<std::vector<fftsa::Vec6>> fields;
+    solve(nu, C0, &fields);
+    const std::vector<double> T = FFTSolverSession::sensitivity_tensor(fields, static_cast<size_t>(m) * m * m);
+    QCOMPARE(int(T.size()), 1296);
+
+    // (1) proportional change: prediction == eta * C
+    const fftsa::Mat6 Cs = ffth::isotropic_C(E, nu);          // Mandel stiffness of the material
+    fftsa::Mat6 dC{}; for (int a = 0; a < 6; ++a) for (int b = 0; b < 6; ++b) dC[a][b] = 0.1 * Cs[a][b];
+    const fftsa::Mat6 pred = FFTSolverSession::predict_stiffness_change(T, dC);
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 6; ++j)
+            if (std::abs(C0[i][j]) > 1e-2 * std::abs(C0[0][0]))
+                QVERIFY2(std::abs(pred[i][j] - 0.1 * C0[i][j]) < 2e-2 * std::abs(C0[i][j]),
+                         qPrintable(QString("proportional check C[%1][%2]: predicted %3, expected %4").arg(i).arg(j).arg(pred[i][j]).arg(0.1 * C0[i][j])));
+
+    // (2) Poisson change 0.38 -> 0.40: first-order prediction vs direct recompute
+    const double nu1 = 0.40;
+    solve(nu1, C1, nullptr);
+    const fftsa::Mat6 Cs1 = ffth::isotropic_C(E, nu1);
+    fftsa::Mat6 dC2{}; for (int a = 0; a < 6; ++a) for (int b = 0; b < 6; ++b) dC2[a][b] = Cs1[a][b] - Cs[a][b];
+    const fftsa::Mat6 pred2 = FFTSolverSession::predict_stiffness_change(T, dC2);
+    for (int i = 0; i < 3; ++i) {       // normal block, where the change is largest
+        const double direct = C1[i][i] - C0[i][i];
+        QVERIFY2(std::abs(pred2[i][i] - direct) < 0.15 * std::abs(direct) + 1e-4 * std::abs(C0[i][i]),
+                 qPrintable(QString("nu change C[%1][%1]: predicted %2, direct %3").arg(i).arg(pred2[i][i]).arg(direct)));
+    }
+}
+
+
+void TestFftHomog::testRotatedScheme()
+{
+    // Willot's rotated discretization. (1) A homogeneous cell returns its
+    // material exactly. (2) A solid/void laminate keeps the exact in-plane
+    // modulus f*E with a void of 1e-8 E, where the continuous operator stalls.
+    // (3) A block with a cubic pore converges at void 1e-8, the strain energy
+    // sits in the solid (Hill identity through the sensitivity tensor), and
+    // the moduli no longer depend on the void stiffness.
+    using fftsa::FFTSolverSession;
+    using Disc = ffth::FFTHomogenizer::Discretization;
+    const double E = 2.0e9, nu = 0.38;
+    const double mu = E / (2 * (1 + nu)), lam = E * nu / ((1 + nu) * (1 - 2 * nu));
+    const std::vector<std::array<double,3>> orient = { {0,0,0}, {0,0,0} };
+
+    auto stiffness = [&](int n, const std::vector<int>& grain, double eta, Disc disc,
+                         std::vector<std::vector<fftsa::Vec6>>* fields, int* iters, double* worst_err, double C[6][6]) {
+        FFTSolverSession s(n, n, n, grain, orient, lam + 2 * mu, lam, mu, eta);
+        s.set_tolerance(1e-7); s.set_max_iters(4000);
+        s.set_scheme(FFTSolverSession::Scheme::CG);
+        s.set_discretization(disc);
+        if (fields) fields->assign(6, {});
+        *iters = 0; *worst_err = 0.0;
+        for (int j = 0; j < 6; ++j) {
+            fftsa::Vec6 e{}; e.fill(0.0); e[j] = 1.0;
+            std::vector<fftsa::Vec6> eng;
+            auto step = s.solveLoadCaseFull(e, eng);
+            *iters += step.iterations; *worst_err = std::max(*worst_err, step.error);
+            for (int i = 0; i < 6; ++i) C[i][j] = step.macro_stress[i];
+            if (fields) (*fields)[static_cast<size_t>(j)] = eng;
+        }
+    };
+    int it = 0; double err = 0.0; double C[6][6];
+
+    // (1) homogeneous cell
+    {
+        const int n = 8;
+        std::vector<int> grain(static_cast<size_t>(n) * n * n, 1);
+        stiffness(n, grain, 1e-4, Disc::Rotated, nullptr, &it, &err, C);
+        QVERIFY2(std::abs(C[0][0] - (lam + 2 * mu)) < 1e-6 * (lam + 2 * mu), qPrintable(QString("C11 %1").arg(C[0][0])));
+        QVERIFY2(std::abs(C[0][1] - lam) < 1e-6 * lam, qPrintable(QString("C12 %1").arg(C[0][1])));
+    }
+    // (2) laminate, void 1e-8
+    {
+        const int n = 16; const double f = 0.5;
+        std::vector<int> grain(static_cast<size_t>(n) * n * n, 0);
+        for (int z = 0; z < n; ++z) for (int y = 0; y < n; ++y) for (int x = 0; x < n; ++x)
+            grain[(static_cast<size_t>(z) * n + y) * n + x] = (x < n * f) ? 1 : 0;
+        stiffness(n, grain, 1e-8, Disc::Rotated, nullptr, &it, &err, C);
+        fftsa::Mat6 Cm{}; for (int i = 0; i < 6; ++i) for (int j = 0; j < 6; ++j) Cm[i][j] = C[i][j];
+        fftsa::Mat6 S{}; QVERIFY(fftsa::invert6x6(Cm, S));
+        const double Ey = 1.0 / S[1][1];
+        QVERIFY2(err < 1e-7, qPrintable(QString("laminate did not converge: err %1").arg(err)));
+        QVERIFY2(std::abs(Ey - f * E) / (f * E) < 0.01, qPrintable(QString("laminate E_y %1, expected %2").arg(Ey).arg(f * E)));
+    }
+    // (3) block with a cubic pore
+    {
+        const int m = 16;
+        std::vector<int> grain(static_cast<size_t>(m) * m * m, 1);
+        for (int z = 4; z < 12; ++z) for (int y = 4; y < 12; ++y) for (int x = 4; x < 12; ++x)
+            grain[(static_cast<size_t>(z) * m + y) * m + x] = 0;
+        std::vector<std::vector<fftsa::Vec6>> fields;
+        double C8[6][6], C6[6][6];
+        stiffness(m, grain, 1e-8, Disc::Rotated, &fields, &it, &err, C8);
+        QVERIFY2(err < 1e-7, qPrintable(QString("pore block did not converge at void 1e-8: err %1 after %2 iterations").arg(err).arg(it)));
+        const std::vector<double> T = FFTSolverSession::sensitivity_tensor(fields, static_cast<size_t>(m) * m * m);
+        const fftsa::Mat6 Cs = ffth::isotropic_C(E, nu);
+        // pipeline index -> homogenizer Mandel index (shear order yz, xz, xy)
+        static const int perm[6] = {0, 1, 2, 5, 3, 4};
+        fftsa::Mat6 CsP{}; for (int a = 0; a < 6; ++a) for (int b = 0; b < 6; ++b) CsP[a][b] = Cs[perm[a]][perm[b]];
+        const fftsa::Mat6 pred = FFTSolverSession::predict_stiffness_change(T, CsP);
+        for (int i = 0; i < 6; ++i)
+            QVERIFY2(std::abs(pred[i][i] / C8[i][i] - 1.0) < 0.01,
+                     qPrintable(QString("solid energy share C[%1][%1] = %2").arg(i).arg(pred[i][i] / C8[i][i])));
+        stiffness(m, grain, 1e-6, Disc::Rotated, nullptr, &it, &err, C6);
+        for (int i = 0; i < 6; ++i)
+            QVERIFY2(std::abs(C6[i][i] / C8[i][i] - 1.0) < 5e-3,
+                     qPrintable(QString("void 1e-6 vs 1e-8, C[%1][%1]: %2 vs %3").arg(i).arg(C6[i][i]).arg(C8[i][i])));
+    }
+}

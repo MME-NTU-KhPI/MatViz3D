@@ -49,6 +49,8 @@ public:
     // Seeded from Parameters by the constructor.
     double C11, C12, C44;
     double fft_tol      = 1e-5;
+    double fft_void_eta = 1e-4;   // void phase stiffness / solid C11
+    QString fft_discretization = "continuous";   // continuous | rotated (Willot)
     int    fft_max_iter = 1000;
     // "auto" | "basic" | "cg" -- see FFTSolverSession::Scheme. Read from
     // Parameters::fft_scheme at construction (CLI --fft_scheme).

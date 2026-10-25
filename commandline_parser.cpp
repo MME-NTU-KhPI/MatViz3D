@@ -76,6 +76,9 @@ QString Commandline_Parser::buildApplicationDescription()
     desc += "  --stress_mode:           stiffness (fast 6 solves -> S, C, moduli) | single (--eps required) | dataset (full 300 loads)\n";
     desc += "  --fft_scheme:            auto | basic | cg  (FFT iterative scheme; auto = CG for porous or high-contrast cells)\n";
     desc += "  --fft_tol:               FFT convergence tolerance (default: 1e-5); --fft_max_iter: iteration cap per load (default: 1000)\n";
+    desc += "  --fft_discretization:    continuous (Moulinec-Suquet, default) | rotated (Willot 2015: converges for true pores, cleaner fields at walls)\n";
+    desc += "  --fft_void_eta:          stiffness of the void phase as a fraction of the solid C11 (default: 1e-4). Very soft cells need 1e-6..1e-8:\n"
+            "                           the fictitious void stiffness otherwise carries part of the result (see solid_energy_share in the output)\n";
     desc += "  --composite_dim:         1d (fibers along Z) | 2d (along X, Y) | 3d (along X, Y, Z)\n";
     desc += "  --composite_packing:     square | hexagonal\n";
     desc += "  --lattice_family:        gyroid_sheet | gyroid_skeletal | schwarz_p_sheet | schwarz_p_skeletal | schwarz_d_sheet | schwarz_d_skeletal | iwp_sheet | iwp_skeletal | simple_cubic | bcc | fcc | octet | honeycomb | reentrant | spinodoid | fourier_sheet | fourier_skeletal | noise_sheet | noise_skeletal\n";
@@ -345,6 +348,11 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
         "[Stress] FFT convergence tolerance: equilibrium error (basic) or relative residual (cg). Default: 1e-5", "tol"));
     parser.addOption(QCommandLineOption("fft_max_iter",
         "[Stress] FFT iteration cap per load case (default: 1000).", "n"));
+    parser.addOption(QCommandLineOption("fft_discretization",
+        "[Stress] Green operator discretization: continuous (Moulinec-Suquet, default) | rotated (Willot 2015, robust for pores). "
+        "Aliases: ms, willot.", "disc"));
+    parser.addOption(QCommandLineOption("fft_void_eta",
+        "[Stress] Void phase stiffness as a fraction of the solid C11 (default: 1e-4; 1e-6..1e-8 for very soft cells).", "eta"));
     parser.addOption(QCommandLineOption("eps",
         "[Stress] Prescribed macroscopic strain tensor for '--stress_mode single': exx,eyy,ezz,exy,eyz,exz", "strains"));
     parser.addOption(QCommandLineOption("num_rnd_loads",
@@ -566,6 +574,8 @@ void Commandline_Parser::printJsonHelp()
     addOpt("stress_mode", "Stress", "string", "mode", "dataset", "Calculation mode: stiffness (fast 6 solves) | single | dataset (full 300 loads)", QStringList() << "dataset" << "stiffness" << "single");
     addOpt("fft_scheme", "Stress", "string", "scheme", "auto", "FFT iterative scheme: auto (CG for porous / high-contrast cells) | basic (Moulinec-Suquet fixed point) | cg (conjugate gradients)", QStringList() << "auto" << "basic" << "cg");
     addOpt("fft_tol", "Stress", "double", "tol", "1e-5", "FFT convergence tolerance (equilibrium error for basic, relative residual for cg)");
+    addOpt("fft_void_eta", "Stress", "double", "eta", "1e-4", "Void phase stiffness as a fraction of the solid C11");
+    addOpt("fft_discretization", "Stress", "string", "disc", "continuous", "Green operator discretization: continuous (Moulinec-Suquet) | rotated (Willot 2015, robust for pores)", QStringList() << "continuous" << "rotated");
     addOpt("fft_max_iter", "Stress", "int", "n", "1000", "FFT iteration cap per load case");
     addOpt("eps", "Stress", "string", "strains", "", "Applied strain tensor for --stress_mode single: exx,eyy,ezz,exy,eyz,exz");
     addOpt("num_rnd_loads", "Stress", "uint", "count", "150", "Number of random loads for Hill yield criterion fit in dataset mode");
@@ -1191,6 +1201,23 @@ bool Commandline_Parser::applyParameter(const QString& key, const QString& value
         params->setFftTol(v);
         return true;
     }
+    if (normKey == "fft_discretization") {
+        const QString v = value.trimmed().toLower();
+        if (v != "continuous" && v != "rotated" && v != "ms" && v != "willot" && v != "moulinec-suquet") {
+            return setErr(QString("Option fft_discretization expects continuous (ms) or rotated (willot); got \"%1\"").arg(value));
+        }
+        params->setFftDiscretization(v);
+        return true;
+    }
+    if (normKey == "fft_void_eta") {
+        double v = 0.0;
+        if (!parseDouble(v, true)) return false;
+        if (v >= 1.0) {
+            return setErr(QString("Option fft_void_eta expects a value in (0, 1); got %1").arg(value));
+        }
+        params->setFftVoidEta(v);
+        return true;
+    }
 
     if (normKey == "fft_max_iter") {
         int v = 0;
@@ -1665,6 +1692,8 @@ bool Commandline_Parser::processOptions(const QCommandLineParser& parser, QStrin
     if (parser.isSet("stress_mode"))             if (!applyCliOption("stress_mode", parser.value("stress_mode"))) return false;
     if (parser.isSet("fft_scheme"))              if (!applyCliOption("fft_scheme", parser.value("fft_scheme"))) return false;
     if (parser.isSet("fft_tol"))                 if (!applyCliOption("fft_tol", parser.value("fft_tol"))) return false;
+    if (parser.isSet("fft_void_eta"))            if (!applyCliOption("fft_void_eta", parser.value("fft_void_eta"))) return false;
+    if (parser.isSet("fft_discretization"))      if (!applyCliOption("fft_discretization", parser.value("fft_discretization"))) return false;
     if (parser.isSet("fft_max_iter"))            if (!applyCliOption("fft_max_iter", parser.value("fft_max_iter"))) return false;
     if (parser.isSet("eps"))                     if (!applyCliOption("eps", parser.value("eps"))) return false;
     if (parser.isSet("output"))                  if (!applyCliOption("output", parser.value("output"))) return false;

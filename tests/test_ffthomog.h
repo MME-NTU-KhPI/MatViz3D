@@ -16,6 +16,8 @@ private slots:
     void testSessionAutoPicksScheme();
     void testCliOption();
     void testSensitivityIndex();
+    void testSensitivityTensor();
+    void testRotatedScheme();
 };
 
 #endif // TEST_FFTHOMOG_H

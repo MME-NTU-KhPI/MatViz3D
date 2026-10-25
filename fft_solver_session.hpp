@@ -234,6 +234,11 @@ public:
     // keeps the historical basic scheme for dense, moderate-contrast cells.
     enum class Scheme { Auto, Basic, CG };
     void set_scheme(Scheme s) { scheme_ = s; if (H_) H_->set_scheme(resolved_scheme()); }
+    // Green-operator discretization (see FFTHomogenizer::Discretization).
+    void set_discretization(ffth::FFTHomogenizer::Discretization d) { disc_ = d; if (H_) H_->set_discretization(d); }
+    const char* discretization_name() const {
+        return disc_ == ffth::FFTHomogenizer::Discretization::Rotated ? "rotated (Willot)" : "continuous (Moulinec-Suquet)";
+    }
     ffth::FFTHomogenizer::Scheme resolved_scheme() const {
         if (scheme_ == Scheme::Basic) return ffth::FFTHomogenizer::Scheme::Basic;
         if (scheme_ == Scheme::CG)    return ffth::FFTHomogenizer::Scheme::CG;
@@ -257,6 +262,8 @@ public:
     }
 
     double solid_fraction() const { return solid_fraction_; }
+    // Mandel stiffness of grain g in the homogenizer's component order (yz, xz, xy shear).
+    const Mat6& grain_stiffness_mandel(int g) const { return lib_[static_cast<std::size_t>(g)]; }
     const std::vector<std::vector<float>>& local_cs() const { return local_cs_; }
     int nx() const { return nx_; } int ny() const { return ny_; } int nz() const { return nz_; }
 
@@ -332,6 +339,68 @@ public:
         const double num = acc / n, den = eng_strain_norm2(mean);
         if (!(num > 0.0)) return 0.0;
         return den > num * 1e-6 ? num / den : 1e6;
+    }
+
+    // Sensitivity tensor of the cell: the second moments of the six strain
+    // fields, in Mandel components, averaged over the WHOLE cell (voids carry no
+    // law change, so they drop out of the sum but stay in the volume):
+    //     T[i][j][a][b] = (1/N) sum_{x in solid} eM_a^(i)(x) eM_b^(j)(x) / m_i^2
+    // with eM = (exx, eyy, ezz, gxy/sqrt2, gyz/sqrt2, gxz/sqrt2) and m_i = 1 for
+    // the three normal unit loads, sqrt2 for the three tensor-shear unit loads.
+    // By Hill's lemma the first-order change of the pipeline stiffness under a
+    // change dC of the material law (given in Mandel form, Pa) is exactly
+    //     dC_pipeline[i][j] = sum_{a,b} T[i][j][a][b] * dC_Mandel[a][b],
+    // and with dC = eta * C_s it reproduces eta * C_pipeline to solver precision.
+    // Layout of the returned vector: ((i*6 + j)*6 + a)*6 + b, 1296 numbers.
+    static std::vector<double> sensitivity_tensor(const std::vector<std::vector<Vec6>>& voxel_strain_eng_per_load,
+                                                  std::size_t n_total_voxels) {
+        std::vector<double> T(1296, 0.0);
+        if (voxel_strain_eng_per_load.size() != 6 || n_total_voxels == 0) return T;
+        const double r2 = std::sqrt(2.0);
+        auto mandel = [&](const Vec6& g) {
+            return Vec6{g[0], g[1], g[2], g[3] / r2, g[4] / r2, g[5] / r2};
+        };
+        const double invN = 1.0 / static_cast<double>(n_total_voxels);
+        for (int i = 0; i < 6; ++i) {
+            const auto& fi = voxel_strain_eng_per_load[static_cast<std::size_t>(i)];
+            const double mi2 = (i < 3) ? 1.0 : 2.0;
+            for (int j = i; j < 6; ++j) {
+                const auto& fj = voxel_strain_eng_per_load[static_cast<std::size_t>(j)];
+                if (fi.size() != fj.size()) continue;
+                double acc[36] = {0.0};
+                for (std::size_t v = 0; v < fi.size(); ++v) {
+                    const Vec6 a = mandel(fi[v]), b = mandel(fj[v]);
+                    for (int p = 0; p < 6; ++p)
+                        for (int q = 0; q < 6; ++q) acc[p * 6 + q] += a[p] * b[q];
+                }
+                for (int p = 0; p < 6; ++p)
+                    for (int q = 0; q < 6; ++q) {
+                        const double m = acc[p * 6 + q] * invN;
+                        T[static_cast<std::size_t>(((i * 6 + j) * 6 + p) * 6 + q)] = m / mi2;
+                        if (j != i) {   // T[j][i][q][p] = same moment, scaled by m_j^2
+                            const double mj2 = (j < 3) ? 1.0 : 2.0;
+                            T[static_cast<std::size_t>(((j * 6 + i) * 6 + q) * 6 + p)] = m / mj2;
+                        }
+                    }
+            }
+        }
+        return T;
+    }
+
+    // Predicted first-order change of the pipeline stiffness for a Mandel law
+    // change dC (6x6, Pa): dC_pipeline[i][j] = sum_ab T[i][j][a][b] dC[a][b].
+    static Mat6 predict_stiffness_change(const std::vector<double>& T, const Mat6& dC_mandel) {
+        Mat6 d{}; for (auto& r : d) r.fill(0.0);
+        if (T.size() != 1296) return d;
+        for (int i = 0; i < 6; ++i)
+            for (int j = 0; j < 6; ++j) {
+                double s = 0.0;
+                for (int a = 0; a < 6; ++a)
+                    for (int b = 0; b < 6; ++b)
+                        s += T[static_cast<std::size_t>(((i * 6 + j) * 6 + a) * 6 + b)] * dC_mandel[a][b];
+                d[i][j] = s;
+            }
+        return d;
     }
 
     // Share of the macroscopic strain actually carried by the material:
@@ -433,6 +502,7 @@ private:
         H_->set_tolerance(tol_);
         H_->set_max_iterations(maxit_);
         H_->set_scheme(resolved_scheme());
+        H_->set_discretization(disc_);
     }
 
     int nx_, ny_, nz_;
@@ -446,6 +516,7 @@ private:
     double tol_ = 1e-5;
     int    maxit_ = 500;
     Scheme scheme_ = Scheme::Auto;
+    ffth::FFTHomogenizer::Discretization disc_ = ffth::FFTHomogenizer::Discretization::Continuous;
     std::unique_ptr<ffth::FFTHomogenizer> H_;
 };
 

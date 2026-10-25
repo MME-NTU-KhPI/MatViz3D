@@ -255,6 +255,7 @@ public:
           dx_(dx), dy_(dy), dz_(dz) {
         if (nx < 1 || ny < 1 || nz < 1) throw std::invalid_argument("bad grid size");
         phase_.assign(N_, 0);
+        build_wave_tables();
     }
 
     // Register the material library: one 6x6 Mandel stiffness per phase id.
@@ -287,6 +288,25 @@ public:
     enum class Scheme { Basic, CG };
     void   set_scheme(Scheme s) { scheme_ = s; }
     Scheme scheme() const       { return scheme_; }
+
+    // Discretization of the Green operator.
+    //   Continuous : Moulinec-Suquet, the exact continuous Gamma evaluated at
+    //                the FFT frequencies. Gibbs ringing at the voxel faces;
+    //                with pores the solution depends on the soft-phase
+    //                stiffness and CG stalls as it goes to zero.
+    //   Rotated    : Willot's (2015) finite differences on the rotated grid:
+    //                displacements at the voxel corners, strain at the centres
+    //                as the average of the corner differences. Its discrete
+    //                gradient is k_j = (i/2) e^{i(x1+x2+x3)/2} sin(x_j/2)
+    //                prod_{m!=j} 2 cos(x_m/2) (x_j = 2 pi q_j / n_j); the
+    //                common complex factor cancels in Gamma, which is therefore
+    //                the continuous operator at the real modified frequency
+    //                sin(pi q_j/n_j)/(pi d_j) prod_{m!=j} cos(pi q_m/n_m). Robust
+    //                for porous cells: converges as the void stiffness -> 0.
+    //                (F. Willot, C. R. Mecanique 343 (2015) 232-245.)
+    enum class Discretization { Continuous, Rotated };
+    void set_discretization(Discretization d) { disc_ = d; }
+    Discretization discretization() const     { return disc_; }
 
     // Solve for one macroscopic strain E (Mandel 6-vector).
     // Fills eps_ / sig_ (per-voxel, Mandel) and returns the volume-average
@@ -702,6 +722,43 @@ private:
         return static_cast<double>(kk) / (static_cast<double>(n) * d);
     }
 
+    // Per-axis tables for the wave vector: continuous frequency, and for the
+    // rotated scheme sin(pi q/n)/(pi d) and cos(pi q/n) (exactly 0 at Nyquist).
+    void build_wave_tables() {
+        const int n_[3] = {nx_, ny_, nz_};
+        const double d_[3] = {dx_, dy_, dz_};
+        for (int a = 0; a < 3; ++a) {
+            const int n = n_[a];
+            fr_[a].assign(static_cast<std::size_t>(n), 0.0);
+            rs_[a].assign(static_cast<std::size_t>(n), 0.0);
+            rc_[a].assign(static_cast<std::size_t>(n), 1.0);
+            for (int k = 0; k < n; ++k) {
+                const int kk = (k <= n / 2) ? k : k - n;
+                const double ang = M_PI * static_cast<double>(kk) / static_cast<double>(n);
+                fr_[a][static_cast<std::size_t>(k)] = freq(k, n, d_[a]);
+                const bool nyq = (n % 2 == 0) && (2 * std::abs(kk) == n);
+                rs_[a][static_cast<std::size_t>(k)] = (nyq ? (kk > 0 ? 1.0 : -1.0) : std::sin(ang)) / (M_PI * d_[a]);
+                rc_[a][static_cast<std::size_t>(k)] = nyq ? 0.0 : std::cos(ang);
+            }
+        }
+    }
+
+    // Wave vector of mode (kx,ky,kz) for the active discretization. Returns
+    // false when it vanishes (rotated scheme, two or more Nyquist components):
+    // Gamma is zero there, the mode carries no compatible strain.
+    bool wave_vector(int kx, int ky, int kz, double v[3]) const {
+        const std::size_t ix = static_cast<std::size_t>(kx), iy = static_cast<std::size_t>(ky), iz = static_cast<std::size_t>(kz);
+        if (disc_ == Discretization::Continuous) {
+            v[0] = fr_[0][ix]; v[1] = fr_[1][iy]; v[2] = fr_[2][iz];
+        } else {
+            const double cx = rc_[0][ix], cy = rc_[1][iy], cz = rc_[2][iz];
+            v[0] = rs_[0][ix] * cy * cz;
+            v[1] = rs_[1][iy] * cx * cz;
+            v[2] = rs_[2][iz] * cx * cy;
+        }
+        return (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]) > 0.0;
+    }
+
     // Mandel 6-vector -> symmetric 3x3 tensor and back.
     static inline void mandel_to_tensor(const std::array<cd,6>& v, cd t[3][3]) {
         const double s = 1.0 / std::sqrt(2.0);
@@ -737,7 +794,8 @@ private:
                 continue;
             }
 
-            double xi[3] = { freq(kx, nx_, dx_), freq(ky, ny_, dy_), freq(kz, nz_, dz_) };
+            double xi[3];
+            if (!wave_vector(kx, ky, kz, xi)) continue;          // Gamma0 = 0 at this mode
             const double xi2 = xi[0]*xi[0] + xi[1]*xi[1] + xi[2]*xi[2];
             // unit direction (Gamma0 is homogeneous of degree 0 in xi)
             const double inv = 1.0 / std::sqrt(xi2);
@@ -780,7 +838,11 @@ private:
                 for (int c = 0; c < 6; ++c) eps_[c][p] = cd(0.0, 0.0);
                 continue;
             }
-            const double xi[3] = { freq(kx, nx_, dx_), freq(ky, ny_, dy_), freq(kz, nz_, dz_) };
+            double xi[3];
+            if (!wave_vector(kx, ky, kz, xi)) {                 // G = 0 at this mode
+                for (int c = 0; c < 6; ++c) eps_[c][p] = cd(0.0, 0.0);
+                continue;
+            }
             const double inv = 1.0 / std::sqrt(xi[0]*xi[0] + xi[1]*xi[1] + xi[2]*xi[2]);
             const double n[3] = { xi[0]*inv, xi[1]*inv, xi[2]*inv };
 
@@ -811,7 +873,8 @@ private:
         for (int kx = 0; kx < nx_; ++kx) {
             if (kx == 0 && ky == 0 && kz == 0) continue;
             const std::size_t p = (static_cast<std::size_t>(kz) * ny_ + ky) * nx_ + kx;
-            const double xi[3] = { freq(kx, nx_, dx_), freq(ky, ny_, dy_), freq(kz, nz_, dz_) };
+            double xi[3];
+            if (!wave_vector(kx, ky, kz, xi)) continue;          // discrete divergence is zero here
             cd tau[3][3];
             std::array<cd,6> sv; for (int c = 0; c < 6; ++c) sv[c] = sig_[c][p];
             mandel_to_tensor(sv, tau);
@@ -840,6 +903,8 @@ private:
     int    maxit_ = 1000;
     double lam0_  = -1.0, mu0_ = -1.0;   // <=0 => auto
     Scheme scheme_ = Scheme::Basic;
+    Discretization disc_ = Discretization::Continuous;
+    std::array<std::vector<double>, 3> fr_, rs_, rc_;   // per-axis wave tables
     double last_err_ = 0.0;
     double last_flops_ = 0.0;
     double last_secs_  = 0.0;

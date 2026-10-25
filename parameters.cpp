@@ -125,6 +125,8 @@ PrintabilityReport Parameters::printability;
 double  Parameters::lattice_voxel_mm       = 0.0;
 QString Parameters::fft_scheme             = "auto";
 double  Parameters::fft_tol                = 1e-5;
+double  Parameters::fft_void_eta           = 1e-4;
+QString Parameters::fft_discretization     = "continuous";
 int     Parameters::fft_max_iter           = 1000;
 
 QString Parameters::stressSolver = "ansys";
@@ -243,6 +245,8 @@ void Parameters::resetDefaults()
     lattice_voxel_mm = 0.0;
     fft_scheme = "auto";
     fft_tol = 1e-5;
+    fft_void_eta = 1e-4;
+    fft_discretization = "continuous";
     fft_max_iter = 1000;
     stressSolver = "ansys";
     stressMode = "dataset";
@@ -1225,6 +1229,32 @@ void Parameters::setFftTol(double value)
     }
     if (fft_tol == value) return;
     fft_tol = value;
+    emit fftSchemeChanged();
+}
+
+void Parameters::setFftDiscretization(const QString& value)
+{
+    QString norm = value.trimmed().toLower();
+    if (norm == "ms" || norm == "moulinec-suquet") norm = "continuous";
+    if (norm == "willot") norm = "rotated";
+    if (norm != "continuous" && norm != "rotated") {
+        qWarning() << "fft_discretization expects continuous (ms) or rotated (willot); got" << value
+                   << "-- keeping" << fft_discretization;
+        return;
+    }
+    if (fft_discretization == norm) return;
+    fft_discretization = norm;
+    emit fftSchemeChanged();
+}
+
+void Parameters::setFftVoidEta(double value)
+{
+    if (!(value > 0.0) || value >= 1.0) {
+        qWarning() << "fft_void_eta expects a value in (0, 1); got" << value << "-- keeping" << fft_void_eta;
+        return;
+    }
+    if (fft_void_eta == value) return;
+    fft_void_eta = value;
     emit fftSchemeChanged();
 }
 

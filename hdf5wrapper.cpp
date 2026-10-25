@@ -118,6 +118,18 @@ QString saveStiffnessMatrixToHDF5(const QString& filename,
         hdf5.write(sensGroup, "solid_strain_ratio", r.solidStrainRatio);
         hdf5.write(sensGroup, "solid_strain_ratio_loads",
                    std::vector<float>(r.solidStrainRatioLoads, r.solidStrainRatioLoads + 6));
+        hdf5.write(sensGroup, "solid_energy_share", r.solidEnergyShare);
+        hdf5.write(sensGroup, "solid_energy_share_loads",
+                   std::vector<float>(r.solidEnergyShareLoads, r.solidEnergyShareLoads + 6));
+        if (r.sensitivityTensor.size() == 1296) {
+            // 36 x 36: row = i*6 + j (stiffness entry), column = a*6 + b (Mandel law entry)
+            std::vector<std::vector<float>> T(36, std::vector<float>(36));
+            for (int row = 0; row < 36; ++row)
+                for (int col = 0; col < 36; ++col)
+                    T[static_cast<std::size_t>(row)][static_cast<std::size_t>(col)] =
+                        r.sensitivityTensor[static_cast<std::size_t>(row * 36 + col)];
+            hdf5.write(sensGroup, "sensitivity_tensor", T);
+        }
     }
 
     if (!r.load_steps.empty()) {

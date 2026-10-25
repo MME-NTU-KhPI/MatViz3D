@@ -141,6 +141,14 @@ struct StiffnessMatrixResult
     double sensitivityLoads[6]    = {0};
     double solidStrainRatio       = 0.0;
     double solidStrainRatioLoads[6] = {0};
+    // Sensitivity tensor, 1296 numbers, layout ((i*6+j)*6+a)*6+b: first-order
+    // change of C[i][j] per unit change of the Mandel material stiffness [a][b].
+    // See FFTSolverSession::sensitivity_tensor. Empty for non-FFT results.
+    std::vector<float> sensitivityTensor;
+    // Share of the strain energy carried by the solid (1 = exact Hill identity);
+    // the remainder is the fictitious void phase. Per unit load and mean.
+    double solidEnergyShare = 0.0;
+    double solidEnergyShareLoads[6] = {0};
 
     struct LoadDebug {
         int    iterations = 0;    // FFT only

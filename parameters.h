@@ -471,6 +471,10 @@ public:
     double getFftTol()     const { return fft_tol; }
     int    getFftMaxIter() const { return fft_max_iter; }
     Q_INVOKABLE void setFftTol(double value);
+    double getFftVoidEta() const { return fft_void_eta; }
+    Q_INVOKABLE void setFftVoidEta(double value);
+    QString getFftDiscretization() const { return fft_discretization; }
+    Q_INVOKABLE void setFftDiscretization(const QString& value);
     Q_INVOKABLE void setFftMaxIter(int value);
 
     /**
@@ -580,6 +584,8 @@ public:
     // Convergence tolerance and iteration cap of the FFT solver (both schemes).
     static double  fft_tol;
     static int     fft_max_iter;
+    static double  fft_void_eta;      // stiffness of the void phase as a fraction of the solid's C11
+    static QString fft_discretization; // "continuous" (Moulinec-Suquet) | "rotated" (Willot)
 
     /**
      * @brief Full anisotropic stiffness of a named database material, in Pa.
