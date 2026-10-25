@@ -39,3 +39,28 @@ printability rejection. `dataset_smoke.yaml` is a ten-cell 32³ check of the
 whole pipeline (~3 min).
 
 Dependencies: numpy, scipy, h5py, pandas, pyarrow, pyyaml.
+
+
+## Adaptive grid
+
+The FFT solve underestimates the stiffness of thin walls: with `v` voxels across
+the thinnest wall the error is roughly `350 / v^2` percent (gyroid and Fourier
+sheets, 48^3 ... 160^3 study), so a fixed 64^3 grid is fine for struts and far off
+for thin sheets and honeycombs. With a `grid:` block in the config every row is
+processed in two runs:
+
+1. a probe on `grid.probe`^3 (geometry + printability only, a few seconds) that
+   reports the wall thickness in voxels; unprintable rows stop here (status
+   `unprintable`);
+2. the stiffness solve on the smallest size in `grid.sizes` where the wall spans
+   at least `grid.min_wall_vox` voxels; rows that no size resolves get status
+   `unresolved` and are not solved.
+
+`grid.pinned` maps a family or group to a fixed size (noise fields are drawn on
+the grid, so another grid is another cell). Rows whose family is listed in
+`grid.single_cell_families` and that have no grading and no jitter are solved as
+ONE unit cell (`--cells_per_edge 1`): periodic homogenisation gives the same
+effective properties for the tiled block, and the wall gets `cells_per_edge`
+times more voxels for free. The manifest and `dataset.parquet` record `grid`,
+`wall_vox` (at the probe grid), `wall_mm_probe` and `solve_cells`; the card lists
+the grid shares and checks that every accepted cell is resolved.

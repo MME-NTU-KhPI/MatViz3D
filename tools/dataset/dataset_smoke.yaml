@@ -6,6 +6,12 @@ fft_tol: 1e-4
 fft_max_iter: 2000
 timeout_s: 600
 oversample: 1.0
+grid:                 # exercise the adaptive grid with small sizes
+  sizes: [32, 48, 64]
+  min_wall_vox: 6
+  probe: 32
+  pinned: {noise_sheet: 32, noise_skeletal: 32}
+  single_cell_families: [gyroid_sheet, gyroid_skeletal, schwarz_p_sheet, schwarz_d_sheet, iwp_sheet, bcc, fcc, octet, honeycomb, reentrant, plate_sc, plate_sc_fcc]
 seed0: 500
 
 common:

@@ -78,6 +78,21 @@ def load_config(path: Path) -> dict:
     cfg.setdefault("seed0", 1000)
     cfg.setdefault("common", {})
     cfg.setdefault("laws", [{"id": "petg_ref", "E_GPa": 2.0, "nu": 0.38, "aniso": 1.0}])
+    # Adaptive grid (optional). `sizes`: candidate grids per row; the smallest one on
+    # which the thinnest wall spans >= `min_wall_vox` voxels is used, measured on a
+    # fast `probe` run (geometry + printability only). Families in `pinned` always
+    # use the given grid: random noise is drawn on the grid, so a different grid
+    # would be a different cell. `single_cell_families` are periodic and, when the
+    # row has no grading or jitter, are solved as ONE unit cell instead of the
+    # cells_per_edge^3 block: same effective properties, 2-5x the wall resolution.
+    grid = cfg.get("grid") or {}
+    cfg["grid"] = grid
+    grid.setdefault("sizes", [int(cfg["size"])])
+    grid["sizes"] = sorted(int(s) for s in grid["sizes"])
+    grid.setdefault("min_wall_vox", 0)
+    grid.setdefault("probe", int(cfg["size"]))
+    grid.setdefault("pinned", {})
+    grid.setdefault("single_cell_families", [])
     return cfg
 
 
@@ -122,6 +137,26 @@ def _spec_kind(spec):
     return "fixed"
 
 
+def row_allowed(block: dict, row: dict) -> bool:
+    """Constraints from the block's `require` dict. `min_density_x_cell` maps a
+    family (or `default`) to the smallest relative_density * lattice_cell_mm the
+    row may have: the wall thickness of plate and sheet families is close to
+    a_family * density * cell, so this keeps draws out of the unprintable corner
+    (walls under 0.8 mm) without narrowing the ranges themselves."""
+    req = block.get("require") or {}
+    mdc = req.get("min_density_x_cell")
+    if mdc:
+        fam = str(row.get("lattice_family", ""))
+        thr = mdc.get(fam, mdc.get("default")) if isinstance(mdc, dict) else mdc
+        if thr is not None:
+            try:
+                if float(row.get("relative_density", 0)) * float(row.get("lattice_cell_mm", 0)) < float(thr):
+                    return False
+            except (TypeError, ValueError):
+                return False
+    return True
+
+
 def sample_family(group: str, block: dict, common: dict, n: int, sobol_seed: int) -> list[dict]:
     params = dict(common)
     params.update(block.get("params", {}))
@@ -129,13 +164,17 @@ def sample_family(group: str, block: dict, common: dict, n: int, sobol_seed: int
         params["lattice_family"] = group
     keys = sorted(params)
     dims = [k for k in keys if _spec_kind(params[k]) != "fixed"]
+    # Draw more points than needed: rows that violate the block's `require`
+    # constraints are dropped and the sequence simply continues.
+    n_draw = 1 << max(0, (4 * n - 1).bit_length())
     if qmc is not None and dims:
-        n2 = 1 << max(0, (n - 1).bit_length())          # next power of two
-        u = qmc.Sobol(d=len(dims), scramble=True, seed=sobol_seed).random(n2)[:n]
+        u = qmc.Sobol(d=len(dims), scramble=True, seed=sobol_seed).random(n_draw)
     else:
-        u = np.random.default_rng(sobol_seed).random((n, max(1, len(dims))))
+        u = np.random.default_rng(sobol_seed).random((n_draw, max(1, len(dims))))
     rows = []
-    for i in range(n):
+    for i in range(n_draw):
+        if len(rows) >= n:
+            break
         row = {}
         for k in keys:
             spec = params[k]
@@ -161,7 +200,11 @@ def sample_family(group: str, block: dict, common: dict, n: int, sobol_seed: int
                 row["spinodoid_theta_z"] = 90
         for fl in block.get("flags", []):
             row[fl] = True
+        if not row_allowed(block, row):
+            continue
         rows.append(row)
+    if len(rows) < n:
+        print(f"  warning: {group}: only {len(rows)} of {n} draws satisfy `require`; widen the ranges or lower the thresholds")
     return rows
 
 
@@ -230,9 +273,12 @@ def cmd_plan(cfg, args):
 #  run: one MatViz3D process per row
 # ─────────────────────────────────────────────────────────────────────────────
 
-def build_command(cfg, row: dict, out_file: Path) -> list[str]:
+def build_command(cfg, row: dict, out_file: Path, size: int | None = None, solve: bool = True,
+                  cells_override: int | None = None) -> list[str]:
+    """MatViz3D command line for one row. `size` overrides the grid, `solve=False`
+    stops after geometry + printability, `cells_override` replaces cells_per_edge."""
     cmd = [str(cfg["_matviz"]), "--nogui", "--nologo", "--autostart", "--algorithm", "Lattice",
-           "--size", str(cfg["size"]), "--seed", str(row["seed"])]
+           "--size", str(size or cfg["size"]), "--seed", str(row["seed"])]
     for k, v in row.items():
         if not k.startswith("p_"):
             continue
@@ -250,37 +296,116 @@ def build_command(cfg, row: dict, out_file: Path) -> list[str]:
         cmd += ["--material_iso", f"{E},{nu}"]
     else:
         cmd += ["--material_ti", f"{E},{nu},{an}"]
-    cmd += ["--require_printable", "--no_fields",
-            "--run_stress_calc", "--solver", "fft", "--stress_mode", "stiffness",
-            "--fft_tol", str(cfg["fft_tol"]), "--fft_max_iter", str(cfg["fft_max_iter"])]
+    if cells_override:
+        if "--cells_per_edge" in cmd:
+            cmd[cmd.index("--cells_per_edge") + 1] = str(cells_override)
+        else:
+            cmd += ["--cells_per_edge", str(cells_override)]
+    cmd += ["--require_printable", "--no_fields"]
+    if solve:
+        cmd += ["--run_stress_calc", "--solver", "fft", "--stress_mode", "stiffness",
+                "--fft_tol", str(cfg["fft_tol"]), "--fft_max_iter", str(cfg["fft_max_iter"])]
+        if cfg.get("fft_void_eta"):
+            cmd += ["--fft_void_eta", str(cfg["fft_void_eta"])]
+        if cfg.get("fft_discretization"):
+            cmd += ["--fft_discretization", str(cfg["fft_discretization"])]
     if cfg.get("np"):
         cmd += ["--np", str(cfg["np"])]
     cmd += ["--output", str(out_file)]
     return cmd
 
 
-def run_one(cfg, row: dict) -> tuple[int, float]:
-    """Run MatViz3D for one manifest row; returns (exit code, seconds)."""
+def single_cell(cfg, row: dict) -> bool:
+    """True when the row is a periodic lattice (deterministic family, no grading,
+    no jitter) tiled more than once: it is then solved as a single unit cell."""
+    fam = str(row.get("p_lattice_family", ""))
+    if fam not in set(cfg["grid"]["single_cell_families"]):
+        return False
+    try:
+        cells = int(float(row.get("p_cells_per_edge") or 1))
+        grading = float(row.get("p_lattice_grading") or 0)
+        jitter = float(row.get("p_lattice_jitter") or 0)
+    except (TypeError, ValueError):
+        return False
+    return cells > 1 and grading == 0 and jitter == 0
+
+
+def choose_grid(cfg, row: dict, wall_vox: float):
+    """Grid for the stiffness solve, or None when no candidate resolves the wall."""
+    g = cfg["grid"]
+    fam = str(row.get("p_lattice_family", ""))
+    pinned = g["pinned"].get(fam) or g["pinned"].get(row.get("group", ""))
+    candidates = [int(pinned)] if pinned else g["sizes"]
+    for n in candidates:
+        if wall_vox * n / float(g["probe"]) >= float(g["min_wall_vox"]):
+            return n
+    return None
+
+
+def _run_logged(cmd: list[str], log_file: Path, timeout: float, mode: str) -> int:
+    try:
+        with log_file.open(mode, encoding="utf-8") as lf:
+            lf.write("# " + " ".join(cmd) + "\n\n")
+            lf.flush()
+            proc = subprocess.run(cmd, stdout=lf, stderr=subprocess.STDOUT, timeout=timeout)
+        return proc.returncode
+    except subprocess.TimeoutExpired:
+        return -1
+    except OSError as e:
+        with log_file.open("a", encoding="utf-8") as lf:
+            lf.write(f"\n# could not start: {e}\n")
+        return -2
+
+
+def run_one(cfg, row: dict) -> tuple[int, float, dict]:
+    """Run MatViz3D for one manifest row; returns (exit code, seconds, info).
+
+    With an adaptive grid this is two runs: a fast probe (geometry + printability
+    on the probe grid) that yields the wall thickness in voxels, then the
+    stiffness solve on the grid that resolves that wall. Exit code 3 = the
+    printability check failed, 4 = no candidate grid resolves the wall.
+    """
     out = cfg["_out"]
     out_file = out / "cells" / f"{row['id']}.hdf5"
     log_file = out / "logs" / f"{row['id']}.log"
     if out_file.exists():
         out_file.unlink()                 # MatViz3D appends groups; start clean
-    cmd = build_command(cfg, row, out_file)
+    g = cfg["grid"]
+    adaptive = float(g["min_wall_vox"]) > 0 or len(g["sizes"]) > 1
+    cells = 1 if single_cell(cfg, row) else None
+    info: dict = {"solve_cells": cells or row.get("p_cells_per_edge") or 1}
     t0 = time.time()
-    try:
-        with log_file.open("w", encoding="utf-8") as lf:
-            lf.write("# " + " ".join(cmd) + "\n\n")
-            lf.flush()
-            proc = subprocess.run(cmd, stdout=lf, stderr=subprocess.STDOUT, timeout=float(cfg["timeout_s"]))
-        code = proc.returncode
-    except subprocess.TimeoutExpired:
-        code = -1
-    except OSError as e:
-        with log_file.open("a", encoding="utf-8") as lf:
-            lf.write(f"\n# could not start: {e}\n")
-        code = -2
-    return code, time.time() - t0
+    size = int(cfg["size"])
+    if adaptive:
+        probe_file = out / "probe" / f"{row['id']}.hdf5"
+        probe_file.parent.mkdir(parents=True, exist_ok=True)
+        if probe_file.exists():
+            probe_file.unlink()
+        code = _run_logged(build_command(cfg, row, probe_file, size=int(g["probe"]), solve=False, cells_override=cells),
+                           log_file, min(float(cfg["timeout_s"]), 600.0), "w")
+        if code != 0:
+            return code, time.time() - t0, info
+        try:
+            import h5py
+            with h5py.File(probe_file, "r") as f:
+                info["wall_vox"] = round(float(f["1/geometry/lattice_wall_voxels"][()]), 2)
+                info["wall_mm_probe"] = round(float(f["1/geometry/lattice_wall_mm"][()]), 3)
+        except Exception as e:
+            with log_file.open("a", encoding="utf-8") as lf:
+                lf.write(f"\n# probe unreadable: {e}\n")
+            return -3, time.time() - t0, info
+        finally:
+            if probe_file.exists():
+                probe_file.unlink()
+        chosen = choose_grid(cfg, row, info["wall_vox"])
+        if chosen is None:
+            info["grid"] = ""
+            return 4, time.time() - t0, info
+        size = chosen
+    info["grid"] = size
+    code = _run_logged(build_command(cfg, row, out_file, size=size, solve=True, cells_override=cells),
+                       log_file, float(cfg["timeout_s"]), "a" if adaptive else "w")
+    return code, time.time() - t0, info
 
 
 def quotas_of(cfg) -> dict[str, int]:
@@ -320,22 +445,26 @@ def run_pass(cfg, rows: list[dict], todo: list[dict], jobs: int, label: str) -> 
                     row["status"] = "skipped"
                     write_manifest(cfg, rows)
                     continue
-            code, secs = run_one(cfg, row)
+            code, secs, info = run_one(cfg, row)
             if code == 0:
                 status = "done"
             elif code == 3:
                 status = "unprintable"
+            elif code == 4:
+                status = "unresolved"
             else:
                 status = "failed" if row["status"] == "retry" else "retry"
             with lock:
                 counter["n"] += 1
+                row.update(info)
                 row.update({"status": status, "exit_code": code, "seconds": round(secs, 1),
                             "finished": datetime.now().isoformat(timespec="seconds")})
                 write_manifest(cfg, rows)
                 finished = sum(1 for r in rows if r["status"] not in ("pending", "retry"))
                 left = sum(1 for r in rows if r["status"] in ("pending", "retry"))
                 per_row = (time.time() - t_all) / counter["n"]
-                print(f"{label}[{counter['n']}/{len(todo)}] {row['id']} {group:16s} -> {status:11s} {secs:6.1f}s | "
+                print(f"{label}[{counter['n']}/{len(todo)}] {row['id']} {group:16s} -> {status:11s} {secs:6.1f}s "
+                      f"grid {info.get('grid', cfg['size'])} wall {info.get('wall_vox', '?')} vox | "
                       f"accepted {accepted(group)}/{quotas.get(group, '?')}, finished {finished}/{len(rows)}, "
                       f"ETA <= {left * per_row / 3600:.2f} h", flush=True)
 
@@ -358,9 +487,12 @@ def cmd_run(cfg, args):
     todo = [r for r in rows if r["status"] in ("pending", "retry")]
     if args.limit:
         todo = todo[: args.limit]
-    finished = sum(1 for r in rows if r["status"] in ("done", "unprintable", "failed"))
+    finished = sum(1 for r in rows if r["status"] in ("done", "unprintable", "unresolved", "failed"))
+    g = cfg["grid"]
+    grid_note = (f"adaptive grid {g['sizes']} (>= {g['min_wall_vox']} voxels per wall, probe {g['probe']}^3)"
+                 if float(g["min_wall_vox"]) > 0 or len(g["sizes"]) > 1 else f"grid {cfg['size']}^3")
     print(f"{len(todo)} rows this pass, {finished} finished before, {len(rows)} total, "
-          f"{jobs} parallel job(s) x {cfg.get('np') or 'all'} threads")
+          f"{jobs} parallel job(s) x {cfg.get('np') or 'all'} threads, {grid_note}, fft_tol {cfg['fft_tol']}")
     if not todo:
         return
     run_pass(cfg, rows, todo, jobs, "")
@@ -481,6 +613,12 @@ def cmd_collect(cfg, args):
         for k, v in r.items():
             if k.startswith("p_"):
                 rec[k] = v
+        for k in ("grid", "wall_vox", "wall_mm_probe", "solve_cells"):
+            if r.get(k) not in (None, ""):
+                try:
+                    rec[k] = int(float(r[k])) if k in ("grid", "solve_cells") else float(r[k])
+                except ValueError:
+                    pass
         rec.update(props)
         rec["file"] = str(h5.relative_to(out))
         records.append(rec)
@@ -513,12 +651,27 @@ def cmd_check(cfg, args):
     lines += ["## Manifest", "", "| status | rows |", "|---|---|"] + [f"| {k} | {v} |" for k, v in sorted(st.items())] + [""]
     if len(df):
         quotas = quotas_of(cfg)
-        lines += ["## By family", "", "| group | quota | accepted | unprintable | unprintable share | mean s/accepted cell |", "|---|---|---|---|---|---|"]
+        st_rows = {}
+        for r in rows:
+            st_rows.setdefault(r["group"], {}).setdefault(r["status"], 0)
+            st_rows[r["group"]][r["status"]] += 1
+        lines += ["## By family", "", "| group | quota | accepted | unprintable | unresolved | unprintable share | mean s/accepted cell |", "|---|---|---|---|---|---|---|"]
         for g, d in df.groupby("group"):
             acc = d[d["status"] == "done"]
-            lines.append(f"| {g} | {quotas.get(g, '?')} | {len(acc)} | {int((d['status'] == 'unprintable').sum())} | "
-                         f"{(d['status'] == 'unprintable').mean():.0%} | {acc['seconds'].mean() if len(acc) else float('nan'):.0f} |")
+            stg = st_rows.get(g, {})          # manifest counts: unprintable probes write no HDF5
+            unpr, unres = stg.get("unprintable", 0), stg.get("unresolved", 0)
+            tried = sum(v for k, v in stg.items() if k not in ("pending", "retry", "skipped"))
+            lines.append(f"| {g} | {quotas.get(g, '?')} | {len(acc)} | {unpr} | {unres} | "
+                         f"{(unpr / tried if tried else 0):.0%} | {acc['seconds'].mean() if len(acc) else float('nan'):.0f} |")
         lines.append("")
+        if "grid" in df:
+            acc = df[df["status"] == "done"]
+            lines += ["## Grids (accepted cells)", "", "| grid | cells | share | mean s/cell | min wall vox at that grid |", "|---|---|---|---|---|"]
+            gcfg = cfg["grid"]
+            for gsize, d in acc.groupby("grid"):
+                wv = pd.to_numeric(d["wall_vox"], errors="coerce") * float(gsize) / float(gcfg["probe"]) if "wall_vox" in d else pd.Series(dtype=float)
+                lines.append(f"| {int(gsize)}³ | {len(d)} | {len(d)/max(len(acc),1):.0%} | {d['seconds'].mean():.0f} | {wv.min() if len(wv) else float('nan'):.1f} |")
+            lines.append("")
         s = df[df["has_stiffness"] == True]
         checks = []   # (name, boolean Series over the rows the check applies to)
         if len(s):
@@ -542,14 +695,19 @@ def cmd_check(cfg, args):
             checks.append(("load path in every direction (min E / E_s >= 1e-3)", ~weak))
             if "connected" in s:
                 checks.append(("one connected solid body", s["connected"].astype(bool)))
+            if "grid" in s and "wall_vox" in s and float(cfg["grid"]["min_wall_vox"]) > 0:
+                resolved = num("wall_vox") * num("grid") / float(cfg["grid"]["probe"]) >= float(cfg["grid"]["min_wall_vox"]) - 1e-9
+                checks.append((f"wall resolved by >= {cfg['grid']['min_wall_vox']} voxels", resolved))
             if "sensitivity_index" in s:
                 checks.append(("strain concentration index >= 1", num("sensitivity_index") >= 0.999))
+            if "solid_energy_share" in s:
+                checks.append(("solid carries >= 95 % of the strain energy (void artifact small)", num("solid_energy_share") >= 0.95))
             pcols = [c for c in s.columns if c.startswith("p_")]
             checks.append(("unique parameter rows", ~s.duplicated(subset=pcols)))
             lines += ["## Checks (accepted cells)", "", "| check | pass | n |", "|---|---|---|"] + \
                      [f"| {n_} | {m.mean():.1%} | {len(m)} |" for n_, m in checks] + [""]
             lines += ["## Ranges", "", "| quantity | min | median | max |", "|---|---|---|---|"]
-            for q in ["lattice_achieved_density", "E_over_Es", "E_ratio", "A_universal", "nu_xy", "lattice_wall_mm", "sensitivity_index", "solid_strain_ratio", "fft_iterations", "seconds"]:
+            for q in ["lattice_achieved_density", "E_over_Es", "E_ratio", "A_universal", "nu_xy", "lattice_wall_mm", "wall_vox", "sensitivity_index", "solid_strain_ratio", "solid_energy_share", "fft_iterations", "seconds"]:
                 if q in s:
                     v = pd.to_numeric(s[q], errors="coerce").dropna()
                     if len(v):
