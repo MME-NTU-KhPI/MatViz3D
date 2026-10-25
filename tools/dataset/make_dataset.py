@@ -274,7 +274,7 @@ def cmd_plan(cfg, args):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def build_command(cfg, row: dict, out_file: Path, size: int | None = None, solve: bool = True,
-                  cells_override: int | None = None) -> list[str]:
+                  cells_override: int | None = None, void_eta: float | None = None) -> list[str]:
     """MatViz3D command line for one row. `size` overrides the grid, `solve=False`
     stops after geometry + printability, `cells_override` replaces cells_per_edge."""
     cmd = [str(cfg["_matviz"]), "--nogui", "--nologo", "--autostart", "--algorithm", "Lattice",
@@ -305,8 +305,9 @@ def build_command(cfg, row: dict, out_file: Path, size: int | None = None, solve
     if solve:
         cmd += ["--run_stress_calc", "--solver", "fft", "--stress_mode", "stiffness",
                 "--fft_tol", str(cfg["fft_tol"]), "--fft_max_iter", str(cfg["fft_max_iter"])]
-        if cfg.get("fft_void_eta"):
-            cmd += ["--fft_void_eta", str(cfg["fft_void_eta"])]
+        eta = void_eta if void_eta is not None else cfg.get("fft_void_eta")
+        if eta:
+            cmd += ["--fft_void_eta", str(eta)]
         if cfg.get("fft_discretization"):
             cmd += ["--fft_discretization", str(cfg["fft_discretization"])]
     if cfg.get("np"):
@@ -405,6 +406,26 @@ def run_one(cfg, row: dict) -> tuple[int, float, dict]:
     info["grid"] = size
     code = _run_logged(build_command(cfg, row, out_file, size=size, solve=True, cells_override=cells),
                        log_file, float(cfg["timeout_s"]), "a" if adaptive else "w")
+    info["void_eta"] = cfg.get("fft_void_eta", "")
+    # Adaptive void stiffness: a stiff phase-like void (1e-4) converges fast and is
+    # exact for most cells; when the solid carries less than `min_solid_energy_share`
+    # of the strain energy, the void is propping the cell up and the row is solved
+    # again with the soft fallback (1e-6), where the moduli no longer depend on it.
+    fb, thr = cfg.get("fft_void_eta_fallback"), cfg.get("min_solid_energy_share")
+    if code == 0 and fb and thr:
+        try:
+            import h5py
+            with h5py.File(out_file, "r") as f:
+                share = min(float(x) for x in f["1/geometry/solid_energy_share_loads"][()])
+        except Exception:
+            share = float("nan")
+        info["energy_share_first"] = round(share, 4) if share == share else ""
+        if not (share >= float(thr)):
+            if out_file.exists():
+                out_file.unlink()
+            code = _run_logged(build_command(cfg, row, out_file, size=size, solve=True, cells_override=cells, void_eta=float(fb)),
+                               log_file, float(cfg["timeout_s"]), "a")
+            info["void_eta"] = fb
     return code, time.time() - t0, info
 
 
@@ -613,10 +634,10 @@ def cmd_collect(cfg, args):
         for k, v in r.items():
             if k.startswith("p_"):
                 rec[k] = v
-        for k in ("grid", "wall_vox", "wall_mm_probe", "solve_cells"):
+        for k in ("grid", "wall_vox", "wall_mm_probe", "solve_cells", "void_eta", "energy_share_first"):
             if r.get(k) not in (None, ""):
                 try:
-                    rec[k] = int(float(r[k])) if k in ("grid", "solve_cells") else float(r[k])
+                    rec[k] = int(float(r[k])) if k in ("grid", "solve_cells") else float(r[k])   # void_eta, shares: float
                 except ValueError:
                     pass
         rec.update(props)

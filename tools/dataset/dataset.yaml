@@ -7,10 +7,13 @@ output_dir: ../../data/v1
 matviz: ../../build/MatViz3D.app/Contents/MacOS/MatViz3D
 size: 64
 fft_tol: 1e-5
-# Willot rotated scheme: converges for true pores; void stiffness 1e-6 of C11 so the
-# moduli no longer depend on it (1e-4 overstated a re-entrant honeycomb twofold).
 fft_discretization: rotated
-fft_void_eta: 1e-6
+# Willot rotated scheme (converges for true pores). Void stiffness is adaptive: solve with
+# 1e-4 of C11 (fast, ~1 % off for sheets), and when the solid carries less than 98.5 % of the
+# strain energy in some load (soft cells: the void props them up) solve again with 1e-6.
+fft_void_eta: 1e-4
+fft_void_eta_fallback: 1e-6
+min_solid_energy_share: 0.985
 fft_max_iter: 10000
 timeout_s: 3600
 oversample: 1.6
