@@ -52,7 +52,10 @@ QString Commandline_Parser::buildApplicationDescription()
     desc += "       MatViz3D --nogui --autostart --algorithm Voronoi --size 20 --points 30 --material Al --run_stress_calc --solver fft --stress_mode stiffness --output stiffness.hdf5\n\n";
     desc += "  4. Prescribed Strain Single-Load Analysis:\n";
     desc += "       MatViz3D --nogui --autostart --algorithm Voronoi --size 20 --points 20 --run_stress_calc --solver fft --stress_mode single --eps 0.001,0,0,0,0,0 --output single.hdf5\n\n";
+    desc += "  5. Lattice Metamaterial Cell (periodic sheet gyroid, effective stiffness):\n";
     desc += "       MatViz3D --nogui --autostart --algorithm Lattice --lattice_family gyroid_sheet --size 48 --cells_per_edge 2 --relative_density 0.3 --material PETG --run_stress_calc --solver fft --stress_mode stiffness --output gyroid.hdf5\n\n";
+    desc += "  6. Lattice Dataset Cell (one unit cell, material as numbers, printability gate, Willot scheme, no per-voxel fields):\n";
+    desc += "       MatViz3D --nogui --autostart --algorithm Lattice --lattice_family gyroid_sheet --size 64 --cells_per_edge 1 --relative_density 0.3 --lattice_cell_mm 12 --material_iso 2.0,0.38 --require_printable --no_fields --run_stress_calc --solver fft --stress_mode stiffness --fft_discretization rotated --fft_tol 1e-5 --output cell.hdf5\n\n";
 
     desc += "AVAILABLE GENERATION ALGORITHMS (--algorithm <name>):\n";
     const QStringList algos = AlgorithmFactory::instance().algorithmNames();
@@ -81,7 +84,23 @@ QString Commandline_Parser::buildApplicationDescription()
             "                           the fictitious void stiffness otherwise carries part of the result (see solid_energy_share in the output)\n";
     desc += "  --composite_dim:         1d (fibers along Z) | 2d (along X, Y) | 3d (along X, Y, Z)\n";
     desc += "  --composite_packing:     square | hexagonal\n";
-    desc += "  --lattice_family:        gyroid_sheet | gyroid_skeletal | schwarz_p_sheet | schwarz_p_skeletal | schwarz_d_sheet | schwarz_d_skeletal | iwp_sheet | iwp_skeletal | simple_cubic | bcc | fcc | octet | honeycomb | reentrant | spinodoid | fourier_sheet | fourier_skeletal | noise_sheet | noise_skeletal\n";
+    {
+        // Generated from the family table so the list can never fall behind it;
+        // wrapped under the option column.
+        const QString indent(27, QLatin1Char(' '));
+        QString line = QStringLiteral("  --lattice_family:        ");
+        const QStringList keys = latticeFamilyKeys();
+        for (int i = 0; i < keys.size(); ++i) {
+            const QString item = keys[i] + (i + 1 < keys.size() ? QStringLiteral(" |") : QString());
+            if (line.size() + 1 + item.size() > 110 && line.size() > indent.size()) {
+                desc += line + QLatin1Char('\n');
+                line = indent + item;
+            } else {
+                line += (line.endsWith(QLatin1Char(' ')) ? QString() : QStringLiteral(" ")) + item;
+            }
+        }
+        desc += line + QLatin1Char('\n');
+    }
     desc += "  --cells_per_edge:        unit cells along each cube edge (default: 2)\n";
     desc += "  --relative_density:      target solid fraction of the lattice in (0, 1) (default: 0.3)\n";
     desc += "  --lattice_grading:       linear wall-thickness gradient along Z, 0..0.9 (default: 0)\n";
@@ -403,6 +422,12 @@ void Commandline_Parser::printJsonHelp()
     addRecipe("Single Load Case Prescribed Strain",
               "Single-shot stress solve under prescribed macroscopic strain tensor",
               "MatViz3D --nogui --autostart --algorithm Voronoi --size 20 --points 20 --run_stress_calc --solver fft --stress_mode single --eps 0.001,0,0,0,0,0 --output single.hdf5");
+    addRecipe("Lattice Metamaterial Cell",
+              "Periodic sheet gyroid at 30 % density in PETG, effective stiffness by FFT",
+              "MatViz3D --nogui --autostart --algorithm Lattice --lattice_family gyroid_sheet --size 48 --cells_per_edge 2 --relative_density 0.3 --material PETG --run_stress_calc --solver fft --stress_mode stiffness --output gyroid.hdf5");
+    addRecipe("Lattice Dataset Cell",
+              "One 12 mm unit cell (sheet gyroid, wall 6 voxels at 64^3), material as numbers, exit code 3 when not printable, Willot discretization, no per-voxel fields",
+              "MatViz3D --nogui --autostart --algorithm Lattice --lattice_family gyroid_sheet --size 64 --cells_per_edge 1 --relative_density 0.3 --lattice_cell_mm 12 --material_iso 2.0,0.38 --require_printable --no_fields --run_stress_calc --solver fft --stress_mode stiffness --fft_discretization rotated --fft_tol 1e-5 --output cell.hdf5");
     root["recipes"] = recipes;
 
     QJsonArray algos;
