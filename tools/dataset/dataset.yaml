@@ -10,9 +10,12 @@ fft_tol: 1e-5
 fft_discretization: rotated
 # Willot rotated scheme (converges for true pores). Void stiffness is adaptive: solve with
 # 1e-4 of C11 (fast, ~1 % off for sheets), and when the solid carries less than 98.5 % of the
-# strain energy in some load (soft cells: the void props them up) solve again with 1e-6.
+# strain energy in some load (soft cells: the void props them up) solve again with 1e-6,
+# the smallest void stiffness used. Grids are powers of two only:
+# 96^3 goes through Bluestein's FFT and costs twice as much as 128^3.
 fft_void_eta: 1e-4
 fft_void_eta_fallback: 1e-6
+void_extrapolate: false
 min_solid_energy_share: 0.985
 fft_max_iter: 10000
 timeout_s: 3600
@@ -20,7 +23,6 @@ oversample: 1.6
 grid:
   sizes:
   - 64
-  - 96
   - 128
   min_wall_vox: 6
   probe: 64

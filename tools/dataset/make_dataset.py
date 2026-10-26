@@ -409,23 +409,63 @@ def run_one(cfg, row: dict) -> tuple[int, float, dict]:
     info["void_eta"] = cfg.get("fft_void_eta", "")
     # Adaptive void stiffness: a stiff phase-like void (1e-4) converges fast and is
     # exact for most cells; when the solid carries less than `min_solid_energy_share`
-    # of the strain energy, the void is propping the cell up and the row is solved
-    # again with the soft fallback (1e-6), where the moduli no longer depend on it.
+    # of the strain energy in some unit load, the void is propping the cell up. The
+    # row is then solved again with `fft_void_eta_fallback`. With
+    # `void_extrapolate: true` the two solves are combined by Richardson
+    # extrapolation to a stiffness-free void, C0 = (r C(eta2) - C(eta1)) / (r - 1),
+    # r = eta1/eta2: the void's contribution is linear in its stiffness (re-entrant
+    # honeycomb: 15.18 and 7.55 MPa at 1e-4 and 1e-5 give 6.70; a direct 1e-6 solve
+    # gives 6.73, 1e-8 gives 6.63), and 1e-5 costs a third of the iterations of 1e-6.
     fb, thr = cfg.get("fft_void_eta_fallback"), cfg.get("min_solid_energy_share")
     if code == 0 and fb and thr:
+        import h5py
+        import numpy as np
         try:
-            import h5py
             with h5py.File(out_file, "r") as f:
                 share = min(float(x) for x in f["1/geometry/solid_energy_share_loads"][()])
+                C1 = np.array(f["1/C_matrix"][()], dtype=float)
         except Exception:
-            share = float("nan")
+            share, C1 = float("nan"), None
         info["energy_share_first"] = round(share, 4) if share == share else ""
         if not (share >= float(thr)):
+            first = out_file.with_name(out_file.stem + ".void1.hdf5")
             if out_file.exists():
-                out_file.unlink()
-            code = _run_logged(build_command(cfg, row, out_file, size=size, solve=True, cells_override=cells, void_eta=float(fb)),
+                out_file.replace(first)
+            eta1, eta2 = float(cfg.get("fft_void_eta") or 1e-4), float(fb)
+            code = _run_logged(build_command(cfg, row, out_file, size=size, solve=True, cells_override=cells, void_eta=eta2),
                                log_file, float(cfg["timeout_s"]), "a")
             info["void_eta"] = fb
+            if code == 0 and cfg.get("void_extrapolate") and C1 is not None:
+                try:
+                    with h5py.File(out_file, "r+") as f:
+                        C2 = np.array(f["1/C_matrix"][()], dtype=float)
+                        r = eta1 / eta2
+                        C0 = (r * C2 - C1) / (r - 1.0)
+                        Cs = 0.5 * (C0 + C0.T)
+                        if np.all(np.linalg.eigvalsh(Cs) > 0) and np.all(np.diag(C0) > 0):
+                            S0 = np.linalg.inv(C0)
+                            f["1/C_matrix"][...] = C0.astype(np.float32)
+                            if "1/S_matrix" in f:
+                                f["1/S_matrix"][...] = S0.astype(np.float32)
+                            if "1/P_matrix" in f:
+                                P = -S0 / np.diag(S0)[None, :]
+                                f["1/P_matrix"][...] = P.astype(np.float32)
+                            if "1/Effective_Moduli" in f:
+                                f["1/Effective_Moduli"][...] = (1.0 / np.diag(S0)).astype(np.float32)
+                            for name, M in ((f"C_matrix_void_{eta1:g}", C1), (f"C_matrix_void_{eta2:g}", C2)):
+                                if name in f["1"]:
+                                    del f["1"][name]
+                                f["1"].create_dataset(name, data=M.astype(np.float32))
+                            f["1/geometry"].attrs["void_extrapolated"] = 1
+                            info["void_extrap"] = 1
+                        else:
+                            info["void_extrap"] = 0          # extrapolation not positive definite: keep C(eta2)
+                except Exception as e:
+                    with log_file.open("a", encoding="utf-8") as lf:
+                        lf.write(f"\n# void extrapolation failed: {e}\n")
+                    info["void_extrap"] = 0
+            if first.exists():
+                first.unlink()
     return code, time.time() - t0, info
 
 
@@ -634,10 +674,10 @@ def cmd_collect(cfg, args):
         for k, v in r.items():
             if k.startswith("p_"):
                 rec[k] = v
-        for k in ("grid", "wall_vox", "wall_mm_probe", "solve_cells", "void_eta", "energy_share_first"):
+        for k in ("grid", "wall_vox", "wall_mm_probe", "solve_cells", "void_eta", "energy_share_first", "void_extrap"):
             if r.get(k) not in (None, ""):
                 try:
-                    rec[k] = int(float(r[k])) if k in ("grid", "solve_cells") else float(r[k])   # void_eta, shares: float
+                    rec[k] = int(float(r[k])) if k in ("grid", "solve_cells", "void_extrap") else float(r[k])
                 except ValueError:
                     pass
         rec.update(props)
