@@ -417,6 +417,11 @@ def run_one(cfg, row: dict) -> tuple[int, float, dict]:
     # honeycomb: 15.18 and 7.55 MPa at 1e-4 and 1e-5 give 6.70; a direct 1e-6 solve
     # gives 6.73, 1e-8 gives 6.63), and 1e-5 costs a third of the iterations of 1e-6.
     fb, thr = cfg.get("fft_void_eta_fallback"), cfg.get("min_solid_energy_share")
+    # On the expensive grids the soft-void re-solve costs 1-2 h per cell while the void
+    # error at a share of ~0.97 is a few percent, about the grid error itself, so the
+    # threshold can be lower there: min_solid_energy_share_by_grid: {128: 0.97}.
+    by_grid = cfg.get("min_solid_energy_share_by_grid") or {}
+    thr = by_grid.get(size, by_grid.get(str(size), thr))
     if code == 0 and fb and thr:
         import h5py
         import numpy as np

@@ -17,6 +17,9 @@ fft_void_eta: 1e-4
 fft_void_eta_fallback: 1e-6
 void_extrapolate: false
 min_solid_energy_share: 0.985
+# on 128^3 the 1e-6 re-solve takes 1-2 h; keep the 1e-4 answer when the share is at least 0.97
+min_solid_energy_share_by_grid:
+  128: 0.97
 fft_max_iter: 10000
 timeout_s: 3600
 oversample: 1.6
