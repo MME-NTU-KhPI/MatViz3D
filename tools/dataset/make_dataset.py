@@ -59,6 +59,11 @@ PARAM_KEYS = {
 }
 FLAG_KEYS = {"lattice_uniform_wall", "honeycomb_custom"}
 INT_KEYS = {"cells_per_edge", "fourier_terms", "print_max_island_vox"}
+# Families whose shape IS the drawn waves: their wave table is the shape vector the
+# geometry network works in, so every wave has to fit its frequency cutoff
+# (config `max_wave_number`, |k| per edge of the solved box). The TPMS tables are
+# exact unit vectors per cell and are not checked.
+WAVE_FAMILIES = {"spinodoid", "fourier_sheet", "fourier_skeletal"}
 
 
 def load_config(path: Path) -> dict:
@@ -343,6 +348,31 @@ def choose_grid(cfg, row: dict, wall_vox: float):
     return None
 
 
+def max_wave_number(h5path: Path) -> float | None:
+    """Longest wave vector |k| in the file's wave table, None when there is no table."""
+    import h5py
+    with h5py.File(h5path, "r") as f:
+        ds = f.get("1/geometry/lattice_wave_terms")
+        if ds is None:
+            return None
+        w = np.asarray(ds[()], dtype=float).reshape(-1, 5)
+    if not len(w):
+        return None
+    return float(np.sqrt((w[:, :3] ** 2).sum(axis=1)).max())
+
+
+def out_of_band(cfg, row: dict, k_max) -> bool:
+    """True when a wave-family row has a wave longer than `max_wave_number`. A spinodoid
+    draws |k| in 0.7-1.3 x its wavelengths per box but widens that to 0.5-2 x when its
+    cones hold fewer than 5 directions, so the cap is checked on the generated waves."""
+    cap = cfg.get("max_wave_number")
+    if not cap or k_max in (None, ""):
+        return False
+    if str(row.get("p_lattice_family", "")) not in WAVE_FAMILIES:
+        return False
+    return float(k_max) > float(cap) + 1e-9
+
+
 def _run_logged(cmd: list[str], log_file: Path, timeout: float, mode: str) -> int:
     try:
         with log_file.open(mode, encoding="utf-8") as lf:
@@ -364,7 +394,8 @@ def run_one(cfg, row: dict) -> tuple[int, float, dict]:
     With an adaptive grid this is two runs: a fast probe (geometry + printability
     on the probe grid) that yields the wall thickness in voxels, then the
     stiffness solve on the grid that resolves that wall. Exit code 3 = the
-    printability check failed, 4 = no candidate grid resolves the wall.
+    printability check failed, 4 = no candidate grid resolves the wall,
+    5 = a wave-family row has a wave longer than `max_wave_number`.
     """
     out = cfg["_out"]
     out_file = out / "cells" / f"{row['id']}.hdf5"
@@ -391,6 +422,9 @@ def run_one(cfg, row: dict) -> tuple[int, float, dict]:
             with h5py.File(probe_file, "r") as f:
                 info["wall_vox"] = round(float(f["1/geometry/lattice_wall_voxels"][()]), 2)
                 info["wall_mm_probe"] = round(float(f["1/geometry/lattice_wall_mm"][()]), 3)
+            km = max_wave_number(probe_file)
+            if km is not None:
+                info["k_max"] = round(km, 3)
         except Exception as e:
             with log_file.open("a", encoding="utf-8") as lf:
                 lf.write(f"\n# probe unreadable: {e}\n")
@@ -398,6 +432,9 @@ def run_one(cfg, row: dict) -> tuple[int, float, dict]:
         finally:
             if probe_file.exists():
                 probe_file.unlink()
+        if out_of_band(cfg, row, info.get("k_max")):
+            info["grid"] = ""
+            return 5, time.time() - t0, info
         chosen = choose_grid(cfg, row, info["wall_vox"])
         if chosen is None:
             info["grid"] = ""
@@ -406,6 +443,16 @@ def run_one(cfg, row: dict) -> tuple[int, float, dict]:
     info["grid"] = size
     code = _run_logged(build_command(cfg, row, out_file, size=size, solve=True, cells_override=cells),
                        log_file, float(cfg["timeout_s"]), "a" if adaptive else "w")
+    if code == 0 and not adaptive and cfg.get("max_wave_number"):
+        try:
+            km = max_wave_number(out_file)
+        except Exception:
+            km = None
+        if km is not None:
+            info["k_max"] = round(km, 3)
+        if out_of_band(cfg, row, km):
+            out_file.unlink(missing_ok=True)
+            return 5, time.time() - t0, info
     info["void_eta"] = cfg.get("fft_void_eta", "")
     # Adaptive void stiffness: a stiff phase-like void (1e-4) converges fast and is
     # exact for most cells; when the solid carries less than `min_solid_energy_share`
@@ -518,6 +565,8 @@ def run_pass(cfg, rows: list[dict], todo: list[dict], jobs: int, label: str) -> 
                 status = "unprintable"
             elif code == 4:
                 status = "unresolved"
+            elif code == 5:
+                status = "out_of_band"
             else:
                 status = "failed" if row["status"] == "retry" else "retry"
             with lock:
@@ -553,7 +602,7 @@ def cmd_run(cfg, args):
     todo = [r for r in rows if r["status"] in ("pending", "retry")]
     if args.limit:
         todo = todo[: args.limit]
-    finished = sum(1 for r in rows if r["status"] in ("done", "unprintable", "unresolved", "failed"))
+    finished = sum(1 for r in rows if r["status"] in ("done", "unprintable", "unresolved", "out_of_band", "failed"))
     g = cfg["grid"]
     grid_note = (f"adaptive grid {g['sizes']} (>= {g['min_wall_vox']} voxels per wall, probe {g['probe']}^3)"
                  if float(g["min_wall_vox"]) > 0 or len(g["sizes"]) > 1 else f"grid {cfg['size']}^3")
@@ -679,7 +728,7 @@ def cmd_collect(cfg, args):
         for k, v in r.items():
             if k.startswith("p_"):
                 rec[k] = v
-        for k in ("grid", "wall_vox", "wall_mm_probe", "solve_cells", "void_eta", "energy_share_first", "void_extrap"):
+        for k in ("grid", "wall_vox", "wall_mm_probe", "solve_cells", "void_eta", "energy_share_first", "void_extrap", "k_max"):
             if r.get(k) not in (None, ""):
                 try:
                     rec[k] = int(float(r[k])) if k in ("grid", "solve_cells", "void_extrap") else float(r[k])
@@ -721,13 +770,13 @@ def cmd_check(cfg, args):
         for r in rows:
             st_rows.setdefault(r["group"], {}).setdefault(r["status"], 0)
             st_rows[r["group"]][r["status"]] += 1
-        lines += ["## By family", "", "| group | quota | accepted | unprintable | unresolved | unprintable share | mean s/accepted cell |", "|---|---|---|---|---|---|---|"]
+        lines += ["## By family", "", "| group | quota | accepted | unprintable | unresolved | out of band | unprintable share | mean s/accepted cell |", "|---|---|---|---|---|---|---|---|"]
         for g, d in df.groupby("group"):
             acc = d[d["status"] == "done"]
             stg = st_rows.get(g, {})          # manifest counts: unprintable probes write no HDF5
-            unpr, unres = stg.get("unprintable", 0), stg.get("unresolved", 0)
+            unpr, unres, oob = stg.get("unprintable", 0), stg.get("unresolved", 0), stg.get("out_of_band", 0)
             tried = sum(v for k, v in stg.items() if k not in ("pending", "retry", "skipped"))
-            lines.append(f"| {g} | {quotas.get(g, '?')} | {len(acc)} | {unpr} | {unres} | "
+            lines.append(f"| {g} | {quotas.get(g, '?')} | {len(acc)} | {unpr} | {unres} | {oob} | "
                          f"{(unpr / tried if tried else 0):.0%} | {acc['seconds'].mean() if len(acc) else float('nan'):.0f} |")
         lines.append("")
         if "grid" in df:
@@ -768,6 +817,11 @@ def cmd_check(cfg, args):
                 checks.append(("strain concentration index >= 1", num("sensitivity_index") >= 0.999))
             if "solid_energy_share" in s:
                 checks.append(("solid carries >= 95 % of the strain energy (void artifact small)", num("solid_energy_share") >= 0.95))
+            cap = cfg.get("max_wave_number")
+            if cap and "k_max" in s and "p_lattice_family" in s:
+                wm = s["p_lattice_family"].astype(str).isin(WAVE_FAMILIES) & pd.to_numeric(s["k_max"], errors="coerce").notna()
+                if wm.any():
+                    checks.append((f"wave families: every |k| <= {cap}", pd.to_numeric(s.loc[wm, "k_max"]) <= float(cap) + 1e-9))
             pcols = [c for c in s.columns if c.startswith("p_")]
             checks.append(("unique parameter rows", ~s.duplicated(subset=pcols)))
             lines += ["## Checks (accepted cells)", "", "| check | pass | n |", "|---|---|---|"] + \

@@ -25,6 +25,7 @@ Output folder (`output_dir` in the YAML):
 | `card.md` | counts per family, pass rates of the checks, value ranges |
 
 Statuses: `done` (exit 0), `unprintable` (exit 3: geometry saved, no stiffness),
+`unresolved` (exit 4, see below), `out_of_band` (exit 5, see below),
 `retry` → `failed` (anything else, one retry), `skipped` (the family already has
 its quota of accepted cells). A `quota` counts accepted cells; `oversample`
 (global or per family) says how many rows to draw for it, and rejected rows cost
@@ -64,3 +65,16 @@ effective properties for the tiled block, and the wall gets `cells_per_edge`
 times more voxels for free. The manifest and `dataset.parquet` record `grid`,
 `wall_vox` (at the probe grid), `wall_mm_probe` and `solve_cells`; the card lists
 the grid shares and checks that every accepted cell is resolved.
+
+## Wave cutoff
+
+`max_wave_number: k` keeps the wave table of the families whose shape is the
+drawn waves (`spinodoid`, `fourier_sheet`, `fourier_skeletal`) inside one shape
+vector: every wave vector with |k| <= k per edge of the solved box (k = 4: 256
+numbers, amplitude and phase per ± pair). The probe reads the longest wave; a
+longer one ends the row with status `out_of_band` before the solve, and the
+manifest and `dataset.parquet` record it as `k_max`. Fourier rows stay inside by
+`fourier_kmax <= k`; a spinodoid draws |k| in 0.7-1.3 x its wavelengths per box
+(`cells_per_edge`), so 2-3 wavelengths fit k = 4, except when its cones hold
+fewer than 5 directions and the band widens to 0.5-2 x. TPMS tables are exact
+unit vectors per cell and are not checked.

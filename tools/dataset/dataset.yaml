@@ -21,6 +21,12 @@ min_solid_energy_share: 0.985
 min_solid_energy_share_by_grid:
   128: 0.97
 fft_max_iter: 10000
+# Shape vector of the geometry network (plan 2.5): every wave vector with |k| <= 4 per
+# edge of the solved box, 256 numbers. Fourier rows draw |k| <= fourier_kmax <= 4; a
+# spinodoid with 2-3 wavelengths per box draws |k| in 0.7-1.3 x that, but widens the
+# band to 0.5-2 x when its cones hold fewer than 5 directions, so a spinodoid or
+# Fourier row whose probe shows a longer wave is dropped (status out_of_band).
+max_wave_number: 4
 timeout_s: 3600
 oversample: 1.6
 grid:
@@ -91,7 +97,7 @@ families:
       - 2.0
       fourier_kmax:
       - 2.0
-      - 5.0
+      - 4.0
       fourier_decay:
       - 0.5
       - 2.5
@@ -122,7 +128,7 @@ families:
       - 2.0
       fourier_kmax:
       - 2.0
-      - 5.0
+      - 4.0
       fourier_decay:
       - 0.5
       - 2.5
@@ -212,7 +218,7 @@ families:
       - 90.0
       cells_per_edge:
       - 2
-      - 7
+      - 3
       lattice_grading:
       - 0.0
       - 0.2
