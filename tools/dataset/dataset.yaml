@@ -20,6 +20,10 @@ min_solid_energy_share: 0.985
 # on 128^3 the 1e-6 re-solve takes 1-2 h; keep the 1e-4 answer when the share is at least 0.97
 min_solid_energy_share_by_grid:
   128: 0.97
+# after the 1e-6 re-solve a healthy cell carries > 0.97 of the energy in every load; below
+# 0.9 there is no solid path through the cell in that direction and the void holds it up
+# (graded cell pinched off at its thin end, noise cut into sheets): status no_load_path
+min_load_path_share: 0.9
 fft_max_iter: 10000
 # Shape vector of the geometry network (plan 2.5): every wave vector with |k| <= 4 per
 # edge of the solved box, 256 numbers. Fourier rows draw |k| <= fourier_kmax <= 4; a
@@ -39,6 +43,7 @@ grid:
     noise_sheet: 64
     noise_skeletal: 64
   single_cell_families:
+  - cubic_assembly
   - gyroid_sheet
   - gyroid_skeletal
   - schwarz_p_sheet
@@ -78,9 +83,12 @@ laws:
   aniso:
   - 0.5
   - 1.0
+  # a fifth of the rows get a material that is the same in every direction (aniso = 1):
+  # the pure effect of the shape, and the limit printed parts approach with good layer bonding
+  isotropic_share: 0.2
 families:
   fourier_sheet:
-    quota: 6000
+    quota: 5000
     oversample: 2.5
     params:
       lattice_cell_mm:
@@ -111,7 +119,7 @@ families:
     flags:
     - lattice_uniform_wall
   fourier_skeletal:
-    quota: 6000
+    quota: 5000
     oversample: 2.0
     params:
       lattice_cell_mm:
@@ -198,7 +206,7 @@ families:
       - 0.04
       lattice_family: fourier_skeletal
   spinodoid:
-    quota: 7000
+    quota: 5000
     oversample: 1.6
     params:
       lattice_cell_mm:
@@ -433,3 +441,41 @@ families:
       - 0.03
     flags:
     - lattice_uniform_wall
+  # Cubic assemblies: random struts, plates and spherical shells in the asymmetric
+  # unit of the cube, repeated by its 48 symmetries, with windows in the plates and
+  # shells -- free-form cells with full cubic symmetry, like topology-optimized ones.
+  # Trial of 60 draws: ~50 % printable (thin walls reject most of the rest, about 1
+  # in 60 has an island), about half need 128^3; rho * cell >= 4 lifts it to ~60 %.
+  assemblies:
+    quota: 4000
+    oversample: 2.2
+    params:
+      lattice_cell_mm:
+      - 10.0
+      - 18.0
+      relative_density:
+      - 0.25
+      - 0.55
+      lattice_family: cubic_assembly
+      assembly_struts:
+      - 0
+      - 5
+      assembly_plates:
+      - 0
+      - 4
+      assembly_shells:
+      - 0
+      - 1
+      assembly_holes:
+      - 0
+      - 3
+      assembly_spread:
+      - 0.0
+      - 0.5
+      lattice_smooth:
+      - 0.0
+      - 0.025
+      cells_per_edge: 1
+    require:
+      min_density_x_cell:
+        default: 4.0

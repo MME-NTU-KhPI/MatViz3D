@@ -6,13 +6,17 @@ journal, so an interrupted run resumes where it stopped.
 
     make_dataset.py plan    dataset.yaml        # sample the design space -> manifest.csv
     make_dataset.py run     dataset.yaml        # run MatViz3D headless for every pending row
+    make_dataset.py top-up  dataset.yaml        # more rows for the groups short of their quota
+    make_dataset.py recheck dataset.yaml        # post-solve checks again on the accepted rows
     make_dataset.py collect dataset.yaml        # HDF5 files -> dataset.parquet (+ waves.parquet)
     make_dataset.py check   dataset.yaml        # sanity checks -> card.md
     make_dataset.py status  dataset.yaml        # progress and ETA
 
 Row statuses: pending -> done | unprintable (exit 3, geometry kept, no stiffness)
-| failed (anything else, retried once) | skipped (family quota of accepted cells
-already met).
+| unresolved (4) | out_of_band (5) | deferred (6) | no_load_path (7: the solid
+carries too little of the energy in some load even with the soft void; cell file
+kept) | failed (anything else, retried once) | skipped (family quota of accepted
+cells already met).
 
 Everything a row needs is in the manifest (parameters, law, seed), so any cell
 can be regenerated bit-for-bit from one line of it.
@@ -54,11 +58,13 @@ PARAM_KEYS = {
     "fourier_symmetry", "plate_hole", "lattice_union",
     "lattice_subtract", "lattice_subtract_size", "lattice_smooth",
     "honeycomb_angle", "honeycomb_rib",
+    "assembly_struts", "assembly_plates", "assembly_shells", "assembly_holes", "assembly_spread",
     "print_min_wall_mm", "print_max_overhang_deg", "print_max_thin_fraction",
-    "print_max_island_vox", "print_max_unsupported_fraction",
+    "print_max_island_vox", "print_max_unsupported_fraction", "print_min_directions",
 }
 FLAG_KEYS = {"lattice_uniform_wall", "honeycomb_custom"}
-INT_KEYS = {"cells_per_edge", "fourier_terms", "print_max_island_vox"}
+INT_KEYS = {"cells_per_edge", "fourier_terms", "print_max_island_vox", "print_min_directions",
+            "assembly_struts", "assembly_plates", "assembly_shells", "assembly_holes"}
 # Families whose shape IS the drawn waves: their wave table is the shape vector the
 # geometry network works in, so every wave has to fit its frequency cutoff
 # (config `max_wave_number`, |k| per edge of the solved box). The TPMS tables are
@@ -223,20 +229,21 @@ def matviz_commit(cfg) -> str:
         return ""
 
 
-def cmd_plan(cfg, args):
-    out = cfg["_out"]
-    out.mkdir(parents=True, exist_ok=True)
-    (out / "cells").mkdir(exist_ok=True)
-    (out / "logs").mkdir(exist_ok=True)
-    shutil.copyfile(cfg["_config_path"], out / "dataset.yaml")
-
+def law_sampler(cfg, skip: int = 0):
+    """Law of row k: either a list of named laws assigned round-robin, or a dict
+    of ranges {E_GPa: [lo, hi], nu: [lo, hi], aniso: [lo, hi]} sampled per row
+    (Sobol, own seed), so the material is a continuous axis of the dataset;
+    `isotropic_share: f` gives that fraction of the rows aniso = 1.
+    `skip` continues the sequence after that many rows (top-ups)."""
     laws = cfg["laws"]
-    # Laws: either a list of named laws assigned round-robin, or a dict of
-    # ranges {E_GPa: [lo, hi], nu: [lo, hi], aniso: [lo, hi]} sampled per row
-    # (Sobol, own seed), so the material is a continuous axis of the dataset.
     law_rng = None
     if isinstance(laws, dict):
         law_rng = qmc.Sobol(d=3, scramble=True, seed=int(cfg["seed0"]) + 99) if qmc is not None else np.random.default_rng(int(cfg["seed0"]) + 99)
+        if skip:
+            if qmc is not None:
+                law_rng.fast_forward(skip)
+            else:
+                law_rng.random((skip, 3))
     def draw_law(k: int) -> dict:
         if law_rng is None:
             return laws[k % len(laws)]
@@ -244,7 +251,100 @@ def cmd_plan(cfg, args):
         def span(key, default):
             r = laws.get(key, default)
             return (r[0] + float(u[["E_GPa", "nu", "aniso"].index(key)]) * (r[1] - r[0])) if isinstance(r, (list, tuple)) else float(r)
-        return {"id": "sampled", "E_GPa": round(span("E_GPa", 2.0), 3), "nu": round(span("nu", 0.38), 4), "aniso": round(span("aniso", 1.0), 3)}
+        aniso = span("aniso", 1.0)
+        # `isotropic_share` of the rows get a material that is the same in every
+        # direction (aniso = 1): the lowest share of the aniso coordinate maps to 1,
+        # the rest is stretched over the range, so the other coordinates and the
+        # low-discrepancy spread stay as they were and the share is exact.
+        share, r = float(laws.get("isotropic_share", 0) or 0), laws.get("aniso")
+        if share > 0 and isinstance(r, (list, tuple)):
+            ua = float(u[2])
+            aniso = 1.0 if ua < share else r[0] + (ua - share) / (1.0 - share) * (r[1] - r[0])
+        return {"id": "sampled", "E_GPa": round(span("E_GPa", 2.0), 3), "nu": round(span("nu", 0.38), 4), "aniso": round(aniso, 3)}
+    return draw_law
+
+
+def cmd_topup(cfg, args):
+    """Append rows for the groups whose accepted cells fall short of their quota,
+    and for groups new in the config, without replanning: each group continues
+    its own Sobol sequence (the same seed as `plan`, so the new points follow the
+    ones already drawn), the laws continue theirs, ids and seeds continue the
+    manifest. Rows still pending count by the group's acceptance so far; deferred
+    rows do not (they are the slow pass). Needed rows = shortfall / acceptance x
+    --factor; the acceptance falls back to 1 / oversample below 10 tried rows.
+
+    `--isotropic N` adds instead, per group, rows whose material is the same in
+    every direction (aniso = 1; E and nu continue the law sequence) until N such
+    cells are expected to be accepted -- for a dataset planned before
+    `isotropic_share`, so it also has the pure-shape examples."""
+    rows = read_manifest(cfg)
+    if not rows:
+        sys.exit("no manifest; run `plan` first")
+    only = set(args.groups.split(",")) if args.groups else None
+    by: dict[str, list[str]] = {}
+    for r in rows:
+        by.setdefault(r["group"], []).append(r["status"])
+    iso_target = int(getattr(args, "isotropic", 0) or 0)
+    is_iso = lambda r: abs(float(r.get("law_aniso") or 1.0) - 1.0) < 1e-9
+    draw_law = law_sampler(cfg, skip=len(rows))
+    rid = max(int(r["id"]) for r in rows) + 1
+    added: list[dict] = []
+    report = []
+    for gi, (group, block) in enumerate(cfg["families"].items()):
+        if only and group not in only:
+            continue
+        st = by.get(group, [])
+        quota = int(block.get("quota", 0))
+        done = st.count("done")
+        pending = sum(1 for x in st if x in ("pending", "retry"))
+        tried = sum(1 for x in st if x in ("done", "unprintable", "unresolved", "out_of_band", "no_load_path", "failed"))
+        rate = done / tried if tried >= 10 else 1.0 / float(block.get("oversample", cfg["oversample"]))
+        rate = max(rate, 0.1)
+        short = quota - done - rate * pending
+        if iso_target:
+            grp = [r for r in rows if r["group"] == group and is_iso(r)]
+            short = iso_target - sum(1 for r in grp if r["status"] == "done") \
+                - rate * sum(1 for r in grp if r["status"] in ("pending", "retry"))
+        if short <= 0:
+            continue
+        n = int(math.ceil(short / rate * float(args.factor)))
+        points = sample_family(group, block, cfg["common"], len(st) + n, sobol_seed=1000 * gi + 7)[len(st):]
+        for p in points:
+            law = draw_law(rid - 1)
+            if iso_target:
+                law = dict(law, aniso=1.0)
+            row = {"id": f"{rid:06d}", "group": group, "status": "pending", "seed": int(cfg["seed0"]) + rid - 1,
+                   "law_id": law["id"], "law_E_GPa": law["E_GPa"], "law_nu": law["nu"], "law_aniso": law.get("aniso", 1.0)}
+            for k, v in p.items():
+                row["p_" + k] = v
+            added.append(row)
+            rid += 1
+        report.append((group, quota, done, rate, len(points)))
+    for group, quota, done, rate, k in report:
+        print(f"  {group:22s} quota {quota:5d}, accepted {done:5d}, acceptance {rate:4.0%} -> {k} new rows"
+              + (f" (isotropic, for {iso_target} accepted)" if iso_target else ""))
+    if not added:
+        print("every group has its quota (or enough pending rows); nothing added")
+        return
+    write_manifest(cfg, rows + added)
+    mp = cfg["_out"] / "meta.json"
+    meta = json.loads(mp.read_text(encoding="utf-8")) if mp.exists() else {}
+    meta.setdefault("topups", []).append({"at": datetime.now().isoformat(timespec="seconds"), "rows": len(added),
+                                          "groups": {g: k for g, _, _, _, k in report}, "factor": float(args.factor),
+                                          **({"isotropic": iso_target} if iso_target else {})})
+    mp.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
+    shutil.copyfile(cfg["_config_path"], cfg["_out"] / "dataset.yaml")
+    print(f"added {len(added)} rows (ids {added[0]['id']}..{added[-1]['id']}) -> {manifest_path(cfg)}")
+
+
+def cmd_plan(cfg, args):
+    out = cfg["_out"]
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "cells").mkdir(exist_ok=True)
+    (out / "logs").mkdir(exist_ok=True)
+    shutil.copyfile(cfg["_config_path"], out / "dataset.yaml")
+
+    draw_law = law_sampler(cfg)
     rows: list[dict] = []
     rid = 1
     seed = int(cfg["seed0"])
@@ -395,7 +495,9 @@ def run_one(cfg, row: dict) -> tuple[int, float, dict]:
     on the probe grid) that yields the wall thickness in voxels, then the
     stiffness solve on the grid that resolves that wall. Exit code 3 = the
     printability check failed, 4 = no candidate grid resolves the wall,
-    5 = a wave-family row has a wave longer than `max_wave_number`.
+    5 = a wave-family row has a wave longer than `max_wave_number`,
+    6 = the wall needs a grid above `run --defer-above` (row deferred, not solved),
+    7 = after the solve the solid carries too little of the energy in some load.
     """
     out = cfg["_out"]
     out_file = out / "cells" / f"{row['id']}.hdf5"
@@ -440,6 +542,10 @@ def run_one(cfg, row: dict) -> tuple[int, float, dict]:
             info["grid"] = ""
             return 4, time.time() - t0, info
         size = chosen
+        defer = cfg.get("_defer_above")
+        if defer and size > int(defer):
+            info["grid"] = size            # the grid it will need, for the later pass
+            return 6, time.time() - t0, info
     info["grid"] = size
     code = _run_logged(build_command(cfg, row, out_file, size=size, solve=True, cells_override=cells),
                        log_file, float(cfg["timeout_s"]), "a" if adaptive else "w")
@@ -518,7 +624,34 @@ def run_one(cfg, row: dict) -> tuple[int, float, dict]:
                     info["void_extrap"] = 0
             if first.exists():
                 first.unlink()
+    if code == 0:
+        share = final_energy_share(out_file)
+        if share == share:
+            info["energy_share_final"] = round(share, 4)
+        if no_load_path(cfg, share):
+            return 7, time.time() - t0, info      # the file stays, for a look in the browser
     return code, time.time() - t0, info
+
+
+def final_energy_share(h5) -> float:
+    """Smallest share of the strain energy the solid carries over the six unit loads."""
+    try:
+        import h5py
+        with h5py.File(h5, "r") as f:
+            return min(float(x) for x in f["1/geometry/solid_energy_share_loads"][()])
+    except Exception:
+        return float("nan")
+
+
+def no_load_path(cfg, share: float) -> bool:
+    """After the soft-void re-solve the solid still carries less than
+    `min_load_path_share` (0.9) of the energy in some load: there is no solid
+    path through the cell in that direction and the void holds it up -- a graded
+    cell whose thin end pinched off, noise cut into sheets, a carve-out that
+    severed every strut. Its stiffness in that direction is the void's, not the
+    material's. A healthy cell carries > 0.97 after the re-solve."""
+    thr = cfg.get("min_load_path_share", 0.9)
+    return bool(thr) and share == share and share < float(thr)
 
 
 def quotas_of(cfg) -> dict[str, int]:
@@ -554,7 +687,7 @@ def run_pass(cfg, rows: list[dict], todo: list[dict], jobs: int, label: str) -> 
                 return
             group = row["group"]
             with lock:
-                if quotas.get(group) and accepted(group) >= quotas[group]:
+                if quotas.get(group) and accepted(group) >= quotas[group] and not cfg.get("_ignore_quota"):
                     row["status"] = "skipped"
                     write_manifest(cfg, rows)
                     continue
@@ -567,6 +700,10 @@ def run_pass(cfg, rows: list[dict], todo: list[dict], jobs: int, label: str) -> 
                 status = "unresolved"
             elif code == 5:
                 status = "out_of_band"
+            elif code == 6:
+                status = "deferred"
+            elif code == 7:
+                status = "no_load_path"
             else:
                 status = "failed" if row["status"] == "retry" else "retry"
             with lock:
@@ -575,8 +712,10 @@ def run_pass(cfg, rows: list[dict], todo: list[dict], jobs: int, label: str) -> 
                 row.update({"status": status, "exit_code": code, "seconds": round(secs, 1),
                             "finished": datetime.now().isoformat(timespec="seconds")})
                 write_manifest(cfg, rows)
-                finished = sum(1 for r in rows if r["status"] not in ("pending", "retry"))
-                left = sum(1 for r in rows if r["status"] in ("pending", "retry"))
+                finished = sum(1 for r in rows if r["status"] not in ("pending", "retry", "deferred"))
+                # rows still to do: pending / retry, plus the deferred ones this pass solves
+                left = sum(1 for r in rows if r["status"] in ("pending", "retry")) \
+                    + (0 if cfg.get("_defer_above") else sum(1 for r in todo if r["status"] == "deferred"))
                 per_row = (time.time() - t_all) / counter["n"]
                 print(f"{label}[{counter['n']}/{len(todo)}] {row['id']} {group:16s} -> {status:11s} {secs:6.1f}s "
                       f"grid {info.get('grid', cfg['size'])} wall {info.get('wall_vox', '?')} vox | "
@@ -599,15 +738,27 @@ def cmd_run(cfg, args):
     jobs = max(1, int(args.jobs))
     if jobs > 1 and not cfg.get("np"):
         cfg["np"] = max(1, (os.cpu_count() or 2) // jobs)   # share the cores between processes
-    todo = [r for r in rows if r["status"] in ("pending", "retry")]
+    if args.timeout:
+        cfg["timeout_s"] = float(args.timeout)
+    if args.ignore_quota:
+        cfg["_ignore_quota"] = True          # solve every row of the pass, quota met or not
+    # --defer-above N: a fast pass. Rows whose wall needs a grid above N^3 are
+    # probed (seconds) and marked `deferred` instead of being solved; a later run
+    # without the flag picks them up together with the pending ones.
+    defer = int(args.defer_above or 0)
+    if defer:
+        cfg["_defer_above"] = defer
+    statuses = ("pending", "retry") if defer else ("pending", "retry", "deferred")
+    todo = [r for r in rows if r["status"] in statuses]
     if args.limit:
         todo = todo[: args.limit]
-    finished = sum(1 for r in rows if r["status"] in ("done", "unprintable", "unresolved", "out_of_band", "failed"))
+    finished = sum(1 for r in rows if r["status"] in ("done", "unprintable", "unresolved", "out_of_band", "no_load_path", "failed"))
     g = cfg["grid"]
     grid_note = (f"adaptive grid {g['sizes']} (>= {g['min_wall_vox']} voxels per wall, probe {g['probe']}^3)"
                  if float(g["min_wall_vox"]) > 0 or len(g["sizes"]) > 1 else f"grid {cfg['size']}^3")
     print(f"{len(todo)} rows this pass, {finished} finished before, {len(rows)} total, "
-          f"{jobs} parallel job(s) x {cfg.get('np') or 'all'} threads, {grid_note}, fft_tol {cfg['fft_tol']}")
+          f"{jobs} parallel job(s) x {cfg.get('np') or 'all'} threads, {grid_note}, fft_tol {cfg['fft_tol']}, "
+          f"timeout {cfg['timeout_s']:.0f} s" + (f", rows needing more than {defer}^3 deferred" if defer else ""))
     if not todo:
         return
     run_pass(cfg, rows, todo, jobs, "")
@@ -642,6 +793,23 @@ def hs_upper_E(E_s: float, nu_s: float, porosity: float) -> float:
     K_hs = K + f / (-1.0 / K + 3 * (1 - f) / (3 * K + 4 * G))
     G_hs = G + f / (-1.0 / G + 6 * (1 - f) * (K + 2 * G) / (5 * G * (3 * K + 4 * G)))
     return 9 * K_hs * G_hs / (3 * K_hs + G_hs)
+
+
+def solid_c11(E, nu, aniso):
+    """C11 of the printed solid (Parameters::lawStiffnessPa: transversely
+    isotropic about z, E_z = aniso E, G_yz = G_xz = aniso G) -- the stiffness the
+    FFT solver scales its void phase by (void E = fft_void_eta x C11, nu 0.3).
+    Element-wise over arrays."""
+    E, nu, r = (np.asarray(v, dtype=float) for v in (E, nu, aniso))
+    E, nu, r = np.broadcast_arrays(E, nu, r)
+    S = np.zeros(E.shape + (3, 3))
+    S[..., 0, 0] = S[..., 1, 1] = 1 / E
+    S[..., 2, 2] = 1 / (r * E)
+    S[..., 0, 1] = S[..., 1, 0] = S[..., 0, 2] = S[..., 2, 0] = S[..., 1, 2] = S[..., 2, 1] = -nu / E
+    ok = np.isfinite(S).all(axis=(-2, -1))
+    S[~ok] = np.eye(3)
+    C11 = np.linalg.inv(S)[..., 0, 0]   # the normal block alone: shears decouple
+    return np.where(ok, C11, np.nan)
 
 
 def lattice_props(h5path: Path) -> tuple[dict, list[list[float]]]:
@@ -704,6 +872,11 @@ def lattice_props(h5path: Path) -> tuple[dict, list[list[float]]]:
             row["connected"] = int(float(row.get("print_components", 1))) == 1
         except (TypeError, ValueError):
             row["connected"] = True
+        if "print_connected_directions" in row:
+            try:
+                row["joined_3d"] = int(float(row["print_connected_directions"])) == 3
+            except (TypeError, ValueError):
+                pass
     return row, waves
 
 
@@ -713,7 +886,7 @@ def cmd_collect(cfg, args):
     out = cfg["_out"]
     records, wave_records = [], []
     for r in rows:
-        if r["status"] not in ("done", "unprintable"):
+        if r["status"] not in ("done", "unprintable", "no_load_path"):
             continue
         h5 = out / "cells" / f"{r['id']}.hdf5"
         if not h5.exists():
@@ -728,7 +901,7 @@ def cmd_collect(cfg, args):
         for k, v in r.items():
             if k.startswith("p_"):
                 rec[k] = v
-        for k in ("grid", "wall_vox", "wall_mm_probe", "solve_cells", "void_eta", "energy_share_first", "void_extrap", "k_max"):
+        for k in ("grid", "wall_vox", "wall_mm_probe", "solve_cells", "void_eta", "energy_share_first", "energy_share_final", "void_extrap", "k_max"):
             if r.get(k) not in (None, ""):
                 try:
                     rec[k] = int(float(r[k])) if k in ("grid", "solve_cells", "void_extrap") else float(r[k])
@@ -770,13 +943,14 @@ def cmd_check(cfg, args):
         for r in rows:
             st_rows.setdefault(r["group"], {}).setdefault(r["status"], 0)
             st_rows[r["group"]][r["status"]] += 1
-        lines += ["## By family", "", "| group | quota | accepted | unprintable | unresolved | out of band | unprintable share | mean s/accepted cell |", "|---|---|---|---|---|---|---|---|"]
+        lines += ["## By family", "", "| group | quota | accepted | unprintable | unresolved | out of band | no load path | unprintable share | mean s/accepted cell |", "|---|---|---|---|---|---|---|---|---|"]
         for g, d in df.groupby("group"):
             acc = d[d["status"] == "done"]
             stg = st_rows.get(g, {})          # manifest counts: unprintable probes write no HDF5
             unpr, unres, oob = stg.get("unprintable", 0), stg.get("unresolved", 0), stg.get("out_of_band", 0)
+            nlp = stg.get("no_load_path", 0)
             tried = sum(v for k, v in stg.items() if k not in ("pending", "retry", "skipped"))
-            lines.append(f"| {g} | {quotas.get(g, '?')} | {len(acc)} | {unpr} | {unres} | {oob} | "
+            lines.append(f"| {g} | {quotas.get(g, '?')} | {len(acc)} | {unpr} | {unres} | {oob} | {nlp} | "
                          f"{(unpr / tried if tried else 0):.0%} | {acc['seconds'].mean() if len(acc) else float('nan'):.0f} |")
         lines.append("")
         if "grid" in df:
@@ -787,29 +961,65 @@ def cmd_check(cfg, args):
                 wv = pd.to_numeric(d["wall_vox"], errors="coerce") * float(gsize) / float(gcfg["probe"]) if "wall_vox" in d else pd.Series(dtype=float)
                 lines.append(f"| {int(gsize)}³ | {len(d)} | {len(d)/max(len(acc),1):.0%} | {d['seconds'].mean():.0f} | {wv.min() if len(wv) else float('nan'):.1f} |")
             lines.append("")
-        s = df[df["has_stiffness"] == True]
+        s = df[(df["has_stiffness"] == True) & (df["status"] == "done")]
         checks = []   # (name, boolean Series over the rows the check applies to)
         if len(s):
             num = lambda col, default=0.0: pd.to_numeric(s[col], errors="coerce").fillna(default) if col in s else pd.Series(default, index=s.index)
             checks.append(("all moduli positive", (s[["E_x", "E_y", "E_z", "G_xy", "G_yz", "G_xz"]] > 0).all(axis=1)))
-            if "E_over_hs" in s:
-                checks.append(("mean E below Hashin–Shtrikman upper bound (x1.05)", s["E_over_hs"] <= 1.05))
+            # Voigt bound C <= rho C_s + (1 - rho) C_void, read on the diagonal of
+            # the compliance: no modulus of the cell exceeds the volume average
+            # of the two phases' moduli in that direction (E_z and the shears
+            # through z of the printed solid are aniso times the in-plane ones;
+            # the void is the solver's soft isotropic phase). It holds for any
+            # geometry -- the Hashin-Shtrikman bound only for isotropic cells,
+            # and plates or cubic sheets are stiffer along the axes than their
+            # mean. Prismatic honeycombs reach it along z.
+            law = lambda m, l, d: num(m, float("nan")).where(num(m, float("nan")).notna(), num(l, d))   # solved with, else drawn
+            if "lattice_achieved_density" in s:
+                E_s, nu_s, r = law("mat_e_gpa", "law_E_GPa", float("nan")) * 1e9, law("mat_nu", "law_nu", 0.38), law("mat_aniso", "law_aniso", 1.0)
+                G_s = E_s / (2 * (1 + nu_s))
+                E_v = num("void_eta", float(cfg.get("fft_void_eta", 1e-4))) * pd.Series(solid_c11(E_s, nu_s, r), index=s.index)
+                G_v = E_v / (2 * 1.3)
+                rho = num("lattice_achieved_density", float("nan"))
+                bound = {"E_x": (E_s, E_v), "E_y": (E_s, E_v), "E_z": (r * E_s, E_v),
+                         "G_xy": (G_s, G_v), "G_yz": (r * G_s, G_v), "G_xz": (r * G_s, G_v)}
+                voigt = pd.concat([num(k, float("nan")) / (rho * m_s + (1 - rho) * m_v) for k, (m_s, m_v) in bound.items()], axis=1).max(axis=1)
+                s = s.assign(voigt_ratio=voigt)
+                checks.append(("every modulus within the Voigt bound (volume average of solid and void, x1.001)", voigt.dropna() <= 1.001))
             if "E_over_Es" in s:
                 checks.append(("E/E_s within (0, 1)", (s["E_over_Es"] > 0) & (s["E_over_Es"] < 1)))
-            cubic_families = ["gyroid_sheet", "gyroid_skeletal", "schwarz_p_sheet", "schwarz_p_skeletal", "schwarz_d_sheet",
-                              "schwarz_d_skeletal", "iwp_sheet", "iwp_skeletal", "simple_cubic", "bcc", "fcc", "octet"]
-            cubic_mask = (s["p_lattice_family"].astype(str).isin(cubic_families) if "p_lattice_family" in s else pd.Series(False, index=s.index)) \
-                & (num("law_aniso", 1.0) == 1.0) & (num("p_lattice_grading") == 0) & (num("p_lattice_jitter") == 0)
+            # Ex = Ey = Ez needs a shape invariant under x -> y -> z and an
+            # isotropic solid. Every family below is (incl. unions and carve-outs
+            # of two of them), the Fourier families with cubic orbits too;
+            # grading and jitter break it.
+            cubic_families = {"gyroid_sheet", "gyroid_skeletal", "schwarz_p_sheet", "schwarz_p_skeletal", "schwarz_d_sheet",
+                              "schwarz_d_skeletal", "iwp_sheet", "iwp_skeletal", "simple_cubic", "bcc", "fcc", "octet",
+                              "plate_sc", "plate_bcc", "plate_fcc", "plate_sc_bcc", "plate_sc_fcc", "plate_bcc_fcc", "plate_sc_bcc_fcc",
+                              "spheres_sc", "spheres_bcc", "spheres_fcc", "cylinders_axes", "cubic_assembly"}
+            text = lambda col: s[col].fillna("").astype(str) if col in s else pd.Series("", index=s.index)
+            fam, sym = text("p_lattice_family"), text("p_fourier_symmetry")
+            shape_cubic = fam.isin(cubic_families) | (fam.isin({"fourier_sheet", "fourier_skeletal"}) & (sym == "cubic"))
+            for extra in ("p_lattice_union", "p_lattice_subtract"):
+                shape_cubic &= (text(extra) == "") | text(extra).isin(cubic_families)
+            cubic_mask = shape_cubic & (law("mat_aniso", "law_aniso", 1.0) == 1.0) \
+                & (num("p_lattice_grading") == 0) & (num("p_lattice_jitter") == 0)
             if cubic_mask.any():
-                checks.append(("cubic cells: E_x = E_y = E_z within 2 %", s.loc[cubic_mask, "E_ratio"] < 1.02))
+                checks.append(("cubic cells, isotropic solid: E_x = E_y = E_z within 2 %", s.loc[cubic_mask, "E_ratio"] < 1.02))
             if "fft_iterations" in s:
                 checks.append(("FFT converged (iterations < 6 x cap)", num("fft_iterations") < 6 * float(cfg["fft_max_iter"])))
             if "lattice_achieved_density" in s and "p_relative_density" in s:
                 checks.append(("achieved density within 0.03 of target", (num("lattice_achieved_density") - num("p_relative_density")).abs() <= 0.03))
             weak = s[["E_x", "E_y", "E_z"]].min(axis=1) / num("mat_e_gpa", float("nan")) / 1e9 < 1e-3
-            checks.append(("load path in every direction (min E / E_s >= 1e-3)", ~weak))
+            checks.append(("not very soft in any direction (min E / E_s >= 1e-3; bending-dominated cells fall below)", ~weak))
             if "connected" in s:
                 checks.append(("one connected solid body", s["connected"].astype(bool)))
+            if "joined_3d" in s and s["joined_3d"].notna().any():
+                checks.append(("solid joins its neighbours in 3 directions", s.loc[s["joined_3d"].notna(), "joined_3d"].astype(bool)))
+            if "energy_share_final" in s:
+                lp = pd.to_numeric(s["energy_share_final"], errors="coerce").dropna()
+                if len(lp):
+                    checks.append((f"solid carries >= {cfg.get('min_load_path_share', 0.9)} of the energy in every load",
+                                   lp >= float(cfg.get("min_load_path_share", 0.9))))
             if "grid" in s and "wall_vox" in s and float(cfg["grid"]["min_wall_vox"]) > 0:
                 resolved = num("wall_vox") * num("grid") / float(cfg["grid"]["probe"]) >= float(cfg["grid"]["min_wall_vox"]) - 1e-9
                 checks.append((f"wall resolved by >= {cfg['grid']['min_wall_vox']} voxels", resolved))
@@ -827,7 +1037,7 @@ def cmd_check(cfg, args):
             lines += ["## Checks (accepted cells)", "", "| check | pass | n |", "|---|---|---|"] + \
                      [f"| {n_} | {m.mean():.1%} | {len(m)} |" for n_, m in checks] + [""]
             lines += ["## Ranges", "", "| quantity | min | median | max |", "|---|---|---|---|"]
-            for q in ["lattice_achieved_density", "E_over_Es", "E_ratio", "A_universal", "nu_xy", "lattice_wall_mm", "wall_vox", "sensitivity_index", "solid_strain_ratio", "solid_energy_share", "fft_iterations", "seconds"]:
+            for q in ["lattice_achieved_density", "E_over_Es", "voigt_ratio", "E_ratio", "A_universal", "nu_xy", "lattice_wall_mm", "wall_vox", "sensitivity_index", "solid_strain_ratio", "solid_energy_share", "fft_iterations", "seconds"]:
                 if q in s:
                     v = pd.to_numeric(s[q], errors="coerce").dropna()
                     if len(v):
@@ -839,6 +1049,57 @@ def cmd_check(cfg, args):
     print(f"-> {card}")
 
 
+def cmd_recheck(cfg, args):
+    """Apply the current checks again to rows already accepted, after a check was
+    added or a threshold changed -- what a fresh run would decide for them:
+    the probe with the current binary (geometry + printability on the probe grid;
+    a failure makes the row `unprintable`), then the post-solve check on the
+    existing cell (`no_load_path`). Only the manifest changes; cell files stay."""
+    import concurrent.futures as cf
+    import h5py
+    rows = read_manifest(cfg)
+    out = cfg["_out"]
+    todo = [r for r in rows if r["status"] == "done" and (out / "cells" / f"{r['id']}.hdf5").exists()]
+    probe_size = int(cfg["grid"]["probe"])
+    (out / "probe").mkdir(parents=True, exist_ok=True)
+
+    def one(r):
+        probe_file = out / "probe" / f"{r['id']}.recheck.hdf5"
+        probe_file.unlink(missing_ok=True)
+        cells = 1 if single_cell(cfg, r) else None
+        code = _run_logged(build_command(cfg, r, probe_file, size=probe_size, solve=False, cells_override=cells),
+                           out / "logs" / f"{r['id']}.recheck.log", min(float(cfg["timeout_s"]), 600.0), "w")
+        verdict = ""
+        try:
+            with h5py.File(probe_file, "r") as f:
+                verdict = _h5_str(f["1/geometry/print_verdict"])
+        except Exception:
+            pass
+        probe_file.unlink(missing_ok=True)
+        return r, code, verdict, final_energy_share(out / "cells" / f"{r['id']}.hdf5")
+
+    with cf.ThreadPoolExecutor(max(1, int(args.jobs))) as ex:
+        results = list(ex.map(one, todo))
+    changed = []
+    for r, code, verdict, share in results:
+        if share == share:
+            r["energy_share_final"] = round(share, 4)
+        if code == 3:
+            r["status"] = "unprintable"
+            changed.append((r, verdict))
+        elif code != 0:
+            print(f"  {r['id']}: probe exit {code}, row left as it was (see logs/{r['id']}.recheck.log)")
+        elif no_load_path(cfg, share):
+            r["status"] = "no_load_path"
+            changed.append((r, f"solid share {share:.4f} < {cfg.get('min_load_path_share', 0.9)} in some load"))
+    write_manifest(cfg, rows)
+    print(f"{len(todo)} accepted rows rechecked, {len(changed)} rejected now:")
+    for r, why in changed:
+        print(f"  {r['id']} {r['group']:16s} {r.get('p_lattice_family', ''):20s} -> {r['status']}: {why}")
+    if changed:
+        print("groups now short of their quota can be topped up with `top-up`")
+
+
 def cmd_status(cfg, args):
     rows = read_manifest(cfg)
     st = {}
@@ -847,7 +1108,7 @@ def cmd_status(cfg, args):
         st[r["status"]] = st.get(r["status"], 0) + 1
         if r.get("seconds"):
             secs.append(float(r["seconds"]))
-    left = st.get("pending", 0) + st.get("retry", 0)
+    left = st.get("pending", 0) + st.get("retry", 0) + st.get("deferred", 0)
     mean = float(np.mean(secs)) if secs else float("nan")
     print(f"rows {len(rows)}: " + ", ".join(f"{k} {v}" for k, v in sorted(st.items())))
     groups: dict[str, dict] = {}
@@ -865,14 +1126,26 @@ def cmd_status(cfg, args):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("command", choices=["plan", "run", "collect", "check", "status"])
+    ap.add_argument("command", choices=["plan", "top-up", "run", "recheck", "collect", "check", "status"])
     ap.add_argument("config", type=Path)
     ap.add_argument("--limit", type=int, default=0, help="run: at most this many rows")
     ap.add_argument("--no-retry", action="store_true", help="run: do not retry failed rows")
     ap.add_argument("--jobs", type=int, default=1, help="run: MatViz3D processes in parallel (threads are split between them)")
+    ap.add_argument("--defer-above", type=int, default=0,
+                    help="run: rows whose wall needs a grid above this size are marked `deferred` after the probe "
+                         "instead of being solved; a later run without the flag solves them")
+    ap.add_argument("--timeout", type=float, default=0, help="run: seconds per MatViz3D run, overrides timeout_s")
+    ap.add_argument("--ignore-quota", action="store_true",
+                    help="run: solve every row of the pass even when its group already has its quota")
+    ap.add_argument("--groups", default="", help="top-up: comma-separated groups (default: every group short of its quota)")
+    ap.add_argument("--factor", type=float, default=1.25, help="top-up: rows drawn per missing cell / acceptance")
+    ap.add_argument("--isotropic", type=int, default=0,
+                    help="top-up: instead of the quota, add rows with aniso = 1 until this many isotropic cells "
+                         "per group are expected to be accepted")
     args = ap.parse_args()
     cfg = load_config(args.config)
-    {"plan": cmd_plan, "run": cmd_run, "collect": cmd_collect, "check": cmd_check, "status": cmd_status}[args.command](cfg, args)
+    {"plan": cmd_plan, "top-up": cmd_topup, "run": cmd_run, "recheck": cmd_recheck, "collect": cmd_collect,
+     "check": cmd_check, "status": cmd_status}[args.command](cfg, args)
 
 
 if __name__ == "__main__":
