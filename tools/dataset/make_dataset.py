@@ -87,13 +87,19 @@ def load_config(path: Path) -> dict:
     cfg.setdefault("timeout_s", 1800)
     cfg.setdefault("oversample", 1.0)
     cfg.setdefault("seed0", 1000)
+    # Group gi draws its parameters from the Sobol stream sobol_seed0 + 1000 gi + 7.
+    # Two datasets with the same groups and sobol_seed0 start every group with the
+    # same points; a different sobol_seed0 (and seed0, which sets the cell seeds and
+    # the law stream) keeps a held-out set such as the pilot disjoint.
+    cfg.setdefault("sobol_seed0", 0)
     cfg.setdefault("common", {})
     cfg.setdefault("laws", [{"id": "petg_ref", "E_GPa": 2.0, "nu": 0.38, "aniso": 1.0}])
     # Adaptive grid (optional). `sizes`: candidate grids per row; the smallest one on
     # which the thinnest wall spans >= `min_wall_vox` voxels is used, measured on a
-    # fast `probe` run (geometry + printability only). Families in `pinned` always
-    # use the given grid: random noise is drawn on the grid, so a different grid
-    # would be a different cell. `single_cell_families` are periodic and, when the
+    # fast `probe` run (geometry + printability only). Families or groups in
+    # `pinned` always use the given grid (the smoothed noise needed it while it was
+    # drawn on the cube's own grid; it is drawn on a fixed 64^3 grid now, so it
+    # takes the adaptive grid like the rest). `single_cell_families` are periodic and, when the
     # row has no grading or jitter, are solved as ONE unit cell instead of the
     # cells_per_edge^3 block: same effective properties, 2-5x the wall resolution.
     grid = cfg.get("grid") or {}
@@ -166,6 +172,11 @@ def row_allowed(block: dict, row: dict) -> bool:
             except (TypeError, ValueError):
                 return False
     return True
+
+
+def group_sobol_seed(cfg, gi: int) -> int:
+    """Seed of the Sobol stream of the gi-th group (plan and top-up must agree)."""
+    return int(cfg["sobol_seed0"]) + 1000 * gi + 7
 
 
 def sample_family(group: str, block: dict, common: dict, n: int, sobol_seed: int) -> list[dict]:
@@ -308,7 +319,7 @@ def cmd_topup(cfg, args):
         if short <= 0:
             continue
         n = int(math.ceil(short / rate * float(args.factor)))
-        points = sample_family(group, block, cfg["common"], len(st) + n, sobol_seed=1000 * gi + 7)[len(st):]
+        points = sample_family(group, block, cfg["common"], len(st) + n, sobol_seed=group_sobol_seed(cfg, gi))[len(st):]
         for p in points:
             law = draw_law(rid - 1)
             if iso_target:
@@ -352,7 +363,7 @@ def cmd_plan(cfg, args):
         n = int(math.ceil(block.get("quota", 0) * float(block.get("oversample", cfg["oversample"]))))
         if n <= 0:
             continue
-        for p in sample_family(group, block, cfg["common"], n, sobol_seed=1000 * gi + 7):
+        for p in sample_family(group, block, cfg["common"], n, sobol_seed=group_sobol_seed(cfg, gi)):
             law = draw_law(rid - 1)
             row = {"id": f"{rid:06d}", "group": group, "status": "pending", "seed": seed,
                    "law_id": law["id"], "law_E_GPa": law["E_GPa"], "law_nu": law["nu"], "law_aniso": law.get("aniso", 1.0)}
@@ -364,6 +375,7 @@ def cmd_plan(cfg, args):
     write_manifest(cfg, rows)
     meta = {"created": datetime.now().isoformat(timespec="seconds"), "rows": len(rows),
             "size": cfg["size"], "fft_tol": cfg["fft_tol"], "laws": cfg["laws"],
+            "seed0": int(cfg["seed0"]), "sobol_seed0": int(cfg["sobol_seed0"]),
             "matviz": str(cfg["_matviz"]), "matviz_commit": matviz_commit(cfg)}
     (out / "meta.json").write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
     by = {}

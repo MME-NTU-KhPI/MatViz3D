@@ -38,6 +38,14 @@ its quota of accepted cells). A `quota` counts accepted cells; `oversample`
 ~0.3 s each, so a generous oversample is cheap. A cell is regenerated bit-for-bit
 from its manifest row (same seed, same parameters).
 
+Seeds: row k gets cell seed `seed0 + k - 1`, the laws come from a stream seeded
+`seed0 + 99`, and group number gi draws its parameters from the Sobol stream
+`sobol_seed0 + 1000 gi + 7` (default 0). A Sobol stream always starts with the
+same points, so two configs with the same groups and seeds share the first rows of
+every group: the pilot (100000 / 0) and the first v1 plan shared 324 of the
+pilot's 448 accepted cells by shape. v1 uses 300000 / 300000, so the pilot stays
+an independent test set.
+
 Config blocks: `common` (parameters for every family), `laws` (a list assigned
 round-robin, or ranges of `E_GPa`, `nu`, `aniso` drawn per row from their own Sobol
 sequence; `isotropic_share: 0.2` gives that fraction of the rows `aniso` = 1, a
@@ -67,8 +75,11 @@ processed in two runs:
    at least `grid.min_wall_vox` voxels; rows that no size resolves get status
    `unresolved` and are not solved.
 
-`grid.pinned` maps a family or group to a fixed size (noise fields are drawn on
-the grid, so another grid is another cell). Rows whose family is listed in
+`grid.pinned` maps a family or group to a fixed size. The noise families no
+longer need it: their white noise is drawn on a fixed 64^3 grid and interpolated,
+so the same row is the same foam on 64^3 and 128^3 (overlap 95-98 %, against 21 %
+when it was drawn on the cube's own grid; pilot cells made at 64^3 are
+bit-identical). Rows whose family is listed in
 `grid.single_cell_families` and that have no grading and no jitter are solved as
 ONE unit cell (`--cells_per_edge 1`): periodic homogenisation gives the same
 effective properties for the tiled block, and the wall gets `cells_per_edge`

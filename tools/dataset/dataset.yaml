@@ -1,7 +1,7 @@
 # Adaptive grid: each row is probed on 64^3 (geometry + printability, seconds); the
 # stiffness solve then runs on the smallest grid where the thinnest wall spans
 # >= 8 voxels (64^3 vs 128^3 check: error ~ 350/v^2 %, v = voxels per wall).
-# Noise families are pinned to 64^3 (their random field is drawn on the grid).
+# Noise families take the adaptive grid too (white noise drawn on a fixed 64^3 grid).
 # Periodic families without grading/jitter are solved as one unit cell.
 output_dir: ../../data/v1
 matviz: ../../build/MatViz3D.app/Contents/MacOS/MatViz3D
@@ -39,9 +39,6 @@ grid:
   - 128
   min_wall_vox: 6
   probe: 64
-  pinned:
-    noise_sheet: 64
-    noise_skeletal: 64
   single_cell_families:
   - cubic_assembly
   - gyroid_sheet
@@ -65,7 +62,11 @@ grid:
   - plate_sc_fcc
   - plate_bcc_fcc
   - plate_sc_bcc_fcc
-seed0: 100000
+# Seeds of the cells (seed0 + row - 1) and of the law stream (seed0 + 99), and the
+# base of the groups' parameter streams. The pilot used 100000 / 0: other values keep
+# its 448 cells out of this set, so they stay an independent test set.
+seed0: 300000
+sobol_seed0: 300000
 common:
   lattice_cell_mm:
   - 6.0
