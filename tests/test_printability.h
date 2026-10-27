@@ -12,6 +12,7 @@ private slots:
 
     void testIslandsAreCounted();
     void testSeparateBodiesFail();
+    void testBodyMustJoinInThreeDirections();
     void testPeriodicWrapJoinsAcrossFaces();
     void testThinWallsAreDetected();
     void testOverhangPicksTheBuildDirection();

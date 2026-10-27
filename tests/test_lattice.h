@@ -22,9 +22,12 @@ private slots:
     void testFourierRandomIsReproducibleAndPublished();
     void testSmoothedNoiseIsReproducibleAndSmoothingConnects();
     void testMaterialOverrideAndTpmsWaves();
+    void testOpenedCellKeepsItsMaterial();
     void testPlateLatticesSymmetryAndUnion();
     void testSitesCarvingAndSmoothing();
     void testHoneycombShape();
+    void testCubicAssemblyIsTheOrbitDistance();
+    void testCubicAssemblyDrawIsConnectedAndRoundTrips();
     void testCliOptions();
 };
 

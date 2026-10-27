@@ -1,5 +1,8 @@
 #include <QSurfaceFormat>
 #include <QGuiApplication>
+#include <QQuickWindow>
+#include <QRegularExpression>
+#include <QWindow>
 #include <QApplication>
 #include <QQmlApplicationEngine>
 #include <QtQuickControls2>
@@ -19,6 +22,7 @@
 #include "stressanalysiscontroller.h"
 #include "texturecontroller.h"
 #include "hdf5projectcontroller.h"
+#include "datasetbrowsercontroller.h"
 #include "exportcontroller.h"
 #include "tensormath_selftest.hpp"
 #include <hdf5.h>
@@ -228,6 +232,7 @@ int main(int argc, char *argv[])
     MaterialDatabaseViewWrapper materialDatabaseViewWrapper;
     SchemaController schemaController;
     Hdf5ProjectController hdf5ProjectController;
+    DatasetBrowserController datasetBrowserController;
     StatisticsController statisticsController;
     ExportController exportController;
     StressAnalysisController stressAnalysisController;
@@ -255,6 +260,14 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("stressAnalysisController", &stressAnalysisController);
     engine.rootContext()->setContextProperty("textureController", &textureController);
     engine.rootContext()->setContextProperty("hdf5ProjectController", &hdf5ProjectController);
+    engine.rootContext()->setContextProperty("datasetBrowserController", &datasetBrowserController);
+    // The browser opens a cell through the HDF5 project controller, which loads
+    // it and puts the voxels into the 3D view.
+    datasetBrowserController.setCellOpener([&hdf5ProjectController](const QString& path) {
+        if (!hdf5ProjectController.openFile(path)) return false;
+        if (!hdf5ProjectController.autoSync3D()) hdf5ProjectController.pushTo3DView();
+        return true;
+    });
 
     const QUrl url(QStringLiteral("qrc:/main.qml"));
     QObject::connect(
@@ -276,6 +289,38 @@ int main(int argc, char *argv[])
                          // from rebuilding over the user's components.
                          Parameters::instance()->markTextureCustom();
                      });
+
+    if (parser.isSet("browse")) {
+        const QString target = parser.value("browse");
+        QTimer::singleShot(200, &datasetBrowserController, [&datasetBrowserController, target]() {
+            datasetBrowserController.openPath(target);
+            datasetBrowserController.requestShow();
+        });
+    }
+    // MATVIZ_SNAPSHOT=<prefix>: once the windows have settled, save every visible
+    // top-level window as <prefix>_<title>.png and quit (documentation shots and
+    // checks of the QML windows without a screen recorder).
+    if (qEnvironmentVariableIsSet("MATVIZ_SNAPSHOT")) {
+        const QString prefix = qEnvironmentVariable("MATVIZ_SNAPSHOT");
+        // MATVIZ_SNAPSHOT_HEIGHT=<px>: make every window that tall first, so a
+        // long panel fits in one shot.
+        const int tall = qEnvironmentVariableIntValue("MATVIZ_SNAPSHOT_HEIGHT");
+        if (tall > 0)
+            QTimer::singleShot(3000, &app, [tall]() {
+                for (QWindow* w : QGuiApplication::topLevelWindows())
+                    if (w->isVisible()) w->resize(w->width(), tall);
+            });
+        QTimer::singleShot(4500, &app, [prefix]() {
+            for (QWindow* w : QGuiApplication::topLevelWindows()) {
+                auto* qw = qobject_cast<QQuickWindow*>(w);
+                if (!qw || !qw->isVisible()) continue;
+                QString name = qw->title().isEmpty() ? QStringLiteral("window") : qw->title();
+                name.replace(QRegularExpression(QStringLiteral("[^A-Za-z0-9]+")), QStringLiteral("_"));
+                qw->grabWindow().save(prefix + QStringLiteral("_") + name + QStringLiteral(".png"));
+            }
+            QCoreApplication::quit();
+        });
+    }
 
     QTimer::singleShot(0, [&mainWindowWrapper, &parser, &schemaController, &stressAnalysisController]() {
         QString algo = Parameters::instance()->getAlgorithm();

@@ -70,7 +70,9 @@ void TestPrintability::testIslandsAreCounted()
         const bool big = x >= 2 && x < 12 && y >= 2 && y < 12 && z < 10;
         return big || (x == 20 && y == 20 && z == 20);
     });
-    const PrintabilityReport rd = checkPrintability(d.v, d.N, thresholds());
+    PrintabilityThresholds speckOnly = thresholds();
+    speckOnly.min_directions = 0;          // the block reaches no neighbour; this case is about the speck
+    const PrintabilityReport rd = checkPrintability(d.v, d.N, speckOnly);
     QCOMPARE(rd.islands, 1);
     QCOMPARE(static_cast<int>(rd.largest_island_vox), 1);
     QVERIFY(rd.ok);
@@ -113,15 +115,64 @@ void TestPrintability::testSeparateBodiesFail()
     QCOMPARE(r.islands, 0);
     QVERIFY(!r.ok);
     QVERIFY(QString::fromStdString(r.verdict).contains("3 separate solid bodies"));
-    // With the limit lifted the same cube passes (thick slabs, nothing to support).
+    // With both limits lifted the same cube passes (thick slabs, nothing to support).
     PrintabilityThresholds t = thresholds();
     t.max_components = 0;
+    t.min_directions = 0;
     QVERIFY(checkPrintability(c.v, c.N, t).ok);
-    // One slab is one body.
+    // One slab is one body, but only joined in X and Y.
     Cube one(24, [](int x, int y, int z) { (void)x; (void)y; return z < 8; });
     const PrintabilityReport r1 = checkPrintability(one.v, one.N, thresholds());
     QCOMPARE(r1.components, 1);
-    QVERIFY(r1.ok);
+    QCOMPARE(r1.connected_directions, 2);
+    QVERIFY(!r1.ok);
+}
+
+void TestPrintability::testBodyMustJoinInThreeDirections()
+{
+    // A slab normal to Z: one body, wraps in X and Y, no path along Z.
+    Cube slab(24, [](int, int, int z) { return z < 8; });
+    const PrintabilityReport rs = checkPrintability(slab.v, slab.N, thresholds());
+    QCOMPARE(rs.connected_directions, 2);
+    QCOMPARE(rs.unjoined_axes, 4);
+    QVERIFY(!rs.ok);
+    QVERIFY2(QString::fromStdString(rs.verdict).contains("2 of 3 directions (no path along Z)"), rs.verdict.c_str());
+
+    // A rod along X: one direction.
+    Cube rod(24, [](int, int y, int z) { return y >= 8 && y < 16 && z >= 8 && z < 16; });
+    const PrintabilityReport rr = checkPrintability(rod.v, rod.N, thresholds());
+    QCOMPARE(rr.connected_directions, 1);
+    QCOMPARE(rr.unjoined_axes, 6);
+    QVERIFY(!rr.ok);
+
+    // A diagonal rod in the XZ plane: it moves along X and Z, yet it is still
+    // one direction -- no axis is missing, the rank is what counts.
+    Cube diag(24, [](int x, int y, int z) {
+        const int d = ((x - z) % 24 + 24) % 24;
+        return y >= 8 && y < 16 && (d < 5 || d > 19);
+    });
+    const PrintabilityReport rd = checkPrintability(diag.v, diag.N, thresholds());
+    QCOMPARE(rd.components, 1);
+    QCOMPARE(rd.connected_directions, 1);
+    QCOMPARE(rd.unjoined_axes, 2);
+
+    // Three joined rods (a simple cubic strut frame): a 3-D network.
+    Cube frame(24, [](int x, int y, int z) {
+        const bool ix = y >= 8 && y < 16, iy = x >= 8 && x < 16, iz = z >= 8 && z < 16;
+        return (ix && iz) || (iy && iz) || (ix && iy);
+    });
+    const PrintabilityReport rf = checkPrintability(frame.v, frame.N, thresholds());
+    QCOMPARE(rf.connected_directions, 3);
+    QCOMPARE(rf.unjoined_axes, 0);
+    QVERIFY2(rf.verdict.find("directions") == std::string::npos, rf.verdict.c_str());   // (its bars overhang; not this test)
+
+    // The check can be switched off, and it does not apply to a finite part.
+    PrintabilityThresholds off = thresholds();
+    off.min_directions = 0;
+    QVERIFY(checkPrintability(slab.v, slab.N, off).ok);
+    PrintabilityThresholds box = thresholds();
+    box.periodic = false;
+    QVERIFY(checkPrintability(slab.v, slab.N, box).verdict.find("directions") == std::string::npos);
 }
 
 void TestPrintability::testPeriodicWrapJoinsAcrossFaces()
@@ -146,7 +197,9 @@ void TestPrintability::testThinWallsAreDetected()
     QVERIFY(rt.verdict.find("thinner") != std::string::npos);
 
     Cube thick(16, [](int x, int, int) { return x >= 4 && x < 12; });
-    const PrintabilityReport rk = checkPrintability(thick.v, thick.N, thresholds(0.25));
+    PrintabilityThresholds slabOk = thresholds(0.25);
+    slabOk.min_directions = 0;             // a slab joins in two directions; this test is about thickness
+    const PrintabilityReport rk = checkPrintability(thick.v, thick.N, slabOk);
     QVERIFY2(rk.thin_fraction < 1e-9, qPrintable(QString("thin fraction %1").arg(rk.thin_fraction)));
     QVERIFY(rk.ok);
     QVERIFY(std::abs(rk.opening_radius_vox - 1.6) < 1e-9);

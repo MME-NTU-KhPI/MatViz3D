@@ -23,7 +23,9 @@ struct GeomMetadata {
 
 class HDF5Wrapper {
 public:
-    HDF5Wrapper(const std::string& fileName);
+    /// Opens (appending) or creates the file; with readOnly = true an existing
+    /// file is opened read-only and a missing one is not created.
+    explicit HDF5Wrapper(const std::string& fileName, bool readOnly = false);
     ~HDF5Wrapper();
 
     void write(const std::string& dataGroup, const std::string& dataSetName, const std::vector<float>& data);

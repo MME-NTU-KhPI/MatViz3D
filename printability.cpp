@@ -1,6 +1,7 @@
 #include "printability.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <numeric>
@@ -20,10 +21,18 @@ inline int wrap(int i, int N) { return (i % N + N) % N; }
 // coordinates during the flood fill (the classic wrapping-cluster test). Both
 // labyrinths of a sheet gyroid wrap; a sealed bubble or a floating blob does
 // not. Non-periodic: anchored = touches any face.
+//
+// Each time the fill meets its own image, the offset between the two
+// unwrapped copies (in cube edges) is a wrapping vector; the rank of those
+// vectors is the number of independent directions the component joins its
+// images in (3 = a 3-D network, 2 = a slab, 1 = a rod). Non-periodic: the
+// number of axes along which it touches both opposite faces.
 struct Components {
     int count = 0;
     std::vector<std::size_t> size;      // per component
     std::vector<char>        anchored;  // per component
+    std::vector<int>         directions;   // per component, 0..3
+    std::vector<int>         axesJoined;   // per component, bit a: some wrapping vector moves along axis a
     std::size_t anchoredVoxels = 0;
     std::size_t largest = 0;
 };
@@ -37,6 +46,12 @@ Components components(const std::vector<unsigned char>& mask, int N, bool period
     std::vector<std::size_t> stack;
     const int dx[6] = { 1, -1, 0, 0, 0, 0 }, dy[6] = { 0, 0, 1, -1, 0, 0 }, dz[6] = { 0, 0, 0, 0, 1, -1 };
 
+    using Vec = std::array<long, 3>;
+    auto cross = [](const Vec& a, const Vec& b) {
+        return Vec{ a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0] };
+    };
+    auto isZero = [](const Vec& a) { return a[0] == 0 && a[1] == 0 && a[2] == 0; };
+
     for (std::size_t seed = 0; seed < M; ++seed) {
         if (!mask[seed] || label[seed] >= 0) continue;
         const int id = c.count++;
@@ -46,11 +61,28 @@ Components components(const std::vector<unsigned char>& mask, int N, bool period
         ux[seed] = int(seed % N); uy[seed] = int((seed / N) % N); uz[seed] = int(seed / (std::size_t(N) * N));
         stack.clear(); stack.push_back(seed);
         bool anchored = false;
+        std::vector<Vec> basis;            // independent wrapping vectors, at most 3
+        int axesJoined = 0, faces = 0;     // faces: bit 2a = face a = 0 touched, bit 2a+1 = face a = N-1
+        auto addWrap = [&](const Vec& w) {
+            for (int a = 0; a < 3; ++a) if (w[a] != 0) axesJoined |= 1 << a;
+            if (basis.size() >= 3 || isZero(w)) return;
+            bool independent = basis.empty();
+            if (basis.size() == 1) independent = !isZero(cross(basis[0], w));
+            if (basis.size() == 2) { const Vec n = cross(basis[0], basis[1]); independent = n[0] * w[0] + n[1] * w[1] + n[2] * w[2] != 0; }
+            if (independent) basis.push_back(w);
+        };
         while (!stack.empty()) {
             const std::size_t i = stack.back(); stack.pop_back();
             ++c.size[id];
             const int x = int(i % N), y = int((i / N) % N), z = int(i / (std::size_t(N) * N));
-            if (!periodic && (x == 0 || y == 0 || z == 0 || x == N - 1 || y == N - 1 || z == N - 1)) anchored = true;
+            if (!periodic) {
+                const int p[3] = { x, y, z };
+                for (int a = 0; a < 3; ++a) {
+                    if (p[a] == 0)     faces |= 1 << (2 * a);
+                    if (p[a] == N - 1) faces |= 1 << (2 * a + 1);
+                }
+                if (faces) anchored = true;
+            }
             for (int k = 0; k < 6; ++k) {
                 int nx = x + dx[k], ny = y + dy[k], nz = z + dz[k];
                 if (periodic) { nx = wrap(nx, N); ny = wrap(ny, N); nz = wrap(nz, N); }
@@ -63,10 +95,20 @@ Components components(const std::vector<unsigned char>& mask, int N, bool period
                     stack.push_back(j);
                 } else if (periodic && (ux[j] != ex || uy[j] != ey || uz[j] != ez)) {
                     anchored = true;   // met our own image: the component wraps
+                    addWrap(Vec{ (ex - ux[j]) / N, (ey - uy[j]) / N, (ez - uz[j]) / N });
                 }
             }
         }
         c.anchored[id] = anchored;
+        if (periodic) {
+            c.directions.push_back(static_cast<int>(basis.size()));
+            c.axesJoined.push_back(axesJoined);
+        } else {
+            int both = 0;
+            for (int a = 0; a < 3; ++a) if (((faces >> (2 * a)) & 3) == 3) both |= 1 << a;
+            c.directions.push_back((both & 1) + ((both >> 1) & 1) + ((both >> 2) & 1));
+            c.axesJoined.push_back(both);
+        }
         if (anchored) c.anchoredVoxels += c.size[id];
         if (c.size[id] > c.largest) c.largest = c.size[id];
     }
@@ -182,13 +224,22 @@ PrintabilityReport checkPrintability(int32_t*** voxels, int N, const Printabilit
             for (int k = 0; k < cs.count; ++k) if (cs.anchored[k]) { anyAnchored = true; break; }
         std::size_t bodyVoxels = 0;
         r.islands = 0; r.largest_island_vox = 0;
+        r.connected_directions = 0;
+        int joined = 0;
         for (int k = 0; k < cs.count; ++k) {
             const bool body = anyAnchored ? (cs.anchored[k] != 0) : (cs.size[k] == cs.largest);
-            if (body) { bodyVoxels += cs.size[k]; continue; }
+            if (body) {
+                bodyVoxels += cs.size[k];
+                // The best-joined body (there is one unless max_components is lifted).
+                if (cs.directions[k] > r.connected_directions) r.connected_directions = cs.directions[k];
+                joined |= cs.axesJoined[k];
+                continue;
+            }
             ++r.islands;
             r.largest_island_vox = std::max(r.largest_island_vox, cs.size[k]);
         }
         r.island_fraction = 1.0 - double(bodyVoxels) / double(nsolid);
+        r.unjoined_axes = 7 & ~joined;
         // The cube cut out as a plain box: whatever is not the largest
         // component hangs loose at the side faces of a finite part.
         const Components cb = t.periodic ? components(solid, N, false) : cs;
@@ -266,6 +317,15 @@ PrintabilityReport checkPrintability(int32_t*** voxels, int N, const Printabilit
     std::string why;
     if (t.max_components > 0 && r.components - r.islands > t.max_components)
         why += std::to_string(r.components - r.islands) + " separate solid bodies (slabs or rods that never join); ";
+    if (t.periodic && t.min_directions > 0 && r.connected_directions < t.min_directions) {
+        std::string axes;
+        for (int a = 0; a < 3; ++a)
+            if (r.unjoined_axes & (1 << a)) axes += std::string(axes.empty() ? "" : ", ") + "XYZ"[a];
+        why += "the solid joins its periodic neighbours in " + std::to_string(r.connected_directions) + " of 3 directions"
+             + (axes.empty() ? std::string() : " (no path along " + axes + ")")
+             + (r.connected_directions == 2 ? ": the tiled part is a stack of layers; "
+                : r.connected_directions == 1 ? ": the tiled part is a bundle of rods; " : "; ");
+    }
     if (r.largest_island_vox > static_cast<std::size_t>(std::max(0, t.max_island_vox)))
         why += std::to_string(r.islands) + " floating island(s), largest " + std::to_string(r.largest_island_vox)
              + " voxels (" + std::to_string(r.island_fraction * 100.0).substr(0, 5) + " % of the solid); ";

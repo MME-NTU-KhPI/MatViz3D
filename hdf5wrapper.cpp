@@ -9,7 +9,7 @@
 #include <QJsonDocument>
 #include <QJsonValue>
 
-HDF5Wrapper::HDF5Wrapper(const std::string& fileName)
+HDF5Wrapper::HDF5Wrapper(const std::string& fileName, bool readOnly)
 {
     // Silence HDF5's default error stack printing to stderr.
     // Missing datasets during probes are completely expected and handled by return codes.
@@ -21,6 +21,20 @@ HDF5Wrapper::HDF5Wrapper(const std::string& fileName)
     }
 
     bool is_file_exist = QFile::exists(QString::fromStdString(fileName));
+
+    if (readOnly) {
+        // Viewers: never write, never create, so a file another process is
+        // writing (a dataset run) or a read-only one can still be read.
+        if (!is_file_exist) {
+            qDebug() << "Error: HDF5 file does not exist:" << fileName.c_str();
+            return;
+        }
+        file = H5Fopen(fileName.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+        if (file < 0) {
+            qDebug() << "Error: Cannot open HDF5 file read-only:" << fileName.c_str();
+        }
+        return;
+    }
 
     if (is_file_exist) {
         qDebug() << "HDF5 file already exists, opening for appending:" << fileName.c_str();
@@ -965,6 +979,20 @@ void saveGeometryMetadataToHDF5(HDF5Wrapper& hdf5, const std::string& prefix, co
         paramsObj["honeycomb_custom"] = p->getHoneycombCustom();
         paramsObj["honeycomb_angle"]  = p->getHoneycombAngle();
         paramsObj["honeycomb_rib"]    = p->getHoneycombRib();
+        hdf5.write(geomGroup, "assembly_struts", p->getAssemblyStruts());
+        hdf5.write(geomGroup, "assembly_plates", p->getAssemblyPlates());
+        hdf5.write(geomGroup, "assembly_shells", p->getAssemblyShells());
+        hdf5.write(geomGroup, "assembly_holes",  p->getAssemblyHoles());
+        hdf5.write(geomGroup, "assembly_spread", float(p->getAssemblySpread()));
+        paramsObj["assembly_struts"] = p->getAssemblyStruts();
+        paramsObj["assembly_plates"] = p->getAssemblyPlates();
+        paramsObj["assembly_shells"] = p->getAssemblyShells();
+        paramsObj["assembly_holes"]  = p->getAssemblyHoles();
+        paramsObj["assembly_spread"] = p->getAssemblySpread();
+        if (!p->getAssemblyFile().isEmpty()) {
+            hdf5.write(geomGroup, "assembly_file", p->getAssemblyFile());
+            paramsObj["assembly_file"] = p->getAssemblyFile();
+        }
         // Printability of the rasterized cube (printability.h).
         const PrintabilityReport& pr = Parameters::printability;
         if (pr.computed) {
@@ -972,6 +1000,7 @@ void saveGeometryMetadataToHDF5(HDF5Wrapper& hdf5, const std::string& prefix, co
             hdf5.write(geomGroup, "lattice_wall_mm",           float(Parameters::lattice_wall_voxels * Parameters::lattice_voxel_mm));
             hdf5.write(geomGroup, "print_ok",                  pr.ok ? 1 : 0);
             hdf5.write(geomGroup, "print_components",          pr.components);
+            hdf5.write(geomGroup, "print_connected_directions", pr.connected_directions);
             hdf5.write(geomGroup, "print_islands",             pr.islands);
             hdf5.write(geomGroup, "print_largest_island_vox",  int(pr.largest_island_vox));
             hdf5.write(geomGroup, "print_island_fraction",     float(pr.island_fraction));
@@ -989,6 +1018,7 @@ void saveGeometryMetadataToHDF5(HDF5Wrapper& hdf5, const std::string& prefix, co
             paramsObj["lattice_wall_mm"]            = Parameters::lattice_wall_voxels * Parameters::lattice_voxel_mm;
             paramsObj["print_ok"]                   = pr.ok;
             paramsObj["print_components"]           = pr.components;
+            paramsObj["print_connected_directions"] = pr.connected_directions;
             paramsObj["print_island_fraction"]      = pr.island_fraction;
             paramsObj["print_closed_pore_fraction"] = pr.closed_pore_fraction;
             paramsObj["print_thin_fraction"]        = pr.thin_fraction;
@@ -1005,6 +1035,16 @@ void saveGeometryMetadataToHDF5(HDF5Wrapper& hdf5, const std::string& prefix, co
                 rows.push_back({ t[0], t[1], t[2], t[3], t[4] });
             hdf5.write(geomGroup, "lattice_wave_terms", rows);
             paramsObj["lattice_wave_count"] = static_cast<int>(rows.size());
+        }
+        // The members of a cubic-assembly cell: kind (0 strut, 1 plate, 2 shell,
+        // 3 window), three points in the asymmetric unit, radius, weight.
+        if (!Parameters::lattice_assembly_terms.empty()) {
+            std::vector<std::vector<float>> rows;
+            rows.reserve(Parameters::lattice_assembly_terms.size());
+            for (const auto& t : Parameters::lattice_assembly_terms)
+                rows.push_back(std::vector<float>(t.begin(), t.end()));
+            hdf5.write(geomGroup, "lattice_assembly_terms", rows);
+            paramsObj["lattice_assembly_count"] = static_cast<int>(rows.size());
         }
     }
 

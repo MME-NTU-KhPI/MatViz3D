@@ -107,6 +107,13 @@ double  Parameters::lattice_smooth = 0.0;
 bool    Parameters::honeycomb_custom = false;
 double  Parameters::honeycomb_angle = 30.0;
 double  Parameters::honeycomb_rib = 1.0;
+int     Parameters::assembly_struts = 3;
+int     Parameters::assembly_plates = 2;
+int     Parameters::assembly_shells = 0;
+int     Parameters::assembly_holes  = 1;
+double  Parameters::assembly_spread = 0.3;
+QString Parameters::assembly_file;
+std::vector<std::array<float,12>> Parameters::lattice_assembly_terms;
 double  Parameters::noise_smooth           = 0.06;
 double  Parameters::mat_e_gpa              = 0.0;
 double  Parameters::mat_nu                 = 0.38;
@@ -119,6 +126,7 @@ double  Parameters::print_max_overhang_deg = 45.0;
 double  Parameters::print_max_thin_fraction        = 0.02;
 int     Parameters::print_max_island_vox           = 8;
 int     Parameters::print_max_components           = 1;
+int     Parameters::print_min_directions           = 3;
 double  Parameters::print_max_unsupported_fraction = 0.05;
 bool    Parameters::require_printable      = false;
 PrintabilityReport Parameters::printability;
@@ -210,6 +218,7 @@ void Parameters::resetDefaults()
     lattice_achieved_density = 0.0;
     lattice_wall_voxels      = 0.0;
     lattice_wave_terms.clear();
+    lattice_assembly_terms.clear();
     spinodoid_theta_x = 90.0;
     spinodoid_theta_y = 90.0;
     spinodoid_theta_z = 90.0;
@@ -227,6 +236,12 @@ void Parameters::resetDefaults()
     honeycomb_custom = false;
     honeycomb_angle = 30.0;
     honeycomb_rib = 1.0;
+    assembly_struts = 3;
+    assembly_plates = 2;
+    assembly_shells = 0;
+    assembly_holes  = 1;
+    assembly_spread = 0.3;
+    assembly_file.clear();
     noise_smooth = 0.06;
     mat_e_gpa = 0.0;
     mat_nu = 0.38;
@@ -239,6 +254,7 @@ void Parameters::resetDefaults()
     print_max_thin_fraction = 0.02;
     print_max_island_vox = 8;
     print_max_components = 1;
+    print_min_directions = 3;
     print_max_unsupported_fraction = 0.05;
     require_printable = false;
     printability = PrintabilityReport();
@@ -1025,6 +1041,43 @@ bool Parameters::materialStiffnessPa(const QString& name, double C[6][6])
     return true;
 }
 
+// A Lattice cell records the solid it was solved with: mat_e_gpa / mat_nu /
+// mat_aniso (the print law, E_z = aniso * E) or a database row (mat_source
+// "db:<name>"). Publishing it as the single solid phase, as
+// Lattice::publishPhases() does after generation, makes a stress run on the
+// opened cell solve the same problem as the run that wrote the file. Without it
+// the solvers fall back to the panel's material -- isotropic for the printing
+// polymers -- and a cubic cell printed weaker along Z comes out Ex = Ey = Ez.
+bool Parameters::publishCellMaterial(const QVariantMap& parameters, const QString& algorithm)
+{
+    const QString algo = algorithm.isEmpty() ? parameters.value(QStringLiteral("algorithm")).toString() : algorithm;
+    if (algo.compare(QStringLiteral("Lattice"), Qt::CaseInsensitive) != 0) return false;
+    const double E  = parameters.value(QStringLiteral("mat_e_gpa")).toDouble();
+    const double nu = parameters.value(QStringLiteral("mat_nu")).toDouble();
+    const double r  = parameters.contains(QStringLiteral("mat_aniso")) ? parameters.value(QStringLiteral("mat_aniso")).toDouble() : 1.0;
+    const QString src = parameters.value(QStringLiteral("mat_source")).toString();
+
+    PhaseMaterial solid;
+    bool ok = false;
+    if (src.startsWith(QStringLiteral("db:"))) {
+        solid.name = src.mid(3);
+        ok = materialStiffnessPa(solid.name, solid.C);
+    }
+    if (!ok && E > 0.0) {
+        solid.name = QString("E=%1GPa nu=%2 aniso=%3").arg(E).arg(nu).arg(r);
+        ok = lawStiffnessPa(E, nu, r, solid.C);
+    }
+    if (!ok) return false;
+
+    PhaseAssignment& pa = phaseAssignment;
+    pa.clear();
+    pa.materials = { solid };
+    pa.grainPhase.assign(2, 0);
+    pa.grainOrientation.assign(2, std::array<double,3>{ 0.0, 0.0, 0.0 });
+    qInfo().noquote() << QString("[HDF5] solid of the opened cell = %1 (the material it was solved with)").arg(solid.name);
+    return true;
+}
+
 void Parameters::setLatticeOverride(const QString& value)
 {
     const QString norm = value.trimmed().toLower();
@@ -1424,6 +1477,37 @@ void Parameters::setHoneycombRib(double value)
     emit latticeSettingsChanged();
 }
 
+namespace {
+bool setCount(int& field, int value, int hi, const char* name)
+{
+    if (value < 0 || value > hi) { qWarning() << name << "expects 0.." << hi << "; got" << value; return false; }
+    if (field == value) return false;
+    field = value;
+    return true;
+}
+} // namespace
+
+void Parameters::setAssemblyStruts(int value) { if (setCount(assembly_struts, value, 12, "assembly_struts")) emit latticeSettingsChanged(); }
+void Parameters::setAssemblyPlates(int value) { if (setCount(assembly_plates, value, 12, "assembly_plates")) emit latticeSettingsChanged(); }
+void Parameters::setAssemblyShells(int value) { if (setCount(assembly_shells, value, 4,  "assembly_shells")) emit latticeSettingsChanged(); }
+void Parameters::setAssemblyHoles(int value)  { if (setCount(assembly_holes,  value, 8,  "assembly_holes"))  emit latticeSettingsChanged(); }
+
+void Parameters::setAssemblySpread(double value)
+{
+    if (value < 0.0 || value > 0.8) { qWarning() << "assembly_spread expects 0..0.8; got" << value; return; }
+    if (assembly_spread == value) return;
+    assembly_spread = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setAssemblyFile(const QString& value)
+{
+    const QString v = value.trimmed();
+    if (assembly_file == v) return;
+    assembly_file = v;
+    emit latticeSettingsChanged();
+}
+
 void Parameters::setLatticeSmooth(double value)
 {
     if (value < 0.0 || value > 0.3) { qWarning() << "lattice_smooth expects 0..0.3 cell edges; got" << value; return; }
@@ -1484,6 +1568,14 @@ void Parameters::setPrintMaxComponents(int value)
     emit latticeSettingsChanged();
 }
 
+void Parameters::setPrintMinDirections(int value)
+{
+    if (value < 0 || value > 3) { qWarning() << "print_min_directions expects 0..3 (0 = no check); got" << value; return; }
+    if (print_min_directions == value) return;
+    print_min_directions = value;
+    emit latticeSettingsChanged();
+}
+
 void Parameters::setPrintMaxUnsupportedFraction(double value)
 {
     if (!validFraction(value)) { qWarning() << "print_max_unsupported_fraction expects 0..1; got" << value; return; }
@@ -1508,6 +1600,7 @@ PrintabilityThresholds Parameters::printThresholds(double voxel_mm)
     t.max_thin_fraction        = print_max_thin_fraction;
     t.max_island_vox           = print_max_island_vox;
     t.max_components           = print_max_components;
+    t.min_directions           = print_min_directions;
     t.max_unsupported_fraction = print_max_unsupported_fraction;
     t.periodic                 = true;
     return t;
@@ -1569,9 +1662,14 @@ QString Parameters::overrideMaterialName()
 bool Parameters::overrideStiffnessPa(double C[6][6])
 {
     if (!materialOverrideActive()) return false;
-    const double E  = mat_e_gpa * 1e9;
-    const double nu = mat_nu;
-    const double r  = mat_aniso;
+    return lawStiffnessPa(mat_e_gpa, mat_nu, mat_aniso, C);
+}
+
+bool Parameters::lawStiffnessPa(double eGpa, double nu, double aniso, double C[6][6])
+{
+    if (!(eGpa > 0.0)) return false;
+    const double E  = eGpa * 1e9;
+    const double r  = aniso;
     for (int i = 0; i < 6; ++i) for (int j = 0; j < 6; ++j) C[i][j] = 0.0;
     if (std::abs(r - 1.0) < 1e-12) {
         isotropicVoigt(E, nu, C);

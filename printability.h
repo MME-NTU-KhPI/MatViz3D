@@ -20,6 +20,13 @@
  *     but fall apart as a part; more than `max_components` of them fail.
  *     The same measure on the cube taken as a plain box is reported too:
  *     that is what hangs loose at the cut side faces of a finite part;
+ *   - directions: in how many independent directions the body joins its
+ *     own periodic images (the rank of its wrapping vectors): 3 for a
+ *     lattice, 2 for a slab, 1 for a rod. Below `min_directions` the tiled
+ *     part falls apart into layers or rods and the cell has no stiffness in
+ *     the missing direction, which the solver then fills with the void
+ *     (a graded cell whose thin end pinched off, smoothed noise cut into
+ *     sheets). Periodic only: a finite part needs no path between its faces;
  *   - thin walls: solid removed by a morphological opening with a ball of
  *     radius min_wall/2, i.e. material that no ball of the minimum wall
  *     diameter fits into. Uses an exact Euclidean distance transform, so a
@@ -44,6 +51,7 @@ struct PrintabilityThresholds {
     double max_thin_fraction        = 0.02;
     int    max_island_vox           = 8;     ///< largest floating piece tolerated, voxels (2x2x2 specks)
     int    max_components           = 1;     ///< separate solid bodies tolerated (a stack of slabs is not one part); 0 = no limit
+    int    min_directions           = 3;     ///< independent directions the body must join its periodic images in; 0 = no check
     double max_unsupported_fraction = 0.05;
     bool   periodic                 = true;
 };
@@ -56,6 +64,10 @@ struct PrintabilityReport {
     double island_fraction       = 0.0;    ///< solid in islands, fraction of the solid
     std::size_t largest_island_vox = 0;
     double island_fraction_box   = 0.0;    ///< same measure on the cube cut out as a box: what hangs loose at a part's side faces
+    /// Independent directions in which the body joins its periodic images
+    /// (0..3; non-periodic: axes along which it touches both faces).
+    int    connected_directions  = 0;
+    int    unjoined_axes         = 0;      ///< bit a set: no path at all along axis a (X = 1, Y = 2, Z = 4)
     int    void_components       = 0;
     double closed_pore_fraction  = 0.0;
     double thin_fraction         = 0.0;

@@ -110,7 +110,9 @@ SOURCES += \
     test_commandline_parser.cpp \
     test_lattice.cpp \
     test_ffthomog.cpp \
-    test_printability.cpp
+    test_printability.cpp \
+    test_datasetbrowser.cpp \
+    ../datasetbrowsercontroller.cpp
 
 HEADERS += \
     test_polycrystall_seeding.h \
@@ -122,6 +124,8 @@ HEADERS += \
     test_commandline_parser.h \
     test_lattice.h \
     test_ffthomog.h \
-    test_printability.h
+    test_printability.h \
+    test_datasetbrowser.h \
+    ../datasetbrowsercontroller.h
 
 TARGET = tests

@@ -12,6 +12,7 @@
 #include "test_lattice.h"
 #include "test_ffthomog.h"
 #include "test_printability.h"
+#include "test_datasetbrowser.h"
 
 int main(int argc, char *argv[])
 {
@@ -62,6 +63,9 @@ int main(int argc, char *argv[])
 
     TestPrintability testPrint;
     runSuite(&testPrint, "TestPrintability");
+
+    TestDatasetBrowser testBrowser;
+    runSuite(&testBrowser, "TestDatasetBrowser");
 
     std::cout << "\n=======================================================\n";
     if (totalFailures == 0) {

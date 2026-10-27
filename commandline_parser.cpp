@@ -115,6 +115,11 @@ QString Commandline_Parser::buildApplicationDescription()
     desc += "  --lattice_subtract / --lattice_subtract_size: family carved out of the solid up to that level in cell edges (default: none / 0.3)\n";
     desc += "  --lattice_smooth:        Gaussian blur of the field before the level is solved, sigma in cell edges, 0..0.3 (default: 0 = off)\n";
     desc += "  --honeycomb_angle / --honeycomb_rib: honeycomb shape, wall angle in degrees (-50..50, < 0 auxetic) and rib / wall length (0.2..5); setting either overrides the family preset\n";
+    desc += "  --assembly_struts/plates/shells/holes: cubic_assembly members drawn in the asymmetric unit (0..12 / 0..12 / 0..4 / 0..8;\n"
+            "                           default 3 / 2 / 0 / 1), repeated by the 48 cube symmetries; --assembly_spread: thickness\n"
+            "                           spread between members 0..0.8 (default 0.3); --assembly_file: one member per line\n"
+            "                           (kind x0 y0 z0 x1 y1 z1 x2 y2 z2 radius weight), overrides the draw\n";
+    desc += "  --browse <path>:         GUI: open the Dataset Browser on a dataset folder (manifest.csv + cells/), its manifest or a cell file\n";
     desc += "  --material_iso E,nu:     solid material as numbers instead of a database row: Young's modulus in GPa and Poisson's ratio\n";
     desc += "  --material_ti E,nu,r:    the same, transversely isotropic about the build axis Z with E_z = r*E, G_xz = G_yz = r*G\n";
     desc += "  --no_fields:             do not store per-voxel stress/strain fields in HDF5 (matrices and metadata only; dataset runs)\n";
@@ -123,6 +128,7 @@ QString Commandline_Parser::buildApplicationDescription()
     desc += "  --print_min_wall_mm / --print_max_overhang_deg: printability thresholds (default: 0.8 mm, 45 deg)\n";
     desc += "  --print_max_thin_fraction / --print_max_island_vox / --print_max_unsupported_fraction: tolerated thin fraction, largest floating island in voxels, unsupported fraction (default: 0.02 / 8 / 0.05)\n";
     desc += "  --print_max_components:  separate solid bodies tolerated, 0 = no limit (default: 1 — a stack of slabs is not one part)\n";
+    desc += "  --print_min_directions:  independent directions the solid must join its periodic neighbours in, 0 = no check (default: 3 — a slab joins in 2, a rod in 1)\n";
     desc += "  --require_printable:     headless: stop before the stress solve and exit with code 3 if the structure fails the check\n";
     desc += "  --prob_matrix_mode:      volume ('Volume Sampling') | surface ('Surface Flux')\n";
     desc += "  --texture:               random | extrusion | rolling | recrystallization | shear | scattered_cube\n";
@@ -257,6 +263,8 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
         "[Lattice] Fourier series: largest wave number in waves per cube edge (default: 4).", "k"));
     parser.addOption(QCommandLineOption("fourier_decay",
         "[Lattice] Fourier series: amplitude ~ |k|^-decay, 0..4 (default: 1).", "p"));
+    parser.addOption(QCommandLineOption("browse",
+        "[GUI] Open the Dataset Browser on a dataset folder (manifest.csv + cells/), its manifest or one cell file.", "path"));
     parser.addOption(QCommandLineOption("fourier_file",
         "[Lattice] Fourier series: text file with one wave per line (kx ky kz amplitude phase); overrides the random draw.", "path"));
     parser.addOption(QCommandLineOption("material_iso",
@@ -289,6 +297,19 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
     parser.addOption(QCommandLineOption("honeycomb_angle",
         "[Lattice] Honeycombs: inclined wall angle to the horizontal in degrees, -50..50; 30 = regular hexagon, 0 = rectangles, "
         "negative = re-entrant (auxetic). Overrides the family preset.", "deg"));
+    parser.addOption(QCommandLineOption("assembly_struts",
+        "[Lattice] Cubic assembly: random struts drawn in the asymmetric unit of the cell, 0..12 (default: 3).", "n"));
+    parser.addOption(QCommandLineOption("assembly_plates",
+        "[Lattice] Cubic assembly: random triangular plates, 0..12 (default: 2).", "n"));
+    parser.addOption(QCommandLineOption("assembly_shells",
+        "[Lattice] Cubic assembly: spherical shells about special positions, 0..4 (default: 0).", "n"));
+    parser.addOption(QCommandLineOption("assembly_holes",
+        "[Lattice] Cubic assembly: spherical windows carved out of the plates and shells, 0..8 (default: 1).", "n"));
+    parser.addOption(QCommandLineOption("assembly_spread",
+        "[Lattice] Cubic assembly: thickness weights of the members drawn in [1 - s, 1 + s], 0..0.8 (default: 0.3).", "s"));
+    parser.addOption(QCommandLineOption("assembly_file",
+        "[Lattice] Cubic assembly: text file with one member per line, kind (strut|plate|shell|hole) x0 y0 z0 x1 y1 z1 "
+        "x2 y2 z2 radius weight, points in the asymmetric unit 0 <= z <= y <= x <= 1/2; overrides the draw.", "path"));
     parser.addOption(QCommandLineOption("honeycomb_rib",
         "[Lattice] Honeycombs: vertical rib length over inclined wall length, 0.2..5 (1 regular, 2 the re-entrant preset). "
         "Overrides the family preset.", "ratio"));
@@ -306,6 +327,8 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
         "[Printability] Largest floating island tolerated, in voxels; anything bigger fails (default: 8, a 2x2x2 speck).", "n"));
     parser.addOption(QCommandLineOption("print_max_components",
         "[Printability] Separate solid bodies tolerated; 0 = no limit (default: 1, one connected part).", "n"));
+    parser.addOption(QCommandLineOption("print_min_directions",
+        "[Printability] Independent directions in which the solid must join its periodic neighbours, 0..3; 0 = no check (default: 3; a slab joins in 2, a rod in 1).", "n"));
     parser.addOption(QCommandLineOption("print_max_unsupported_fraction",
         "[Printability] Tolerated fraction of unsupported solid along the best build direction (default: 0.05).", "frac"));
     parser.addOption(QCommandLineOption("require_printable",
@@ -555,6 +578,13 @@ void Commandline_Parser::printJsonHelp()
     addOpt("honeycomb_custom", "Lattice", "bool", "", "false", "Honeycombs: use honeycomb_angle / honeycomb_rib instead of the preset");
     addOpt("honeycomb_angle", "Lattice", "double", "deg", "30", "Honeycombs: inclined wall angle, degrees (-50..50, < 0 auxetic)");
     addOpt("honeycomb_rib", "Lattice", "double", "ratio", "1", "Honeycombs: rib length / wall length (0.2..5)");
+    addOpt("assembly_struts", "Lattice", "int", "n", "3", "Cubic assembly: random struts in the asymmetric unit (0..12)");
+    addOpt("assembly_plates", "Lattice", "int", "n", "2", "Cubic assembly: random triangular plates (0..12)");
+    addOpt("assembly_shells", "Lattice", "int", "n", "0", "Cubic assembly: spherical shells about special positions (0..4)");
+    addOpt("assembly_holes", "Lattice", "int", "n", "1", "Cubic assembly: spherical windows carved out of plates and shells (0..8)");
+    addOpt("assembly_spread", "Lattice", "double", "s", "0.3", "Cubic assembly: member thickness weights in [1 - s, 1 + s] (0..0.8)");
+    addOpt("assembly_file", "Lattice", "string", "path", "", "Cubic assembly: one member per line (kind x0 y0 z0 x1 y1 z1 x2 y2 z2 radius weight)");
+    addOpt("browse", "GUI", "string", "path", "", "Open the Dataset Browser on a dataset folder, its manifest.csv or a cell file");
     addOpt("material_iso", "Material", "string", "E,nu", "", "Solid material as numbers: Young's modulus in GPa and Poisson's ratio (isotropic)");
     addOpt("material_ti", "Material", "string", "E,nu,r", "", "Solid material as numbers, transversely isotropic about Z: E_z = r*E, G_xz = G_yz = r*G");
     addOpt("no_fields", "Output", "bool", "", "false", "Do not store per-voxel stress/strain fields in HDF5");
@@ -565,6 +595,7 @@ void Commandline_Parser::printJsonHelp()
     addOpt("print_max_thin_fraction", "Printability", "double", "frac", "0.02", "Tolerated fraction of solid thinner than the minimum wall");
     addOpt("print_max_island_vox", "Printability", "int", "n", "8", "Largest floating island tolerated, voxels");
     addOpt("print_max_components", "Printability", "int", "n", "1", "Separate solid bodies tolerated, 0 = no limit");
+    addOpt("print_min_directions", "Printability", "int", "n", "3", "Independent directions the solid must join its periodic neighbours in (slab 2, rod 1), 0 = no check");
     addOpt("print_max_unsupported_fraction", "Printability", "double", "frac", "0.05", "Tolerated unsupported fraction along the best build direction");
     addOpt("require_printable", "Printability", "bool", "", "false", "Headless: skip the stress solve and exit 3 when the structure is not printable");
 
@@ -1398,6 +1429,16 @@ bool Commandline_Parser::applyParameter(const QString& key, const QString& value
         return true;
     }
 
+    if (normKey == "print_min_directions") {
+        int v = 0;
+        if (!parseInt(v)) return false;
+        if (v < 0 || v > 3) {
+            return setErr(QString("Option print_min_directions expects 0..3; got %1").arg(v));
+        }
+        params->setPrintMinDirections(v);
+        return true;
+    }
+
     if (normKey == "material_iso" || normKey == "material_ti") {
         const QStringList parts = value.split(QRegularExpression("[,;\\s]+"), Qt::SkipEmptyParts);
         const int need = normKey == "material_iso" ? 2 : 3;
@@ -1491,6 +1532,35 @@ bool Commandline_Parser::applyParameter(const QString& key, const QString& value
         }
         params->setHoneycombAngle(v);
         params->setHoneycombCustom(true);
+        return true;
+    }
+    if (normKey == "assembly_struts" || normKey == "assembly_plates" || normKey == "assembly_shells" || normKey == "assembly_holes") {
+        int v = 0;
+        if (!parseInt(v)) return false;
+        const int hi = normKey == "assembly_shells" ? 4 : (normKey == "assembly_holes" ? 8 : 12);
+        if (v < 0 || v > hi) {
+            return setErr(QString("Option %1 expects 0..%2; got %3").arg(normKey).arg(hi).arg(v));
+        }
+        if (normKey == "assembly_struts")      params->setAssemblyStruts(v);
+        else if (normKey == "assembly_plates") params->setAssemblyPlates(v);
+        else if (normKey == "assembly_shells") params->setAssemblyShells(v);
+        else                                   params->setAssemblyHoles(v);
+        return true;
+    }
+    if (normKey == "assembly_spread") {
+        double v = 0.0;
+        if (!parseDouble(v, true)) return false;
+        if (v < 0.0 || v > 0.8) {
+            return setErr(QString("Option assembly_spread expects a value in [0, 0.8]; got %1").arg(value));
+        }
+        params->setAssemblySpread(v);
+        return true;
+    }
+    if (normKey == "assembly_file") {
+        if (value.trimmed().isEmpty()) {
+            return setErr(QStringLiteral("Option assembly_file expects a path"));
+        }
+        params->setAssemblyFile(value);
         return true;
     }
     if (normKey == "honeycomb_rib") {
@@ -1654,6 +1724,8 @@ bool Commandline_Parser::processOptions(const QCommandLineParser& parser, QStrin
     if (parser.isSet("honeycomb_angle"))         if (!applyCliOption("honeycomb_angle", parser.value("honeycomb_angle"))) return false;
     if (parser.isSet("honeycomb_rib"))           if (!applyCliOption("honeycomb_rib", parser.value("honeycomb_rib"))) return false;
     if (parser.isSet("honeycomb_custom"))        if (!applyCliOption("honeycomb_custom", parser.value("honeycomb_custom"))) return false;
+    for (const char* k : { "assembly_struts", "assembly_plates", "assembly_shells", "assembly_holes", "assembly_spread", "assembly_file" })
+        if (parser.isSet(QString::fromLatin1(k)) && !applyCliOption(QString::fromLatin1(k), parser.value(QString::fromLatin1(k)))) return false;
     if (parser.isSet("material_iso"))            if (!applyCliOption("material_iso", parser.value("material_iso"))) return false;
     if (parser.isSet("material_ti"))             if (!applyCliOption("material_ti", parser.value("material_ti"))) return false;
     if (parser.isSet("no_fields"))               if (!applyCliOption("no_fields", "true")) return false;
@@ -1663,6 +1735,7 @@ bool Commandline_Parser::processOptions(const QCommandLineParser& parser, QStrin
     if (parser.isSet("print_max_thin_fraction")) if (!applyCliOption("print_max_thin_fraction", parser.value("print_max_thin_fraction"))) return false;
     if (parser.isSet("print_max_island_vox"))    if (!applyCliOption("print_max_island_vox", parser.value("print_max_island_vox"))) return false;
     if (parser.isSet("print_max_components"))    if (!applyCliOption("print_max_components", parser.value("print_max_components"))) return false;
+    if (parser.isSet("print_min_directions"))    if (!applyCliOption("print_min_directions", parser.value("print_min_directions"))) return false;
     if (parser.isSet("print_max_unsupported_fraction")) if (!applyCliOption("print_max_unsupported_fraction", parser.value("print_max_unsupported_fraction"))) return false;
     if (parser.isSet("require_printable"))       if (!applyCliOption("require_printable", "true")) return false;
 

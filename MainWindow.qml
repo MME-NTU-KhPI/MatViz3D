@@ -15,6 +15,10 @@ Window {
     minimumWidth: 1024
     title: qsTr("MatViz3D")
 
+    // The Data panel shows either the generator (algorithm + parameters) or the
+    // dataset browser (rows of a dataset folder + the selected cell's parameters).
+    property bool datasetMode: false
+
     Material.theme: Material.Dark
     Material.accent: Material.Teal
 
@@ -58,6 +62,17 @@ Window {
         source: "TextureView.qml"
         active: false
         onLoaded: item.visible = true
+    }
+
+    Connections {
+        target: datasetBrowserController
+        function onShowRequested() { openDatasetBrowser() }
+    }
+
+    function openDatasetBrowser() {
+        mainWindow.datasetMode = true
+        _itemData.visible = true
+        checkData.checked = true
     }
 
     function openTextureEditor() {
@@ -195,6 +210,12 @@ Window {
                                 text: qsTr("Open project");
                                 icon.source: "qrc:/img/fileMenu/open_project.svg"
                                 onTriggered: hdf5ProjectController.openFileDialog()
+                            }
+                            Action
+                            {
+                                text: qsTr("Dataset browser");
+                                icon.source: "qrc:/img/fileMenu/open_project.svg"
+                                onTriggered: openDatasetBrowser()
                             }
                             MenuSeparator { }
                             Action {
@@ -527,11 +548,13 @@ Window {
                 anchors.bottom: parent.bottom
                 anchors.left: parent.left
                 anchors.margins: 20
-                width: mainWindow.width < 1250 ? 310 : 350
+                width: mainWindow.datasetMode ? (mainWindow.width < 1440 ? 340 : 400)
+                                              : (mainWindow.width < 1250 ? 310 : 350)
                 visible: true
 
                 Rectangle {
-                    color: "#80282828"
+                    // Nearly opaque on the Dataset tab: the 3D axes would show through the list.
+                    color: mainWindow.datasetMode ? "#F2282828" : "#80282828"
                     radius: 13
                     anchors.fill: parent
 
@@ -546,13 +569,27 @@ Window {
                             Layout.rightMargin: 29
                             Layout.topMargin: 10
 
-                            Text {
-                                Layout.fillWidth: true
-                                color: "#d9d9d9"
-                                text: qsTr("Data")
-                                font.pixelSize: 14
-                                font.family: montserrat.name
+                            // Two pages: the generator and the dataset browser.
+                            Repeater {
+                                model: [qsTr("Generator"), qsTr("Dataset")]
+                                delegate: Text {
+                                    required property int index
+                                    required property string modelData
+                                    readonly property bool active: (index === 1) === mainWindow.datasetMode
+                                    Layout.rightMargin: 14
+                                    text: modelData
+                                    color: active ? "#d9d9d9" : "#7a7a7a"
+                                    font.pixelSize: 14
+                                    font.family: montserrat.name
+                                    font.underline: active
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: mainWindow.datasetMode = (parent.index === 1)
+                                    }
+                                }
                             }
+                            Item { Layout.fillWidth: true }
 
                             Image {
                                 source: "qrc:/img/closeData.png"
@@ -571,6 +608,13 @@ Window {
                                 }
                             }
                         }
+
+                        ColumnLayout {
+                            id: generatorPage
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            spacing: 0
+                            visible: !mainWindow.datasetMode
 
                         Item {
                             Layout.fillWidth: true
@@ -698,6 +742,47 @@ Window {
                                 }
                             }
                         }
+                        }
+
+                        DatasetBrowserPanel {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            Layout.leftMargin: 16
+                            Layout.rightMargin: 16
+                            Layout.topMargin: 6
+                            Layout.bottomMargin: 14
+                            visible: mainWindow.datasetMode
+                            fontSans: inter.name
+                            fontTitle: montserrat.name
+                        }
+                    }
+                }
+            }
+
+            // Dataset mode: the selected cell's parameters, full height on the right,
+            // where the field panel sits otherwise (hidden for dataset cells).
+            Item {
+                id: _itemCellDetails
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                anchors.right: parent.right
+                anchors.margins: 20
+                width: mainWindow.width < 1440 ? 330 : 420
+                visible: mainWindow.datasetMode && _itemData.visible
+
+                Rectangle {
+                    color: "#F2282828"
+                    radius: 13
+                    anchors.fill: parent
+
+                    DatasetCellPanel {
+                        anchors.fill: parent
+                        anchors.leftMargin: 18
+                        anchors.rightMargin: 14
+                        anchors.topMargin: 14
+                        anchors.bottomMargin: 14
+                        fontSans: inter.name
+                        fontTitle: montserrat.name
                     }
                 }
             }
@@ -706,12 +791,19 @@ Window {
                 id: _itemToolBar
                 anchors.top: parent.top
                 anchors.horizontalCenter: parent.horizontalCenter
+                // Centred in the free strip between the Data panel and, on the Dataset
+                // tab, the cell panel on the right; never closer than 12 px to the left one.
+                readonly property real freeLeft: _itemData.visible ? _itemData.x + _itemData.width + 12 : 0
+                readonly property real freeRight: _itemCellDetails.visible ? _itemCellDetails.x - 12 : parent.width
+                anchors.horizontalCenterOffset: Math.max(freeLeft + width / 2, (freeLeft + freeRight) / 2) - parent.width / 2
                 anchors.margins: 20
-                width: 450
+                // As wide as its icons really are (they overflowed a fixed 450 px).
+                width: Math.max(450, toolBarRow.implicitWidth)
                 height: 26
                 visible: true
 
                 RowLayout {
+                    id: toolBarRow
                     anchors.fill: parent
                     spacing: 15
 
@@ -1404,7 +1496,9 @@ Window {
         y: menuBar_rec.height + 20
         width: mainWindow.width < 1250 ? 320 : 360
         height: fieldViewCol.implicitHeight + 30
-        visible: stressAnalysisController.hasResult || (hdf5ProjectController.isOpen && hdf5ProjectController.loadSteps.length > 0)
+        // Dataset cells carry no per-voxel fields: no field panel while browsing them.
+        visible: !mainWindow.datasetMode
+                 && (stressAnalysisController.hasResult || (hdf5ProjectController.isOpen && hdf5ProjectController.loadSteps.length > 0))
 
         property bool legendVertical: false
         onLegendVerticalChanged: exportController.legendVertical = legendVertical
@@ -1855,7 +1949,8 @@ Window {
     // ═══════════════════════════════════════════════════════════════════
     Rectangle {
         id: _itemLoadStepTimeline
-        visible: checkLoadStep.checked && hdf5ProjectController.isOpen && (hdf5ProjectController.loadSteps.length > 1 || hdf5ProjectController.geomSets.length > 1)
+        visible: !mainWindow.datasetMode && checkLoadStep.checked && hdf5ProjectController.isOpen
+                 && (hdf5ProjectController.loadSteps.length > 1 || hdf5ProjectController.geomSets.length > 1)
         anchors {
             bottom: parent.bottom
             bottomMargin: (_itemConsole.visible ? _itemConsole.height : 0) + 14

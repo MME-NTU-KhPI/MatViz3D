@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QVariantMap>
 #include <array>
 #include <vector>
 #include <vector>
@@ -136,6 +137,13 @@ class Parameters : public QObject
     Q_PROPERTY(bool    honeycomb_custom READ getHoneycombCustom WRITE setHoneycombCustom NOTIFY latticeSettingsChanged)
     Q_PROPERTY(double  honeycomb_angle  READ getHoneycombAngle  WRITE setHoneycombAngle  NOTIFY latticeSettingsChanged)
     Q_PROPERTY(double  honeycomb_rib    READ getHoneycombRib    WRITE setHoneycombRib    NOTIFY latticeSettingsChanged)
+    // Cubic assembly: members drawn in the asymmetric unit, thickness spread, optional member file.
+    Q_PROPERTY(int     assembly_struts  READ getAssemblyStruts  WRITE setAssemblyStruts  NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(int     assembly_plates  READ getAssemblyPlates  WRITE setAssemblyPlates  NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(int     assembly_shells  READ getAssemblyShells  WRITE setAssemblyShells  NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(int     assembly_holes   READ getAssemblyHoles   WRITE setAssemblyHoles   NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  assembly_spread  READ getAssemblySpread  WRITE setAssemblySpread  NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(QString assembly_file    READ getAssemblyFile    WRITE setAssemblyFile    NOTIFY latticeSettingsChanged)
     // Material given as numbers instead of a database row (dataset runs): E in
     // GPa (0 = use db_material), Poisson's ratio, and the ratio of the modulus
     // across the print layers (Z) to the in-plane one (1 = isotropic).
@@ -159,6 +167,7 @@ class Parameters : public QObject
     Q_PROPERTY(double  print_max_thin_fraction        READ getPrintMaxThinFraction      WRITE setPrintMaxThinFraction      NOTIFY latticeSettingsChanged)
     Q_PROPERTY(int     print_max_island_vox           READ getPrintMaxIslandVox         WRITE setPrintMaxIslandVox         NOTIFY latticeSettingsChanged)
     Q_PROPERTY(int     print_max_components           READ getPrintMaxComponents        WRITE setPrintMaxComponents        NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(int     print_min_directions           READ getPrintMinDirections        WRITE setPrintMinDirections        NOTIFY latticeSettingsChanged)
     Q_PROPERTY(double  print_max_unsupported_fraction READ getPrintMaxUnsupportedFraction WRITE setPrintMaxUnsupportedFraction NOTIFY latticeSettingsChanged)
     Q_PROPERTY(bool    require_printable              READ getRequirePrintable          WRITE setRequirePrintable          NOTIFY latticeSettingsChanged)
 
@@ -422,6 +431,18 @@ public:
     Q_INVOKABLE void setHoneycombAngle(double value);
     double  getHoneycombRib()        const { return honeycomb_rib; }
     Q_INVOKABLE void setHoneycombRib(double value);
+    int     getAssemblyStruts()      const { return assembly_struts; }
+    Q_INVOKABLE void setAssemblyStruts(int value);
+    int     getAssemblyPlates()      const { return assembly_plates; }
+    Q_INVOKABLE void setAssemblyPlates(int value);
+    int     getAssemblyShells()      const { return assembly_shells; }
+    Q_INVOKABLE void setAssemblyShells(int value);
+    int     getAssemblyHoles()       const { return assembly_holes; }
+    Q_INVOKABLE void setAssemblyHoles(int value);
+    double  getAssemblySpread()      const { return assembly_spread; }
+    Q_INVOKABLE void setAssemblySpread(double value);
+    QString getAssemblyFile()        const { return assembly_file; }
+    Q_INVOKABLE void setAssemblyFile(const QString& value);
     double getMatEGpa()    const { return mat_e_gpa; }
     double getMatNu()      const { return mat_nu; }
     double getMatAniso()   const { return mat_aniso; }
@@ -438,6 +459,14 @@ public:
     /// Poisson's ratio carried over. Returns false if the constants are not
     /// positive definite.
     static bool overrideStiffnessPa(double C[6][6]);
+    /// The same law from explicit numbers (E in GPa): what overrideStiffnessPa
+    /// builds from mat_e_gpa / mat_nu / mat_aniso.
+    static bool lawStiffnessPa(double eGpa, double nu, double aniso, double C[6][6]);
+    /// Publish the solid a Lattice cell file was solved with (`parameters` =
+    /// its geometry parameters: mat_e_gpa / mat_nu / mat_aniso / mat_source)
+    /// as phaseAssignment, so a stress run on an opened cell uses it; false
+    /// when the file carries none (other algorithms, old files).
+    static bool publishCellMaterial(const QVariantMap& parameters, const QString& algorithm);
     static QString overrideMaterialName();
 
     double getLatticeCellMm()               const { return lattice_cell_mm; }
@@ -448,6 +477,7 @@ public:
     double getPrintMaxThinFraction()        const { return print_max_thin_fraction; }
     int    getPrintMaxIslandVox()           const { return print_max_island_vox; }
     int    getPrintMaxComponents()          const { return print_max_components; }
+    int    getPrintMinDirections()          const { return print_min_directions; }
     double getPrintMaxUnsupportedFraction() const { return print_max_unsupported_fraction; }
     bool   getRequirePrintable()            const { return require_printable; }
     Q_INVOKABLE void setLatticeCellMm(double value);
@@ -456,6 +486,7 @@ public:
     Q_INVOKABLE void setPrintMaxThinFraction(double value);
     Q_INVOKABLE void setPrintMaxIslandVox(int value);
     Q_INVOKABLE void setPrintMaxComponents(int value);
+    Q_INVOKABLE void setPrintMinDirections(int value);
     Q_INVOKABLE void setPrintMaxUnsupportedFraction(double value);
     Q_INVOKABLE void setRequirePrintable(bool value);
     /// Thresholds for checkPrintability(), built from the fields above.
@@ -574,6 +605,10 @@ public:
     // The waves a spinodoid or Fourier-series cell was built from, one row
     // per wave: kx, ky, kz, amplitude, phase. Empty for the other families.
     static std::vector<std::array<float,5>> lattice_wave_terms;
+    // The members of a cubic-assembly cell, one row per member: kind
+    // (0 strut, 1 plate, 2 shell, 3 window), three points (x y z each, in the
+    // asymmetric unit 0 <= z <= y <= x <= 1/2), radius, thickness weight.
+    static std::vector<std::array<float,12>> lattice_assembly_terms;
     // Result of the last printability check (Lattice runs it after rasterization).
     static PrintabilityReport printability;
     // Voxel edge in mm of the last Lattice run (cells * cell_mm / size).
@@ -743,6 +778,12 @@ private:
     static bool    honeycomb_custom;
     static double  honeycomb_angle;
     static double  honeycomb_rib;
+    static int     assembly_struts;
+    static int     assembly_plates;
+    static int     assembly_shells;
+    static int     assembly_holes;
+    static double  assembly_spread;
+    static QString assembly_file;
     static double  mat_e_gpa;
     static double  mat_nu;
     static double  mat_aniso;
@@ -754,6 +795,7 @@ private:
     static double  print_max_thin_fraction;
     static int     print_max_island_vox;
     static int     print_max_components;
+    static int     print_min_directions;
     static double  print_max_unsupported_fraction;
     static bool    require_printable;
 };

@@ -63,6 +63,8 @@
         <file>StressAnalysisView.qml</file>
         <file>TensorViewPanel.qml</file>
         <file>TextureView.qml</file>
+        <file>DatasetBrowserPanel.qml</file>
+        <file>DatasetCellPanel.qml</file>
         <file>img/fileMenu/grain_generator.svg</file>
         <file>img/textureView/texture_extrusion.svg</file>
         <file>img/textureView/texture_random.svg</file>

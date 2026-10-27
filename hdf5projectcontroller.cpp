@@ -135,7 +135,7 @@ void Hdf5ProjectController::reloadGeometryMetadata(int geomSetNum)
     }
 
     // Probe HDF5 for seed and stiffness matrices
-    HDF5Wrapper hdf5(m_filePath.toStdString());
+    HDF5Wrapper hdf5(m_filePath.toStdString(), /*readOnly=*/true);
     std::string prefix = "/" + std::to_string(geomSetNum);
 
     m_seed = hdf5.readInt(prefix, "seed");
@@ -271,6 +271,7 @@ void Hdf5ProjectController::pushTo3DView()
         p->setPoints(m_numPoints);
         Parameters::filename = m_filePath;
         Parameters::phaseAssignment.clear();
+        Parameters::publishCellMaterial(m_geomParams, m_geomMeta.algorithm);
 
         if (Parameters::voxels) {
             Parent_Algorithm::Delete3D<int32_t>(Parameters::voxels);

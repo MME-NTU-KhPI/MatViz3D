@@ -31,7 +31,12 @@ enum class LatticeFamily {
     // cylinders along the axes through the face centres. Alone they are
     // sphere packings and a three-way channel cross; their main use is as
     // the second body of `lattice_union` / `lattice_subtract`.
-    SpheresSC, SpheresBCC, SpheresFCC, CylindersAxes
+    SpheresSC, SpheresBCC, SpheresFCC, CylindersAxes,
+    // Cubic assembly: random struts, triangular plates, spherical shells and
+    // carved spherical windows drawn (seeded) in the asymmetric unit of the
+    // cubic cell and repeated by all its 48 symmetries -- the free-form,
+    // topology-optimization-like cells with full cubic symmetry.
+    CubicAssembly
 };
 
 struct LatticeFamilyInfo {
@@ -78,6 +83,7 @@ inline const std::vector<LatticeFamilyInfo>& latticeFamilies()
         { LatticeFamily::SpheresBCC,       "spheres_bcc",        "Spheres at BCC sites",           false },
         { LatticeFamily::SpheresFCC,       "spheres_fcc",        "Spheres at FCC sites",           false },
         { LatticeFamily::CylindersAxes,    "cylinders_axes",     "Cylinders along the axes",       false },
+        { LatticeFamily::CubicAssembly,    "cubic_assembly",     "Cubic assembly (plates, struts, shells)", false },
     };
     return t;
 }
@@ -124,6 +130,7 @@ inline bool isRandomFamily(LatticeFamily f)
     switch (f) {
         case LatticeFamily::Spinodoid: case LatticeFamily::FourierSheet: case LatticeFamily::FourierSkeletal:
         case LatticeFamily::NoiseSheet: case LatticeFamily::NoiseSkeletal:
+        case LatticeFamily::CubicAssembly:
             return true;
         default:
             return false;
@@ -204,6 +211,9 @@ inline bool parseLatticeFamily(const QString& text, LatticeFamily& out)
         { "spheres",            LatticeFamily::SpheresSC },
         { "cylinders",          LatticeFamily::CylindersAxes },
         { "channels",           LatticeFamily::CylindersAxes },
+        { "assembly",           LatticeFamily::CubicAssembly },
+        { "cubicrandom",        LatticeFamily::CubicAssembly },
+        { "randomcubic",        LatticeFamily::CubicAssembly },
     };
     for (const Alias& a : aliases)
         if (q == QLatin1String(a.text)) { out = a.family; return true; }

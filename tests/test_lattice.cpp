@@ -1,7 +1,10 @@
 #include "test_lattice.h"
 #include <QTest>
 #include <QTemporaryFile>
+#include <algorithm>
+#include <array>
 #include <cmath>
+#include <random>
 #include <vector>
 #include <omp.h>
 #include "parameters.h"
@@ -110,6 +113,9 @@ void TestLattice::testDensityIsHitForEveryFamily()
         // testPlateLatticesSymmetryAndUnion / testSitesCarvingAndSmoothing
         // cover them on a finer cell.
         if (isPlateFamily(i.family) || isSiteFamily(i.family)) continue;
+        // Cubic assemblies put members on the mirror planes, whole-voxel shells
+        // again; testCubicAssemblyDrawIsConnectedAndRoundTrips covers them.
+        if (i.family == LatticeFamily::CubicAssembly) continue;
         p->setLatticeFamily(QString::fromLatin1(i.key));
 
         TestableLattice L(N);
@@ -491,6 +497,46 @@ void TestLattice::testMaterialOverrideAndTpmsWaves()
     QVERIFY(!p->getHdf5Fields());
 }
 
+void TestLattice::testOpenedCellKeepsItsMaterial()
+{
+    // A generated cell publishes its printed law; the same law read back from
+    // the file's parameters must publish the identical solid, so a stress run
+    // on an opened dataset cell solves what the dataset solved.
+    Parameters* p = Parameters::instance();
+    QString err;
+    QVERIFY(applyParameter("material_ti", "2.193,0.4015,0.827", &err));
+    const int N = 16;
+    p->setSize(N);
+    p->setLatticeFamily("plate_sc");
+    p->setCellsPerEdge(1);
+    p->setRelativeDensity(0.4);
+    TestableLattice L(N);
+    L.Initialization(false);
+    QCOMPARE(static_cast<int>(Parameters::phaseAssignment.materials.size()), 1);
+    const auto generated = Parameters::phaseAssignment.materials[0].C;
+
+    Parameters::phaseAssignment.clear();
+    QVariantMap file{ { "mat_e_gpa", 2.193 }, { "mat_nu", 0.4015 }, { "mat_aniso", 0.827 }, { "mat_source", "override" } };
+    QVERIFY(Parameters::publishCellMaterial(file, QStringLiteral("Lattice")));
+    QVERIFY(Parameters::phaseAssignment.isUsable(1));
+    const auto& opened = Parameters::phaseAssignment.materials[0].C;
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 6; ++j)
+            QVERIFY2(std::abs(opened[i][j] - generated[i][j]) <= 1e-9 * std::abs(generated[0][0]),
+                     qPrintable(QString("C[%1][%2]: %3 vs %4").arg(i).arg(j).arg(opened[i][j]).arg(generated[i][j])));
+    QVERIFY(opened[2][2] < opened[0][0]);         // weaker along the build axis
+
+    // A database row is taken from the database; other algorithms and files
+    // without a material publish nothing.
+    QVERIFY(Parameters::publishCellMaterial({ { "mat_e_gpa", 2.0 }, { "mat_nu", 0.38 }, { "mat_source", "db:PETG" } }, "Lattice"));
+    QCOMPARE(Parameters::phaseAssignment.materials[0].name, QStringLiteral("PETG"));
+    QVERIFY(std::abs(Parameters::phaseAssignment.materials[0].C[0][0] - 3.744e9) < 1e3);
+    Parameters::phaseAssignment.clear();
+    QVERIFY(!Parameters::publishCellMaterial(file, QStringLiteral("Voronoi")));
+    QVERIFY(!Parameters::publishCellMaterial({}, QStringLiteral("Lattice")));
+    QVERIFY(Parameters::phaseAssignment.materials.empty());
+}
+
 void TestLattice::testPlateLatticesSymmetryAndUnion()
 {
     Parameters* p = Parameters::instance();
@@ -705,6 +751,160 @@ void TestLattice::testHoneycombShape()
     QVERIFY(std::abs(F.honeycombStretch() - P.honeycombStretch()) < 1e-12);
 }
 
+namespace {
+// Brute-force distance from a point (cell units, one cell) to the orbit of a
+// member under the 48 point operations of the cube and the lattice translations.
+double orbitDistance(const double X[3], const std::array<float,12>& m)
+{
+    static const int perm[6][3] = { {0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0} };
+    auto seg = [](const double* p, const double* a, const double* b) {
+        double ab[3], ap[3], L2 = 0.0, t = 0.0;
+        for (int i = 0; i < 3; ++i) { ab[i] = b[i] - a[i]; ap[i] = p[i] - a[i]; L2 += ab[i] * ab[i]; t += ab[i] * ap[i]; }
+        t = L2 > 0.0 ? std::clamp(t / L2, 0.0, 1.0) : 0.0;
+        double d2 = 0.0;
+        for (int i = 0; i < 3; ++i) { const double e = a[i] + t * ab[i] - p[i]; d2 += e * e; }
+        return std::sqrt(d2);
+    };
+    auto tri = [&](const double* p, const double* a, const double* b, const double* c) {
+        // Projection onto the plane when it falls inside, else the nearest edge.
+        double u[3], v[3], n[3], w[3];
+        for (int i = 0; i < 3; ++i) { u[i] = b[i] - a[i]; v[i] = c[i] - a[i]; w[i] = p[i] - a[i]; }
+        n[0] = u[1] * v[2] - u[2] * v[1]; n[1] = u[2] * v[0] - u[0] * v[2]; n[2] = u[0] * v[1] - u[1] * v[0];
+        const double nn = n[0] * n[0] + n[1] * n[1] + n[2] * n[2];
+        const double dn = (w[0] * n[0] + w[1] * n[1] + w[2] * n[2]) / nn;
+        double q[3]; for (int i = 0; i < 3; ++i) q[i] = w[i] - dn * n[i];
+        const double uu = u[0]*u[0]+u[1]*u[1]+u[2]*u[2], vv = v[0]*v[0]+v[1]*v[1]+v[2]*v[2], uv = u[0]*v[0]+u[1]*v[1]+u[2]*v[2];
+        const double qu = q[0]*u[0]+q[1]*u[1]+q[2]*u[2], qv = q[0]*v[0]+q[1]*v[1]+q[2]*v[2];
+        const double den = uu * vv - uv * uv, s = (qu * vv - qv * uv) / den, t = (qv * uu - qu * uv) / den;
+        if (s >= 0.0 && t >= 0.0 && s + t <= 1.0) return std::abs(dn) * std::sqrt(nn);
+        return std::min({ seg(p, a, b), seg(p, b, c), seg(p, c, a) });
+    };
+    double best = 1e300;
+    for (const auto& pm : perm)
+        for (int sg = 0; sg < 8; ++sg)
+            for (int tx = -1; tx <= 1; ++tx)
+                for (int ty = -1; ty <= 1; ++ty)
+                    for (int tz = -1; tz <= 1; ++tz) {
+                        double P[3][3];
+                        for (int k = 0; k < 3; ++k)
+                            for (int i = 0; i < 3; ++i)
+                                P[k][i] = (((sg >> i) & 1) ? -1.0 : 1.0) * m[static_cast<size_t>(1 + 3 * k + pm[i])]
+                                        + (i == 0 ? tx : (i == 1 ? ty : tz));
+                        double d = 1e300;
+                        const int kind = static_cast<int>(m[0]);
+                        if (kind == 0)      d = seg(X, P[0], P[1]);
+                        else if (kind == 1) d = tri(X, P[0], P[1], P[2]);
+                        else if (kind == 2) { double e = 0.0; for (int i = 0; i < 3; ++i) e += (X[i] - P[0][i]) * (X[i] - P[0][i]);
+                                              d = std::abs(std::sqrt(e) - m[10]); }
+                        best = std::min(best, d);
+                    }
+    return best;
+}
+} // namespace
+
+void TestLattice::testCubicAssemblyIsTheOrbitDistance()
+{
+    // Members inside the asymmetric unit 0 <= z <= y <= x <= 1/2, read from a
+    // file (no windows): the field is the distance to the nearest image of any
+    // member over its weight, i.e. the folding into the unit is exact.
+    Parameters* p = Parameters::instance();
+    const int N = 32;
+    p->setSize(N);
+    p->setCellsPerEdge(1);
+    p->setRelativeDensity(0.25);
+    p->setLatticeFamily("cubic_assembly");
+
+    QTemporaryFile file;
+    QVERIFY(file.open());
+    file.write("# kind x0 y0 z0 x1 y1 z1 x2 y2 z2 radius weight\n");
+    file.write("strut 0 0 0   0.5 0.5 0.5   0 0 0   0 1.0\n");          // BCC diagonal
+    file.write("plate 0.5 0 0   0.5 0.5 0   0.25 0.25 0.25   0 0.8\n");  // an inclined triangle
+    file.write("strut 0.30 0.10 0.05   0.45 0.30 0.20   0 0 0   0 1.2\n");// in general position
+    file.write("shell 0.5 0.5 0.5   0 0 0   0 0 0   0.3 0.9\n");         // sphere about the cell centre
+    file.flush();
+    p->setAssemblyFile(file.fileName());
+
+    TestableLattice L(N);
+    L.Initialization(false);
+    QCOMPARE(static_cast<int>(Parameters::lattice_assembly_terms.size()), 4);
+
+    std::mt19937 rng(11);
+    std::uniform_real_distribution<double> U(0.0, 1.0);
+    for (int t = 0; t < 60; ++t) {
+        const double X[3] = { U(rng), U(rng), U(rng) };
+        double brute = 1e300;
+        for (const auto& m : Parameters::lattice_assembly_terms)
+            brute = std::min(brute, orbitDistance(X, m) / m[11]);
+        const double f = L.fieldAt(X[0] * N, X[1] * N, X[2] * N);
+        QVERIFY2(std::abs(f - brute) < 1e-6, qPrintable(QString("at (%1, %2, %3): field %4, orbit distance %5")
+                                                          .arg(X[0]).arg(X[1]).arg(X[2]).arg(f).arg(brute)));
+    }
+}
+
+void TestLattice::testCubicAssemblyDrawIsConnectedAndRoundTrips()
+{
+    Parameters* p = Parameters::instance();
+    const int N = 48;
+    p->setSize(N);
+    p->setCellsPerEdge(1);
+    p->setRelativeDensity(0.40);
+    p->setLatticeCellMm(20.0);
+    p->setLatticeFamily("cubic_assembly");
+    p->setAssemblyStruts(3);
+    p->setAssemblyPlates(2);
+    p->setAssemblyShells(1);
+    p->setAssemblyHoles(2);
+
+    // Every later member stands on an earlier one and windows keep clear of the
+    // feet, so a drawn cell is one body; the same seed draws the same cell.
+    std::vector<int32_t> first;
+    for (int seed : { 3, 8, 21, 34 }) {
+        Parameters::seed = seed;
+        TestableLattice L(N);
+        L.Initialization(false);
+        L.Generate_To_End();
+        QVERIFY2(Parameters::printability.computed, "printability report");
+        // One body; single-voxel specks where a curved surface grazes the level
+        // are tolerated, as by the printability check (print_max_island_vox).
+        QVERIFY2(Parameters::printability.largest_island_vox <= 8,
+                 qPrintable(QString("seed %1: an island of %2 voxels").arg(seed)
+                                .arg(static_cast<qulonglong>(Parameters::printability.largest_island_vox))));
+        QVERIFY(std::abs(L.achievedDensity() - 0.40) < 0.03);
+        if (first.empty()) first = L.flat();
+    }
+    Parameters::seed = 3;
+    {
+        TestableLattice A(N);
+        A.Initialization(false);
+        A.Generate_To_End();
+        QVERIFY(A.flat() == first);
+    }
+
+    // The published table rebuilds the same cell from a file.
+    Parameters::seed = 8;
+    TestableLattice B(N);
+    B.Initialization(false);
+    B.Generate_To_End();
+    const std::vector<int32_t> drawn = B.flat();
+    const auto terms = Parameters::lattice_assembly_terms;
+    QVERIFY(terms.size() >= 6);
+    QTemporaryFile file;
+    QVERIFY(file.open());
+    for (const auto& t : terms) {
+        QString line = QString::number(static_cast<int>(t[0]));
+        for (int i = 1; i < 12; ++i) line += " " + QString::number(static_cast<double>(t[static_cast<size_t>(i)]), 'g', 9);
+        file.write((line + "\n").toUtf8());
+    }
+    file.flush();
+    p->setAssemblyFile(file.fileName());
+    Parameters::seed = 999;               // the file wins over the seed
+    TestableLattice C(N);
+    C.Initialization(false);
+    C.Generate_To_End();
+    QVERIFY(C.flat() == drawn);
+    QCOMPARE(Parameters::lattice_assembly_terms.size(), terms.size());
+}
+
 void TestLattice::testCliOptions()
 {
     Parameters* p = Parameters::instance();
@@ -716,6 +916,23 @@ void TestLattice::testCliOptions()
 
     QVERIFY(applyParameter("lattice_family", "Schwarz P (skeletal)", &err));
     QCOMPARE(Parameters::latticeFamilyKeyStored(), QString("schwarz_p_skeletal"));
+
+    QVERIFY(applyParameter("lattice_family", "cubic_assembly", &err));
+    QCOMPARE(Parameters::latticeFamilyKeyStored(), QString("cubic_assembly"));
+    QVERIFY(applyParameter("assembly_struts", "0", &err));
+    QCOMPARE(p->getAssemblyStruts(), 0);
+    QVERIFY(applyParameter("assembly_plates", "5", &err));
+    QCOMPARE(p->getAssemblyPlates(), 5);
+    QVERIFY(applyParameter("assembly_shells", "2", &err));
+    QVERIFY(applyParameter("assembly_holes", "3", &err));
+    QVERIFY(applyParameter("assembly_spread", "0.4", &err));
+    QCOMPARE(p->getAssemblySpread(), 0.4);
+    QVERIFY(!applyParameter("assembly_struts", "13", &err));
+    QVERIFY(!applyParameter("assembly_shells", "5", &err));
+    QVERIFY(!applyParameter("assembly_holes", "-1", &err));
+    QVERIFY(!applyParameter("assembly_spread", "0.9", &err));
+    QVERIFY(!applyParameter("assembly_file", "  ", &err));
+    QVERIFY(applyParameter("lattice_family", "Schwarz P (skeletal)", &err));   // the checks below expect it
 
     QVERIFY(applyParameter("cells_per_edge", "3", &err));
     QCOMPARE(p->getCellsPerEdge(), 3);
