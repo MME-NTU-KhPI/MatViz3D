@@ -447,8 +447,11 @@ families:
   # shells -- free-form cells with full cubic symmetry, like topology-optimized ones.
   # Trial of 60 draws: ~50 % printable (thin walls reject most of the rest, about 1
   # in 60 has an island), about half need 128^3; rho * cell >= 4 lifts it to ~60 %.
+  # The main design space of the geometry network, so the largest group: 12 000
+  # cells on top of the other 46 000 (pilot: 56 % of the drawn rows accepted, so
+  # 2.2 x leaves ~25 % slack).
   assemblies:
-    quota: 4000
+    quota: 12000
     oversample: 2.2
     params:
       lattice_cell_mm:
