@@ -35,9 +35,11 @@
  *     be confined to cones about the axes (`spinodoid_theta_x/y/z`, Kumar
  *     et al. 2020): all 90 deg = isotropic, one cone = lamellar, two =
  *     columnar, so the statistics, not a name, define the geometry.
- *   - Smoothed noise: the most random printable thing. White noise per
- *     voxel (seeded), blurred with a periodic Gaussian of sigma
- *     `noise_smooth` cube edges, normalized to unit variance. Skeletal
+ *   - Smoothed noise: the most random printable thing. White noise on a
+ *     fixed 64^3 grid (seeded), blurred with a periodic Gaussian of sigma
+ *     `noise_smooth` cube edges, normalized to unit variance, and read
+ *     between its nodes by periodic cubic interpolation -- so one seed is
+ *     one foam on any cube size, and a 64^3 cube reads the nodes. Skeletal
  *     (F = field, blobs) and sheet (F = |field|, walls around the zero
  *     level). The correlation length, and with it the wall thickness, is
  *     set by the smoothing; cells_per_edge plays no role.
@@ -189,6 +191,10 @@ private:
     void   buildSegments();
     void   buildWaves();
     void   buildNoise();
+    /// Smoothed noise at a point in cube fractions: periodic Catmull-Rom
+    /// interpolation of the kNoiseGrid^3 field (node i at (i + 1/2) / kNoiseGrid,
+    /// latticefamily.h).
+    double noiseAt(double X, double Y, double Z) const;
     bool   loadFourierFile(const QString& path);
     void   publishWaves();
     /// Cubic assembly: draw the members from the seed (or read `assembly_file`) and publish them.
@@ -291,9 +297,9 @@ private:
     std::vector<Wave> m_waves;         ///< spinodoid random field
     std::vector<Wave> m_jitterWaves;   ///< thickness-modulation field
     double  m_jitterNorm     = 1.0;
-    std::vector<float> m_noise;        ///< smoothed-noise families: field on the full grid, unit variance
+    std::vector<float> m_noise;        ///< smoothed-noise families: field on the kNoiseGrid^3 grid, unit variance
     double  m_noiseSmooth    = 0.06;   ///< Gaussian sigma as a fraction of the cube edge
-    double  m_noiseSigmaVox  = 0.0;
+    double  m_noiseSigmaVox  = 0.0;    ///< the same in voxels of the noise grid
 
     // Solved / measured.
     double  m_c              = 0.0;

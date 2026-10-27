@@ -522,15 +522,16 @@ void Lattice::symmetrizeWaves()
     m_waves.swap(out);
 }
 
-// Smoothed noise: Gaussian white noise on the full grid, blurred by a
-// periodic separable Gaussian of sigma = noise_smooth * N voxels, then scaled
-// to unit variance so the level c means the same thing for every draw.
+// Smoothed noise: Gaussian white noise on the fixed kNoiseGrid^3 grid, blurred
+// by a periodic separable Gaussian of sigma = noise_smooth * kNoiseGrid voxels,
+// then scaled to unit variance so the level c means the same thing for every
+// draw. The cube reads it through noiseAt(), whatever its own size.
 void Lattice::buildNoise()
 {
     m_noise.clear();
     if (m_family != LatticeFamily::NoiseSheet && m_family != LatticeFamily::NoiseSkeletal) return;
 
-    const int N = numCubes;
+    const int N = kNoiseGrid;
     const std::size_t M = static_cast<std::size_t>(N) * N * N;
     std::vector<float> a(M), b(M);
     std::normal_distribution<double> gauss(0.0, 1.0);
@@ -548,6 +549,45 @@ void Lattice::buildNoise()
     const float scale = static_cast<float>(1.0 / std::sqrt(std::max(var, 1e-30)));
     for (float& v : a) v = (v - static_cast<float>(mean)) * scale;
     m_noise = std::move(a);
+}
+
+// Catmull-Rom weights are (0, 1, 0, 0) at t = 0, so a point on a node -- every
+// voxel centre of a 64^3 cube -- reads the node value exactly (as the nearest-
+// voxel lookup did when the noise lived on the cube's grid), and the zero
+// taps are skipped there.
+double Lattice::noiseAt(double X, double Y, double Z) const
+{
+    const int G = kNoiseGrid;
+    const double P[3] = { X, Y, Z };
+    int    i0[3];
+    double w[3][4];
+    for (int a = 0; a < 3; ++a) {
+        const double u = P[a] * G - 0.5;
+        const double f = std::floor(u);
+        const double t = u - f, t2 = t * t, t3 = t2 * t;
+        i0[a] = static_cast<int>(f) - 1;
+        w[a][0] = 0.5 * (-t3 + 2.0 * t2 - t);
+        w[a][1] = 0.5 * (3.0 * t3 - 5.0 * t2 + 2.0);
+        w[a][2] = 0.5 * (-3.0 * t3 + 4.0 * t2 + t);
+        w[a][3] = 0.5 * (t3 - t2);
+    }
+    auto wrapi = [G](int i) { return (i % G + G) % G; };
+    double v = 0.0;
+    for (int a = 0; a < 4; ++a) {
+        if (w[0][a] == 0.0) continue;
+        const std::size_t ix = static_cast<std::size_t>(wrapi(i0[0] + a));
+        for (int b = 0; b < 4; ++b) {
+            if (w[1][b] == 0.0) continue;
+            const std::size_t iy = static_cast<std::size_t>(wrapi(i0[1] + b));
+            double row = 0.0;
+            for (int c = 0; c < 4; ++c) {
+                if (w[2][c] == 0.0) continue;
+                row += w[2][c] * m_noise[(ix * G + iy) * G + static_cast<std::size_t>(wrapi(i0[2] + c))];
+            }
+            v += w[0][a] * w[1][b] * row;
+        }
+    }
+    return v;
 }
 
 void Lattice::periodicBlur(std::vector<float>& a, int N, double sigmaVox)
@@ -875,14 +915,8 @@ double Lattice::familyField(LatticeFamily fam, double X, double Y, double Z) con
         }
         case LatticeFamily::NoiseSheet:
         case LatticeFamily::NoiseSkeletal: {
-            // The field lives on the voxel grid: nearest voxel, wrapped.
             if (m_noise.empty()) return 0.0;
-            const int N = numCubes;
-            auto wrapi = [N](int i) { return (i % N + N) % N; };
-            const int ix = wrapi(static_cast<int>(std::floor(X * N)));
-            const int iy = wrapi(static_cast<int>(std::floor(Y * N)));
-            const int iz = wrapi(static_cast<int>(std::floor(Z * N)));
-            const double v = m_noise[(static_cast<std::size_t>(ix) * N + iy) * N + iz];
+            const double v = noiseAt(X, Y, Z);
             return sgn ? v : std::abs(v);
         }
         case LatticeFamily::PlateSC: case LatticeFamily::PlateBCC: case LatticeFamily::PlateFCC:
@@ -1935,8 +1969,8 @@ void Lattice::report() const
                    .arg(m_directions).arg(m_waves.size()).arg(Parameters::seed);
     if (m_family == LatticeFamily::NoiseSheet || m_family == LatticeFamily::NoiseSkeletal)
         qInfo().noquote()
-            << QString("[Lattice] smoothed noise: sigma %1 of the edge = %2 voxels (seed %3)")
-                   .arg(m_noiseSmooth, 0, 'g', 3).arg(m_noiseSigmaVox, 0, 'f', 1).arg(Parameters::seed);
+            << QString("[Lattice] smoothed noise: sigma %1 of the edge = %2 voxels of the %3^3 noise grid (seed %4)")
+                   .arg(m_noiseSmooth, 0, 'g', 3).arg(m_noiseSigmaVox, 0, 'f', 1).arg(kNoiseGrid).arg(Parameters::seed);
     if (m_family == LatticeFamily::FourierSheet || m_family == LatticeFamily::FourierSkeletal)
         qInfo().noquote()
             << QString("[Lattice] Fourier series: %1 waves%2 (|k| in [%3, %4] per edge, decay %5, seed %6)%7")

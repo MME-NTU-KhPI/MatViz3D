@@ -1,6 +1,7 @@
 #include "hdf5wrapper.h"
 #include "stressresult.h"
 #include "parameters.h"
+#include "latticefamily.h"
 #include "algorithmfactory.h"
 #include "openglwidgetqml.h"
 #include <QFile>
@@ -973,6 +974,11 @@ void saveGeometryMetadataToHDF5(HDF5Wrapper& hdf5, const std::string& prefix, co
         paramsObj["lattice_subtract"]      = Parameters::latticeSubtractKeyStored().isEmpty() ? QStringLiteral("none") : Parameters::latticeSubtractKeyStored();
         paramsObj["lattice_subtract_size"] = p->getLatticeSubtractSize();
         paramsObj["lattice_smooth"]        = p->getLatticeSmooth();
+        // Smoothed noise: seed + noise_smooth + this grid fix the cell on any cube size.
+        if (Parameters::latticeFamilyKeyStored().startsWith(QLatin1String("noise_"))) {
+            hdf5.write(geomGroup, "noise_grid", kNoiseGrid);
+            paramsObj["noise_grid"] = kNoiseGrid;
+        }
         hdf5.write(geomGroup, "honeycomb_custom", p->getHoneycombCustom() ? 1 : 0);
         hdf5.write(geomGroup, "honeycomb_angle",  float(p->getHoneycombAngle()));
         hdf5.write(geomGroup, "honeycomb_rib",    float(p->getHoneycombRib()));

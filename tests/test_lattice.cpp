@@ -432,6 +432,64 @@ void TestLattice::testSmoothedNoiseIsReproducibleAndSmoothingConnects()
     QVERIFY(!applyParameter("noise_smooth", "0.9", &err));
 }
 
+// The noise is drawn on the fixed 64^3 grid and interpolated, so the same seed
+// is the same foam at 32^3, 64^3 and 128^3; drawn on the cube's own grid it was
+// another one (overlap 0.21 between 64^3 and 128^3 in the grid study).
+void TestLattice::testSmoothedNoiseIsOneCellOnEveryGrid()
+{
+    Parameters* p = Parameters::instance();
+    p->setRelativeDensity(0.40);
+    p->setLatticeFamily("noise_sheet");
+    p->setNoiseSmooth(0.08);
+
+    auto build = [p](int n) {
+        p->setSize(n);
+        Parameters::seed = 77;
+        TestableLattice l(n);
+        l.Initialization(false);
+        l.Generate_To_End();
+        std::vector<char> s(static_cast<std::size_t>(n) * n * n);
+        for (int x = 0; x < n; ++x)
+            for (int y = 0; y < n; ++y)
+                for (int z = 0; z < n; ++z)
+                    s[(static_cast<std::size_t>(x) * n + y) * n + z] = l.voxels[x][y][z] != 0;
+        return s;
+    };
+    const std::vector<char> c64 = build(64), c128 = build(128), c32 = build(32);
+
+    // Intersection over union of the finer cube with the coarser one read at
+    // the finer voxel centres (each coarse voxel covers r^3 fine ones).
+    auto iou = [](const std::vector<char>& fine, int nf, const std::vector<char>& coarse, int nc) {
+        const int r = nf / nc;
+        long long both = 0, any = 0;
+        for (int x = 0; x < nf; ++x)
+            for (int y = 0; y < nf; ++y)
+                for (int z = 0; z < nf; ++z) {
+                    const bool a = fine[(static_cast<std::size_t>(x) * nf + y) * nf + z];
+                    const bool b = coarse[(static_cast<std::size_t>(x / r) * nc + y / r) * nc + z / r];
+                    both += a && b;
+                    any  += a || b;
+                }
+        return any ? double(both) / double(any) : 1.0;
+    };
+    const double i128 = iou(c128, 128, c64, 64), i64 = iou(c64, 64, c32, 32);
+    QVERIFY2(i128 > 0.85, qPrintable(QString("IoU 128^3 vs 64^3 = %1").arg(i128)));
+    QVERIFY2(i64 > 0.75, qPrintable(QString("IoU 64^3 vs 32^3 = %1").arg(i64)));
+
+    // Another seed on the same grid is another foam: the overlap above is the shape, not the density.
+    p->setSize(64);
+    Parameters::seed = 78;
+    TestableLattice other(64);
+    other.Initialization(false);
+    other.Generate_To_End();
+    std::vector<char> o(c64.size());
+    for (int x = 0; x < 64; ++x)
+        for (int y = 0; y < 64; ++y)
+            for (int z = 0; z < 64; ++z)
+                o[(static_cast<std::size_t>(x) * 64 + y) * 64 + z] = other.voxels[x][y][z] != 0;
+    QVERIFY(iou(o, 64, c64, 64) < 0.5);
+}
+
 void TestLattice::testMaterialOverrideAndTpmsWaves()
 {
     Parameters* p = Parameters::instance();

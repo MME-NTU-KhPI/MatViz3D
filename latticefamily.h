@@ -124,6 +124,12 @@ inline bool isSegmentFamily(LatticeFamily f)
     }
 }
 
+/// Edge of the grid the smoothed-noise families draw their white noise on,
+/// whatever the cube size; the cube interpolates between its nodes. Drawn on
+/// the cube's own grid, one seed gave another foam at 128^3 than at 64^3.
+/// Written to geometry/noise_grid of a noise cell.
+constexpr int kNoiseGrid = 64;
+
 /// Families drawn from the seed (random field state that cannot be shared).
 inline bool isRandomFamily(LatticeFamily f)
 {
