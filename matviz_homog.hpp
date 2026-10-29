@@ -14,6 +14,8 @@
 #include <vector>
 #include <functional>
 #include <cmath>
+#include <algorithm>
+#include <cstdint>
 
 namespace mvh {
 
@@ -138,5 +140,220 @@ inline void bunge_from_matrix(const Mat3& g,
 
 // Zener anisotropy of a cubic crystal (=1 for isotropic)
 inline double zener(double C11,double C12,double C44){ return 2.0*C44/(C11-C12); }
+
+// ============================================================================
+//  FCC {111}<110> Slip Systems & Schmid / CRSS Yield Criterion (Copper)
+// ============================================================================
+
+struct SlipSystem {
+    std::array<double, 3> n; // Unit slip-plane normal {111} / sqrt(3)
+    std::array<double, 3> b; // Unit slip direction    <110> / sqrt(2)
+};
+
+inline constexpr int kNumFCCSlipSystems = 12;
+inline constexpr double kInvSqrt3 = 0.57735026918962576451; // 1 / sqrt(3)
+inline constexpr double kInvSqrt2 = 0.70710678118654752440; // 1 / sqrt(2)
+
+// 12 FCC slip systems: 4 {111} planes x 3 <110> directions (all b . n == 0)
+inline constexpr std::array<SlipSystem, kNumFCCSlipSystems> kFCCSlipSystems = {{
+    // Plane (1, 1, 1)
+    { {  kInvSqrt3,  kInvSqrt3,  kInvSqrt3 }, { -kInvSqrt2,  kInvSqrt2,  0.0       } },
+    { {  kInvSqrt3,  kInvSqrt3,  kInvSqrt3 }, { -kInvSqrt2,  0.0,        kInvSqrt2 } },
+    { {  kInvSqrt3,  kInvSqrt3,  kInvSqrt3 }, {  0.0,       -kInvSqrt2,  kInvSqrt2 } },
+    // Plane (-1, 1, 1)
+    { { -kInvSqrt3,  kInvSqrt3,  kInvSqrt3 }, {  kInvSqrt2,  kInvSqrt2,  0.0       } },
+    { { -kInvSqrt3,  kInvSqrt3,  kInvSqrt3 }, {  kInvSqrt2,  0.0,        kInvSqrt2 } },
+    { { -kInvSqrt3,  kInvSqrt3,  kInvSqrt3 }, {  0.0,       -kInvSqrt2,  kInvSqrt2 } },
+    // Plane (1, -1, 1)
+    { {  kInvSqrt3, -kInvSqrt3,  kInvSqrt3 }, {  kInvSqrt2,  kInvSqrt2,  0.0       } },
+    { {  kInvSqrt3, -kInvSqrt3,  kInvSqrt3 }, { -kInvSqrt2,  0.0,        kInvSqrt2 } },
+    { {  kInvSqrt3, -kInvSqrt3,  kInvSqrt3 }, {  0.0,        kInvSqrt2,  kInvSqrt2 } },
+    // Plane (1, 1, -1)
+    { {  kInvSqrt3,  kInvSqrt3, -kInvSqrt3 }, { -kInvSqrt2,  kInvSqrt2,  0.0       } },
+    { {  kInvSqrt3,  kInvSqrt3, -kInvSqrt3 }, {  kInvSqrt2,  0.0,        kInvSqrt2 } },
+    { {  kInvSqrt3,  kInvSqrt3, -kInvSqrt3 }, {  0.0,        kInvSqrt2,  kInvSqrt2 } }
+}};
+
+enum class YieldCriterionMode : int {
+    ModeA_SchmidThreshold = 0, // Compare m_max against user threshold (e.g. m > 0.4)
+    ModeB_PhysicalCRSS    = 1  // Compare tau_max against physical CRSS tau_cr (Pa)
+};
+
+struct YieldCriterionParams {
+    YieldCriterionMode mode = YieldCriterionMode::ModeB_PhysicalCRSS;
+    double schmidThreshold  = 0.40;   // Mode A threshold (-)
+    double crss             = 10.0e6; // Mode B CRSS for annealed Cu (~10 MPa, in Pa)
+    bool   continuousOutput = false;  // false: binary {0.0, 1.0}; true: continuous ratio / m_max
+    bool   useUnidirectionalLoad = false;
+    std::array<double, 3> loadDir = { 1.0, 0.0, 0.0 }; // Global load vector if useUnidirectionalLoad
+};
+
+struct VoxelSlipResult {
+    float m_max      = 0.0f; // Maximum Schmid factor across the 12 FCC systems [0, 0.5]
+    float tau_max    = 0.0f; // Maximum Resolved Shear Stress (Pa)
+    float yield_eval = 0.0f; // Mode-evaluated scalar (binary 0/1 or continuous ratio)
+};
+
+// Rotate a symmetric 3x3 global stress tensor (pipeline order: sx, sy, sz, sxy, syz, sxz)
+// into the local crystal frame using g = bunge_zxz(phi1, Phi, phi2):
+//   sigma_crystal = g * sigma_sample * g^T
+inline Mat3 rotate_stress_to_crystal(const double sigma_pipeline[6], const Mat3& g) {
+    const double sg[3][3] = {
+        { sigma_pipeline[0], sigma_pipeline[3], sigma_pipeline[5] },
+        { sigma_pipeline[3], sigma_pipeline[1], sigma_pipeline[4] },
+        { sigma_pipeline[5], sigma_pipeline[4], sigma_pipeline[2] }
+    };
+    double tmp[3][3] = {{0.0}};
+    for (int i = 0; i < 3; ++i)
+        for (int l = 0; l < 3; ++l)
+            tmp[i][l] = sg[0][l] * g[0][i] + sg[1][l] * g[1][i] + sg[2][l] * g[2][i];
+
+    Mat3 sc{};
+    for (int i = 0; i < 3; ++i)
+        for (int j = 0; j < 3; ++j)
+            sc[i][j] = g[i][0] * tmp[j][0] + g[i][1] * tmp[j][1] + g[i][2] * tmp[j][2];
+    return sc;
+}
+
+// Compute m_max, tau_max, and yield criterion for one voxel
+inline VoxelSlipResult evaluate_fcc_voxel(
+    const double sigma_pipeline[6],
+    double phi1_rad, double Phi_rad, double phi2_rad,
+    const YieldCriterionParams& params)
+{
+    const Mat3 g  = bunge_zxz(phi1_rad, Phi_rad, phi2_rad);
+    const Mat3 sc = rotate_stress_to_crystal(sigma_pipeline, g);
+
+    // Equivalent (von Mises) stress as the scalar reference for 3D multi-axial Schmid factor
+    const double d01 = sigma_pipeline[0] - sigma_pipeline[1];
+    const double d12 = sigma_pipeline[1] - sigma_pipeline[2];
+    const double d20 = sigma_pipeline[2] - sigma_pipeline[0];
+    const double seqv = std::sqrt(0.5 * (d01 * d01 + d12 * d12 + d20 * d20) +
+                                  3.0 * (sigma_pipeline[3] * sigma_pipeline[3] +
+                                         sigma_pipeline[4] * sigma_pipeline[4] +
+                                         sigma_pipeline[5] * sigma_pipeline[5]));
+
+    // Optional unidirectional load vector rotated into crystal frame: l_c = g * l_s
+    std::array<double, 3> lc = { 0.0, 0.0, 0.0 };
+    double loadMag = 0.0;
+    if (params.useUnidirectionalLoad) {
+        const auto& d = params.loadDir;
+        loadMag = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+        if (loadMag > 1e-30) {
+            for (int i = 0; i < 3; ++i)
+                lc[i] = (g[i][0] * d[0] + g[i][1] * d[1] + g[i][2] * d[2]) / loadMag;
+        }
+    }
+
+    double max_tau = 0.0;
+    double max_m   = 0.0;
+
+    for (const auto& sys : kFCCSlipSystems) {
+        // tau^(alpha) = | b_i * sigma^crystal_ij * n_j |
+        double tau = 0.0;
+        for (int i = 0; i < 3; ++i) {
+            const double s_in = sc[i][0] * sys.n[0] + sc[i][1] * sys.n[1] + sc[i][2] * sys.n[2];
+            tau += sys.b[i] * s_in;
+        }
+        tau = std::abs(tau);
+        if (tau > max_tau) max_tau = tau;
+
+        double m = 0.0;
+        if (params.useUnidirectionalLoad && loadMag > 1e-30) {
+            const double cos_phi    = lc[0] * sys.n[0] + lc[1] * sys.n[1] + lc[2] * sys.n[2];
+            const double cos_lambda = lc[0] * sys.b[0] + lc[1] * sys.b[1] + lc[2] * sys.b[2];
+            m = std::abs(cos_phi * cos_lambda);
+        } else if (seqv > 1e-12) {
+            m = std::clamp(tau / seqv, 0.0, 0.5);
+        }
+        if (m > max_m) max_m = m;
+    }
+
+    if (params.useUnidirectionalLoad && seqv <= 1e-12 && loadMag > 1e-30) {
+        max_tau = max_m * loadMag;
+    }
+
+    VoxelSlipResult out;
+    out.m_max   = static_cast<float>(max_m);
+    out.tau_max = static_cast<float>(max_tau);
+
+    if (params.mode == YieldCriterionMode::ModeA_SchmidThreshold) {
+        out.yield_eval = params.continuousOutput
+            ? static_cast<float>(max_m)
+            : ((max_m >= params.schmidThreshold) ? 1.0f : 0.0f);
+    } else {
+        const double crss = std::max(1e-12, params.crss);
+        out.yield_eval = params.continuousOutput
+            ? static_cast<float>(max_tau / crss)
+            : ((max_tau >= crss) ? 1.0f : 0.0f);
+    }
+    return out;
+}
+
+// Thread-safe OpenMP per-voxel field computation over dense N^3 grid (index = (z*N + y)*N + x).
+// Supports both FFT (1-based grain_id direct indexing into local_cs when local_cs.size() > maxGrain)
+// and ANSYS (0-based grain_id - 1 indexing), as well as radians or degrees in local_cs.
+inline void compute_fcc_schmid_field(
+    int N,
+    int32_t*** voxels,
+    const std::vector<std::vector<float>>& local_cs,
+    const std::vector<std::array<float, 6>>& dense_stress_pipeline,
+    const YieldCriterionParams& params,
+    std::vector<float>& out_schmid_factor,
+    std::vector<float>& out_yield_status)
+{
+    const std::size_t total = static_cast<std::size_t>(N) * N * N;
+    out_schmid_factor.assign(total, 0.0f);
+    out_yield_status.assign(total, 0.0f);
+    if (N <= 0 || !voxels || local_cs.empty()) return;
+
+    // Detect whether local_cs is stored in degrees (ANSYS LOCAL table) or radians (FFT session)
+    bool anglesInDegrees = false;
+    for (const auto& row : local_cs) {
+        if (row.size() >= 3 && (std::abs(row[0]) > 6.2831855f ||
+                                std::abs(row[1]) > 6.2831855f ||
+                                std::abs(row[2]) > 6.2831855f)) {
+            anglesInDegrees = true;
+            break;
+        }
+    }
+    const double angleScale = anglesInDegrees ? (3.14159265358979323846 / 180.0) : 1.0;
+    const bool hasVoidSlot0 = (local_cs.size() >= 2 &&
+                               local_cs[0].size() >= 3 &&
+                               local_cs[0][0] == 0.0f &&
+                               local_cs[0][1] == 0.0f &&
+                               local_cs[0][2] == 0.0f);
+
+    const int totalInt = static_cast<int>(total);
+    #pragma omp parallel for schedule(static)
+    for (int idx = 0; idx < totalInt; ++idx) {
+        const int iz = idx / (N * N);
+        const int iy = (idx / N) % N;
+        const int ix = idx % N;
+
+        const int32_t grain_id = voxels[ix][iy][iz];
+        if (grain_id <= 0) continue; // Skip void voxels
+
+        const int cs_idx = (hasVoidSlot0 && grain_id < static_cast<int32_t>(local_cs.size()))
+                               ? grain_id
+                               : (grain_id - 1);
+        if (cs_idx < 0 || cs_idx >= static_cast<int>(local_cs.size()) || local_cs[cs_idx].size() < 3)
+            continue;
+
+        const double phi1 = local_cs[cs_idx][0] * angleScale;
+        const double Phi  = local_cs[cs_idx][1] * angleScale;
+        const double phi2 = local_cs[cs_idx][2] * angleScale;
+
+        double s6[6] = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+        if (static_cast<std::size_t>(idx) < dense_stress_pipeline.size()) {
+            for (int c = 0; c < 6; ++c)
+                s6[c] = dense_stress_pipeline[static_cast<std::size_t>(idx)][c];
+        }
+
+        const VoxelSlipResult res = evaluate_fcc_voxel(s6, phi1, Phi, phi2, params);
+        out_schmid_factor[static_cast<std::size_t>(idx)] = res.m_max;
+        out_yield_status[static_cast<std::size_t>(idx)]  = res.yield_eval;
+    }
+}
 
 } // namespace mvh

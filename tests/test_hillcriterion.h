@@ -30,6 +30,7 @@ private slots:
     void testGenerateLoadsUsesEngineeringCompliance();
     void testPipelineCToMandelIsotropic();
     void testHdf5LegacyTensorBasisConverted();
+    void testFCCSchmidAndCRSSYieldField();
 
 private:
     // Points on the 5D deviatoric sphere of radius R (random directions)

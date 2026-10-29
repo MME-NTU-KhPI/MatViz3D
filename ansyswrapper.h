@@ -8,7 +8,7 @@
 #include <array>
 #include "texturelibrary.h"
 
-enum tensor_components{ID,X,Y,Z,UX,UY,UZ,SX,SY,SZ,SXY,SYZ,SXZ,EpsX,EpsY,EpsZ,EpsXY,EpsYZ,EpsXZ, USUM, SEQV, EpsEQV};
+enum tensor_components{ID,X,Y,Z,UX,UY,UZ,SX,SY,SZ,SXY,SYZ,SXZ,EpsX,EpsY,EpsZ,EpsXY,EpsYZ,EpsXZ, USUM, SEQV, EpsEQV, SCHMID_FACTOR, YIELD_STATUS};
 
 struct LoadStepData
 {

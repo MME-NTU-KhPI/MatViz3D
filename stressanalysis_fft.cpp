@@ -491,6 +491,7 @@ SingleShotResult StressAnalysisFFT::solveSingleLoadCase(short int numCubes, shor
             setVal(EpsEQV, denseIdx, float(eqvStrainPipeline(eng.data())));
         }
         for (int i = 0; i < 6; ++i) field->macroStrain[i] = r.macro_strain[i];
+        populateFFTFieldSchmidAndYield(*field, voxels, session.local_cs(), mvh::YieldCriterionParams{});
 
         out.fftField = field;
     }

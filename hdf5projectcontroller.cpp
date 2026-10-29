@@ -247,6 +247,42 @@ void Hdf5ProjectController::setAutoSync3D(bool autoSync)
     }
 }
 
+void Hdf5ProjectController::setYieldCriterionMode(int mode)
+{
+    const auto newMode = (mode == 0)
+        ? mvh::YieldCriterionMode::ModeA_SchmidThreshold
+        : mvh::YieldCriterionMode::ModeB_PhysicalCRSS;
+    if (m_yieldParams.mode == newMode) return;
+    m_yieldParams.mode = newMode;
+    emit yieldParamsChanged();
+    if (m_autoSync3D) pushTo3DView();
+}
+
+void Hdf5ProjectController::setSchmidThreshold(double threshold)
+{
+    threshold = std::clamp(threshold, 0.0, 0.5);
+    if (qFuzzyCompare(m_yieldParams.schmidThreshold + 1.0, threshold + 1.0)) return;
+    m_yieldParams.schmidThreshold = threshold;
+    emit yieldParamsChanged();
+    if (m_autoSync3D) pushTo3DView();
+}
+
+void Hdf5ProjectController::setCrssLimit(double crssPa)
+{
+    if (crssPa <= 0.0 || qFuzzyCompare(m_yieldParams.crss, crssPa)) return;
+    m_yieldParams.crss = crssPa;
+    emit yieldParamsChanged();
+    if (m_autoSync3D) pushTo3DView();
+}
+
+void Hdf5ProjectController::setContinuousYieldOutput(bool continuous)
+{
+    if (m_yieldParams.continuousOutput == continuous) return;
+    m_yieldParams.continuousOutput = continuous;
+    emit yieldParamsChanged();
+    if (m_autoSync3D) pushTo3DView();
+}
+
 void Hdf5ProjectController::pushTo3DView()
 {
     LoadStepManager& lsm = LoadStepManager::getInstance();
@@ -315,6 +351,9 @@ void Hdf5ProjectController::pushTo3DView()
 
         if (isPerVoxel) {
             auto field = buildFieldFromResults(m_cubeSize, results, lsm.getEpsAsLoading());
+            if (field) {
+                populateFFTFieldSchmidAndYield(*field, lsm.getVoxelPtr(), lsm.getLocalCS(), m_yieldParams);
+            }
             double epsNorm = 0.0;
             for (int i = 0; i < 6; ++i) epsNorm += field->macroStrain[i] * field->macroStrain[i];
             double charDisp = std::max(1e-12, std::sqrt(epsNorm) * m_cubeSize);
@@ -343,6 +382,7 @@ void Hdf5ProjectController::pushTo3DView()
                 wr->eps_as_loading = {eps_load};
             }
             wr->createResultNodesHash();
+            populateAnsysWrapperSchmidAndYield(*wr, m_cubeSize, lsm.getVoxelPtr(), m_yieldParams);
 
             double charDisp = 1e-12;
             if (USUM < (int)wr->loadstep_results_max.size() && USUM < (int)wr->loadstep_results_min.size()) {

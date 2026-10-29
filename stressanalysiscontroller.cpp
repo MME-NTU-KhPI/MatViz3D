@@ -31,10 +31,12 @@ const ComponentEntry kAnsysComponents[] = {
     {"SX", SX}, {"SY", SY}, {"SZ", SZ}, {"SXY", SXY}, {"SYZ", SYZ}, {"SXZ", SXZ}, {"von Mises (SEQV)", SEQV},
     {"EpsX", EpsX}, {"EpsY", EpsY}, {"EpsZ", EpsZ}, {"EpsXY", EpsXY}, {"EpsYZ", EpsYZ}, {"EpsXZ", EpsXZ}, {"eqv. strain", EpsEQV},
     {"UX", UX}, {"UY", UY}, {"UZ", UZ}, {"USUM", USUM},
+    {"Schmid Factor", SCHMID_FACTOR}, {"Yield Status", YIELD_STATUS},
 };
 const ComponentEntry kFFTComponents[] = {
     {"SX", SX}, {"SY", SY}, {"SZ", SZ}, {"SXY", SXY}, {"SYZ", SYZ}, {"SXZ", SXZ}, {"von Mises (SEQV)", SEQV},
     {"EpsX", EpsX}, {"EpsY", EpsY}, {"EpsZ", EpsZ}, {"EpsXY", EpsXY}, {"EpsYZ", EpsYZ}, {"EpsXZ", EpsXZ}, {"eqv. strain", EpsEQV},
+    {"Schmid Factor", SCHMID_FACTOR}, {"Yield Status", YIELD_STATUS},
 };
 constexpr int kDefaultComponentIndex = 6; // SEQV, in both lists
 }

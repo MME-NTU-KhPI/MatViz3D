@@ -14,6 +14,7 @@
 #include "fft_solver_session.hpp"
 #include "tensormath.hpp"
 #include "hdf5wrapper.h"
+#include "parent_algorithm.h"
 
 void TestHillCriterion::init()
 {
@@ -567,3 +568,86 @@ void TestHillCriterion::testHdf5LegacyTensorBasisConverted()
                      qPrintable(QString("C[%1][%2]: legacy %3 vs new %4").arg(i).arg(j).arg(Co[i][j]).arg(Cn[i][j])));
         }
 }
+
+void TestHillCriterion::testFCCSchmidAndCRSSYieldField()
+{
+    // 1. Verify all 12 FCC slip systems have |n| == 1, |b| == 1, and n . b == 0
+    QCOMPARE(int(mvh::kFCCSlipSystems.size()), 12);
+    for (int s = 0; s < mvh::kNumFCCSlipSystems; ++s) {
+        const auto& sys = mvh::kFCCSlipSystems[s];
+        const double nLen = std::sqrt(sys.n[0]*sys.n[0] + sys.n[1]*sys.n[1] + sys.n[2]*sys.n[2]);
+        const double bLen = std::sqrt(sys.b[0]*sys.b[0] + sys.b[1]*sys.b[1] + sys.b[2]*sys.b[2]);
+        const double dot  = sys.n[0]*sys.b[0] + sys.n[1]*sys.b[1] + sys.n[2]*sys.b[2];
+        QVERIFY(std::abs(nLen - 1.0) < 1e-12);
+        QVERIFY(std::abs(bLen - 1.0) < 1e-12);
+        QVERIFY(std::abs(dot) < 1e-12);
+    }
+
+    // 2. Uniaxial tension along [100] in unrotated FCC crystal: m_max = 1/sqrt(6) ≈ 0.40824829
+    const double sigma0 = 50.0e6; // 50 MPa
+    const double expectedM = 1.0 / std::sqrt(6.0);
+    const double expectedTau = sigma0 * expectedM;
+    const double s_uni[6] = { sigma0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+
+    mvh::YieldCriterionParams pModeA;
+    pModeA.mode = mvh::YieldCriterionMode::ModeA_SchmidThreshold;
+    pModeA.schmidThreshold = 0.40;
+    pModeA.continuousOutput = false;
+
+    const auto rA1 = mvh::evaluate_fcc_voxel(s_uni, 0.0, 0.0, 0.0, pModeA);
+    QVERIFY(std::abs(rA1.m_max - float(expectedM)) < 1e-5f);
+    QVERIFY(std::abs(rA1.tau_max - float(expectedTau)) < 1e2f);
+    QCOMPARE(rA1.yield_eval, 1.0f); // 0.4082 > 0.40 -> yielding
+
+    pModeA.schmidThreshold = 0.45;
+    const auto rA2 = mvh::evaluate_fcc_voxel(s_uni, 0.0, 0.0, 0.0, pModeA);
+    QCOMPARE(rA2.yield_eval, 0.0f); // 0.4082 < 0.45 -> elastic
+
+    // 3. Mode B (Physical CRSS): binary and continuous ratio tau_max / tau_cr
+    mvh::YieldCriterionParams pModeB;
+    pModeB.mode = mvh::YieldCriterionMode::ModeB_PhysicalCRSS;
+    pModeB.crss = 10.0e6; // 10 MPa < expectedTau (~20.41 MPa)
+    pModeB.continuousOutput = false;
+    const auto rB1 = mvh::evaluate_fcc_voxel(s_uni, 0.0, 0.0, 0.0, pModeB);
+    QCOMPARE(rB1.yield_eval, 1.0f);
+
+    pModeB.continuousOutput = true;
+    const auto rB2 = mvh::evaluate_fcc_voxel(s_uni, 0.0, 0.0, 0.0, pModeB);
+    QVERIFY(std::abs(rB2.yield_eval - float(expectedTau / 10.0e6)) < 1e-4f);
+
+    // 4. OpenMP 3D voxel grid + populateFFTFieldSchmidAndYield (including void voxel id == 0)
+    const int N = 2;
+    int32_t*** vox = Parent_Algorithm::Create3D<int32_t>(N, N, N);
+    for (int x = 0; x < N; ++x)
+        for (int y = 0; y < N; ++y)
+            for (int z = 0; z < N; ++z)
+                vox[x][y][z] = 1;
+    vox[0][0][0] = 0; // void voxel
+
+    std::vector<std::vector<float>> local_cs = {
+        { 0.0f, 0.0f, 0.0f }, // index 0 (void)
+        { 0.0f, 0.0f, 0.0f }  // grain 1
+    };
+
+    FieldVisualizationData field;
+    field.numCubes = N;
+    field.componentValid[SX] = true;
+    field.perVoxel[SX].assign(N * N * N, float(sigma0));
+    for (int c : { SY, SZ, SXY, SYZ, SXZ }) {
+        field.componentValid[c] = true;
+        field.perVoxel[c].assign(N * N * N, 0.0f);
+    }
+
+    pModeB.continuousOutput = false;
+    populateFFTFieldSchmidAndYield(field, vox, local_cs, pModeB);
+
+    QVERIFY(field.componentValid[SCHMID_FACTOR]);
+    QVERIFY(field.componentValid[YIELD_STATUS]);
+    QCOMPARE(field.perVoxel[SCHMID_FACTOR][field.denseIndex(0, 0, 0)], 0.0f); // void skipped
+    QCOMPARE(field.perVoxel[YIELD_STATUS][field.denseIndex(0, 0, 0)], 0.0f);
+    QVERIFY(std::abs(field.perVoxel[SCHMID_FACTOR][field.denseIndex(1, 0, 0)] - float(expectedM)) < 1e-5f);
+    QCOMPARE(field.perVoxel[YIELD_STATUS][field.denseIndex(1, 0, 0)], 1.0f);
+
+    Parent_Algorithm::Delete3D<int32_t>(vox);
+}
+
