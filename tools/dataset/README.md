@@ -46,6 +46,21 @@ every group: the pilot (100000 / 0) and the first v1 plan shared 324 of the
 pilot's 448 accepted cells by shape. v1 uses 300000 / 300000, so the pilot stays
 an independent test set.
 
+Order: the manifest holds the groups one after another, so `run` takes the rows
+interleaved by default (`--order interleave`): row k of a group of n rows is
+taken at (k - 1/2) / n of the way, every group in its own Sobol order. A run
+stopped at any point, or a `--limit` portion, then holds every group in
+proportion to its planned rows (v1: the first 2 500 rows hold 494 assemblies and
+75 honeycombs); `--order id` restores the manifest order.
+
+New groups: a group added at the end of `families` keeps the streams of the
+groups above it, and `top-up --groups <names>` appends its rows to a running
+manifest (stop the run first: `run` rewrites the manifest from memory). The
+top-up records the binary and its commit in `meta.json`, and the card names
+that commit when it differs from the plan's. v1 got its three foam groups this
+way, after the foam build was checked to regenerate 52 accepted v1 cells voxel
+for voxel.
+
 Config blocks: `common` (parameters for every family), `laws` (a list assigned
 round-robin, or ranges of `E_GPa`, `nu`, `aniso` drawn per row from their own Sobol
 sequence; `isotropic_share: 0.2` gives that fraction of the rows `aniso` = 1, a
@@ -145,6 +160,7 @@ typical values.
   the Voigt bound).
 - **E_x = E_y = E_z within 2 %** for cells whose shape is invariant under
   x → y → z and whose solid is isotropic: TPMS, struts, plates, site
-  primitives, `cubic_assembly`, Fourier families with `fourier_symmetry cubic`,
+  primitives, `cubic_assembly`, the lattice foams (`foam_kelvin`, `foam_rhombic`,
+  `foam_weaire_phelan`), Fourier families with `fourier_symmetry cubic`,
   and unions or carve-outs of two of them; graded or jittered cells are left
   out (pilot: 35 cells, largest spread 0.09 %).

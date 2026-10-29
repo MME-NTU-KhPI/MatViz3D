@@ -483,3 +483,87 @@ families:
     require:
       min_density_x_cell:
         default: 4.0
+  # Lattice foams (3D honeycombs): Voronoi cells of BCC (Kelvin), FCC (rhombic
+  # dodecahedra), A15 (Weaire-Phelan) or random hard-core sites, as closed walls,
+  # walls with a window in every face, or the edge network only. Trial (360 rows):
+  # closed walls print from density x cell ~3 mm (Kelvin, rhombic) / ~5 mm (the
+  # others); about half of the closed and window cells need 128^3. New groups go
+  # last: the groups above keep their Sobol streams.
+  foam_closed:
+    quota: 2000
+    oversample: 1.1
+    params:
+      lattice_family:
+        choices:
+        - foam_kelvin
+        - foam_rhombic
+        - foam_weaire_phelan
+        - foam_random
+      foam_bubbles:
+      - 4
+      - 16
+      lattice_cell_mm:
+      - 10.0
+      - 18.0
+      relative_density:
+      - 0.15
+      - 0.5
+      cells_per_edge: 1
+      foam_mode: walls
+    require:
+      min_density_x_cell:
+        foam_kelvin: 3.0
+        foam_rhombic: 3.0
+        default: 5.0
+  # the window rim is foam_frame x bubble size from the face edges; frames under
+  # ~0.1 mostly fail the thin-wall check, wide frames close the small faces
+  foam_windows:
+    quota: 2000
+    oversample: 1.3
+    params:
+      lattice_family:
+        choices:
+        - foam_kelvin
+        - foam_rhombic
+        - foam_weaire_phelan
+        - foam_random
+      foam_bubbles:
+      - 4
+      - 16
+      lattice_cell_mm:
+      - 10.0
+      - 18.0
+      relative_density:
+      - 0.15
+      - 0.5
+      cells_per_edge: 1
+      foam_mode: windows
+      foam_frame:
+      - 0.05
+      - 0.3
+    require:
+      min_density_x_cell:
+        foam_kelvin: 3.0
+        foam_rhombic: 3.0
+        default: 5.0
+  foam_open:
+    quota: 2000
+    oversample: 1.2
+    params:
+      lattice_family:
+        choices:
+        - foam_kelvin
+        - foam_rhombic
+        - foam_weaire_phelan
+        - foam_random
+      foam_bubbles:
+      - 4
+      - 16
+      lattice_cell_mm:
+      - 10.0
+      - 18.0
+      relative_density:
+      - 0.15
+      - 0.5
+      cells_per_edge: 1
+      foam_mode: edges

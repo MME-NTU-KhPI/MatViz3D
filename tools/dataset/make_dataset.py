@@ -59,12 +59,13 @@ PARAM_KEYS = {
     "lattice_subtract", "lattice_subtract_size", "lattice_smooth",
     "honeycomb_angle", "honeycomb_rib",
     "assembly_struts", "assembly_plates", "assembly_shells", "assembly_holes", "assembly_spread",
+    "foam_mode", "foam_frame", "foam_bubbles",
     "print_min_wall_mm", "print_max_overhang_deg", "print_max_thin_fraction",
     "print_max_island_vox", "print_max_unsupported_fraction", "print_min_directions",
 }
 FLAG_KEYS = {"lattice_uniform_wall", "honeycomb_custom"}
 INT_KEYS = {"cells_per_edge", "fourier_terms", "print_max_island_vox", "print_min_directions",
-            "assembly_struts", "assembly_plates", "assembly_shells", "assembly_holes"}
+            "assembly_struts", "assembly_plates", "assembly_shells", "assembly_holes", "foam_bubbles"}
 # Families whose shape IS the drawn waves: their wave table is the shape vector the
 # geometry network works in, so every wave has to fit its frequency cutoff
 # (config `max_wave_number`, |k| per edge of the solved box). The TPMS tables are
@@ -342,6 +343,7 @@ def cmd_topup(cfg, args):
     meta = json.loads(mp.read_text(encoding="utf-8")) if mp.exists() else {}
     meta.setdefault("topups", []).append({"at": datetime.now().isoformat(timespec="seconds"), "rows": len(added),
                                           "groups": {g: k for g, _, _, _, k in report}, "factor": float(args.factor),
+                                          "matviz": str(cfg["_matviz"]), "matviz_commit": matviz_commit(cfg),
                                           **({"isotropic": iso_target} if iso_target else {})})
     mp.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
     shutil.copyfile(cfg["_config_path"], cfg["_out"] / "dataset.yaml")
@@ -741,6 +743,19 @@ def run_pass(cfg, rows: list[dict], todo: list[dict], jobs: int, label: str) -> 
         t.join()
 
 
+def interleaved(rows: list[dict], todo: list[dict]) -> list[dict]:
+    """`todo` with every group advancing in proportion to its planned rows (row k
+    of a group of n at (k - 1/2) / n), each group in its own manifest order. The
+    manifest holds the groups one after another, so in id order a run stopped
+    half way has only the first groups; interleaved, it has all of them, each
+    with the leading points of its Sobol sequence."""
+    pos, size = {}, {}
+    for r in rows:
+        size[r["group"]] = size.get(r["group"], 0) + 1
+        pos[r["id"]] = size[r["group"]]
+    return sorted(todo, key=lambda r: ((pos[r["id"]] - 0.5) / size[r["group"]], r["id"]))
+
+
 def cmd_run(cfg, args):
     rows = read_manifest(cfg)
     if not rows:
@@ -762,6 +777,8 @@ def cmd_run(cfg, args):
         cfg["_defer_above"] = defer
     statuses = ("pending", "retry") if defer else ("pending", "retry", "deferred")
     todo = [r for r in rows if r["status"] in statuses]
+    if args.order == "interleave":
+        todo = interleaved(rows, todo)
     if args.limit:
         todo = todo[: args.limit]
     finished = sum(1 for r in rows if r["status"] in ("done", "unprintable", "unresolved", "out_of_band", "no_load_path", "failed"))
@@ -941,9 +958,13 @@ def cmd_check(cfg, args):
     rows = read_manifest(cfg)
     df = pd.read_parquet(out / "dataset.parquet") if (out / "dataset.parquet").exists() else pd.DataFrame()
     meta = json.loads((out / "meta.json").read_text(encoding="utf-8")) if (out / "meta.json").exists() else {}
+    # a top-up made with a newer binary (new families) records its commit
+    later = [f"{t['matviz_commit']} (top-up {t['at'][:10]}: {', '.join(t['groups'])})"
+             for t in meta.get("topups", []) if t.get("matviz_commit") and t["matviz_commit"] != meta.get("matviz_commit")]
     lines = [f"# Dataset card — {out.name}", "",
              f"generated {datetime.now().isoformat(timespec='minutes')}; planned {meta.get('created', '?')}; "
-             f"MatViz3D commit {meta.get('matviz_commit') or '?'}; grid {cfg['size']}^3; FFT tol {cfg['fft_tol']}", "",
+             f"MatViz3D commit {meta.get('matviz_commit') or '?'}" + "".join(f", then {c}" for c in later)
+             + f"; grid {cfg['size']}^3; FFT tol {cfg['fft_tol']}", "",
              ("Material laws: " + ("; ".join(f"{l['id']} (E={l['E_GPa']} GPa, nu={l['nu']}, aniso={l.get('aniso', 1.0)})" for l in cfg["laws"]) if isinstance(cfg["laws"], list) else f"sampled per row: {cfg['laws']}")), ""]
     st = {}
     for r in rows:
@@ -1007,7 +1028,8 @@ def cmd_check(cfg, args):
             cubic_families = {"gyroid_sheet", "gyroid_skeletal", "schwarz_p_sheet", "schwarz_p_skeletal", "schwarz_d_sheet",
                               "schwarz_d_skeletal", "iwp_sheet", "iwp_skeletal", "simple_cubic", "bcc", "fcc", "octet",
                               "plate_sc", "plate_bcc", "plate_fcc", "plate_sc_bcc", "plate_sc_fcc", "plate_bcc_fcc", "plate_sc_bcc_fcc",
-                              "spheres_sc", "spheres_bcc", "spheres_fcc", "cylinders_axes", "cubic_assembly"}
+                              "spheres_sc", "spheres_bcc", "spheres_fcc", "cylinders_axes", "cubic_assembly",
+                              "foam_kelvin", "foam_rhombic", "foam_weaire_phelan"}
             text = lambda col: s[col].fillna("").astype(str) if col in s else pd.Series("", index=s.index)
             fam, sym = text("p_lattice_family"), text("p_fourier_symmetry")
             shape_cubic = fam.isin(cubic_families) | (fam.isin({"fourier_sheet", "fourier_skeletal"}) & (sym == "cubic"))
@@ -1147,6 +1169,8 @@ def main():
                     help="run: rows whose wall needs a grid above this size are marked `deferred` after the probe "
                          "instead of being solved; a later run without the flag solves them")
     ap.add_argument("--timeout", type=float, default=0, help="run: seconds per MatViz3D run, overrides timeout_s")
+    ap.add_argument("--order", choices=["interleave", "id"], default="interleave",
+                    help="run: groups advance together in proportion to their rows (default), or rows in id order")
     ap.add_argument("--ignore-quota", action="store_true",
                     help="run: solve every row of the pass even when its group already has its quota")
     ap.add_argument("--groups", default="", help="top-up: comma-separated groups (default: every group short of its quota)")
