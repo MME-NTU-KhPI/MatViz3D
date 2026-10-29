@@ -999,6 +999,16 @@ void saveGeometryMetadataToHDF5(HDF5Wrapper& hdf5, const std::string& prefix, co
             hdf5.write(geomGroup, "assembly_file", p->getAssemblyFile());
             paramsObj["assembly_file"] = p->getAssemblyFile();
         }
+        hdf5.write(geomGroup, "foam_mode",    p->getFoamMode());
+        hdf5.write(geomGroup, "foam_frame",   float(p->getFoamFrame()));
+        hdf5.write(geomGroup, "foam_bubbles", p->getFoamBubbles());
+        paramsObj["foam_mode"]    = p->getFoamMode();
+        paramsObj["foam_frame"]   = p->getFoamFrame();
+        paramsObj["foam_bubbles"] = p->getFoamBubbles();
+        if (!p->getFoamFile().isEmpty()) {
+            hdf5.write(geomGroup, "foam_file", p->getFoamFile());
+            paramsObj["foam_file"] = p->getFoamFile();
+        }
         // Printability of the rasterized cube (printability.h).
         const PrintabilityReport& pr = Parameters::printability;
         if (pr.computed) {
@@ -1051,6 +1061,15 @@ void saveGeometryMetadataToHDF5(HDF5Wrapper& hdf5, const std::string& prefix, co
                 rows.push_back(std::vector<float>(t.begin(), t.end()));
             hdf5.write(geomGroup, "lattice_assembly_terms", rows);
             paramsObj["lattice_assembly_count"] = static_cast<int>(rows.size());
+        }
+        // The sites of a foam cell, x y z in cell units: their Voronoi partition is the cell.
+        if (!Parameters::lattice_foam_sites.empty()) {
+            std::vector<std::vector<float>> rows;
+            rows.reserve(Parameters::lattice_foam_sites.size());
+            for (const auto& t : Parameters::lattice_foam_sites)
+                rows.push_back({ t[0], t[1], t[2] });
+            hdf5.write(geomGroup, "lattice_foam_sites", rows);
+            paramsObj["lattice_foam_site_count"] = static_cast<int>(rows.size());
         }
     }
 

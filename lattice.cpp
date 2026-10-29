@@ -236,6 +236,10 @@ void Lattice::readParameters()
     m_asmHoles     = std::clamp(p.getAssemblyHoles(), 0, 8);
     m_asmSpread    = std::clamp(p.getAssemblySpread(), 0.0, 0.8);
     m_asmFile      = p.getAssemblyFile();
+    m_foamMode     = p.getFoamMode();
+    m_foamFrame    = std::clamp(p.getFoamFrame(), 0.01, 0.5);
+    m_foamBubbles  = std::clamp(p.getFoamBubbles(), 1, 64);
+    m_foamFile     = p.getFoamFile();
 
     // Second and third families (united with / carved out of the first).
     // Random families keep state in the same members as the primary, and
@@ -259,6 +263,11 @@ void Lattice::readParameters()
         const bool segTaken = isSegmentFamily(m_family) || (m_hasUnion && isSegmentFamily(m_union));
         if (isSegmentFamily(u) && segTaken) {
             qWarning().noquote() << QString("[Lattice] only one strut/honeycomb family per cell; %1 = %2 ignored").arg(what, key);
+            return false;
+        }
+        const bool foamTaken = isFoamFamily(m_family) || (m_hasUnion && isFoamFamily(m_union));
+        if (isFoamFamily(u) && foamTaken) {
+            qWarning().noquote() << QString("[Lattice] only one foam family per cell; %1 = %2 ignored").arg(what, key);
             return false;
         }
         out = u;
@@ -928,6 +937,9 @@ double Lattice::familyField(LatticeFamily fam, double X, double Y, double Z) con
             return siteField(fam, X, Y, Z);
         case LatticeFamily::CubicAssembly:
             return assemblyField(X, Y, Z);
+        case LatticeFamily::FoamKelvin: case LatticeFamily::FoamRhombic:
+        case LatticeFamily::FoamWeairePhelan: case LatticeFamily::FoamRandom:
+            return foamField(X, Y, Z);
     }
     return 0.0;
 }
@@ -962,6 +974,343 @@ double Lattice::siteField(LatticeFamily fam, double X, double Y, double Z) const
         }
     }
     return std::round(best * 1e9) / 1e9;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Foams (3D honeycombs): walls, windows or edges of a Voronoi partition
+// ─────────────────────────────────────────────────────────────────────────────
+
+namespace {
+
+using V3 = std::array<double,3>;
+struct ClipFace { std::vector<V3> v; int id; };
+
+inline double dotv(const V3& a, const double* n) { return a[0] * n[0] + a[1] * n[1] + a[2] * n[2]; }
+
+// Area vector of a planar polygon (half the sum of cross products).
+inline double polygonArea(const std::vector<V3>& v)
+{
+    double s[3] = { 0.0, 0.0, 0.0 };
+    for (size_t k = 0; k < v.size(); ++k) {
+        const V3& a = v[k]; const V3& b = v[(k + 1) % v.size()];
+        s[0] += a[1] * b[2] - a[2] * b[1];
+        s[1] += a[2] * b[0] - a[0] * b[2];
+        s[2] += a[0] * b[1] - a[1] * b[0];
+    }
+    return 0.5 * std::sqrt(s[0] * s[0] + s[1] * s[1] + s[2] * s[2]);
+}
+
+// Cut the convex polyhedron (a list of face polygons) by the half-space
+// n.x <= h and close it with the cap polygon, labelled `id`. Vertices on the
+// plane count as inside and as cap points, so a plane through a vertex or an
+// edge only (a redundant neighbour) leaves no cap.
+void clipPolyhedron(std::vector<ClipFace>& faces, const double n[3], double h, int id)
+{
+    constexpr double eps = 1e-12;
+    std::vector<V3> cut;
+    std::vector<ClipFace> out;
+    out.reserve(faces.size() + 1);
+    for (const ClipFace& f : faces) {
+        std::vector<V3> res;
+        const size_t m = f.v.size();
+        for (size_t k = 0; k < m; ++k) {
+            const V3& a = f.v[k]; const V3& b = f.v[(k + 1) % m];
+            const double sa = dotv(a, n) - h, sb = dotv(b, n) - h;
+            if (sa <= eps) res.push_back(a);
+            if (std::abs(sa) <= eps) cut.push_back(a);
+            if ((sa < -eps && sb > eps) || (sa > eps && sb < -eps)) {
+                const double t = sa / (sa - sb);
+                const V3 q = { a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1]), a[2] + t * (b[2] - a[2]) };
+                res.push_back(q);
+                cut.push_back(q);
+            }
+        }
+        if (res.size() >= 3 && polygonArea(res) > 1e-14) out.push_back({ std::move(res), f.id });
+    }
+    std::vector<V3> cap;
+    for (const V3& q : cut) {
+        bool dup = false;
+        for (const V3& c : cap)
+            if (std::abs(c[0] - q[0]) + std::abs(c[1] - q[1]) + std::abs(c[2] - q[2]) < 1e-10) { dup = true; break; }
+        if (!dup) cap.push_back(q);
+    }
+    if (cap.size() >= 3) {
+        V3 c = { 0.0, 0.0, 0.0 };
+        for (const V3& q : cap) for (int i = 0; i < 3; ++i) c[i] += q[i] / static_cast<double>(cap.size());
+        // In-plane basis e1, e2 = n x e1; order the cap points by angle.
+        const double ax = std::abs(n[0]) < 0.9 ? 1.0 : 0.0, ay = 1.0 - ax;
+        double e1[3] = { ay * n[2], -ax * n[2], ax * n[1] - ay * n[0] };
+        const double l1 = std::sqrt(e1[0] * e1[0] + e1[1] * e1[1] + e1[2] * e1[2]);
+        for (double& e : e1) e /= l1;
+        const double e2[3] = { n[1] * e1[2] - n[2] * e1[1], n[2] * e1[0] - n[0] * e1[2], n[0] * e1[1] - n[1] * e1[0] };
+        std::sort(cap.begin(), cap.end(), [&](const V3& p, const V3& q) {
+            const double pa = std::atan2((p[0] - c[0]) * e2[0] + (p[1] - c[1]) * e2[1] + (p[2] - c[2]) * e2[2],
+                                         (p[0] - c[0]) * e1[0] + (p[1] - c[1]) * e1[1] + (p[2] - c[2]) * e1[2]);
+            const double qa = std::atan2((q[0] - c[0]) * e2[0] + (q[1] - c[1]) * e2[1] + (q[2] - c[2]) * e2[2],
+                                         (q[0] - c[0]) * e1[0] + (q[1] - c[1]) * e1[1] + (q[2] - c[2]) * e1[2]);
+            return pa < qa;
+        });
+        if (polygonArea(cap) > 1e-14) out.push_back({ std::move(cap), id });
+    }
+    faces.swap(out);
+}
+
+} // namespace
+
+bool Lattice::loadFoamFile(const QString& path)
+{
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) return false;
+    std::vector<std::array<double,3>> sites;
+    while (!f.atEnd()) {
+        const QString line = QString::fromUtf8(f.readLine()).section('#', 0, 0).trimmed();
+        if (line.isEmpty()) continue;
+        const QStringList t = line.split(QRegularExpression("[\\s,;]+"), Qt::SkipEmptyParts);
+        if (t.size() < 3) continue;
+        bool ok[3];
+        const double x = t[0].toDouble(&ok[0]), y = t[1].toDouble(&ok[1]), z = t[2].toDouble(&ok[2]);
+        if (!ok[0] || !ok[1] || !ok[2]) continue;
+        sites.push_back({ wrap01(x), wrap01(y), wrap01(z) });
+    }
+    if (sites.empty()) return false;
+    m_foamSites = std::move(sites);
+    return true;
+}
+
+void Lattice::buildFoam()
+{
+    m_foamSites.clear();
+    m_foamImages.clear();
+    m_foamImageSite.clear();
+    m_foamCells.clear();
+    Parameters::lattice_foam_sites.clear();
+    m_hasFoam = true;
+    if (isFoamFamily(m_family))                         m_foamFamily = m_family;
+    else if (m_hasUnion && isFoamFamily(m_union))       m_foamFamily = m_union;
+    else if (m_hasSubtract && isFoamFamily(m_subtract)) m_foamFamily = m_subtract;
+    else { m_hasFoam = false; return; }
+
+    switch (m_foamFamily) {
+        case LatticeFamily::FoamKelvin:
+            m_foamSites = { {0, 0, 0}, {0.5, 0.5, 0.5} };
+            break;
+        case LatticeFamily::FoamRhombic:
+            m_foamSites = { {0, 0, 0}, {0.5, 0.5, 0}, {0.5, 0, 0.5}, {0, 0.5, 0.5} };
+            break;
+        case LatticeFamily::FoamWeairePhelan:   // A15 (Cr3Si): the cell centre and corner + two sites on every face
+            m_foamSites = { {0, 0, 0}, {0.5, 0.5, 0.5},
+                            {0.25, 0.5, 0}, {0.75, 0.5, 0}, {0, 0.25, 0.5}, {0, 0.75, 0.5}, {0.5, 0, 0.25}, {0.5, 0, 0.75} };
+            break;
+        default: {
+            bool loaded = false;
+            if (!m_foamFile.isEmpty()) {
+                loaded = loadFoamFile(m_foamFile);
+                if (!loaded)
+                    qWarning().noquote() << QString("[Lattice] could not read foam sites from \"%1\"; drawing %2 from seed %3 instead")
+                                                .arg(m_foamFile).arg(m_foamBubbles).arg(Parameters::seed);
+            }
+            if (!loaded) {
+                // Random sequential addition with a hard core of 0.7 bubble sizes
+                // (periodic distance): no sliver cells, so no dust-thin faces.
+                // Coordinates are rounded to float, so the published table
+                // rebuilds the cell bit for bit through foam_file.
+                std::uniform_real_distribution<double> U(0.0, 1.0);
+                const int n = m_foamBubbles;
+                auto draw = [&]() { return wrap01(static_cast<double>(static_cast<float>(U(m_rng)))); };
+                double dmin = 0.7 * std::cbrt(1.0 / n);
+                for (;;) {
+                    m_foamSites.clear();
+                    for (int tries = 0; static_cast<int>(m_foamSites.size()) < n && tries < 2000 * n; ++tries) {
+                        const std::array<double,3> q = { draw(), draw(), draw() };
+                        bool clear = true;
+                        for (const auto& s : m_foamSites) {
+                            double d2 = 0.0;
+                            for (int i = 0; i < 3; ++i) { const double w = q[i] - s[i] - std::round(q[i] - s[i]); d2 += w * w; }
+                            if (d2 < dmin * dmin) { clear = false; break; }
+                        }
+                        if (clear) m_foamSites.push_back(q);
+                    }
+                    if (static_cast<int>(m_foamSites.size()) == n) break;
+                    dmin *= 0.9;
+                }
+            }
+            break;
+        }
+    }
+    for (const auto& s : m_foamSites)
+        Parameters::lattice_foam_sites.push_back({ static_cast<float>(s[0]), static_cast<float>(s[1]), static_cast<float>(s[2]) });
+    const size_t ns = m_foamSites.size();
+    m_foamBubble = std::cbrt(1.0 / static_cast<double>(ns));
+
+    // Sites in the unit cell and in its 26 neighbours: the nearest site of any
+    // point of the cell is among them (the covering radius is below 1).
+    for (int ox = -1; ox <= 1; ++ox)
+        for (int oy = -1; oy <= 1; ++oy)
+            for (int oz = -1; oz <= 1; ++oz)
+                for (size_t i = 0; i < ns; ++i) {
+                    m_foamImages.push_back({ m_foamSites[i][0] + ox, m_foamSites[i][1] + oy, m_foamSites[i][2] + oz });
+                    m_foamImageSite.push_back(static_cast<int>(i));
+                }
+
+    // Covering radius R (farthest a point can be from its site), from a grid
+    // plus the grid's own half diagonal: every Voronoi neighbour of a site is
+    // within 2R of it (their common face has a point within R of both).
+    const int G = 24;
+    double R = 0.0;
+    for (int i = 0; i < G; ++i)
+        for (int j = 0; j < G; ++j)
+            for (int k = 0; k < G; ++k) {
+                const double q[3] = { (i + 0.5) / G, (j + 0.5) / G, (k + 0.5) / G };
+                double b = 1e300;
+                for (const auto& s : m_foamImages) {
+                    const double dx = q[0] - s[0], dy = q[1] - s[1], dz = q[2] - s[2];
+                    b = std::min(b, dx * dx + dy * dy + dz * dz);
+                }
+                R = std::max(R, std::sqrt(b));
+            }
+    R += 0.5 * std::sqrt(3.0) / G;
+
+    // Every cell: a box around the site cut by the bisector planes of all
+    // sites within 2R (nearest first). Planes that leave no face are not
+    // neighbours (e.g. the six second neighbours of FCC touch the rhombic
+    // dodecahedron at its corners only).
+    m_foamCells.resize(ns);
+    for (size_t i = 0; i < ns; ++i) {
+        const auto& p = m_foamSites[i];
+        struct Cand { double n[3]; double half; int j; double D[3]; };
+        std::vector<Cand> cand;
+        for (int ox = -2; ox <= 2; ++ox)
+            for (int oy = -2; oy <= 2; ++oy)
+                for (int oz = -2; oz <= 2; ++oz)
+                    for (size_t j = 0; j < ns; ++j) {
+                        const double D[3] = { m_foamSites[j][0] + ox - p[0], m_foamSites[j][1] + oy - p[1], m_foamSites[j][2] + oz - p[2] };
+                        const double L = std::sqrt(D[0] * D[0] + D[1] * D[1] + D[2] * D[2]);
+                        if (L < 1e-12 || L > 2.0 * R + 1e-9) continue;
+                        cand.push_back({ { D[0] / L, D[1] / L, D[2] / L }, 0.5 * L, static_cast<int>(j), { D[0], D[1], D[2] } });
+                    }
+        std::sort(cand.begin(), cand.end(), [](const Cand& a, const Cand& b) { return a.half < b.half; });
+
+        const double H = 1.5 * R + 0.01;
+        std::vector<ClipFace> poly = {
+            { { {-H,-H,-H}, {-H, H,-H}, { H, H,-H}, { H,-H,-H} }, -1 },
+            { { {-H,-H, H}, { H,-H, H}, { H, H, H}, {-H, H, H} }, -1 },
+            { { {-H,-H,-H}, { H,-H,-H}, { H,-H, H}, {-H,-H, H} }, -1 },
+            { { {-H, H,-H}, {-H, H, H}, { H, H, H}, { H, H,-H} }, -1 },
+            { { {-H,-H,-H}, {-H,-H, H}, {-H, H, H}, {-H, H,-H} }, -1 },
+            { { { H,-H,-H}, { H, H,-H}, { H, H, H}, { H,-H, H} }, -1 },
+        };
+        for (size_t c = 0; c < cand.size(); ++c)
+            clipPolyhedron(poly, cand[c].n, cand[c].half, static_cast<int>(c));
+
+        FoamCell& cell = m_foamCells[i];
+        for (const ClipFace& f : poly) {
+            if (f.id < 0) {
+                qWarning() << "[Lattice] foam: a Voronoi cell is not closed by its neighbours; its walls may be wrong";
+                continue;
+            }
+            FoamFace face;
+            for (int k = 0; k < 3; ++k) face.n[k] = cand[static_cast<size_t>(f.id)].n[k];
+            face.half = cand[static_cast<size_t>(f.id)].half;
+            face.nb   = cand[static_cast<size_t>(f.id)].j;
+            for (int k = 0; k < 3; ++k) face.off[k] = cand[static_cast<size_t>(f.id)].D[k];
+            for (size_t k = 0; k < f.v.size(); ++k) {
+                const V3& a = f.v[k]; const V3& b = f.v[(k + 1) % f.v.size()];
+                if (std::abs(a[0] - b[0]) + std::abs(a[1] - b[1]) + std::abs(a[2] - b[2]) < 1e-9) continue;
+                const std::array<double,6> e = { a[0], a[1], a[2], b[0], b[1], b[2] };
+                face.edges.push_back(e);
+                bool dup = false;   // each edge is shared by two faces of the cell
+                for (const auto& g : cell.edges) {
+                    const double same = std::abs(g[0] - e[0]) + std::abs(g[1] - e[1]) + std::abs(g[2] - e[2])
+                                      + std::abs(g[3] - e[3]) + std::abs(g[4] - e[4]) + std::abs(g[5] - e[5]);
+                    const double flip = std::abs(g[0] - e[3]) + std::abs(g[1] - e[4]) + std::abs(g[2] - e[5])
+                                      + std::abs(g[3] - e[0]) + std::abs(g[4] - e[1]) + std::abs(g[5] - e[2]);
+                    if (std::min(same, flip) < 1e-7) { dup = true; break; }
+                }
+                if (!dup) cell.edges.push_back(e);
+            }
+            cell.faces.push_back(std::move(face));
+        }
+    }
+
+    // Struts of the open-cell mode: own edges + the edges of the face
+    // neighbours that start at one of the cell's vertices (a 4-valent vertex
+    // of the rhombic foam joins edges of six cells).
+    auto sameEdge = [](const std::array<double,6>& g, const std::array<double,6>& e) {
+        const double same = std::abs(g[0] - e[0]) + std::abs(g[1] - e[1]) + std::abs(g[2] - e[2])
+                          + std::abs(g[3] - e[3]) + std::abs(g[4] - e[4]) + std::abs(g[5] - e[5]);
+        const double flip = std::abs(g[0] - e[3]) + std::abs(g[1] - e[4]) + std::abs(g[2] - e[5])
+                          + std::abs(g[3] - e[0]) + std::abs(g[4] - e[1]) + std::abs(g[5] - e[2]);
+        return std::min(same, flip) < 1e-7;
+    };
+    for (FoamCell& cell : m_foamCells) {
+        cell.struts = cell.edges;
+        auto atVertex = [&](double x, double y, double z) {
+            for (const auto& g : cell.edges)
+                if (std::abs(g[0] - x) + std::abs(g[1] - y) + std::abs(g[2] - z) < 1e-7
+                    || std::abs(g[3] - x) + std::abs(g[4] - y) + std::abs(g[5] - z) < 1e-7) return true;
+            return false;
+        };
+        for (const FoamFace& f : cell.faces) {
+            if (f.nb < 0) continue;
+            for (const auto& g : m_foamCells[static_cast<size_t>(f.nb)].edges) {
+                const std::array<double,6> e = { g[0] + f.off[0], g[1] + f.off[1], g[2] + f.off[2],
+                                                 g[3] + f.off[0], g[4] + f.off[1], g[5] + f.off[2] };
+                if (!atVertex(e[0], e[1], e[2]) && !atVertex(e[3], e[4], e[5])) continue;
+                bool dup = false;
+                for (const auto& h : cell.struts) if (sameEdge(h, e)) { dup = true; break; }
+                if (!dup) cell.struts.push_back(e);
+            }
+        }
+    }
+}
+
+// Walls: distance to the boundary of the point's own Voronoi cell, the
+// nearest face plane (exact: the nearest wall of a point is a face of its own
+// cell). Windows: max(d, e - w), d that distance, e the distance in the face
+// plane to the face's edges (the foot of the perpendicular on the nearest face
+// plane lies on that face), w = foam_frame bubble sizes: the wall is 2c thick
+// and reaches c + w from the edges into the face, so a thicker wall also has a
+// wider frame and any density is reachable; w = 0 leaves square struts along
+// the edges, a large w closes the windows. Edges: distance to the nearest edge
+// of the cell (or of a neighbour, at a vertex). Snapped like the plates so
+// mirror-image voxels tie.
+double Lattice::foamField(double X, double Y, double Z) const
+{
+    if (m_foamCells.empty()) return 1e300;
+    const double u[3] = { wrap01(X * m_cells), wrap01(Y * m_cells), wrap01(Z * m_cells) };
+    size_t nearest = 0;
+    double bd = 1e300;
+    for (size_t k = 0; k < m_foamImages.size(); ++k) {
+        const auto& s = m_foamImages[k];
+        const double dx = u[0] - s[0], dy = u[1] - s[1], dz = u[2] - s[2];
+        const double d2 = dx * dx + dy * dy + dz * dz;
+        if (d2 < bd) { bd = d2; nearest = k; }
+    }
+    const auto& P = m_foamImages[nearest];
+    const FoamCell& cell = m_foamCells[static_cast<size_t>(m_foamImageSite[nearest])];
+    const double v[3] = { u[0] - P[0], u[1] - P[1], u[2] - P[2] };
+
+    double F = 1e300;
+    if (m_foamMode == QLatin1String("edges")) {
+        for (const auto& e : cell.struts)
+            F = std::min(F, segmentDistance(v[0], v[1], v[2], e[0], e[1], e[2], e[3], e[4], e[5]));
+    } else {
+        const FoamFace* near = nullptr;
+        for (const FoamFace& f : cell.faces) {
+            const double d = f.half - (v[0] * f.n[0] + v[1] * f.n[1] + v[2] * f.n[2]);
+            if (d < F) { F = d; near = &f; }
+        }
+        F = std::max(F, 0.0);
+        if (near && m_foamMode == QLatin1String("windows")) {
+            double e2 = 1e300;
+            for (const auto& e : near->edges) {
+                const double d = segmentDistance(v[0], v[1], v[2], e[0], e[1], e[2], e[3], e[4], e[5]);
+                e2 = std::min(e2, d * d - F * F);
+            }
+            F = std::max(F, std::sqrt(std::max(e2, 0.0)) - m_foamFrame * m_foamBubble);
+        }
+    }
+    return F < 1e300 ? std::round(F * 1e9) / 1e9 : F;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1740,6 +2089,9 @@ void Lattice::estimateWall()
             // Cubic assembly: the thinnest member is 2 c w_min thick.
             if (m_family == LatticeFamily::CubicAssembly)
                 m_wallVox = 2.0 * m_c * m_asmMinWeight * voxPerCell;
+            // Foams: c is half the wall thickness, or the strut radius of the edges.
+            if (isFoamFamily(m_family))
+                m_wallVox = 2.0 * m_c * voxPerCell;
             break;   // skeletal / spinodoid: no simple estimate
     }
 }
@@ -1799,6 +2151,7 @@ void Lattice::Initialization(bool /*isWaveGeneration*/)
     buildWaves();
     buildNoise();
     buildAssembly();
+    buildFoam();
     publishWaves();
 
     numColors = 1;
@@ -1933,6 +2286,11 @@ void Lattice::CleanUp()
     m_noise.shrink_to_fit();
     m_members.clear();
     m_members.shrink_to_fit();
+    m_foamSites.clear();
+    m_foamImages.clear();
+    m_foamImageSite.clear();
+    m_foamCells.clear();
+    m_foamCells.shrink_to_fit();
     m_smoothed.clear();
     m_smoothed.shrink_to_fit();
     m_solidCount = 0;
@@ -1985,6 +2343,22 @@ void Lattice::report() const
                    .arg([&]{ const int o = plateOrientations(isPlateFamily(m_family) ? m_family : m_union);
                              QStringList l; if (o & 1) l << "{100}"; if (o & 2) l << "{110}"; if (o & 4) l << "{111}"; return l.join("+"); }())
                    .arg(m_plateHole > 0.0 ? QString(", holes of %1 cell edges through the panel centres").arg(m_plateHole, 0, 'g', 3) : QString());
+    if (m_hasFoam) {
+        size_t faces = 0, edges = 0;
+        for (const FoamCell& c : m_foamCells) { faces += c.faces.size(); edges += c.edges.size(); }
+        const double nc = std::max<double>(1.0, static_cast<double>(m_foamCells.size()));
+        qInfo().noquote()
+            << QString("[Lattice] foam: %1 bubble(s) per cell (%2), %3 faces and %4 edges per bubble on average, "
+                       "bubble size %5 cell edges; %6")
+                   .arg(m_foamSites.size())
+                   .arg(m_foamFamily != LatticeFamily::FoamRandom ? latticeFamilyKey(m_foamFamily)
+                        : (m_foamFile.isEmpty() ? QString("random, seed %1").arg(Parameters::seed) : QString("from \"%1\"").arg(m_foamFile)))
+                   .arg(static_cast<double>(faces) / nc, 0, 'f', 2).arg(static_cast<double>(edges) / nc, 0, 'f', 2)
+                   .arg(m_foamBubble, 0, 'f', 3)
+                   .arg(m_foamMode == QLatin1String("edges") ? QStringLiteral("edges only (open cells)")
+                        : m_foamMode == QLatin1String("windows") ? QString("walls with a window in every face, frame %1 bubble sizes").arg(m_foamFrame, 0, 'g', 3)
+                        : QStringLiteral("closed walls"));
+    }
     if (m_family == LatticeFamily::CubicAssembly) {
         int n[4] = { 0, 0, 0, 0 };
         double wlo = 1e300, whi = 0.0;
@@ -2116,6 +2490,12 @@ static std::vector<ParamField> latticeSchema()
         { "assembly_shells", "Assembly shells",           ParamField::Int,    0,   0,   4,   {}, "main" },
         { "assembly_holes",  "Assembly windows",          ParamField::Int,    1,   0,   8,   {}, "main" },
         { "assembly_spread", "Assembly thickness spread", ParamField::Double, 0.3, 0.0, 0.8, {}, "main" },
+
+        // Foams (3D honeycombs): walls, walls with windows or edges only (a site file is CLI/config only).
+        { "foam_mode", "Foam", ParamField::Enum, QStringLiteral("walls"), {}, {},
+          QStringList{ QStringLiteral("walls"), QStringLiteral("windows"), QStringLiteral("edges") }, "main" },
+        { "foam_frame",   "Foam window frame (bubble sizes)", ParamField::Double, 0.1, 0.01, 0.5, {}, "main" },
+        { "foam_bubbles", "Random foam bubbles per cell",     ParamField::Int,    8,   1,    64,  {}, "main" },
     };
 
     // One constituent: the printed base material. Void is the other phase.
@@ -2130,7 +2510,7 @@ MATVIZ_REGISTER_ALGORITHM(AlgorithmPlugin{
     "Lattice",
     "Periodic cellular metamaterial RVE (TPMS sheets and skeletons, strut "
     "lattices, plate lattices with holes, spheres and cylinders, honeycombs, anisotropic spinodoids, open Fourier-series level "
-    "sets with optional cubic symmetry, smoothed random noise, random cubic-symmetric assemblies of plates, struts and shells; unions, carve-outs and smoothing of families): one solid phase plus void, "
+    "sets with optional cubic symmetry, smoothed random noise, random cubic-symmetric assemblies of plates, struts and shells, foams (Kelvin, rhombic dodecahedra, Weaire-Phelan, random Voronoi; closed, windowed or open cells); unions, carve-outs and smoothing of families): one solid phase plus void, "
     "sized to a target relative density, with optional thickness grading, jitter and lattice rotation.",
     /*order=*/ 2,
     latticeSchema(),

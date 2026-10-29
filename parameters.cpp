@@ -114,6 +114,11 @@ int     Parameters::assembly_holes  = 1;
 double  Parameters::assembly_spread = 0.3;
 QString Parameters::assembly_file;
 std::vector<std::array<float,12>> Parameters::lattice_assembly_terms;
+QString Parameters::foam_mode = QStringLiteral("walls");
+double  Parameters::foam_frame = 0.1;
+int     Parameters::foam_bubbles = 8;
+QString Parameters::foam_file;
+std::vector<std::array<float,3>> Parameters::lattice_foam_sites;
 double  Parameters::noise_smooth           = 0.06;
 double  Parameters::mat_e_gpa              = 0.0;
 double  Parameters::mat_nu                 = 0.38;
@@ -219,6 +224,7 @@ void Parameters::resetDefaults()
     lattice_wall_voxels      = 0.0;
     lattice_wave_terms.clear();
     lattice_assembly_terms.clear();
+    lattice_foam_sites.clear();
     spinodoid_theta_x = 90.0;
     spinodoid_theta_y = 90.0;
     spinodoid_theta_z = 90.0;
@@ -242,6 +248,10 @@ void Parameters::resetDefaults()
     assembly_holes  = 1;
     assembly_spread = 0.3;
     assembly_file.clear();
+    foam_mode = QStringLiteral("walls");
+    foam_frame = 0.1;
+    foam_bubbles = 8;
+    foam_file.clear();
     noise_smooth = 0.06;
     mat_e_gpa = 0.0;
     mat_nu = 0.38;
@@ -1505,6 +1515,42 @@ void Parameters::setAssemblyFile(const QString& value)
     const QString v = value.trimmed();
     if (assembly_file == v) return;
     assembly_file = v;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setFoamMode(const QString& value)
+{
+    const QString v = value.trimmed().toLower();
+    if (v != QLatin1String("walls") && v != QLatin1String("windows") && v != QLatin1String("edges")) {
+        qWarning() << "foam_mode expects walls, windows or edges; got" << value;
+        return;
+    }
+    if (foam_mode == v) return;
+    foam_mode = v;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setFoamFrame(double value)
+{
+    if (value < 0.01 || value > 0.5) { qWarning() << "foam_frame expects 0.01..0.5 of the bubble size; got" << value; return; }
+    if (foam_frame == value) return;
+    foam_frame = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setFoamBubbles(int value)
+{
+    if (value < 1 || value > 64) { qWarning() << "foam_bubbles expects 1..64; got" << value; return; }
+    if (foam_bubbles == value) return;
+    foam_bubbles = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setFoamFile(const QString& value)
+{
+    const QString v = value.trimmed();
+    if (foam_file == v) return;
+    foam_file = v;
     emit latticeSettingsChanged();
 }
 

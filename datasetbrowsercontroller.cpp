@@ -521,6 +521,14 @@ void DatasetBrowserController::buildSections(const DatasetRowsModel::Row& row)
                 else
                     it << item(QStringLiteral("Shape"), QStringLiteral("family preset"));
             }
+            if (isFoamFamily(fam)) {
+                const QString mode = val("foam_mode");
+                it << item(QStringLiteral("Foam cells"), mode == QLatin1String("edges") ? QStringLiteral("open (edges only)")
+                                                       : mode == QLatin1String("windows") ? QStringLiteral("walls with windows")
+                                                       : QStringLiteral("closed walls"));
+                if (mode == QLatin1String("windows")) it << item(QStringLiteral("Window frame"), val("foam_frame") + QStringLiteral(" bubble sizes"));
+                if (P.contains(QStringLiteral("lattice_foam_site_count"))) it << item(QStringLiteral("Bubbles per cell"), val("lattice_foam_site_count"));
+            }
             if (fam == LatticeFamily::CubicAssembly) {
                 it << item(QStringLiteral("Struts / plates / shells / windows"),
                            val("assembly_struts") + QStringLiteral(" / ") + val("assembly_plates") + QStringLiteral(" / ")

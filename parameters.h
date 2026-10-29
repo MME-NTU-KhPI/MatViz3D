@@ -144,6 +144,12 @@ class Parameters : public QObject
     Q_PROPERTY(int     assembly_holes   READ getAssemblyHoles   WRITE setAssemblyHoles   NOTIFY latticeSettingsChanged)
     Q_PROPERTY(double  assembly_spread  READ getAssemblySpread  WRITE setAssemblySpread  NOTIFY latticeSettingsChanged)
     Q_PROPERTY(QString assembly_file    READ getAssemblyFile    WRITE setAssemblyFile    NOTIFY latticeSettingsChanged)
+    // 3D honeycombs (foam families): walls | windows | edges, window frame width
+    // (fraction of the bubble size), bubbles per cell of the random foam, site file.
+    Q_PROPERTY(QString foam_mode        READ getFoamMode        WRITE setFoamMode        NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  foam_frame       READ getFoamFrame       WRITE setFoamFrame       NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(int     foam_bubbles     READ getFoamBubbles     WRITE setFoamBubbles     NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(QString foam_file        READ getFoamFile        WRITE setFoamFile        NOTIFY latticeSettingsChanged)
     // Material given as numbers instead of a database row (dataset runs): E in
     // GPa (0 = use db_material), Poisson's ratio, and the ratio of the modulus
     // across the print layers (Z) to the in-plane one (1 = isotropic).
@@ -443,6 +449,14 @@ public:
     Q_INVOKABLE void setAssemblySpread(double value);
     QString getAssemblyFile()        const { return assembly_file; }
     Q_INVOKABLE void setAssemblyFile(const QString& value);
+    QString getFoamMode()            const { return foam_mode; }
+    Q_INVOKABLE void setFoamMode(const QString& value);
+    double  getFoamFrame()           const { return foam_frame; }
+    Q_INVOKABLE void setFoamFrame(double value);
+    int     getFoamBubbles()         const { return foam_bubbles; }
+    Q_INVOKABLE void setFoamBubbles(int value);
+    QString getFoamFile()            const { return foam_file; }
+    Q_INVOKABLE void setFoamFile(const QString& value);
     double getMatEGpa()    const { return mat_e_gpa; }
     double getMatNu()      const { return mat_nu; }
     double getMatAniso()   const { return mat_aniso; }
@@ -609,6 +623,9 @@ public:
     // (0 strut, 1 plate, 2 shell, 3 window), three points (x y z each, in the
     // asymmetric unit 0 <= z <= y <= x <= 1/2), radius, thickness weight.
     static std::vector<std::array<float,12>> lattice_assembly_terms;
+    // The sites of a foam cell (x y z in cell units, one row per bubble):
+    // its Voronoi partition is the cell. Empty for the other families.
+    static std::vector<std::array<float,3>> lattice_foam_sites;
     // Result of the last printability check (Lattice runs it after rasterization).
     static PrintabilityReport printability;
     // Voxel edge in mm of the last Lattice run (cells * cell_mm / size).
@@ -784,6 +801,10 @@ private:
     static int     assembly_holes;
     static double  assembly_spread;
     static QString assembly_file;
+    static QString foam_mode;            // "walls" | "windows" | "edges"
+    static double  foam_frame;
+    static int     foam_bubbles;
+    static QString foam_file;
     static double  mat_e_gpa;
     static double  mat_nu;
     static double  mat_aniso;

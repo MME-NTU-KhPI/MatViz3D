@@ -116,6 +116,9 @@ void TestLattice::testDensityIsHitForEveryFamily()
         // Cubic assemblies put members on the mirror planes, whole-voxel shells
         // again; testCubicAssemblyDrawIsConnectedAndRoundTrips covers them.
         if (i.family == LatticeFamily::CubicAssembly) continue;
+        // Foam walls lie on mirror planes and at 45 deg to the axes (shells of
+        // a third of the cell); testFoamCellsAreTheVoronoiCells covers them.
+        if (isFoamFamily(i.family)) continue;
         p->setLatticeFamily(QString::fromLatin1(i.key));
 
         TestableLattice L(N);
@@ -158,7 +161,7 @@ void TestLattice::testFieldIsPeriodicInTheCube()
 
     const char* families[] = { "gyroid_sheet", "schwarz_d_skeletal", "iwp_sheet",
                                "bcc", "octet", "honeycomb", "reentrant", "spinodoid",
-                               "noise_sheet", "noise_skeletal" };
+                               "noise_sheet", "noise_skeletal", "foam_kelvin", "foam_weaire_phelan", "foam_random" };
     for (const char* key : families) {
         p->setLatticeFamily(QString::fromLatin1(key));
         TestableLattice L(N);
@@ -963,6 +966,149 @@ void TestLattice::testCubicAssemblyDrawIsConnectedAndRoundTrips()
     QCOMPARE(Parameters::lattice_assembly_terms.size(), terms.size());
 }
 
+void TestLattice::testFoamCellsAreTheVoronoiCells()
+{
+    Parameters* p = Parameters::instance();
+    const int N = 32;
+    p->setSize(N);
+    p->setCellsPerEdge(1);
+    p->setRelativeDensity(0.2);
+    auto at = [&](const Lattice& L, double x, double y, double z) { return L.fieldAt(x * N, y * N, z * N); };
+
+    // Kelvin: square faces on x = 1/2 between corner sites, hexagons on
+    // x + y + z = 3/4 between a corner and the centre; a site is sqrt(3)/4 from
+    // its hexagons and 1/2 from its squares.
+    p->setLatticeFamily("foam_kelvin");
+    {
+        TestableLattice L(N);
+        L.Initialization(false);
+        QCOMPARE(static_cast<int>(Parameters::lattice_foam_sites.size()), 2);
+        QVERIFY(std::abs(at(L, 0.5, 0.0, 0.0)) < 1e-9);
+        QVERIFY(std::abs(at(L, 0.25, 0.25, 0.25)) < 1e-9);
+        QVERIFY(std::abs(at(L, 0.0, 0.0, 0.0) - std::sqrt(3.0) / 4.0) < 1e-9);
+        QVERIFY(std::abs(at(L, 0.5, 0.5, 0.5) - std::sqrt(3.0) / 4.0) < 1e-9);
+        QVERIFY(std::abs(at(L, 0.1, 0.0, 0.0) - std::min(0.4, 0.65 / std::sqrt(3.0))) < 1e-9);
+        L.Generate_To_End();
+        QCOMPARE(Parameters::printability.components, 1);
+        QCOMPARE(Parameters::printability.connected_directions, 3);
+        QVERIFY(Parameters::printability.closed_pore_fraction > 0.5);   // closed cells
+    }
+    // Edges: a vertex of the truncated octahedron is on a strut; the centre of
+    // a square face is its inradius, 1/(4 sqrt 2), from the nearest edge.
+    p->setFoamMode("edges");
+    {
+        TestableLattice L(N);
+        L.Initialization(false);
+        QVERIFY(std::abs(at(L, 0.5, 0.25, 0.0)) < 1e-9);
+        QVERIFY(std::abs(at(L, 0.5, 0.0, 0.0) - 0.25 / std::sqrt(2.0)) < 1e-9);
+        L.Generate_To_End();
+        QCOMPARE(Parameters::printability.components, 1);
+        QCOMPARE(Parameters::printability.closed_pore_fraction, 0.0);   // open cells
+    }
+    // Windows: in the face plane F = (in-plane distance to the edges) - frame,
+    // frame = 0.1 bubble sizes; zero within the frame.
+    p->setFoamMode("windows");
+    p->setFoamFrame(0.1);
+    {
+        TestableLattice L(N);
+        L.Initialization(false);
+        const double w = 0.1 * std::cbrt(0.5);
+        QVERIFY(std::abs(at(L, 0.5, 0.0, 0.0) - (0.25 / std::sqrt(2.0) - w)) < 1e-9);
+        QVERIFY(std::abs(at(L, 0.5, 0.05, 0.0) - (0.2 / std::sqrt(2.0) - w)) < 1e-9);
+        QVERIFY(std::abs(at(L, 0.5, 0.15, 0.0)) < 1e-9);
+        L.Generate_To_End();
+        QVERIFY(std::abs(L.achievedDensity() - 0.2) < 0.03);
+        QCOMPARE(Parameters::printability.closed_pore_fraction, 0.0);   // every face has a window
+    }
+    p->setFoamMode("walls");
+
+    // Rhombic dodecahedra: a site is 1/(2 sqrt 2) from its twelve faces.
+    p->setLatticeFamily("foam_rhombic");
+    {
+        TestableLattice L(N);
+        L.Initialization(false);
+        QCOMPARE(static_cast<int>(Parameters::lattice_foam_sites.size()), 4);
+        QVERIFY(std::abs(at(L, 0.0, 0.0, 0.0) - 0.5 / std::sqrt(2.0)) < 1e-9);
+        QVERIFY(std::abs(at(L, 0.25, 0.25, 0.0)) < 1e-9);
+    }
+
+    // The three lattice foams have the full cubic symmetry: the field is
+    // invariant under x -> y -> z and under the mirror x -> -x.
+    std::mt19937 rng(5);
+    std::uniform_real_distribution<double> U(0.0, 1.0);
+    for (const char* key : { "foam_kelvin", "foam_rhombic", "foam_weaire_phelan" }) {
+        for (const char* mode : { "walls", "edges" }) {
+            p->setLatticeFamily(QString::fromLatin1(key));
+            p->setFoamMode(QString::fromLatin1(mode));
+            TestableLattice L(N);
+            L.Initialization(false);
+            for (int k = 0; k < 40; ++k) {
+                const double x = U(rng), y = U(rng), z = U(rng);
+                const double f = at(L, x, y, z);
+                QVERIFY2(std::abs(at(L, y, z, x) - f) < 1e-8, key);
+                QVERIFY2(std::abs(at(L, 1.0 - x, y, z) - f) < 1e-8, key);
+            }
+        }
+    }
+    QCOMPARE(static_cast<int>(Parameters::lattice_foam_sites.size()), 8);   // Weaire-Phelan: 2 + 6 bubbles
+    p->setFoamMode("walls");
+}
+
+void TestLattice::testRandomFoamIsReproducibleAndRoundTrips()
+{
+    Parameters* p = Parameters::instance();
+    const int N = 32;
+    p->setSize(N);
+    p->setCellsPerEdge(1);
+    p->setRelativeDensity(0.25);
+    p->setLatticeFamily("foam_random");
+    p->setFoamBubbles(6);
+
+    TestableLattice A(N);
+    A.Initialization(false);
+    A.Generate_To_End();
+    const auto sites = Parameters::lattice_foam_sites;
+    QCOMPARE(static_cast<int>(sites.size()), 6);
+    // Hard core: no two bubbles closer than half a bubble size (periodic distance).
+    for (size_t i = 0; i < sites.size(); ++i)
+        for (size_t j = i + 1; j < sites.size(); ++j) {
+            double d2 = 0.0;
+            for (int k = 0; k < 3; ++k) { const double w = sites[i][k] - sites[j][k] - std::round(sites[i][k] - sites[j][k]); d2 += w * w; }
+            QVERIFY(std::sqrt(d2) > 0.5 * std::cbrt(1.0 / 6.0));
+        }
+    QCOMPARE(Parameters::printability.components, 1);
+    QVERIFY(std::abs(A.achievedDensity() - 0.25) < 0.005);   // no symmetric shells to tie
+    const auto va = A.flat();
+
+    // The same seed draws the same foam.
+    TestableLattice B(N);
+    B.Initialization(false);
+    B.Generate_To_End();
+    QVERIFY(Parameters::lattice_foam_sites == sites);
+    QVERIFY(B.flat() == va);
+
+    // The published sites rebuild the cell bit for bit, whatever the seed.
+    QTemporaryFile file;
+    QVERIFY(file.open());
+    file.write("# x y z\n");
+    for (const auto& s : sites)
+        file.write(QString("%1 %2 %3\n").arg(double(s[0]), 0, 'g', 9).arg(double(s[1]), 0, 'g', 9).arg(double(s[2]), 0, 'g', 9).toUtf8());
+    file.flush();
+    p->setFoamFile(file.fileName());
+    Parameters::seed = 4242;
+    TestableLattice C(N);
+    C.Initialization(false);
+    C.Generate_To_End();
+    QVERIFY(Parameters::lattice_foam_sites == sites);
+    QVERIFY(C.flat() == va);
+
+    // Another seed is another foam.
+    p->setFoamFile(QString());
+    TestableLattice D(N);
+    D.Initialization(false);
+    QVERIFY(!(Parameters::lattice_foam_sites == sites));
+}
+
 void TestLattice::testCliOptions()
 {
     Parameters* p = Parameters::instance();
@@ -990,6 +1136,18 @@ void TestLattice::testCliOptions()
     QVERIFY(!applyParameter("assembly_holes", "-1", &err));
     QVERIFY(!applyParameter("assembly_spread", "0.9", &err));
     QVERIFY(!applyParameter("assembly_file", "  ", &err));
+    QVERIFY(applyParameter("lattice_family", "kelvin", &err));
+    QCOMPARE(Parameters::latticeFamilyKeyStored(), QString("foam_kelvin"));
+    QVERIFY(applyParameter("foam_mode", "Windows", &err));
+    QCOMPARE(p->getFoamMode(), QString("windows"));
+    QVERIFY(applyParameter("foam_frame", "0.2", &err));
+    QCOMPARE(p->getFoamFrame(), 0.2);
+    QVERIFY(applyParameter("foam_bubbles", "12", &err));
+    QCOMPARE(p->getFoamBubbles(), 12);
+    QVERIFY(!applyParameter("foam_mode", "struts", &err));
+    QVERIFY(!applyParameter("foam_frame", "0.6", &err));
+    QVERIFY(!applyParameter("foam_bubbles", "0", &err));
+    QVERIFY(!applyParameter("foam_file", "  ", &err));
     QVERIFY(applyParameter("lattice_family", "Schwarz P (skeletal)", &err));   // the checks below expect it
 
     QVERIFY(applyParameter("cells_per_edge", "3", &err));

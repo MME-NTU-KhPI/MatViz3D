@@ -36,7 +36,13 @@ enum class LatticeFamily {
     // carved spherical windows drawn (seeded) in the asymmetric unit of the
     // cubic cell and repeated by all its 48 symmetries -- the free-form,
     // topology-optimization-like cells with full cubic symmetry.
-    CubicAssembly
+    CubicAssembly,
+    // 3D honeycombs (closed-cell foams): the walls of the Voronoi partition
+    // of a site set -- BCC sites give Kelvin cells (truncated octahedra),
+    // FCC sites rhombic dodecahedra, A15 sites the Weaire-Phelan foam, and
+    // seeded random sites a random foam. `foam_mode` keeps the walls, walls
+    // with a window in every face, or the edges only (an open-cell foam).
+    FoamKelvin, FoamRhombic, FoamWeairePhelan, FoamRandom
 };
 
 struct LatticeFamilyInfo {
@@ -84,6 +90,10 @@ inline const std::vector<LatticeFamilyInfo>& latticeFamilies()
         { LatticeFamily::SpheresFCC,       "spheres_fcc",        "Spheres at FCC sites",           false },
         { LatticeFamily::CylindersAxes,    "cylinders_axes",     "Cylinders along the axes",       false },
         { LatticeFamily::CubicAssembly,    "cubic_assembly",     "Cubic assembly (plates, struts, shells)", false },
+        { LatticeFamily::FoamKelvin,       "foam_kelvin",        "Foam: Kelvin cells (BCC sites)",  false },
+        { LatticeFamily::FoamRhombic,      "foam_rhombic",       "Foam: rhombic dodecahedra (FCC sites)", false },
+        { LatticeFamily::FoamWeairePhelan, "foam_weaire_phelan", "Foam: Weaire-Phelan (A15 sites)", false },
+        { LatticeFamily::FoamRandom,       "foam_random",        "Foam: random Voronoi cells",      false },
     };
     return t;
 }
@@ -112,6 +122,13 @@ inline bool isSiteFamily(LatticeFamily f)
         || f == LatticeFamily::SpheresFCC || f == LatticeFamily::CylindersAxes;
 }
 
+/// 3D honeycombs: walls / windowed walls / edges of a Voronoi partition (one site table).
+inline bool isFoamFamily(LatticeFamily f)
+{
+    return f == LatticeFamily::FoamKelvin || f == LatticeFamily::FoamRhombic
+        || f == LatticeFamily::FoamWeairePhelan || f == LatticeFamily::FoamRandom;
+}
+
 /// Families built from strut / wall centre-line segments (one segment table).
 inline bool isSegmentFamily(LatticeFamily f)
 {
@@ -136,7 +153,7 @@ inline bool isRandomFamily(LatticeFamily f)
     switch (f) {
         case LatticeFamily::Spinodoid: case LatticeFamily::FourierSheet: case LatticeFamily::FourierSkeletal:
         case LatticeFamily::NoiseSheet: case LatticeFamily::NoiseSkeletal:
-        case LatticeFamily::CubicAssembly:
+        case LatticeFamily::CubicAssembly: case LatticeFamily::FoamRandom:
             return true;
         default:
             return false;
@@ -220,6 +237,14 @@ inline bool parseLatticeFamily(const QString& text, LatticeFamily& out)
         { "assembly",           LatticeFamily::CubicAssembly },
         { "cubicrandom",        LatticeFamily::CubicAssembly },
         { "randomcubic",        LatticeFamily::CubicAssembly },
+        { "foam",               LatticeFamily::FoamKelvin },
+        { "kelvin",             LatticeFamily::FoamKelvin },
+        { "kelvinfoam",         LatticeFamily::FoamKelvin },
+        { "honeycomb3d",        LatticeFamily::FoamKelvin },
+        { "rhombicdodecahedra", LatticeFamily::FoamRhombic },
+        { "weairephelan",       LatticeFamily::FoamWeairePhelan },
+        { "randomfoam",         LatticeFamily::FoamRandom },
+        { "voronoifoam",        LatticeFamily::FoamRandom },
     };
     for (const Alias& a : aliases)
         if (q == QLatin1String(a.text)) { out = a.family; return true; }

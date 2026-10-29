@@ -29,6 +29,8 @@ private slots:
     void testHoneycombShape();
     void testCubicAssemblyIsTheOrbitDistance();
     void testCubicAssemblyDrawIsConnectedAndRoundTrips();
+    void testFoamCellsAreTheVoronoiCells();
+    void testRandomFoamIsReproducibleAndRoundTrips();
     void testCliOptions();
 };
 

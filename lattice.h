@@ -97,6 +97,21 @@
  *     c is half the thickness of a weight-1 member. The members are published
  *     to Parameters::lattice_assembly_terms and the HDF5 file, and
  *     `assembly_file` reads them back (one member per line).
+ *   - Foams, the 3D honeycombs (`foam_kelvin`, `foam_rhombic`,
+ *     `foam_weaire_phelan`, `foam_random`): the cell is the Voronoi partition
+ *     of a site set in the unit cell -- BCC sites (Kelvin's truncated
+ *     octahedra), FCC sites (rhombic dodecahedra), A15 sites (Weaire-Phelan)
+ *     or `foam_bubbles` seeded random sites kept apart by a hard core (or read
+ *     from `foam_file`). Every Voronoi cell is cut out of a box by the
+ *     bisector planes of its candidate neighbours, so its true faces and
+ *     edges are known. `foam_mode` walls: F = distance to the cell boundary
+ *     (exact: the nearest wall of a point is a face of its own cell), c half
+ *     the wall thickness, closed cells; windows: the same wall, but reaching
+ *     only c + `foam_frame` bubble sizes from the face's edges (in-plane), so
+ *     every face has a window of its own shape that narrows as the wall
+ *     thickens; edges: F = distance to the nearest edge
+ *     of the cell, c the strut radius (an open-cell foam). The sites go to
+ *     Parameters::lattice_foam_sites and the HDF5 file.
  *   - `lattice_smooth` sigma (cell edges): the full field (after grading and
  *     jitter) is sampled on the grid, values of carved-out voxels are set to
  *     the largest finite value, and a periodic Gaussian blur of sigma is
@@ -175,6 +190,22 @@ private:
     struct Segment { double ax, ay, az, bx, by, bz; };
     struct Wave    { double kx, ky, kz, phase, amp; };
     /// One member of a cubic assembly, in the asymmetric unit 0 <= z <= y <= x <= 1/2.
+    /// One face of a foam cell in the site's frame: outward unit normal, distance
+    /// of its plane from the site, and its edges (segments a -> b).
+    struct FoamFace {
+        double n[3] = { 0.0, 0.0, 0.0 };
+        double half = 0.0;
+        int    nb = -1;                            ///< site across the face ...
+        double off[3] = { 0.0, 0.0, 0.0 };         ///< ... at this offset from the cell's site
+        std::vector<std::array<double,6>> edges;
+    };
+    struct FoamCell {
+        std::vector<FoamFace> faces;
+        std::vector<std::array<double,6>> edges;   ///< every edge of the cell once
+        /// The cell's edges plus the neighbours' edges that leave its vertices:
+        /// near a vertex the nearest strut can belong to a neighbour only.
+        std::vector<std::array<double,6>> struts;
+    };
     struct Member {
         enum Kind { Strut = 0, Plate = 1, Shell = 2, Hole = 3 };
         int    kind = Strut;
@@ -203,6 +234,12 @@ private:
     void   finishMember(Member& m) const;
     /// Hand every window to the plate / shell it cuts (Member::cuts).
     void   attachCuts();
+    /// Foams: the site set, its periodic images and the faces / edges of every Voronoi cell.
+    void   buildFoam();
+    bool   loadFoamFile(const QString& path);
+    /// Foam field at a point in cube fractions: nearest site, then its cell's walls,
+    /// windowed walls or edges (`foam_mode`).
+    double foamField(double X, double Y, double Z) const;
     /// Cubic assembly field at a point in cube fractions: fold into the asymmetric
     /// unit, distance to the nearest member / its weight, +inf inside a window.
     double assemblyField(double X, double Y, double Z) const;
@@ -279,6 +316,17 @@ private:
     QString m_asmFile;
     std::vector<Member> m_members;
     double  m_asmMinWeight   = 1.0;    ///< thinnest solid member, for the wall estimate
+    QString m_foamMode       = QStringLiteral("walls");   ///< walls | windows | edges
+    double  m_foamFrame      = 0.1;    ///< windows: frame beyond the half wall, bubble sizes
+    int     m_foamBubbles    = 8;      ///< random foam: sites per cell
+    QString m_foamFile;
+    bool    m_hasFoam        = false;
+    LatticeFamily m_foamFamily = LatticeFamily::FoamKelvin;  ///< the foam in use (primary, union or carve-out)
+    double  m_foamBubble     = 1.0;    ///< bubble size (cell volume per site)^(1/3), cell edges
+    std::vector<std::array<double,3>> m_foamSites;    ///< sites in the unit cell, cell units
+    std::vector<std::array<double,3>> m_foamImages;   ///< sites + their 26 neighbour-cell images
+    std::vector<int>      m_foamImageSite;            ///< site index of every image
+    std::vector<FoamCell> m_foamCells;                ///< Voronoi cell of every site
     std::vector<float> m_smoothed;     ///< blurred full field when m_smooth > 0
     size_t  m_directions     = 0;      ///< distinct wave directions available to the random families
     double  m_R[3][3]        = { {1,0,0}, {0,1,0}, {0,0,1} };

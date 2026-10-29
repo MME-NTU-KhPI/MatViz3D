@@ -241,6 +241,11 @@ MatViz3D --nogui --autostart --algorithm Lattice --lattice_family gyroid_sheet -
 MatViz3D --nogui --autostart --algorithm Lattice --lattice_family plate_sc --plate_hole 0.45 \
          --lattice_union octet --size 64 --cells_per_edge 1 --relative_density 0.3 \
          --lattice_cell_mm 15 --output plates.hdf5
+
+# 3D honeycomb: Kelvin foam (truncated octahedra) with a window in every face
+MatViz3D --nogui --autostart --algorithm Lattice --lattice_family foam_kelvin --foam_mode windows \
+         --foam_frame 0.25 --size 64 --cells_per_edge 1 --relative_density 0.3 --lattice_cell_mm 15 \
+         --output kelvin.hdf5
 ```
 
 > **Note:** in headless mode the structure is written to `--output` together with the stress results; use `--stress_mode stiffness` for the cheapest run that still stores the voxel grid.
@@ -286,7 +291,7 @@ MatViz3D --nogui --autostart --algorithm Lattice --lattice_family plate_sc --pla
 | `--fiber_aspect_ratio <a/b>`, `--fiber_angle_scatter <deg>`, `--fiber_center_jitter <0..1>`, `--fiber_allow_overlap` | Imperfections |
 | `--matrix_material <name>`, `--fiber_material <name>` | The two constituents |
 | **Lattice** | |
-| `--lattice_family <name>` | Cell family (31): TPMS `gyroid_sheet` … `iwp_skeletal`; struts `simple_cubic`, `bcc`, `fcc`, `octet`; plates `plate_sc`, `plate_bcc`, `plate_fcc` and their unions up to `plate_sc_bcc_fcc`; primitives `spheres_sc/bcc/fcc`, `cylinders_axes`; honeycombs `honeycomb`, `reentrant`; random `spinodoid`, `fourier_sheet/skeletal`, `noise_sheet/skeletal`, `cubic_assembly` |
+| `--lattice_family <name>` | Cell family (35): TPMS `gyroid_sheet` … `iwp_skeletal`; struts `simple_cubic`, `bcc`, `fcc`, `octet`; plates `plate_sc`, `plate_bcc`, `plate_fcc` and their unions up to `plate_sc_bcc_fcc`; primitives `spheres_sc/bcc/fcc`, `cylinders_axes`; honeycombs `honeycomb`, `reentrant`; random `spinodoid`, `fourier_sheet/skeletal`, `noise_sheet/skeletal`, `cubic_assembly`; foams (3D honeycombs) `foam_kelvin`, `foam_rhombic`, `foam_weaire_phelan`, `foam_random` |
 | `--cells_per_edge <n>`, `--relative_density <0..1>`, `--lattice_cell_mm <mm>` | Cells per cube edge, target solid fraction, physical cell size |
 | `--lattice_grading <g>`, `--lattice_jitter <j>`, `--orientation_angle_a/b/c <deg>` | Thickness gradient along Z, seeded thickness jitter, lattice rotation (breaks periodicity) |
 | `--lattice_uniform_wall` | Sheets of uniform thickness (\|f\| / \|∇f\|) |
@@ -297,6 +302,7 @@ MatViz3D --nogui --autostart --algorithm Lattice --lattice_family plate_sc --pla
 | `--lattice_union <family>`, `--lattice_subtract <family>`, `--lattice_subtract_size <s>`, `--lattice_smooth <sigma>` | Union with a second family, carve-out of a third, smoothing of the field (fillets) |
 | `--honeycomb_angle <deg>`, `--honeycomb_rib <ratio>` | Honeycomb wall angle (< 0 auxetic) and rib / wall length |
 | `--assembly_struts/plates/shells/holes <n>`, `--assembly_spread <s>`, `--assembly_file <path>` | Cubic assembly: members drawn in 1/48 of the cell, thickness spread, or members read from a file |
+| `--foam_mode <walls\|windows\|edges>`, `--foam_frame <f>`, `--foam_bubbles <n>`, `--foam_file <path>` | Foams: closed cells, a window in every face (frame beyond the half wall, bubble sizes) or open cells; random-foam bubbles per cell, or sites read from a file |
 | **Printability** | |
 | `--print_min_wall_mm <mm>`, `--print_max_overhang_deg <deg>` | Thinnest wall and steepest overhang (0.8 mm, 45°) |
 | `--print_max_thin_fraction`, `--print_max_island_vox`, `--print_max_components`, `--print_max_unsupported_fraction` | Tolerances (0.02, 8 voxels, 1 body, 0.05) |
@@ -594,6 +600,11 @@ MatViz3D --nogui --autostart --algorithm Lattice --lattice_family gyroid_sheet -
 MatViz3D --nogui --autostart --algorithm Lattice --lattice_family plate_sc --plate_hole 0.45 \
          --lattice_union octet --size 64 --cells_per_edge 1 --relative_density 0.3 \
          --lattice_cell_mm 15 --output plates.hdf5
+
+# Об'ємні стільники: піна Кельвіна (зрізані октаедри) з вікном у кожній грані
+MatViz3D --nogui --autostart --algorithm Lattice --lattice_family foam_kelvin --foam_mode windows \
+         --foam_frame 0.25 --size 64 --cells_per_edge 1 --relative_density 0.3 --lattice_cell_mm 15 \
+         --output kelvin.hdf5
 ```
 
 > **Примітка:** у headless-режимі структура записується у `--output` разом із результатами розрахунку напружень; найдешевший запуск, який зберігає вокселну сітку, — `--stress_mode stiffness`.
@@ -639,7 +650,7 @@ MatViz3D --nogui --autostart --algorithm Lattice --lattice_family plate_sc --pla
 | `--fiber_aspect_ratio <a/b>`, `--fiber_angle_scatter <deg>`, `--fiber_center_jitter <0..1>`, `--fiber_allow_overlap` | Недосконалості |
 | `--matrix_material <name>`, `--fiber_material <name>` | Два складники |
 | **Lattice** | |
-| `--lattice_family <name>` | Сімейство комірки (31): TPMS `gyroid_sheet` … `iwp_skeletal`; стрижні `simple_cubic`, `bcc`, `fcc`, `octet`; пластини `plate_sc`, `plate_bcc`, `plate_fcc` та їх поєднання до `plate_sc_bcc_fcc`; примітиви `spheres_sc/bcc/fcc`, `cylinders_axes`; стільники `honeycomb`, `reentrant`; випадкові `spinodoid`, `fourier_sheet/skeletal`, `noise_sheet/skeletal`, `cubic_assembly` |
+| `--lattice_family <name>` | Сімейство комірки (35): TPMS `gyroid_sheet` … `iwp_skeletal`; стрижні `simple_cubic`, `bcc`, `fcc`, `octet`; пластини `plate_sc`, `plate_bcc`, `plate_fcc` та їх поєднання до `plate_sc_bcc_fcc`; примітиви `spheres_sc/bcc/fcc`, `cylinders_axes`; стільники `honeycomb`, `reentrant`; випадкові `spinodoid`, `fourier_sheet/skeletal`, `noise_sheet/skeletal`, `cubic_assembly`; піни (об'ємні стільники) `foam_kelvin`, `foam_rhombic`, `foam_weaire_phelan`, `foam_random` |
 | `--cells_per_edge <n>`, `--relative_density <0..1>`, `--lattice_cell_mm <mm>` | Комірок на ребро куба, цільова частка твердого, фізичний розмір комірки |
 | `--lattice_grading <g>`, `--lattice_jitter <j>`, `--orientation_angle_a/b/c <deg>` | Градієнт товщини вздовж Z, випадкове збурення товщини, поворот ґратки (ламає періодичність) |
 | `--lattice_uniform_wall` | Листи рівної товщини (\|f\| / \|∇f\|) |
@@ -650,6 +661,7 @@ MatViz3D --nogui --autostart --algorithm Lattice --lattice_family plate_sc --pla
 | `--lattice_union <family>`, `--lattice_subtract <family>`, `--lattice_subtract_size <s>`, `--lattice_smooth <sigma>` | Об'єднання з другим сімейством, вирізання третього, згладжування поля (галтелі) |
 | `--honeycomb_angle <deg>`, `--honeycomb_rib <ratio>` | Кут стінки стільника (< 0 — ауксетичні) і відношення ребра до стінки |
 | `--assembly_struts/plates/shells/holes <n>`, `--assembly_spread <s>`, `--assembly_file <path>` | Кубічна збірка: елементи в 1/48 комірки, розкид товщини або елементи з файлу |
+| `--foam_mode <walls\|windows\|edges>`, `--foam_frame <f>`, `--foam_bubbles <n>`, `--foam_file <path>` | Піни: закриті комірки, вікно в кожній грані (рамка понад половину стінки, у розмірах комірки) або відкриті комірки; кількість комірок випадкової піни або точки з файлу |
 | **Друкованість** | |
 | `--print_min_wall_mm <mm>`, `--print_max_overhang_deg <deg>` | Найтонша стінка і найкрутіше нависання (0,8 мм, 45°) |
 | `--print_max_thin_fraction`, `--print_max_island_vox`, `--print_max_components`, `--print_max_unsupported_fraction` | Допуски (0,02; 8 вокселів; 1 тіло; 0,05) |

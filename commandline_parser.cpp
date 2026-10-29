@@ -119,6 +119,10 @@ QString Commandline_Parser::buildApplicationDescription()
             "                           default 3 / 2 / 0 / 1), repeated by the 48 cube symmetries; --assembly_spread: thickness\n"
             "                           spread between members 0..0.8 (default 0.3); --assembly_file: one member per line\n"
             "                           (kind x0 y0 z0 x1 y1 z1 x2 y2 z2 radius weight), overrides the draw\n";
+    desc += "  --foam_mode:             foam families (3D honeycombs): walls | windows | edges -- closed cells, a window in every\n"
+            "                           face, or the edges only (open cells) (default: walls); --foam_frame: frame around a window\n"
+            "                           beyond half the wall thickness, bubble sizes 0.01..0.5 (default 0.1); --foam_bubbles: foam_random sites per cell 1..64\n"
+            "                           (default 8); --foam_file: foam_random sites, one x y z per line in cell units\n";
     desc += "  --browse <path>:         GUI: open the Dataset Browser on a dataset folder (manifest.csv + cells/), its manifest or a cell file\n";
     desc += "  --material_iso E,nu:     solid material as numbers instead of a database row: Young's modulus in GPa and Poisson's ratio\n";
     desc += "  --material_ti E,nu,r:    the same, transversely isotropic about the build axis Z with E_z = r*E, G_xz = G_yz = r*G\n";
@@ -310,6 +314,14 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
     parser.addOption(QCommandLineOption("assembly_file",
         "[Lattice] Cubic assembly: text file with one member per line, kind (strut|plate|shell|hole) x0 y0 z0 x1 y1 z1 "
         "x2 y2 z2 radius weight, points in the asymmetric unit 0 <= z <= y <= x <= 1/2; overrides the draw.", "path"));
+    parser.addOption(QCommandLineOption("foam_mode",
+        "[Lattice] Foam families: walls (closed cells), windows (a window in every face) or edges (open cells) (default: walls).", "mode"));
+    parser.addOption(QCommandLineOption("foam_frame",
+        "[Lattice] Foam windows: frame left around every window beyond half the wall thickness, in bubble sizes, 0.01..0.5 (default: 0.1).", "frac"));
+    parser.addOption(QCommandLineOption("foam_bubbles",
+        "[Lattice] foam_random: Voronoi sites (bubbles) per cell, drawn from the seed with a hard core, 1..64 (default: 8).", "n"));
+    parser.addOption(QCommandLineOption("foam_file",
+        "[Lattice] foam_random: text file with one site per line, x y z in cell units; overrides the draw.", "path"));
     parser.addOption(QCommandLineOption("honeycomb_rib",
         "[Lattice] Honeycombs: vertical rib length over inclined wall length, 0.2..5 (1 regular, 2 the re-entrant preset). "
         "Overrides the family preset.", "ratio"));
@@ -584,6 +596,10 @@ void Commandline_Parser::printJsonHelp()
     addOpt("assembly_holes", "Lattice", "int", "n", "1", "Cubic assembly: spherical windows carved out of plates and shells (0..8)");
     addOpt("assembly_spread", "Lattice", "double", "s", "0.3", "Cubic assembly: member thickness weights in [1 - s, 1 + s] (0..0.8)");
     addOpt("assembly_file", "Lattice", "string", "path", "", "Cubic assembly: one member per line (kind x0 y0 z0 x1 y1 z1 x2 y2 z2 radius weight)");
+    addOpt("foam_mode", "Lattice", "string", "mode", "walls", "Foam families: walls | windows | edges (closed, windowed or open cells)");
+    addOpt("foam_frame", "Lattice", "double", "frac", "0.1", "Foam windows: frame around every window beyond half the wall, bubble sizes (0.01..0.5)");
+    addOpt("foam_bubbles", "Lattice", "int", "n", "8", "foam_random: Voronoi sites per cell (1..64)");
+    addOpt("foam_file", "Lattice", "string", "path", "", "foam_random: one site per line, x y z in cell units");
     addOpt("browse", "GUI", "string", "path", "", "Open the Dataset Browser on a dataset folder, its manifest.csv or a cell file");
     addOpt("material_iso", "Material", "string", "E,nu", "", "Solid material as numbers: Young's modulus in GPa and Poisson's ratio (isotropic)");
     addOpt("material_ti", "Material", "string", "E,nu,r", "", "Solid material as numbers, transversely isotropic about Z: E_z = r*E, G_xz = G_yz = r*G");
@@ -1563,6 +1579,39 @@ bool Commandline_Parser::applyParameter(const QString& key, const QString& value
         params->setAssemblyFile(value);
         return true;
     }
+    if (normKey == "foam_mode") {
+        const QString v = value.trimmed().toLower();
+        if (v != QLatin1String("walls") && v != QLatin1String("windows") && v != QLatin1String("edges")) {
+            return setErr(QString("Option foam_mode expects walls, windows or edges; got \"%1\"").arg(value));
+        }
+        params->setFoamMode(v);
+        return true;
+    }
+    if (normKey == "foam_frame") {
+        double v = 0.0;
+        if (!parseDouble(v, true)) return false;
+        if (v < 0.01 || v > 0.5) {
+            return setErr(QString("Option foam_frame expects a value in [0.01, 0.5]; got %1").arg(value));
+        }
+        params->setFoamFrame(v);
+        return true;
+    }
+    if (normKey == "foam_bubbles") {
+        int v = 0;
+        if (!parseInt(v)) return false;
+        if (v < 1 || v > 64) {
+            return setErr(QString("Option foam_bubbles expects 1..64; got %1").arg(v));
+        }
+        params->setFoamBubbles(v);
+        return true;
+    }
+    if (normKey == "foam_file") {
+        if (value.trimmed().isEmpty()) {
+            return setErr(QStringLiteral("Option foam_file expects a path"));
+        }
+        params->setFoamFile(value);
+        return true;
+    }
     if (normKey == "honeycomb_rib") {
         double v = 0.0;
         if (!parseDouble(v, true)) return false;
@@ -1724,7 +1773,8 @@ bool Commandline_Parser::processOptions(const QCommandLineParser& parser, QStrin
     if (parser.isSet("honeycomb_angle"))         if (!applyCliOption("honeycomb_angle", parser.value("honeycomb_angle"))) return false;
     if (parser.isSet("honeycomb_rib"))           if (!applyCliOption("honeycomb_rib", parser.value("honeycomb_rib"))) return false;
     if (parser.isSet("honeycomb_custom"))        if (!applyCliOption("honeycomb_custom", parser.value("honeycomb_custom"))) return false;
-    for (const char* k : { "assembly_struts", "assembly_plates", "assembly_shells", "assembly_holes", "assembly_spread", "assembly_file" })
+    for (const char* k : { "assembly_struts", "assembly_plates", "assembly_shells", "assembly_holes", "assembly_spread", "assembly_file",
+                           "foam_mode", "foam_frame", "foam_bubbles", "foam_file" })
         if (parser.isSet(QString::fromLatin1(k)) && !applyCliOption(QString::fromLatin1(k), parser.value(QString::fromLatin1(k)))) return false;
     if (parser.isSet("material_iso"))            if (!applyCliOption("material_iso", parser.value("material_iso"))) return false;
     if (parser.isSet("material_ti"))             if (!applyCliOption("material_ti", parser.value("material_ti"))) return false;
