@@ -291,7 +291,10 @@ inline void populateFFTFieldSchmidAndYield(
                     mn = std::min(mn, v);
                     mx = std::max(mx, v);
                 }
-        if (mn > mx) { mn = 0.0f; mx = 1.0f; }
+        if (mn >= mx - 1e-6f) {
+            mn = std::max(0.0f, mn - 0.01f);
+            mx = mx + 0.01f;
+        }
         field.componentMin[comp] = mn;
         field.componentMax[comp] = mx;
     };

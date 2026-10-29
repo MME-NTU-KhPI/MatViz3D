@@ -194,24 +194,31 @@ struct VoxelSlipResult {
     float yield_eval = 0.0f; // Mode-evaluated scalar (binary 0/1 or continuous ratio)
 };
 
-// Rotate a symmetric 3x3 global stress tensor (pipeline order: sx, sy, sz, sxy, syz, sxz)
-// into the local crystal frame using g = bunge_zxz(phi1, Phi, phi2):
-//   sigma_crystal = g * sigma_sample * g^T
+// Rotate a symmetric 3x3 global stress tensor into the local crystal frame:
+// sigma_crystal = g * sigma_sample * g^T
 inline Mat3 rotate_stress_to_crystal(const double sigma_pipeline[6], const Mat3& g) {
     const double sg[3][3] = {
         { sigma_pipeline[0], sigma_pipeline[3], sigma_pipeline[5] },
         { sigma_pipeline[3], sigma_pipeline[1], sigma_pipeline[4] },
         { sigma_pipeline[5], sigma_pipeline[4], sigma_pipeline[2] }
     };
-    double tmp[3][3] = {{0.0}};
-    for (int i = 0; i < 3; ++i)
-        for (int l = 0; l < 3; ++l)
-            tmp[i][l] = sg[0][l] * g[0][i] + sg[1][l] * g[1][i] + sg[2][l] * g[2][i];
 
+    // Шаг 1: tmp = g * sg
+    double tmp[3][3] = {{0.0}};
+    for (int i = 0; i < 3; ++i) {
+        for (int j = 0; j < 3; ++j) {
+            tmp[i][j] = g[i][0] * sg[0][j] + g[i][1] * sg[1][j] + g[i][2] * sg[2][j];
+        }
+    }
+
+    // Шаг 2: sc = tmp * g^T
     Mat3 sc{};
-    for (int i = 0; i < 3; ++i)
-        for (int j = 0; j < 3; ++j)
-            sc[i][j] = g[i][0] * tmp[j][0] + g[i][1] * tmp[j][1] + g[i][2] * tmp[j][2];
+    for (int i = 0; i < 3; ++i) {
+        for (int j = 0; j < 3; ++j) {
+            sc[i][j] = tmp[i][0] * g[j][0] + tmp[i][1] * g[j][1] + tmp[i][2] * g[j][2];
+        }
+    }
+
     return sc;
 }
 
@@ -264,7 +271,7 @@ inline VoxelSlipResult evaluate_fcc_voxel(
             const double cos_lambda = lc[0] * sys.b[0] + lc[1] * sys.b[1] + lc[2] * sys.b[2];
             m = std::abs(cos_phi * cos_lambda);
         } else if (seqv > 1e-12) {
-            m = std::clamp(tau / seqv, 0.0, 0.5);
+            m = tau / seqv;
         }
         if (m > max_m) max_m = m;
     }
