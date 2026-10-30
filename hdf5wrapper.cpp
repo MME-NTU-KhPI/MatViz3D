@@ -1071,6 +1071,60 @@ void saveGeometryMetadataToHDF5(HDF5Wrapper& hdf5, const std::string& prefix, co
             hdf5.write(geomGroup, "lattice_foam_sites", rows);
             paramsObj["lattice_foam_site_count"] = static_cast<int>(rows.size());
         }
+        // A mycelium cell: its growth settings, its hyphae (ax ay az bx by bz weight per
+        // piece, cell units, b not wrapped) and what the growth produced.
+        if (!Parameters::lattice_mycelium_segments.empty()) {
+            hdf5.write(geomGroup, "mycelium_mode",    p->getMyceliumMode());
+            hdf5.write(geomGroup, "mycelium_length",  p->getMyceliumLength());
+            hdf5.write(geomGroup, "mycelium_spores",  p->getMyceliumSpores());
+            hdf5.write(geomGroup, "mycelium_unit",    p->getMyceliumUnit());
+            hdf5.write(geomGroup, "mycelium_angle",   p->getMyceliumAngle());
+            hdf5.write(geomGroup, "mycelium_wiggle",  p->getMyceliumWiggle());
+            hdf5.write(geomGroup, "mycelium_fuse",    p->getMyceliumFuse());
+            hdf5.write(geomGroup, "mycelium_taper",   p->getMyceliumTaper());
+            hdf5.write(geomGroup, "mycelium_binding", p->getMyceliumBinding());
+            hdf5.write(geomGroup, "mycelium_anchors", p->getMyceliumAnchors());
+            hdf5.write(geomGroup, "mycelium_poor",    p->getMyceliumPoor());
+            paramsObj["mycelium_mode"]    = p->getMyceliumMode();
+            paramsObj["mycelium_length"]  = p->getMyceliumLength();
+            paramsObj["mycelium_spores"]  = p->getMyceliumSpores();
+            paramsObj["mycelium_unit"]    = p->getMyceliumUnit();
+            paramsObj["mycelium_angle"]   = p->getMyceliumAngle();
+            paramsObj["mycelium_wiggle"]  = p->getMyceliumWiggle();
+            paramsObj["mycelium_fuse"]    = p->getMyceliumFuse();
+            paramsObj["mycelium_taper"]   = p->getMyceliumTaper();
+            paramsObj["mycelium_binding"] = p->getMyceliumBinding();
+            paramsObj["mycelium_anchors"] = p->getMyceliumAnchors();
+            paramsObj["mycelium_poor"]    = p->getMyceliumPoor();
+            if (!p->getMyceliumFile().isEmpty()) {
+                hdf5.write(geomGroup, "mycelium_file", p->getMyceliumFile());
+                paramsObj["mycelium_file"] = p->getMyceliumFile();
+            }
+            std::vector<std::vector<float>> rows;
+            rows.reserve(Parameters::lattice_mycelium_segments.size());
+            for (const auto& t : Parameters::lattice_mycelium_segments)
+                rows.push_back(std::vector<float>(t.begin(), t.end()));
+            hdf5.write(geomGroup, "lattice_mycelium_segments", rows);
+            paramsObj["lattice_mycelium_segment_count"] = static_cast<int>(rows.size());
+            const mycelium::Stats& st = Parameters::lattice_mycelium_stats;
+            hdf5.write(geomGroup, "mycelium_hypha_length", st.length);
+            hdf5.write(geomGroup, "mycelium_fabric", std::vector<float>{ float(st.fabric[0]), float(st.fabric[1]), float(st.fabric[2]) });
+            paramsObj["mycelium_hypha_length"] = st.length;
+            if (st.grown) {
+                hdf5.write(geomGroup, "mycelium_hyphae",        st.hyphae);
+                hdf5.write(geomGroup, "mycelium_branchings",    st.branches);
+                hdf5.write(geomGroup, "mycelium_fusions",       st.fusions);
+                hdf5.write(geomGroup, "mycelium_free_ends",     st.freeEnds);
+                hdf5.write(geomGroup, "mycelium_growth_unit",   st.growthUnit);
+                hdf5.write(geomGroup, "mycelium_backbone_share", st.backbone);
+                paramsObj["mycelium_hyphae"]         = st.hyphae;
+                paramsObj["mycelium_branchings"]     = st.branches;
+                paramsObj["mycelium_fusions"]        = st.fusions;
+                paramsObj["mycelium_free_ends"]      = st.freeEnds;
+                paramsObj["mycelium_growth_unit"]    = st.growthUnit;
+                paramsObj["mycelium_backbone_share"] = st.backbone;
+            }
+        }
     }
 
     summaryStr += ")";

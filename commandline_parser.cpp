@@ -13,6 +13,7 @@
 #include <QRegularExpression>
 #include "cpuinfo.hpp"
 #include "commandline_parser.h"
+#include "mycelium.h"
 #include "config_source.h"
 #include "dbmanager.h"
 #include "parameters.h"
@@ -123,6 +124,11 @@ QString Commandline_Parser::buildApplicationDescription()
             "                           face, or the edges only (open cells) (default: walls); --foam_frame: frame around a window\n"
             "                           beyond half the wall thickness, bubble sizes 0.01..0.5 (default 0.1); --foam_bubbles: foam_random sites per cell 1..64\n"
             "                           (default 8); --foam_file: foam_random sites, one x y z per line in cell units\n";
+    desc += "  --mycelium_mode:         mycelium: substrate | polypore | mat | layered -- foraging hyphae, skeletal + binding hyphae\n"
+            "                           of a bracket fungus, two layers joined by anchors, or growth on a substrate rich in the\n"
+            "                           mid plane (default: substrate); --mycelium_length, _spores, _unit, _angle, _wiggle, _fuse,\n"
+            "                           _taper, _binding, _anchors, _poor: growth settings; --mycelium_file: one piece per line\n"
+            "                           (ax ay az bx by bz weight, cell units), overrides the growth\n";
     desc += "  --browse <path>:         GUI: open the Dataset Browser on a dataset folder (manifest.csv + cells/), its manifest or a cell file\n";
     desc += "  --material_iso E,nu:     solid material as numbers instead of a database row: Young's modulus in GPa and Poisson's ratio\n";
     desc += "  --material_ti E,nu,r:    the same, transversely isotropic about the build axis Z with E_z = r*E, G_xz = G_yz = r*G\n";
@@ -322,6 +328,31 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
         "[Lattice] foam_random: Voronoi sites (bubbles) per cell, drawn from the seed with a hard core, 1..64 (default: 8).", "n"));
     parser.addOption(QCommandLineOption("foam_file",
         "[Lattice] foam_random: text file with one site per line, x y z in cell units; overrides the draw.", "path"));
+    parser.addOption(QCommandLineOption("mycelium_mode",
+        "[Lattice] Mycelium: substrate (foraging hyphae), polypore (skeletal + binding hyphae), mat (layers + anchors) or "
+        "layered (substrate rich in the mid plane) (default: substrate).", "mode"));
+    parser.addOption(QCommandLineOption("mycelium_length",
+        "[Lattice] Mycelium: total hypha length per cell, cell edges, 2..80 (default: 22).", "value"));
+    parser.addOption(QCommandLineOption("mycelium_spores",
+        "[Lattice] Mycelium: spores (polypore: skeletal hyphae, mat: spores per layer), 0..40; 0 = the mode's default 4 / 10 / 3 / 4.", "n"));
+    parser.addOption(QCommandLineOption("mycelium_unit",
+        "[Lattice] Mycelium: hyphal growth unit, hypha length per branch on rich substrate, cell edges, 0.05..2 (default: 0.25).", "value"));
+    parser.addOption(QCommandLineOption("mycelium_angle",
+        "[Lattice] Mycelium: branch angle to the parent hypha, degrees, 10..90 (default: 60).", "value"));
+    parser.addOption(QCommandLineOption("mycelium_wiggle",
+        "[Lattice] Mycelium: random turning of the tips, 0 (straight) .. 1 (default: 0.25).", "value"));
+    parser.addOption(QCommandLineOption("mycelium_fuse",
+        "[Lattice] Mycelium: a tip this close to another hypha fuses with it, cell edges, 0..0.2; 0 grows a tree (default: 0.05).", "value"));
+    parser.addOption(QCommandLineOption("mycelium_taper",
+        "[Lattice] Mycelium: thickness of a branch over its parent's, 0.3..1 (default: 0.75).", "value"));
+    parser.addOption(QCommandLineOption("mycelium_binding",
+        "[Lattice] Mycelium polypore: share of the length in binding hyphae, 0..0.8 (default: 0.36).", "value"));
+    parser.addOption(QCommandLineOption("mycelium_anchors",
+        "[Lattice] Mycelium mat: share of the branches that grow into vertical anchors, 0..1 (default: 0.25).", "value"));
+    parser.addOption(QCommandLineOption("mycelium_poor",
+        "[Lattice] Mycelium layered: substrate level at z = 0 (1 in the mid plane), 0.05..1 (default: 0.25).", "value"));
+    parser.addOption(QCommandLineOption("mycelium_file",
+        "[Lattice] Mycelium: text file with one piece of hypha per line, ax ay az bx by bz [weight] in cell units; overrides the growth.", "path"));
     parser.addOption(QCommandLineOption("honeycomb_rib",
         "[Lattice] Honeycombs: vertical rib length over inclined wall length, 0.2..5 (1 regular, 2 the re-entrant preset). "
         "Overrides the family preset.", "ratio"));
@@ -600,6 +631,18 @@ void Commandline_Parser::printJsonHelp()
     addOpt("foam_frame", "Lattice", "double", "frac", "0.1", "Foam windows: frame around every window beyond half the wall, bubble sizes (0.01..0.5)");
     addOpt("foam_bubbles", "Lattice", "int", "n", "8", "foam_random: Voronoi sites per cell (1..64)");
     addOpt("foam_file", "Lattice", "string", "path", "", "foam_random: one site per line, x y z in cell units");
+    addOpt("mycelium_mode", "Lattice", "string", "mode", "substrate", "Mycelium: substrate | polypore | mat | layered");
+    addOpt("mycelium_length", "Lattice", "double", "value", "22", "Mycelium: total hypha length per cell, cell edges (2..80)");
+    addOpt("mycelium_spores", "Lattice", "int", "n", "0", "Mycelium: spores / skeletal hyphae / spores per layer, 0 = mode default (0..40)");
+    addOpt("mycelium_unit", "Lattice", "double", "value", "0.25", "Mycelium: hypha length per branch on rich substrate, cell edges (0.05..2)");
+    addOpt("mycelium_angle", "Lattice", "double", "value", "60", "Mycelium: branch angle, degrees (10..90)");
+    addOpt("mycelium_wiggle", "Lattice", "double", "value", "0.25", "Mycelium: random turning of the tips (0..1)");
+    addOpt("mycelium_fuse", "Lattice", "double", "value", "0.05", "Mycelium: fusion distance, cell edges, 0 = a tree (0..0.2)");
+    addOpt("mycelium_taper", "Lattice", "double", "value", "0.75", "Mycelium: branch / parent thickness (0.3..1)");
+    addOpt("mycelium_binding", "Lattice", "double", "value", "0.36", "Mycelium polypore: share of the length in binding hyphae (0..0.8)");
+    addOpt("mycelium_anchors", "Lattice", "double", "value", "0.25", "Mycelium mat: share of the branches that become anchors (0..1)");
+    addOpt("mycelium_poor", "Lattice", "double", "value", "0.25", "Mycelium layered: substrate at z = 0, 1 in the mid plane (0.05..1)");
+    addOpt("mycelium_file", "Lattice", "string", "path", "", "Mycelium: one piece per line (ax ay az bx by bz weight, cell units)");
     addOpt("browse", "GUI", "string", "path", "", "Open the Dataset Browser on a dataset folder, its manifest.csv or a cell file");
     addOpt("material_iso", "Material", "string", "E,nu", "", "Solid material as numbers: Young's modulus in GPa and Poisson's ratio (isotropic)");
     addOpt("material_ti", "Material", "string", "E,nu,r", "", "Solid material as numbers, transversely isotropic about Z: E_z = r*E, G_xz = G_yz = r*G");
@@ -1612,6 +1655,112 @@ bool Commandline_Parser::applyParameter(const QString& key, const QString& value
         params->setFoamFile(value);
         return true;
     }
+    if (normKey == "mycelium_mode") {
+        const QString v = value.trimmed().toLower();
+        mycelium::Mode m;
+        if (!mycelium::parseMode(v.toLatin1().constData(), m)) {
+            return setErr(QString("Option mycelium_mode expects substrate, polypore, mat or layered; got \"%1\"").arg(value));
+        }
+        params->setMyceliumMode(v);
+        return true;
+    }
+    if (normKey == "mycelium_length") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 2 || v > 80) {
+            return setErr(QString("Option mycelium_length expects a value in [2, 80]; got %1").arg(value));
+        }
+        params->setMyceliumLength(v);
+        return true;
+    }
+    if (normKey == "mycelium_spores") {
+        int v = 0;
+        if (!parseInt(v)) return false;
+        if (v < 0 || v > 40) {
+            return setErr(QString("Option mycelium_spores expects 0..40; got %1").arg(v));
+        }
+        params->setMyceliumSpores(v);
+        return true;
+    }
+    if (normKey == "mycelium_unit") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0.05 || v > 2) {
+            return setErr(QString("Option mycelium_unit expects a value in [0.05, 2]; got %1").arg(value));
+        }
+        params->setMyceliumUnit(v);
+        return true;
+    }
+    if (normKey == "mycelium_angle") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 10 || v > 90) {
+            return setErr(QString("Option mycelium_angle expects a value in [10, 90]; got %1").arg(value));
+        }
+        params->setMyceliumAngle(v);
+        return true;
+    }
+    if (normKey == "mycelium_wiggle") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0 || v > 1) {
+            return setErr(QString("Option mycelium_wiggle expects a value in [0, 1]; got %1").arg(value));
+        }
+        params->setMyceliumWiggle(v);
+        return true;
+    }
+    if (normKey == "mycelium_fuse") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0 || v > 0.2) {
+            return setErr(QString("Option mycelium_fuse expects a value in [0, 0.2]; got %1").arg(value));
+        }
+        params->setMyceliumFuse(v);
+        return true;
+    }
+    if (normKey == "mycelium_taper") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0.3 || v > 1) {
+            return setErr(QString("Option mycelium_taper expects a value in [0.3, 1]; got %1").arg(value));
+        }
+        params->setMyceliumTaper(v);
+        return true;
+    }
+    if (normKey == "mycelium_binding") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0 || v > 0.8) {
+            return setErr(QString("Option mycelium_binding expects a value in [0, 0.8]; got %1").arg(value));
+        }
+        params->setMyceliumBinding(v);
+        return true;
+    }
+    if (normKey == "mycelium_anchors") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0 || v > 1) {
+            return setErr(QString("Option mycelium_anchors expects a value in [0, 1]; got %1").arg(value));
+        }
+        params->setMyceliumAnchors(v);
+        return true;
+    }
+    if (normKey == "mycelium_poor") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0.05 || v > 1) {
+            return setErr(QString("Option mycelium_poor expects a value in [0.05, 1]; got %1").arg(value));
+        }
+        params->setMyceliumPoor(v);
+        return true;
+    }
+    if (normKey == "mycelium_file") {
+        if (value.trimmed().isEmpty()) {
+            return setErr(QStringLiteral("Option mycelium_file expects a path"));
+        }
+        params->setMyceliumFile(value);
+        return true;
+    }
     if (normKey == "honeycomb_rib") {
         double v = 0.0;
         if (!parseDouble(v, true)) return false;
@@ -1774,7 +1923,8 @@ bool Commandline_Parser::processOptions(const QCommandLineParser& parser, QStrin
     if (parser.isSet("honeycomb_rib"))           if (!applyCliOption("honeycomb_rib", parser.value("honeycomb_rib"))) return false;
     if (parser.isSet("honeycomb_custom"))        if (!applyCliOption("honeycomb_custom", parser.value("honeycomb_custom"))) return false;
     for (const char* k : { "assembly_struts", "assembly_plates", "assembly_shells", "assembly_holes", "assembly_spread", "assembly_file",
-                           "foam_mode", "foam_frame", "foam_bubbles", "foam_file" })
+                           "foam_mode", "foam_frame", "foam_bubbles", "foam_file",
+                           "mycelium_mode", "mycelium_length", "mycelium_spores", "mycelium_unit", "mycelium_angle", "mycelium_wiggle", "mycelium_fuse", "mycelium_taper", "mycelium_binding", "mycelium_anchors", "mycelium_poor", "mycelium_file" })
         if (parser.isSet(QString::fromLatin1(k)) && !applyCliOption(QString::fromLatin1(k), parser.value(QString::fromLatin1(k)))) return false;
     if (parser.isSet("material_iso"))            if (!applyCliOption("material_iso", parser.value("material_iso"))) return false;
     if (parser.isSet("material_ti"))             if (!applyCliOption("material_ti", parser.value("material_ti"))) return false;

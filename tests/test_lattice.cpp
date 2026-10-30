@@ -1,6 +1,7 @@
 #include "test_lattice.h"
 #include <QTest>
 #include <QTemporaryFile>
+#include <set>
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -161,7 +162,8 @@ void TestLattice::testFieldIsPeriodicInTheCube()
 
     const char* families[] = { "gyroid_sheet", "schwarz_d_skeletal", "iwp_sheet",
                                "bcc", "octet", "honeycomb", "reentrant", "spinodoid",
-                               "noise_sheet", "noise_skeletal", "foam_kelvin", "foam_weaire_phelan", "foam_random" };
+                               "noise_sheet", "noise_skeletal", "foam_kelvin", "foam_weaire_phelan", "foam_random",
+                               "mycelium" };
     for (const char* key : families) {
         p->setLatticeFamily(QString::fromLatin1(key));
         TestableLattice L(N);
@@ -1109,6 +1111,166 @@ void TestLattice::testRandomFoamIsReproducibleAndRoundTrips()
     QVERIFY(!(Parameters::lattice_foam_sites == sites));
 }
 
+// Weighted distance to the published pieces, brute force over every piece and
+// its 27 images: what the bucket grid must reproduce below its cut-off.
+static double myceliumBruteForce(double X, double Y, double Z)
+{
+    double best = 1e300;
+    for (const auto& s : Parameters::lattice_mycelium_segments)
+        for (int ox = -1; ox <= 1; ++ox)
+            for (int oy = -1; oy <= 1; ++oy)
+                for (int oz = -1; oz <= 1; ++oz) {
+                    const double o[3] = { double(ox), double(oy), double(oz) };
+                    const double p[3] = { X, Y, Z };
+                    double ab[3], ap[3], L2 = 0.0, t = 0.0;
+                    for (int i = 0; i < 3; ++i) { ab[i] = double(s[3 + i]) - double(s[i]); ap[i] = p[i] - (double(s[i]) + o[i]); L2 += ab[i] * ab[i]; t += ab[i] * ap[i]; }
+                    t = L2 > 0.0 ? std::clamp(t / L2, 0.0, 1.0) : 0.0;
+                    double d2 = 0.0;
+                    for (int i = 0; i < 3; ++i) { const double q = ap[i] - t * ab[i]; d2 += q * q; }
+                    best = std::min(best, std::sqrt(d2) / double(s[6]));
+                }
+    return best;
+}
+
+void TestLattice::testMyceliumGrowsConnectedAndRoundTrips()
+{
+    Parameters* p = Parameters::instance();
+    const int N = 48;
+    p->setSize(N);
+    p->setCellsPerEdge(1);
+    p->setRelativeDensity(0.20);
+    p->setLatticeFamily("mycelium");
+    Parameters::seed = 1;
+
+    TestableLattice A(N);
+    A.Initialization(false);
+    A.Generate_To_End();
+    const auto pieces = Parameters::lattice_mycelium_segments;
+    const mycelium::Stats st = Parameters::lattice_mycelium_stats;
+    QVERIFY(pieces.size() > 500);
+    QVERIFY(st.grown);
+    QVERIFY(st.fusions > 10);                       // a network, not a tree
+    QVERIFY(st.backbone > 0.8);
+    QVERIFY(std::abs(st.length - 22.0) < 3.0);      // the requested length (+ fusion bridges)
+    // Three thickness orders: 1, taper, taper^2.
+    std::set<float> w;
+    for (const auto& s : pieces) w.insert(s[6]);
+    QCOMPARE(static_cast<int>(w.size()), 3);
+    QVERIFY(std::abs(*w.begin() - 0.5625f) < 1e-6f);
+    // One body, joined to its neighbours in all three directions, density hit.
+    QCOMPARE(Parameters::printability.components, 1);
+    QCOMPARE(Parameters::printability.connected_directions, 3);
+    QVERIFY(std::abs(A.achievedDensity() - 0.20) < 0.003);
+    // The bucket grid gives the weighted distance to the nearest piece.
+    const double probes[][3] = { { 3.3, 17.1, 40.9 }, { 25.2, 0.4, 11.8 }, { 47.9, 30.5, 2.2 }, { 12.0, 12.0, 36.0 } };
+    for (const double* q : probes) {
+        const double f = A.fieldAt(q[0], q[1], q[2]);
+        const double b = myceliumBruteForce(q[0] / N, q[1] / N, q[2] / N);
+        QVERIFY(std::abs(f - std::min(b, f)) < 1e-12);   // never above the true value ...
+        if (b < 2.0 * A.threshold()) QVERIFY(std::abs(f - b) < 1e-9);   // ... and exact near the solid
+    }
+    const auto va = A.flat();
+
+    // The same seed grows the same colony.
+    TestableLattice B(N);
+    B.Initialization(false);
+    B.Generate_To_End();
+    QVERIFY(Parameters::lattice_mycelium_segments == pieces);
+    QVERIFY(B.flat() == va);
+
+    // The published pieces rebuild the cell bit for bit, whatever the seed.
+    QTemporaryFile file;
+    QVERIFY(file.open());
+    file.write("# ax ay az bx by bz weight\n");
+    for (const auto& s : pieces) {
+        QString line;
+        for (int i = 0; i < 7; ++i) line += QString::number(double(s[i]), 'g', 9) + (i < 6 ? " " : "\n");
+        file.write(line.toUtf8());
+    }
+    file.flush();
+    p->setMyceliumFile(file.fileName());
+    Parameters::seed = 4242;
+    TestableLattice C(N);
+    C.Initialization(false);
+    C.Generate_To_End();
+    QVERIFY(Parameters::lattice_mycelium_segments == pieces);
+    QVERIFY(!Parameters::lattice_mycelium_stats.grown);
+    QVERIFY(std::abs(Parameters::lattice_mycelium_stats.length - st.length) < 1e-3);
+    QVERIFY(C.flat() == va);
+
+    // Another seed is another colony; no fusions grows a tree with free ends.
+    p->setMyceliumFile(QString());
+    p->setMyceliumFuse(0.0);
+    TestableLattice D(N);
+    D.Initialization(false);
+    QVERIFY(!(Parameters::lattice_mycelium_segments == pieces));
+    QCOMPARE(Parameters::lattice_mycelium_stats.fusions, 0);
+    QVERIFY(Parameters::lattice_mycelium_stats.freeEnds > 10);
+    QVERIFY(Parameters::lattice_mycelium_stats.backbone < 0.05);
+}
+
+void TestLattice::testMyceliumModes()
+{
+    Parameters* p = Parameters::instance();
+    const int N = 40;
+    p->setSize(N);
+    p->setCellsPerEdge(1);
+    p->setRelativeDensity(0.20);
+    p->setLatticeFamily("mycelium");
+    Parameters::seed = 3;
+
+    // Polypore: thick straight skeletal hyphae (weight 1) carry most of the
+    // length; the binding ones branch, so more ends hang loose than in a substrate colony.
+    p->setMyceliumMode("polypore");
+    {
+        TestableLattice L(N);
+        L.Initialization(false);
+        L.Generate_To_End();
+        double skel = 0.0, all = 0.0;
+        for (const auto& s : Parameters::lattice_mycelium_segments) {
+            double L2 = 0.0;
+            for (int i = 0; i < 3; ++i) L2 += (s[3 + i] - s[i]) * (s[3 + i] - s[i]);
+            all += std::sqrt(L2);
+            if (s[6] == 1.0f) skel += std::sqrt(L2);
+        }
+        QVERIFY(skel / all > 0.5 && skel / all < 0.8);
+        QVERIFY(Parameters::lattice_mycelium_stats.backbone < 0.85);
+        QCOMPARE(Parameters::printability.components, 1);
+    }
+
+    // Mat: two dense layers at z = 1/4 and 3/4, joined by anchors.
+    p->setMyceliumMode("mat");
+    {
+        TestableLattice L(N);
+        L.Initialization(false);
+        L.Generate_To_End();
+        auto slab = [&](int z0, int z1) {
+            long long s = 0;
+            for (int x = 0; x < N; ++x) for (int y = 0; y < N; ++y) for (int z = z0; z < z1; ++z) s += L.voxels[x][y][z] != 0;
+            return double(s) / (double(N) * N * (z1 - z0));
+        };
+        QVERIFY(slab(N / 4 - 2, N / 4 + 2) > 2.0 * slab(N / 2 - 2, N / 2 + 2));
+        QCOMPARE(Parameters::printability.connected_directions, 3);
+    }
+
+    // Layered: the substrate is rich in the mid plane, so the colony is denser there.
+    p->setMyceliumMode("layered");
+    {
+        TestableLattice L(N);
+        L.Initialization(false);
+        L.Generate_To_End();
+        long long mid = 0, face = 0;
+        for (int x = 0; x < N; ++x)
+            for (int y = 0; y < N; ++y)
+                for (int z = 0; z < N; ++z) {
+                    if (!L.voxels[x][y][z]) continue;
+                    if (z >= 3 * N / 8 && z < 5 * N / 8) ++mid;
+                    if (z < N / 8 || z >= 7 * N / 8) ++face;
+                }
+        QVERIFY(mid > 2 * face);
+    }
+}
+
 void TestLattice::testCliOptions()
 {
     Parameters* p = Parameters::instance();
@@ -1120,6 +1282,18 @@ void TestLattice::testCliOptions()
 
     QVERIFY(applyParameter("lattice_family", "Schwarz P (skeletal)", &err));
     QCOMPARE(Parameters::latticeFamilyKeyStored(), QString("schwarz_p_skeletal"));
+
+    QVERIFY(applyParameter("lattice_family", "mycelium", &err));
+    QCOMPARE(Parameters::latticeFamilyKeyStored(), QString("mycelium"));
+    QVERIFY(applyParameter("mycelium_mode", "Polypore", &err));
+    QCOMPARE(p->getMyceliumMode(), QString("polypore"));
+    QVERIFY(!applyParameter("mycelium_mode", "lichen", &err));
+    QVERIFY(applyParameter("mycelium_fuse", "0", &err));
+    QCOMPARE(p->getMyceliumFuse(), 0.0);
+    QVERIFY(!applyParameter("mycelium_fuse", "0.5", &err));
+    QVERIFY(applyParameter("mycelium_spores", "12", &err));
+    QCOMPARE(p->getMyceliumSpores(), 12);
+    QVERIFY(!applyParameter("mycelium_taper", "0.1", &err));
 
     QVERIFY(applyParameter("lattice_family", "cubic_assembly", &err));
     QCOMPARE(Parameters::latticeFamilyKeyStored(), QString("cubic_assembly"));

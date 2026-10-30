@@ -119,6 +119,20 @@ double  Parameters::foam_frame = 0.1;
 int     Parameters::foam_bubbles = 8;
 QString Parameters::foam_file;
 std::vector<std::array<float,3>> Parameters::lattice_foam_sites;
+QString Parameters::mycelium_mode    = QStringLiteral("substrate");
+double  Parameters::mycelium_length  = 22.0;
+int     Parameters::mycelium_spores  = 0;
+double  Parameters::mycelium_unit    = 0.25;
+double  Parameters::mycelium_angle   = 60.0;
+double  Parameters::mycelium_wiggle  = 0.25;
+double  Parameters::mycelium_fuse    = 0.05;
+double  Parameters::mycelium_taper   = 0.75;
+double  Parameters::mycelium_binding = 0.36;
+double  Parameters::mycelium_anchors = 0.25;
+double  Parameters::mycelium_poor    = 0.25;
+QString Parameters::mycelium_file;
+std::vector<std::array<float,7>> Parameters::lattice_mycelium_segments;
+mycelium::Stats Parameters::lattice_mycelium_stats;
 double  Parameters::noise_smooth           = 0.06;
 double  Parameters::mat_e_gpa              = 0.0;
 double  Parameters::mat_nu                 = 0.38;
@@ -225,6 +239,8 @@ void Parameters::resetDefaults()
     lattice_wave_terms.clear();
     lattice_assembly_terms.clear();
     lattice_foam_sites.clear();
+    lattice_mycelium_segments.clear();
+    lattice_mycelium_stats = mycelium::Stats();
     spinodoid_theta_x = 90.0;
     spinodoid_theta_y = 90.0;
     spinodoid_theta_z = 90.0;
@@ -252,6 +268,18 @@ void Parameters::resetDefaults()
     foam_frame = 0.1;
     foam_bubbles = 8;
     foam_file.clear();
+    mycelium_mode    = QStringLiteral("substrate");
+    mycelium_length  = 22.0;
+    mycelium_spores  = 0;
+    mycelium_unit    = 0.25;
+    mycelium_angle   = 60.0;
+    mycelium_wiggle  = 0.25;
+    mycelium_fuse    = 0.05;
+    mycelium_taper   = 0.75;
+    mycelium_binding = 0.36;
+    mycelium_anchors = 0.25;
+    mycelium_poor    = 0.25;
+    mycelium_file.clear();
     noise_smooth = 0.06;
     mat_e_gpa = 0.0;
     mat_nu = 0.38;
@@ -1551,6 +1579,107 @@ void Parameters::setFoamFile(const QString& value)
     const QString v = value.trimmed();
     if (foam_file == v) return;
     foam_file = v;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setMyceliumMode(const QString& value)
+{
+    const QString v = value.trimmed().toLower();
+    mycelium::Mode m;
+    if (!mycelium::parseMode(v.toLatin1().constData(), m)) {
+        qWarning() << "mycelium_mode expects substrate, polypore, mat or layered; got" << value;
+        return;
+    }
+    if (mycelium_mode == v) return;
+    mycelium_mode = v;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setMyceliumSpores(int value)
+{
+    if (value < 0 || value > 40) { qWarning() << "mycelium_spores expects 0..40 (0 = the mode's default); got" << value; return; }
+    if (mycelium_spores == value) return;
+    mycelium_spores = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setMyceliumLength(double value)
+{
+    if (value < 2.0 || value > 80.0) { qWarning() << "mycelium_length (cell edges) expects 2.0..80.0; got" << value; return; }
+    if (mycelium_length == value) return;
+    mycelium_length = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setMyceliumUnit(double value)
+{
+    if (value < 0.05 || value > 2.0) { qWarning() << "mycelium_unit (cell edges) expects 0.05..2.0; got" << value; return; }
+    if (mycelium_unit == value) return;
+    mycelium_unit = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setMyceliumAngle(double value)
+{
+    if (value < 10.0 || value > 90.0) { qWarning() << "mycelium_angle (degrees) expects 10.0..90.0; got" << value; return; }
+    if (mycelium_angle == value) return;
+    mycelium_angle = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setMyceliumWiggle(double value)
+{
+    if (value < 0.0 || value > 1.0) { qWarning() << "mycelium_wiggle expects 0.0..1.0; got" << value; return; }
+    if (mycelium_wiggle == value) return;
+    mycelium_wiggle = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setMyceliumFuse(double value)
+{
+    if (value < 0.0 || value > 0.2) { qWarning() << "mycelium_fuse (cell edges) expects 0.0..0.2; got" << value; return; }
+    if (mycelium_fuse == value) return;
+    mycelium_fuse = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setMyceliumTaper(double value)
+{
+    if (value < 0.3 || value > 1.0) { qWarning() << "mycelium_taper expects 0.3..1.0; got" << value; return; }
+    if (mycelium_taper == value) return;
+    mycelium_taper = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setMyceliumBinding(double value)
+{
+    if (value < 0.0 || value > 0.8) { qWarning() << "mycelium_binding expects 0.0..0.8; got" << value; return; }
+    if (mycelium_binding == value) return;
+    mycelium_binding = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setMyceliumAnchors(double value)
+{
+    if (value < 0.0 || value > 1.0) { qWarning() << "mycelium_anchors expects 0.0..1.0; got" << value; return; }
+    if (mycelium_anchors == value) return;
+    mycelium_anchors = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setMyceliumPoor(double value)
+{
+    if (value < 0.05 || value > 1.0) { qWarning() << "mycelium_poor expects 0.05..1.0; got" << value; return; }
+    if (mycelium_poor == value) return;
+    mycelium_poor = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setMyceliumFile(const QString& value)
+{
+    const QString v = value.trimmed();
+    if (mycelium_file == v) return;
+    mycelium_file = v;
     emit latticeSettingsChanged();
 }
 

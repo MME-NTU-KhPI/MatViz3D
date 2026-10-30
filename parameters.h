@@ -10,6 +10,7 @@
 #include "texturelibrary.h"
 #include "phasematerial.h"
 #include "printability.h"
+#include "mycelium.h"
 
 class Parameters : public QObject
 {
@@ -150,6 +151,21 @@ class Parameters : public QObject
     Q_PROPERTY(double  foam_frame       READ getFoamFrame       WRITE setFoamFrame       NOTIFY latticeSettingsChanged)
     Q_PROPERTY(int     foam_bubbles     READ getFoamBubbles     WRITE setFoamBubbles     NOTIFY latticeSettingsChanged)
     Q_PROPERTY(QString foam_file        READ getFoamFile        WRITE setFoamFile        NOTIFY latticeSettingsChanged)
+    // Grown mycelium (mycelium.h): mode, total hypha length per cell, spores, hyphal
+    // growth unit, branch angle, tip wiggle, fusion distance, branch taper, and the
+    // mode-specific shares (polypore binding hyphae, mat anchors, layered substrate).
+    Q_PROPERTY(QString mycelium_mode    READ getMyceliumMode    WRITE setMyceliumMode    NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  mycelium_length  READ getMyceliumLength  WRITE setMyceliumLength  NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(int     mycelium_spores  READ getMyceliumSpores  WRITE setMyceliumSpores  NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  mycelium_unit    READ getMyceliumUnit    WRITE setMyceliumUnit    NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  mycelium_angle   READ getMyceliumAngle   WRITE setMyceliumAngle   NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  mycelium_wiggle  READ getMyceliumWiggle  WRITE setMyceliumWiggle  NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  mycelium_fuse    READ getMyceliumFuse    WRITE setMyceliumFuse    NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  mycelium_taper   READ getMyceliumTaper   WRITE setMyceliumTaper   NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  mycelium_binding READ getMyceliumBinding WRITE setMyceliumBinding NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  mycelium_anchors READ getMyceliumAnchors WRITE setMyceliumAnchors NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  mycelium_poor    READ getMyceliumPoor    WRITE setMyceliumPoor    NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(QString mycelium_file    READ getMyceliumFile    WRITE setMyceliumFile    NOTIFY latticeSettingsChanged)
     // Material given as numbers instead of a database row (dataset runs): E in
     // GPa (0 = use db_material), Poisson's ratio, and the ratio of the modulus
     // across the print layers (Z) to the in-plane one (1 = isotropic).
@@ -457,6 +473,30 @@ public:
     Q_INVOKABLE void setFoamBubbles(int value);
     QString getFoamFile()            const { return foam_file; }
     Q_INVOKABLE void setFoamFile(const QString& value);
+    QString getMyceliumMode()        const { return mycelium_mode; }
+    Q_INVOKABLE void setMyceliumMode(const QString& value);
+    double  getMyceliumLength()      const { return mycelium_length; }
+    Q_INVOKABLE void setMyceliumLength(double value);
+    int     getMyceliumSpores()      const { return mycelium_spores; }
+    Q_INVOKABLE void setMyceliumSpores(int value);
+    double  getMyceliumUnit()        const { return mycelium_unit; }
+    Q_INVOKABLE void setMyceliumUnit(double value);
+    double  getMyceliumAngle()       const { return mycelium_angle; }
+    Q_INVOKABLE void setMyceliumAngle(double value);
+    double  getMyceliumWiggle()      const { return mycelium_wiggle; }
+    Q_INVOKABLE void setMyceliumWiggle(double value);
+    double  getMyceliumFuse()        const { return mycelium_fuse; }
+    Q_INVOKABLE void setMyceliumFuse(double value);
+    double  getMyceliumTaper()       const { return mycelium_taper; }
+    Q_INVOKABLE void setMyceliumTaper(double value);
+    double  getMyceliumBinding()     const { return mycelium_binding; }
+    Q_INVOKABLE void setMyceliumBinding(double value);
+    double  getMyceliumAnchors()     const { return mycelium_anchors; }
+    Q_INVOKABLE void setMyceliumAnchors(double value);
+    double  getMyceliumPoor()        const { return mycelium_poor; }
+    Q_INVOKABLE void setMyceliumPoor(double value);
+    QString getMyceliumFile()        const { return mycelium_file; }
+    Q_INVOKABLE void setMyceliumFile(const QString& value);
     double getMatEGpa()    const { return mat_e_gpa; }
     double getMatNu()      const { return mat_nu; }
     double getMatAniso()   const { return mat_aniso; }
@@ -626,6 +666,11 @@ public:
     // The sites of a foam cell (x y z in cell units, one row per bubble):
     // its Voronoi partition is the cell. Empty for the other families.
     static std::vector<std::array<float,3>> lattice_foam_sites;
+    // The hyphae of a mycelium cell, one row per straight piece: a (x y z in
+    // [0, 1) cell units), b = a + the piece's vector, thickness weight. Its
+    // growth statistics alongside. Empty for the other families.
+    static std::vector<std::array<float,7>> lattice_mycelium_segments;
+    static mycelium::Stats lattice_mycelium_stats;
     // Result of the last printability check (Lattice runs it after rasterization).
     static PrintabilityReport printability;
     // Voxel edge in mm of the last Lattice run (cells * cell_mm / size).
@@ -805,6 +850,18 @@ private:
     static double  foam_frame;
     static int     foam_bubbles;
     static QString foam_file;
+    static QString mycelium_mode;        // "substrate" | "polypore" | "mat" | "layered"
+    static double  mycelium_length;
+    static int     mycelium_spores;
+    static double  mycelium_unit;
+    static double  mycelium_angle;
+    static double  mycelium_wiggle;
+    static double  mycelium_fuse;
+    static double  mycelium_taper;
+    static double  mycelium_binding;
+    static double  mycelium_anchors;
+    static double  mycelium_poor;
+    static QString mycelium_file;
     static double  mat_e_gpa;
     static double  mat_nu;
     static double  mat_aniso;

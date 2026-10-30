@@ -240,6 +240,20 @@ void Lattice::readParameters()
     m_foamFrame    = std::clamp(p.getFoamFrame(), 0.01, 0.5);
     m_foamBubbles  = std::clamp(p.getFoamBubbles(), 1, 64);
     m_foamFile     = p.getFoamFile();
+    m_myc = mycelium::Params();
+    if (!mycelium::parseMode(p.getMyceliumMode().toLatin1().constData(), m_myc.mode))
+        m_myc.mode = mycelium::Mode::Substrate;
+    m_myc.length  = std::clamp(p.getMyceliumLength(), 2.0, 80.0);
+    m_myc.spores  = std::clamp(p.getMyceliumSpores(), 0, 40);
+    m_myc.unit    = std::clamp(p.getMyceliumUnit(), 0.05, 2.0);
+    m_myc.angle   = std::clamp(p.getMyceliumAngle(), 10.0, 90.0);
+    m_myc.wiggle  = std::clamp(p.getMyceliumWiggle(), 0.0, 1.0);
+    m_myc.fuse    = std::clamp(p.getMyceliumFuse(), 0.0, 0.2);
+    m_myc.taper   = std::clamp(p.getMyceliumTaper(), 0.3, 1.0);
+    m_myc.binding = std::clamp(p.getMyceliumBinding(), 0.0, 0.8);
+    m_myc.anchors = std::clamp(p.getMyceliumAnchors(), 0.0, 1.0);
+    m_myc.poor    = std::clamp(p.getMyceliumPoor(), 0.05, 1.0);
+    m_mycFile     = p.getMyceliumFile();
 
     // Second and third families (united with / carved out of the first).
     // Random families keep state in the same members as the primary, and
@@ -940,6 +954,8 @@ double Lattice::familyField(LatticeFamily fam, double X, double Y, double Z) con
         case LatticeFamily::FoamKelvin: case LatticeFamily::FoamRhombic:
         case LatticeFamily::FoamWeairePhelan: case LatticeFamily::FoamRandom:
             return foamField(X, Y, Z);
+        case LatticeFamily::Mycelium:
+            return myceliumField(X, Y, Z);
     }
     return 0.0;
 }
@@ -1311,6 +1327,154 @@ double Lattice::foamField(double X, double Y, double Z) const
         }
     }
     return F < 1e300 ? std::round(F * 1e9) / 1e9 : F;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Mycelium: a fungal colony grown in the unit cell (mycelium.h)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// One piece of hypha per line: ax ay az bx by bz [weight], cell units, b the
+// far end of the piece (not wrapped), weight 1 when left out. Blank lines and
+// lines starting with '#' are skipped; a is moved into [0, 1)^3 with its piece.
+bool Lattice::loadMyceliumFile(const QString& path)
+{
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) return false;
+    std::vector<mycelium::Segment> out;
+    while (!f.atEnd()) {
+        const QString line = QString::fromUtf8(f.readLine()).trimmed();
+        if (line.isEmpty() || line.startsWith('#')) continue;
+        const QStringList t = line.split(QRegularExpression("[\\s,;]+"), Qt::SkipEmptyParts);
+        if (t.size() < 6) return false;
+        double v[7] = { 0, 0, 0, 0, 0, 0, 1.0 };
+        for (int i = 0; i < std::min<int>(7, t.size()); ++i) {
+            bool ok = false;
+            v[i] = t[i].toDouble(&ok);
+            if (!ok || !std::isfinite(v[i])) return false;
+        }
+        if (v[6] <= 0.0) return false;
+        mycelium::Segment s;
+        for (int i = 0; i < 3; ++i) {
+            const double sh = std::floor(v[i]);
+            s.a[i] = static_cast<float>(v[i] - sh);
+            s.b[i] = static_cast<float>(v[i + 3] - sh);
+            if (s.a[i] >= 1.0f) { s.a[i] -= 1.0f; s.b[i] -= 1.0f; }
+        }
+        s.w = static_cast<float>(v[6]);
+        out.push_back(s);
+    }
+    if (out.empty()) return false;
+    m_mycSegments = std::move(out);
+    return true;
+}
+
+void Lattice::buildMycelium()
+{
+    m_mycSegments.clear();
+    m_mycStart.clear();
+    m_mycIndex.clear();
+    m_mycStats = mycelium::Stats();
+    m_mycMinWeight = 1.0;
+    Parameters::lattice_mycelium_segments.clear();
+    Parameters::lattice_mycelium_stats = mycelium::Stats();
+    if (m_family != LatticeFamily::Mycelium) return;
+
+    bool loaded = false;
+    if (!m_mycFile.isEmpty()) {
+        loaded = loadMyceliumFile(m_mycFile);
+        if (!loaded)
+            qWarning().noquote() << QString("[Lattice] could not read mycelium pieces from \"%1\"; growing from seed %2 instead")
+                                        .arg(m_mycFile).arg(Parameters::seed);
+    }
+    if (loaded) m_mycStats = mycelium::measure(m_mycSegments);
+    else        m_mycSegments = mycelium::grow(m_myc, m_rng, &m_mycStats);
+    if (m_mycSegments.empty()) {
+        qWarning() << "[Lattice] mycelium: no hyphae grew; the cell is empty";
+        return;
+    }
+
+    double wmin = 1e300, sumW2L = 0.0;
+    Parameters::lattice_mycelium_segments.reserve(m_mycSegments.size());
+    for (const mycelium::Segment& s : m_mycSegments) {
+        Parameters::lattice_mycelium_segments.push_back({ s.a[0], s.a[1], s.a[2], s.b[0], s.b[1], s.b[2], s.w });
+        double L2 = 0.0;
+        for (int i = 0; i < 3; ++i) { const double d = double(s.b[i]) - double(s.a[i]); L2 += d * d; }
+        wmin = std::min(wmin, double(s.w));
+        sumW2L += double(s.w) * double(s.w) * std::sqrt(L2);
+    }
+    m_mycMinWeight = wmin;
+    Parameters::lattice_mycelium_stats = m_mycStats;
+
+    // Cut-off: 2.5 x the radius the pieces' own volume would need for the
+    // density (their overlaps make the real one larger); Initialization()
+    // widens it if the solved level gets close.
+    const double cEst = sumW2L > 0.0 ? std::sqrt(m_target / (kPi * sumW2L)) : 0.1;
+    m_mycCut = std::clamp(2.5 * cEst, 0.03, 0.5);
+    buildMyceliumGrid();
+}
+
+// Bucket b of a G^3 grid over the cell lists every piece that comes within
+// R = cut x the largest weight of it; a point then only looks at its own
+// bucket, and every value below the cut is exact.
+void Lattice::buildMyceliumGrid()
+{
+    double wmax = 0.0;
+    for (const mycelium::Segment& s : m_mycSegments) wmax = std::max(wmax, double(s.w));
+    const double R = m_mycCut * std::max(wmax, 1e-6);
+    const int G = std::clamp(static_cast<int>(std::floor(2.0 / R)), 1, 96);
+    m_mycG = G;
+    const size_t nb = static_cast<size_t>(G) * G * G;
+    auto wrapG = [G](int i) { return ((i % G) + G) % G; };
+    auto range = [&](const mycelium::Segment& s, int a, int& lo, int& hi) {
+        const double l = std::min(s.a[a], s.b[a]) - R, h = std::max(s.a[a], s.b[a]) + R;
+        lo = static_cast<int>(std::floor(l * G));
+        hi = static_cast<int>(std::floor(h * G));
+        if (hi - lo + 1 >= G) { lo = 0; hi = G - 1; }
+    };
+    std::vector<int> count(nb + 1, 0);
+    for (int pass = 0; pass < 2; ++pass) {
+        std::vector<int> fill;
+        if (pass == 1) {
+            for (size_t b = 0; b < nb; ++b) count[b + 1] += count[b];
+            m_mycStart = count;
+            m_mycIndex.assign(static_cast<size_t>(count[nb]), 0);
+            fill.assign(m_mycStart.begin(), m_mycStart.end() - 1);
+        }
+        for (size_t k = 0; k < m_mycSegments.size(); ++k) {
+            int lo[3], hi[3];
+            for (int a = 0; a < 3; ++a) range(m_mycSegments[k], a, lo[a], hi[a]);
+            for (int i = lo[0]; i <= hi[0]; ++i)
+                for (int j = lo[1]; j <= hi[1]; ++j)
+                    for (int l = lo[2]; l <= hi[2]; ++l) {
+                        const size_t b = (static_cast<size_t>(wrapG(i)) * G + wrapG(j)) * G + wrapG(l);
+                        if (pass == 0) ++count[b + 1];
+                        else           m_mycIndex[static_cast<size_t>(fill[b]++)] = static_cast<int>(k);
+                    }
+        }
+    }
+}
+
+double Lattice::myceliumField(double X, double Y, double Z) const
+{
+    if (m_mycStart.empty()) return 1e300;
+    const double u[3] = { wrap01(X * m_cells), wrap01(Y * m_cells), wrap01(Z * m_cells) };
+    const int G = m_mycG;
+    int bi[3];
+    for (int a = 0; a < 3; ++a) bi[a] = std::clamp(static_cast<int>(u[a] * G), 0, G - 1);
+    const size_t b = (static_cast<size_t>(bi[0]) * G + bi[1]) * G + bi[2];
+    double best = m_mycCut;
+    for (int n = m_mycStart[b]; n < m_mycStart[b + 1]; ++n) {
+        const mycelium::Segment& s = m_mycSegments[static_cast<size_t>(m_mycIndex[static_cast<size_t>(n)])];
+        double A[3], B[3];
+        for (int a = 0; a < 3; ++a) {
+            const double sh = std::round(u[a] - 0.5 * (double(s.a[a]) + double(s.b[a])));   // nearest image
+            A[a] = s.a[a] + sh;
+            B[a] = s.b[a] + sh;
+        }
+        const double d = segmentDistance(u[0], u[1], u[2], A[0], A[1], A[2], B[0], B[1], B[2]) / s.w;
+        if (d < best) best = d;
+    }
+    return best;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2092,6 +2256,9 @@ void Lattice::estimateWall()
             // Foams: c is half the wall thickness, or the strut radius of the edges.
             if (isFoamFamily(m_family))
                 m_wallVox = 2.0 * m_c * voxPerCell;
+            // Mycelium: the thinnest hypha is 2 c w_min thick.
+            if (m_family == LatticeFamily::Mycelium)
+                m_wallVox = 2.0 * m_c * m_mycMinWeight * voxPerCell;
             break;   // skeletal / spinodoid: no simple estimate
     }
 }
@@ -2152,6 +2319,7 @@ void Lattice::Initialization(bool /*isWaveGeneration*/)
     buildNoise();
     buildAssembly();
     buildFoam();
+    buildMycelium();
     publishWaves();
 
     numColors = 1;
@@ -2164,6 +2332,15 @@ void Lattice::Initialization(bool /*isWaveGeneration*/)
     normalizeJitter();
     buildSmoothed();
     m_c = solveThreshold();
+    // Mycelium: the field is exact below the cut-off only (grading and jitter
+    // scale it by up to 1 + g + j), so widen the cut-off while the level reaches it.
+    while (m_family == LatticeFamily::Mycelium && !m_mycSegments.empty() && m_mycCut < 0.5
+           && m_c * (1.0 + m_grading + m_jitter) >= 0.95 * m_mycCut) {
+        m_mycCut = std::min(0.5, 2.0 * m_mycCut);
+        buildMyceliumGrid();
+        buildSmoothed();
+        m_c = solveThreshold();
+    }
     estimateWall();
     publishPhases();
 
@@ -2291,6 +2468,12 @@ void Lattice::CleanUp()
     m_foamImageSite.clear();
     m_foamCells.clear();
     m_foamCells.shrink_to_fit();
+    m_mycSegments.clear();
+    m_mycSegments.shrink_to_fit();
+    m_mycStart.clear();
+    m_mycStart.shrink_to_fit();
+    m_mycIndex.clear();
+    m_mycIndex.shrink_to_fit();
     m_smoothed.clear();
     m_smoothed.shrink_to_fit();
     m_solidCount = 0;
@@ -2372,6 +2555,22 @@ void Lattice::report() const
                    .arg(n[0]).arg(n[1]).arg(n[2]).arg(n[3])
                    .arg(wlo < 1e300 ? wlo : 1.0, 0, 'f', 2).arg(whi, 0, 'f', 2)
                    .arg(m_asmFile.isEmpty() ? QString("seed %1").arg(Parameters::seed) : QString("from \"%1\"").arg(m_asmFile));
+    }
+    if (m_family == LatticeFamily::Mycelium) {
+        const mycelium::Stats& st = m_mycStats;
+        const QString origin = st.grown
+                                   ? QString("%1, seed %2").arg(QString::fromLatin1(mycelium::modeKey(m_myc.mode))).arg(Parameters::seed)
+                                   : QString("from \"%1\"").arg(m_mycFile);
+        qInfo().noquote()
+            << QString("[Lattice] mycelium (%1): %2 pieces, hypha length %3 cell edges%4; thinnest hypha weight %5, "
+                       "field exact below %6 cell edges (%7^3 buckets)")
+                   .arg(origin).arg(m_mycSegments.size()).arg(st.length, 0, 'f', 2)
+                   .arg(st.grown ? QString(", %1 hyphae, %2 branchings, %3 fusions, %4 free ends, growth unit %5, "
+                                           "%6 % of the length on closed loops")
+                                       .arg(st.hyphae).arg(st.branches).arg(st.fusions).arg(st.freeEnds)
+                                       .arg(st.growthUnit, 0, 'f', 3).arg(100.0 * st.backbone, 0, 'f', 0)
+                                 : QString())
+                   .arg(m_mycMinWeight, 0, 'f', 3).arg(m_mycCut, 0, 'g', 3).arg(m_mycG);
     }
     if (m_hasUnion)
         qInfo().noquote()
@@ -2496,6 +2695,20 @@ static std::vector<ParamField> latticeSchema()
           QStringList{ QStringLiteral("walls"), QStringLiteral("windows"), QStringLiteral("edges") }, "main" },
         { "foam_frame",   "Foam window frame (bubble sizes)", ParamField::Double, 0.1, 0.01, 0.5, {}, "main" },
         { "foam_bubbles", "Random foam bubbles per cell",     ParamField::Int,    8,   1,    64,  {}, "main" },
+
+        // Mycelium: growth settings (a piece file is CLI/config only).
+        { "mycelium_mode", "Mycelium", ParamField::Enum, QStringLiteral("substrate"), {}, {},
+          QStringList{ QStringLiteral("substrate"), QStringLiteral("polypore"), QStringLiteral("mat"), QStringLiteral("layered") }, "main" },
+        { "mycelium_length",  "Mycelium hypha length (cell edges)",   ParamField::Double, 22.0, 2.0,  80.0, {}, "main" },
+        { "mycelium_spores",  "Mycelium spores (0 = mode default)",   ParamField::Int,    0,    0,    40,   {}, "main" },
+        { "mycelium_unit",    "Mycelium growth unit (cell edges)",    ParamField::Double, 0.25, 0.05, 2.0,  {}, "main" },
+        { "mycelium_angle",   "Mycelium branch angle (deg)",          ParamField::Double, 60.0, 10.0, 90.0, {}, "main" },
+        { "mycelium_wiggle",  "Mycelium tip wiggle",                  ParamField::Double, 0.25, 0.0,  1.0,  {}, "main" },
+        { "mycelium_fuse",    "Mycelium fusion distance (cell edges)", ParamField::Double, 0.05, 0.0, 0.2,  {}, "main" },
+        { "mycelium_taper",   "Mycelium branch / parent thickness",   ParamField::Double, 0.75, 0.3,  1.0,  {}, "main" },
+        { "mycelium_binding", "Polypore: binding hyphae share",       ParamField::Double, 0.36, 0.0,  0.8,  {}, "main" },
+        { "mycelium_anchors", "Mat: share of branches as anchors",    ParamField::Double, 0.25, 0.0,  1.0,  {}, "main" },
+        { "mycelium_poor",    "Layered: substrate at the faces",      ParamField::Double, 0.25, 0.05, 1.0,  {}, "main" },
     };
 
     // One constituent: the printed base material. Void is the other phase.
@@ -2510,7 +2723,7 @@ MATVIZ_REGISTER_ALGORITHM(AlgorithmPlugin{
     "Lattice",
     "Periodic cellular metamaterial RVE (TPMS sheets and skeletons, strut "
     "lattices, plate lattices with holes, spheres and cylinders, honeycombs, anisotropic spinodoids, open Fourier-series level "
-    "sets with optional cubic symmetry, smoothed random noise, random cubic-symmetric assemblies of plates, struts and shells, foams (Kelvin, rhombic dodecahedra, Weaire-Phelan, random Voronoi; closed, windowed or open cells); unions, carve-outs and smoothing of families): one solid phase plus void, "
+    "sets with optional cubic symmetry, smoothed random noise, random cubic-symmetric assemblies of plates, struts and shells, foams (Kelvin, rhombic dodecahedra, Weaire-Phelan, random Voronoi; closed, windowed or open cells), grown fungal mycelia (substrate, polypore, mat, layered); unions, carve-outs and smoothing of families): one solid phase plus void, "
     "sized to a target relative density, with optional thickness grading, jitter and lattice rotation.",
     /*order=*/ 2,
     latticeSchema(),

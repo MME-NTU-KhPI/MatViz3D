@@ -6,6 +6,7 @@
 #include <vector>
 #include "parent_algorithm.h"
 #include "latticefamily.h"
+#include "mycelium.h"
 
 /**
  * @brief Periodic cellular metamaterial RVE: one solid phase and void.
@@ -112,6 +113,18 @@
  *     thickens; edges: F = distance to the nearest edge
  *     of the cell, c the strut radius (an open-cell foam). The sites go to
  *     Parameters::lattice_foam_sites and the HDF5 file.
+ *   - Mycelium (`mycelium`): a fungal colony grown in the unit cell from the
+ *     seed (mycelium.h) -- hyphae forage on a nutrient substrate, branch every
+ *     `mycelium_unit` of length, fuse with hyphae they come close to, and every
+ *     branch order is `mycelium_taper` times thinner. `mycelium_mode` substrate,
+ *     polypore (straight skeletal hyphae tied by branched binding hyphae), mat
+ *     (two layers joined by vertical anchors) or layered (rich in the mid plane,
+ *     poor at z = 0). The colony is a table of straight pieces with thickness
+ *     weights; F = distance to the nearest piece / its weight (periodic), so c is
+ *     the radius of a weight-1 hypha, evaluated through a periodic bucket grid
+ *     up to a cut-off that is widened when the solved level reaches it. The
+ *     pieces go to Parameters::lattice_mycelium_segments and the HDF5 file, and
+ *     `mycelium_file` reads them back (one piece per line).
  *   - `lattice_smooth` sigma (cell edges): the full field (after grading and
  *     jitter) is sampled on the grid, values of carved-out voxels are set to
  *     the largest finite value, and a periodic Gaussian blur of sigma is
@@ -240,6 +253,14 @@ private:
     /// Foam field at a point in cube fractions: nearest site, then its cell's walls,
     /// windowed walls or edges (`foam_mode`).
     double foamField(double X, double Y, double Z) const;
+    /// Mycelium: grow the colony from the seed (or read `mycelium_file`) and publish it.
+    void   buildMycelium();
+    bool   loadMyceliumFile(const QString& path);
+    /// Bucket grid over the pieces for distances below m_mycCut.
+    void   buildMyceliumGrid();
+    /// Mycelium field at a point in cube fractions: distance to the nearest
+    /// piece / its weight, capped at m_mycCut.
+    double myceliumField(double X, double Y, double Z) const;
     /// Cubic assembly field at a point in cube fractions: fold into the asymmetric
     /// unit, distance to the nearest member / its weight, +inf inside a window.
     double assemblyField(double X, double Y, double Z) const;
@@ -327,6 +348,15 @@ private:
     std::vector<std::array<double,3>> m_foamImages;   ///< sites + their 26 neighbour-cell images
     std::vector<int>      m_foamImageSite;            ///< site index of every image
     std::vector<FoamCell> m_foamCells;                ///< Voronoi cell of every site
+    mycelium::Params m_myc;                           ///< growth settings
+    QString m_mycFile;
+    std::vector<mycelium::Segment> m_mycSegments;     ///< the hyphae, one cell
+    mycelium::Stats m_mycStats;
+    double  m_mycMinWeight   = 1.0;    ///< thinnest hypha, for the wall estimate
+    double  m_mycCut         = 0.2;    ///< field values are exact below this, cell edges
+    int     m_mycG           = 1;      ///< buckets per cell edge
+    std::vector<int> m_mycStart;       ///< bucket b holds pieces m_mycIndex[m_mycStart[b] .. m_mycStart[b + 1])
+    std::vector<int> m_mycIndex;
     std::vector<float> m_smoothed;     ///< blurred full field when m_smooth > 0
     size_t  m_directions     = 0;      ///< distinct wave directions available to the random families
     double  m_R[3][3]        = { {1,0,0}, {0,1,0}, {0,0,1} };

@@ -529,6 +529,24 @@ void DatasetBrowserController::buildSections(const DatasetRowsModel::Row& row)
                 if (mode == QLatin1String("windows")) it << item(QStringLiteral("Window frame"), val("foam_frame") + QStringLiteral(" bubble sizes"));
                 if (P.contains(QStringLiteral("lattice_foam_site_count"))) it << item(QStringLiteral("Bubbles per cell"), val("lattice_foam_site_count"));
             }
+            if (fam == LatticeFamily::Mycelium) {
+                const QString mode = val("mycelium_mode");
+                it << item(QStringLiteral("Mycelium"), mode == QLatin1String("polypore") ? QStringLiteral("polypore (skeletal + binding hyphae)")
+                                                     : mode == QLatin1String("mat") ? QStringLiteral("mat (layers + anchors)")
+                                                     : mode == QLatin1String("layered") ? QStringLiteral("layered substrate")
+                                                     : QStringLiteral("substrate"))
+                   << item(QStringLiteral("Hypha length"), val("mycelium_length") + QStringLiteral(" cell edges"))
+                   << item(QStringLiteral("Growth unit / branch angle"), val("mycelium_unit") + QStringLiteral(" / ") + val("mycelium_angle") + QStringLiteral(" deg"))
+                   << item(QStringLiteral("Fusion distance"), val("mycelium_fuse") + QStringLiteral(" cell edges"))
+                   << item(QStringLiteral("Branch / parent thickness"), val("mycelium_taper"));
+                if (mode == QLatin1String("polypore")) it << item(QStringLiteral("Binding hyphae"), val("mycelium_binding") + QStringLiteral(" of the length"));
+                if (mode == QLatin1String("mat"))      it << item(QStringLiteral("Anchors"), val("mycelium_anchors") + QStringLiteral(" of the branches"));
+                if (mode == QLatin1String("layered"))  it << item(QStringLiteral("Substrate at the faces"), val("mycelium_poor"));
+                if (P.contains(QStringLiteral("mycelium_fusions")))
+                    it << item(QStringLiteral("Hyphae / fusions / free ends"), val("mycelium_hyphae") + QStringLiteral(" / ") + val("mycelium_fusions")
+                                                                                 + QStringLiteral(" / ") + val("mycelium_free_ends"))
+                       << item(QStringLiteral("Length on closed loops"), QString::number(100.0 * dval("mycelium_backbone_share"), 'f', 0) + QStringLiteral(" %"));
+            }
             if (fam == LatticeFamily::CubicAssembly) {
                 it << item(QStringLiteral("Struts / plates / shells / windows"),
                            val("assembly_struts") + QStringLiteral(" / ") + val("assembly_plates") + QStringLiteral(" / ")

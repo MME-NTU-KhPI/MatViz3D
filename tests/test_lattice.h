@@ -31,6 +31,8 @@ private slots:
     void testCubicAssemblyDrawIsConnectedAndRoundTrips();
     void testFoamCellsAreTheVoronoiCells();
     void testRandomFoamIsReproducibleAndRoundTrips();
+    void testMyceliumGrowsConnectedAndRoundTrips();
+    void testMyceliumModes();
     void testCliOptions();
 };
 

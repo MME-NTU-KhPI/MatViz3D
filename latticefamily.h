@@ -42,7 +42,11 @@ enum class LatticeFamily {
     // FCC sites rhombic dodecahedra, A15 sites the Weaire-Phelan foam, and
     // seeded random sites a random foam. `foam_mode` keeps the walls, walls
     // with a window in every face, or the edges only (an open-cell foam).
-    FoamKelvin, FoamRhombic, FoamWeairePhelan, FoamRandom
+    FoamKelvin, FoamRhombic, FoamWeairePhelan, FoamRandom,
+    // A grown fungal mycelium (mycelium.h): hyphae forage on a substrate,
+    // branch, fuse and taper, seeded; `mycelium_mode` substrate, polypore
+    // (skeletal + binding hyphae), mat (layers + anchors) or layered (graded).
+    Mycelium
 };
 
 struct LatticeFamilyInfo {
@@ -94,6 +98,7 @@ inline const std::vector<LatticeFamilyInfo>& latticeFamilies()
         { LatticeFamily::FoamRhombic,      "foam_rhombic",       "Foam: rhombic dodecahedra (FCC sites)", false },
         { LatticeFamily::FoamWeairePhelan, "foam_weaire_phelan", "Foam: Weaire-Phelan (A15 sites)", false },
         { LatticeFamily::FoamRandom,       "foam_random",        "Foam: random Voronoi cells",      false },
+        { LatticeFamily::Mycelium,         "mycelium",           "Mycelium (grown hyphae)",         false },
     };
     return t;
 }
@@ -153,7 +158,7 @@ inline bool isRandomFamily(LatticeFamily f)
     switch (f) {
         case LatticeFamily::Spinodoid: case LatticeFamily::FourierSheet: case LatticeFamily::FourierSkeletal:
         case LatticeFamily::NoiseSheet: case LatticeFamily::NoiseSkeletal:
-        case LatticeFamily::CubicAssembly: case LatticeFamily::FoamRandom:
+        case LatticeFamily::CubicAssembly: case LatticeFamily::FoamRandom: case LatticeFamily::Mycelium:
             return true;
         default:
             return false;
@@ -245,6 +250,10 @@ inline bool parseLatticeFamily(const QString& text, LatticeFamily& out)
         { "weairephelan",       LatticeFamily::FoamWeairePhelan },
         { "randomfoam",         LatticeFamily::FoamRandom },
         { "voronoifoam",        LatticeFamily::FoamRandom },
+        { "fungus",             LatticeFamily::Mycelium },
+        { "fungal",             LatticeFamily::Mycelium },
+        { "hyphae",             LatticeFamily::Mycelium },
+        { "hyphalnetwork",      LatticeFamily::Mycelium },
     };
     for (const Alias& a : aliases)
         if (q == QLatin1String(a.text)) { out = a.family; return true; }
