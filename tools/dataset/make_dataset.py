@@ -60,12 +60,15 @@ PARAM_KEYS = {
     "honeycomb_angle", "honeycomb_rib",
     "assembly_struts", "assembly_plates", "assembly_shells", "assembly_holes", "assembly_spread",
     "foam_mode", "foam_frame", "foam_bubbles",
+    "mycelium_mode", "mycelium_length", "mycelium_spores", "mycelium_unit", "mycelium_angle", "mycelium_wiggle",
+    "mycelium_fuse", "mycelium_taper", "mycelium_binding", "mycelium_anchors", "mycelium_poor",
     "print_min_wall_mm", "print_max_overhang_deg", "print_max_thin_fraction",
     "print_max_island_vox", "print_max_unsupported_fraction", "print_min_directions",
 }
 FLAG_KEYS = {"lattice_uniform_wall", "honeycomb_custom"}
 INT_KEYS = {"cells_per_edge", "fourier_terms", "print_max_island_vox", "print_min_directions",
-            "assembly_struts", "assembly_plates", "assembly_shells", "assembly_holes", "foam_bubbles"}
+            "assembly_struts", "assembly_plates", "assembly_shells", "assembly_holes", "foam_bubbles",
+            "mycelium_spores"}
 # Families whose shape IS the drawn waves: their wave table is the shape vector the
 # geometry network works in, so every wave has to fit its frequency cutoff
 # (config `max_wave_number`, |k| per edge of the solved box). The TPMS tables are
