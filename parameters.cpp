@@ -128,9 +128,13 @@ double  Parameters::mycelium_wiggle  = 0.25;
 double  Parameters::mycelium_fuse    = 0.05;
 double  Parameters::mycelium_taper   = 0.75;
 double  Parameters::mycelium_binding = 0.36;
+double  Parameters::mycelium_align   = 0.0;
 double  Parameters::mycelium_anchors = 0.25;
 double  Parameters::mycelium_poor    = 0.25;
 QString Parameters::mycelium_file;
+double  Parameters::form_a = 0.5;
+double  Parameters::form_b = 0.5;
+double  Parameters::form_c = 0.5;
 std::vector<std::array<float,7>> Parameters::lattice_mycelium_segments;
 mycelium::Stats Parameters::lattice_mycelium_stats;
 double  Parameters::noise_smooth           = 0.06;
@@ -277,9 +281,11 @@ void Parameters::resetDefaults()
     mycelium_fuse    = 0.05;
     mycelium_taper   = 0.75;
     mycelium_binding = 0.36;
+    mycelium_align   = 0.0;
     mycelium_anchors = 0.25;
     mycelium_poor    = 0.25;
     mycelium_file.clear();
+    form_a = form_b = form_c = 0.5;
     noise_smooth = 0.06;
     mat_e_gpa = 0.0;
     mat_nu = 0.38;
@@ -1659,6 +1665,14 @@ void Parameters::setMyceliumBinding(double value)
     emit latticeSettingsChanged();
 }
 
+void Parameters::setMyceliumAlign(double value)
+{
+    if (value < 0.0 || value > 1.0) { qWarning() << "mycelium_align expects 0.0..1.0; got" << value; return; }
+    if (mycelium_align == value) return;
+    mycelium_align = value;
+    emit latticeSettingsChanged();
+}
+
 void Parameters::setMyceliumAnchors(double value)
 {
     if (value < 0.0 || value > 1.0) { qWarning() << "mycelium_anchors expects 0.0..1.0; got" << value; return; }
@@ -1680,6 +1694,30 @@ void Parameters::setMyceliumFile(const QString& value)
     const QString v = value.trimmed();
     if (mycelium_file == v) return;
     mycelium_file = v;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setFormA(double value)
+{
+    if (value < 0.0 || value > 1.0) { qWarning() << "form_a expects 0..1; got" << value; return; }
+    if (form_a == value) return;
+    form_a = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setFormB(double value)
+{
+    if (value < 0.0 || value > 1.0) { qWarning() << "form_b expects 0..1; got" << value; return; }
+    if (form_b == value) return;
+    form_b = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setFormC(double value)
+{
+    if (value < 0.0 || value > 1.0) { qWarning() << "form_c expects 0..1; got" << value; return; }
+    if (form_c == value) return;
+    form_c = value;
     emit latticeSettingsChanged();
 }
 

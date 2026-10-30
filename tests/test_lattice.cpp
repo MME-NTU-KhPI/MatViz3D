@@ -11,6 +11,7 @@
 #include "parameters.h"
 #include "lattice.h"
 #include "latticefamily.h"
+#include "cellforms.h"
 #include "commandline_parser.h"
 
 namespace {
@@ -1238,6 +1239,21 @@ void TestLattice::testMyceliumModes()
         QCOMPARE(Parameters::printability.components, 1);
     }
 
+    // Aligned polypore: the skeletal hyphae lean to Z (most of the length runs
+    // along it) and the binding hyphae still tie them into one body joined
+    // in all three directions.
+    p->setMyceliumAlign(0.7);
+    {
+        TestableLattice L(N);
+        L.Initialization(false);
+        L.Generate_To_End();
+        QVERIFY2(Parameters::lattice_mycelium_stats.fabric[2] > 0.5,
+                 qPrintable(QString("fabric z %1").arg(Parameters::lattice_mycelium_stats.fabric[2])));
+        QCOMPARE(Parameters::printability.components, 1);
+        QCOMPARE(Parameters::printability.connected_directions, 3);
+    }
+    p->setMyceliumAlign(0.0);
+
     // Mat: two dense layers at z = 1/4 and 3/4, joined by anchors.
     p->setMyceliumMode("mat");
     {
@@ -1271,6 +1287,97 @@ void TestLattice::testMyceliumModes()
     }
 }
 
+// The three newer minimal surfaces come from their Fourier expansions: they must
+// equal the textbook level-set formulas. Then every bio-inspired / architected
+// form builds one body joined to its images in all three directions at its
+// target density, the seeded ones reproducibly, and the knobs reach the geometry.
+void TestLattice::testNewSurfacesAndForms()
+{
+    std::mt19937 rng(5);
+    std::uniform_real_distribution<double> U(0.0, 1.0);
+    const double tau = 2.0 * 3.14159265358979323846;
+    for (int t = 0; t < 40; ++t) {
+        const double X = tau * U(rng), Y = tau * U(rng), Z = tau * U(rng);
+        using std::cos; using std::sin;
+        const double direct[3] = {
+            3.0 * (cos(X) + cos(Y) + cos(Z)) + 4.0 * cos(X) * cos(Y) * cos(Z),
+            cos(2 * X) * sin(Y) * cos(Z) + cos(X) * cos(2 * Y) * sin(Z) + sin(X) * cos(Y) * cos(2 * Z),
+            0.5 * (sin(2 * X) * cos(Y) * sin(Z) + sin(2 * Y) * cos(Z) * sin(X) + sin(2 * Z) * cos(X) * sin(Y))
+                - 0.5 * (cos(2 * X) * cos(2 * Y) + cos(2 * Y) * cos(2 * Z) + cos(2 * Z) * cos(2 * X)) + 0.15 };
+        const cellforms::Surface surf[3] = { cellforms::Surface::Neovius, cellforms::Surface::FischerKochS, cellforms::Surface::Lidinoid };
+        for (int s = 0; s < 3; ++s) {
+            double f = 0.0;
+            for (const cellforms::Wave& w : cellforms::tpmsWaves(surf[s]))
+                f += w.amp * std::cos(w.k[0] * X + w.k[1] * Y + w.k[2] * Z + w.phase);
+            QVERIFY2(std::abs(f - direct[s]) < 1e-9, qPrintable(QString("surface %1: %2 vs %3").arg(s).arg(f).arg(direct[s])));
+        }
+    }
+    QCOMPARE(cellforms::tpmsWaves(cellforms::Surface::Neovius).size(), size_t(7));
+
+    // The chiral twist: 3 rings of 48 pieces and the 24 rotations' orbit of one
+    // bar, which is 12 bars (the bar's own 2-fold axis maps it onto itself).
+    cellforms::Knobs kn;
+    const auto chiral = cellforms::segments(cellforms::Kind::ChiralTwist, kn);
+    const long long bars = std::count_if(chiral.begin(), chiral.end(), [](const mycelium::Segment& s) { return std::abs(s.w - 0.85f) < 1e-6f; });
+    QCOMPARE(bars, 12LL * 3);   // 0.58 cell edges each, cut into pieces of <= 0.25
+    QCOMPARE(static_cast<long long>(chiral.size()), 3LL * 48 + bars);
+    for (const auto& s : chiral) {
+        double L2 = 0.0;
+        for (int i = 0; i < 3; ++i) { QVERIFY(s.a[i] >= 0.0f && s.a[i] < 1.0f); L2 += (s.b[i] - s.a[i]) * (s.b[i] - s.a[i]); }
+        QVERIFY(std::sqrt(L2) <= 0.25 + 1e-6);
+    }
+    // The glass sponge braces the horizontal planes too once c passes 1/2.
+    kn.c = 0.2;
+    const size_t walls = cellforms::segments(cellforms::Kind::GlassSponge, kn).size();
+    kn.c = 0.8;
+    QVERIFY(cellforms::segments(cellforms::Kind::GlassSponge, kn).size() > walls);
+    for (int k = 0; k < 12; ++k) QVERIFY(cellforms::knobLabel(static_cast<cellforms::Kind>(k), 0) != nullptr);
+
+    Parameters* p = Parameters::instance();
+    const int N = 48;
+    p->setSize(N);
+    p->setCellsPerEdge(1);
+    p->setLatticeUniformWall(true);
+    struct Case { const char* key; double rho; };
+    const Case cases[] = {
+        { "neovius_sheet", 0.25 }, { "fischer_koch_sheet", 0.30 }, { "lidinoid_sheet", 0.35 },
+        { "glass_sponge", 0.15 }, { "chiral_twist", 0.15 }, { "woven", 0.30 }, { "bouligand", 0.30 },
+        { "diamond_ball_stick", 0.20 }, { "reentrant_3d", 0.15 }, { "radiolarian", 0.18 },
+        { "trabecular_bone", 0.30 }, { "wood", 0.35 }, { "cuttlebone", 0.35 }, { "turing", 0.35 },
+        { "hierarchical_gyroid", 0.25 } };
+    for (const Case& c : cases) {
+        p->setLatticeFamily(QString::fromLatin1(c.key));
+        p->setRelativeDensity(c.rho);
+        Parameters::seed = 11;
+        TestableLattice L(N);
+        L.Initialization(false);
+        L.Generate_To_End();
+        const double rho = double(L.solidCount()) / (double(N) * N * N);
+        QVERIFY2(std::abs(rho - c.rho) < 0.02, qPrintable(QString("%1: density %2").arg(c.key).arg(rho)));
+        // Bone rods change thickness where the nearest Voronoi edge changes, which
+        // can leave a voxel speck at a node: tolerated like the printability check does.
+        const PrintabilityReport& pr = Parameters::printability;
+        QVERIFY2(pr.components == 1 || (std::string(c.key) == "trabecular_bone" && pr.largest_island_vox <= 8),
+                 qPrintable(QString("%1: %2 bodies, largest island %3 voxels").arg(c.key).arg(pr.components).arg(pr.largest_island_vox)));
+        QVERIFY2(Parameters::printability.connected_directions == 3, c.key);
+        LatticeFamily f;
+        QVERIFY(parseLatticeFamily(QString::fromLatin1(c.key), f));
+        if (!isRandomFamily(f) || f == LatticeFamily::Turing) continue;
+        // Seeded forms: the same seed rebuilds the cell, another one draws another.
+        const std::vector<int32_t> first = L.flat();
+        TestableLattice again(N);
+        again.Initialization(false);
+        again.Generate_To_End();
+        QVERIFY2(again.flat() == first, c.key);
+        Parameters::seed = 12;
+        TestableLattice other(N);
+        other.Initialization(false);
+        other.Generate_To_End();
+        QVERIFY2(other.flat() != first, c.key);
+    }
+    QVERIFY(latticeFamilyInfo(LatticeFamily::Turing).signedLevelSet);
+}
+
 void TestLattice::testCliOptions()
 {
     Parameters* p = Parameters::instance();
@@ -1294,6 +1401,20 @@ void TestLattice::testCliOptions()
     QVERIFY(applyParameter("mycelium_spores", "12", &err));
     QCOMPARE(p->getMyceliumSpores(), 12);
     QVERIFY(!applyParameter("mycelium_taper", "0.1", &err));
+    QVERIFY(applyParameter("mycelium_align", "0.7", &err));
+    QCOMPARE(p->getMyceliumAlign(), 0.7);
+    QVERIFY(!applyParameter("mycelium_align", "1.5", &err));
+
+    QVERIFY(applyParameter("lattice_family", "neovius", &err));
+    QCOMPARE(Parameters::latticeFamilyKeyStored(), QString("neovius_sheet"));
+    QVERIFY(applyParameter("lattice_family", "Radiolarian (shells + spines)", &err));
+    QCOMPARE(Parameters::latticeFamilyKeyStored(), QString("radiolarian"));
+    QVERIFY(applyParameter("form_a", "0.3", &err));
+    QCOMPARE(p->getFormA(), 0.3);
+    QVERIFY(applyParameter("form_c", "1", &err));
+    QCOMPARE(p->getFormC(), 1.0);
+    QVERIFY(!applyParameter("form_b", "1.5", &err));
+    QVERIFY(!applyParameter("form_a", "-0.1", &err));
 
     QVERIFY(applyParameter("lattice_family", "cubic_assembly", &err));
     QCOMPARE(Parameters::latticeFamilyKeyStored(), QString("cubic_assembly"));

@@ -31,7 +31,9 @@
  * Modes add a direction bias and fusion rules on top:
  *   substrate  -- `spores` spores (default 4), each germinating both ways;
  *   polypore   -- the dimitic tissue of a bracket fungus: `spores` long,
- *                 straight, unbranched skeletal hyphae (default 10), then
+ *                 straight, unbranched skeletal hyphae (default 10; `align`
+ *                 leans them to Z, 1 = all along Z, like the tubes of a
+ *                 bracket), then
  *                 thin branched binding hyphae (share `binding` of the
  *                 length) that start on them, reach for the nearest other
  *                 skeletal hypha and fuse to it;
@@ -64,6 +66,7 @@ struct Params {
     double fuse    = 0.05;   ///< fusion distance, cell edges (0 = no fusions, a tree)
     double taper   = 0.75;   ///< thickness of a branch over its parent's
     double binding = 0.36;   ///< polypore: share of the length in binding hyphae
+    double align   = 0.0;    ///< polypore: lean of the skeletal hyphae to Z (0 = random, 1 = along Z)
     double anchors = 0.25;   ///< mat: share of the branches that become anchors
     double poor    = 0.25;   ///< layered: substrate level at z = 0 (1 in the mid plane)
 };

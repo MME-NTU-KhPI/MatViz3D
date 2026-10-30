@@ -46,7 +46,13 @@ enum class LatticeFamily {
     // A grown fungal mycelium (mycelium.h): hyphae forage on a substrate,
     // branch, fuse and taper, seeded; `mycelium_mode` substrate, polypore
     // (skeletal + binding hyphae), mat (layers + anchors) or layered (graded).
-    Mycelium
+    Mycelium,
+    // Triply periodic minimal surfaces beyond the classic four, sheet only.
+    NeoviusSheet, FischerKochSheet, LidinoidSheet,
+    // Bio-inspired and architected forms (cellforms.h), shaped by form_a/b/c:
+    // segment tables (glass sponge ... re-entrant 3D) and fields (radiolarian ...).
+    GlassSponge, ChiralTwist, Woven, Bouligand, DiamondBallStick, Reentrant3D,
+    Radiolarian, TrabecularBone, Wood, Cuttlebone, Turing, HierarchicalGyroid
 };
 
 struct LatticeFamilyInfo {
@@ -99,6 +105,21 @@ inline const std::vector<LatticeFamilyInfo>& latticeFamilies()
         { LatticeFamily::FoamWeairePhelan, "foam_weaire_phelan", "Foam: Weaire-Phelan (A15 sites)", false },
         { LatticeFamily::FoamRandom,       "foam_random",        "Foam: random Voronoi cells",      false },
         { LatticeFamily::Mycelium,         "mycelium",           "Mycelium (grown hyphae)",         false },
+        { LatticeFamily::NeoviusSheet,     "neovius_sheet",      "Neovius (sheet)",                 false },
+        { LatticeFamily::FischerKochSheet, "fischer_koch_sheet", "Fischer-Koch S (sheet)",          false },
+        { LatticeFamily::LidinoidSheet,    "lidinoid_sheet",     "Lidinoid (sheet)",                false },
+        { LatticeFamily::GlassSponge,      "glass_sponge",       "Glass sponge (braced grid)",      false },
+        { LatticeFamily::ChiralTwist,      "chiral_twist",       "Chiral twist (rings + bars)",     false },
+        { LatticeFamily::Woven,            "woven",              "Woven yarns (3D weave)",          false },
+        { LatticeFamily::Bouligand,        "bouligand",          "Bouligand (helicoidal fibres)",   false },
+        { LatticeFamily::DiamondBallStick, "diamond_ball_stick", "Diamond (ball and stick)",        false },
+        { LatticeFamily::Reentrant3D,      "reentrant_3d",       "Re-entrant 3D (auxetic)",         false },
+        { LatticeFamily::Radiolarian,      "radiolarian",        "Radiolarian (shells + spines)",   false },
+        { LatticeFamily::TrabecularBone,   "trabecular_bone",    "Trabecular bone (rods + plates)", false },
+        { LatticeFamily::Wood,             "wood",               "Softwood (tracheids with pits)",  false },
+        { LatticeFamily::Cuttlebone,       "cuttlebone",         "Cuttlebone (septa + wavy walls)", false },
+        { LatticeFamily::Turing,           "turing",             "Turing pattern (Gray-Scott)",     true  },
+        { LatticeFamily::HierarchicalGyroid, "hierarchical_gyroid", "Hierarchical gyroid",         false },
     };
     return t;
 }
@@ -134,6 +155,27 @@ inline bool isFoamFamily(LatticeFamily f)
         || f == LatticeFamily::FoamWeairePhelan || f == LatticeFamily::FoamRandom;
 }
 
+/// Bio-inspired and architected forms (cellforms.h): one form state per cell.
+inline bool isFormFamily(LatticeFamily f)
+{
+    switch (f) {
+        case LatticeFamily::GlassSponge: case LatticeFamily::ChiralTwist: case LatticeFamily::Woven:
+        case LatticeFamily::Bouligand: case LatticeFamily::DiamondBallStick: case LatticeFamily::Reentrant3D:
+        case LatticeFamily::Radiolarian: case LatticeFamily::TrabecularBone: case LatticeFamily::Wood:
+        case LatticeFamily::Cuttlebone: case LatticeFamily::Turing: case LatticeFamily::HierarchicalGyroid:
+            return true;
+        default:
+            return false;
+    }
+}
+
+/// Index of a form family in cellforms::Kind (the two enums list the forms in the
+/// same order, glass sponge first), -1 for every other family.
+inline int formIndex(LatticeFamily f)
+{
+    return isFormFamily(f) ? static_cast<int>(f) - static_cast<int>(LatticeFamily::GlassSponge) : -1;
+}
+
 /// Families built from strut / wall centre-line segments (one segment table).
 inline bool isSegmentFamily(LatticeFamily f)
 {
@@ -159,6 +201,8 @@ inline bool isRandomFamily(LatticeFamily f)
         case LatticeFamily::Spinodoid: case LatticeFamily::FourierSheet: case LatticeFamily::FourierSkeletal:
         case LatticeFamily::NoiseSheet: case LatticeFamily::NoiseSkeletal:
         case LatticeFamily::CubicAssembly: case LatticeFamily::FoamRandom: case LatticeFamily::Mycelium:
+        case LatticeFamily::TrabecularBone: case LatticeFamily::Wood: case LatticeFamily::Cuttlebone:
+        case LatticeFamily::Turing:
             return true;
         default:
             return false;
@@ -254,6 +298,21 @@ inline bool parseLatticeFamily(const QString& text, LatticeFamily& out)
         { "fungal",             LatticeFamily::Mycelium },
         { "hyphae",             LatticeFamily::Mycelium },
         { "hyphalnetwork",      LatticeFamily::Mycelium },
+        { "neovius",            LatticeFamily::NeoviusSheet },
+        { "fischerkoch",        LatticeFamily::FischerKochSheet },
+        { "fischerkochs",       LatticeFamily::FischerKochSheet },
+        { "lidinoid",           LatticeFamily::LidinoidSheet },
+        { "euplectella",        LatticeFamily::GlassSponge },
+        { "sponge",             LatticeFamily::GlassSponge },
+        { "chiral",             LatticeFamily::ChiralTwist },
+        { "weave",              LatticeFamily::Woven },
+        { "helicoidal",         LatticeFamily::Bouligand },
+        { "ballandstick",       LatticeFamily::DiamondBallStick },
+        { "auxetic3d",          LatticeFamily::Reentrant3D },
+        { "bone",               LatticeFamily::TrabecularBone },
+        { "trabecular",         LatticeFamily::TrabecularBone },
+        { "grayscott",          LatticeFamily::Turing },
+        { "reactiondiffusion",  LatticeFamily::Turing },
     };
     for (const Alias& a : aliases)
         if (q == QLatin1String(a.text)) { out = a.family; return true; }

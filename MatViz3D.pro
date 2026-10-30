@@ -109,6 +109,7 @@ SOURCES += \
         dlca.cpp \
         lattice.cpp \
         mycelium.cpp \
+        cellforms.cpp \
         printability.cpp \
         legendview.cpp \
         loadstepmanager.cpp \
@@ -182,6 +183,7 @@ HEADERS += \
     lattice.h \
     latticefamily.h \
     mycelium.h \
+    cellforms.h \
     printability.h \
     legendview.h \
     logo_printer.h \

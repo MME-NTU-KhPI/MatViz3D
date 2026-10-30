@@ -67,6 +67,7 @@ SOURCES += \
     ../dlca.cpp \
     ../lattice.cpp \
     ../mycelium.cpp \
+    ../cellforms.cpp \
     ../printability.cpp
 
 HEADERS += \
@@ -92,6 +93,7 @@ HEADERS += \
     ../lattice.h \
     ../latticefamily.h \
     ../mycelium.h \
+    ../cellforms.h \
     ../printability.h \
     ../fft_homog.hpp \
     ../fft_solver_session.hpp \

@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "cellforms.h"
 #include "hdf5wrapper.h"
 #include "latticefamily.h"
 
@@ -500,7 +501,9 @@ void DatasetBrowserController::buildSections(const DatasetRowsModel::Row& row)
         if (P.contains(QStringLiteral("voxel_mm"))) it << item(QStringLiteral("Voxel"), val("voxel_mm") + QStringLiteral(" mm"));
         if (famOk) {
             const bool sheet = fam == LatticeFamily::GyroidSheet || fam == LatticeFamily::SchwarzPSheet || fam == LatticeFamily::SchwarzDSheet
-                            || fam == LatticeFamily::IWPSheet || fam == LatticeFamily::FourierSheet;
+                            || fam == LatticeFamily::IWPSheet || fam == LatticeFamily::FourierSheet
+                            || fam == LatticeFamily::NeoviusSheet || fam == LatticeFamily::FischerKochSheet
+                            || fam == LatticeFamily::LidinoidSheet;
             if (sheet && dval("lattice_uniform_wall") > 0.5) it << item(QStringLiteral("Uniform wall"), QStringLiteral("yes"));
             if (fam == LatticeFamily::Spinodoid) {
                 it << item(QStringLiteral("Cone about X / Y / Z"), val("spinodoid_theta_x") + QStringLiteral(" / ") + val("spinodoid_theta_y") + QStringLiteral(" / ") + val("spinodoid_theta_z") + QStringLiteral(" deg"));
@@ -539,13 +542,24 @@ void DatasetBrowserController::buildSections(const DatasetRowsModel::Row& row)
                    << item(QStringLiteral("Growth unit / branch angle"), val("mycelium_unit") + QStringLiteral(" / ") + val("mycelium_angle") + QStringLiteral(" deg"))
                    << item(QStringLiteral("Fusion distance"), val("mycelium_fuse") + QStringLiteral(" cell edges"))
                    << item(QStringLiteral("Branch / parent thickness"), val("mycelium_taper"));
-                if (mode == QLatin1String("polypore")) it << item(QStringLiteral("Binding hyphae"), val("mycelium_binding") + QStringLiteral(" of the length"));
+                if (mode == QLatin1String("polypore")) it << item(QStringLiteral("Binding hyphae"), val("mycelium_binding") + QStringLiteral(" of the length"))
+                                                          << item(QStringLiteral("Skeletal hyphae along Z"), val("mycelium_align"));
                 if (mode == QLatin1String("mat"))      it << item(QStringLiteral("Anchors"), val("mycelium_anchors") + QStringLiteral(" of the branches"));
                 if (mode == QLatin1String("layered"))  it << item(QStringLiteral("Substrate at the faces"), val("mycelium_poor"));
                 if (P.contains(QStringLiteral("mycelium_fusions")))
                     it << item(QStringLiteral("Hyphae / fusions / free ends"), val("mycelium_hyphae") + QStringLiteral(" / ") + val("mycelium_fusions")
                                                                                  + QStringLiteral(" / ") + val("mycelium_free_ends"))
                        << item(QStringLiteral("Length on closed loops"), QString::number(100.0 * dval("mycelium_backbone_share"), 'f', 0) + QStringLiteral(" %"));
+            }
+            if (isFormFamily(fam)) {
+                const auto kind = static_cast<cellforms::Kind>(formIndex(fam));
+                const char* keys[3] = { "form_a", "form_b", "form_c" };
+                for (int k = 0; k < 3; ++k)
+                    if (const char* label = cellforms::knobLabel(kind, k)) {
+                        QString l = QString::fromLatin1(label);
+                        l[0] = l[0].toUpper();
+                        it << item(l + QStringLiteral(" (knob)"), val(keys[k]));
+                    }
             }
             if (fam == LatticeFamily::CubicAssembly) {
                 it << item(QStringLiteral("Struts / plates / shells / windows"),

@@ -1071,6 +1071,16 @@ void saveGeometryMetadataToHDF5(HDF5Wrapper& hdf5, const std::string& prefix, co
             hdf5.write(geomGroup, "lattice_foam_sites", rows);
             paramsObj["lattice_foam_site_count"] = static_cast<int>(rows.size());
         }
+        // A bio-inspired / architected form: its three shape knobs (cellforms.h).
+        LatticeFamily fam = LatticeFamily::GyroidSheet;
+        if (parseLatticeFamily(Parameters::latticeFamilyKeyStored(), fam) && isFormFamily(fam)) {
+            hdf5.write(geomGroup, "form_a", p->getFormA());
+            hdf5.write(geomGroup, "form_b", p->getFormB());
+            hdf5.write(geomGroup, "form_c", p->getFormC());
+            paramsObj["form_a"] = p->getFormA();
+            paramsObj["form_b"] = p->getFormB();
+            paramsObj["form_c"] = p->getFormC();
+        }
         // A mycelium cell: its growth settings, its hyphae (ax ay az bx by bz weight per
         // piece, cell units, b not wrapped) and what the growth produced.
         if (!Parameters::lattice_mycelium_segments.empty()) {
@@ -1083,6 +1093,7 @@ void saveGeometryMetadataToHDF5(HDF5Wrapper& hdf5, const std::string& prefix, co
             hdf5.write(geomGroup, "mycelium_fuse",    p->getMyceliumFuse());
             hdf5.write(geomGroup, "mycelium_taper",   p->getMyceliumTaper());
             hdf5.write(geomGroup, "mycelium_binding", p->getMyceliumBinding());
+            hdf5.write(geomGroup, "mycelium_align",   p->getMyceliumAlign());
             hdf5.write(geomGroup, "mycelium_anchors", p->getMyceliumAnchors());
             hdf5.write(geomGroup, "mycelium_poor",    p->getMyceliumPoor());
             paramsObj["mycelium_mode"]    = p->getMyceliumMode();
@@ -1094,6 +1105,7 @@ void saveGeometryMetadataToHDF5(HDF5Wrapper& hdf5, const std::string& prefix, co
             paramsObj["mycelium_fuse"]    = p->getMyceliumFuse();
             paramsObj["mycelium_taper"]   = p->getMyceliumTaper();
             paramsObj["mycelium_binding"] = p->getMyceliumBinding();
+            paramsObj["mycelium_align"]   = p->getMyceliumAlign();
             paramsObj["mycelium_anchors"] = p->getMyceliumAnchors();
             paramsObj["mycelium_poor"]    = p->getMyceliumPoor();
             if (!p->getMyceliumFile().isEmpty()) {

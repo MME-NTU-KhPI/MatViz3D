@@ -181,6 +181,7 @@ public:
     std::vector<int>    pos;        ///< index of the node in its hypha's chain
     std::vector<std::vector<int>> chains;
     std::vector<int>    order, kind;   ///< per hypha
+    std::vector<int>    origin;        ///< per hypha: the skeletal hypha a binding one grew from (-1 otherwise)
     std::vector<int>    spores;
     std::vector<Tip>    tips;
     int    fusions = 0, branches = 0, germ = 0;
@@ -211,6 +212,7 @@ public:
         chains.push_back({ node });
         order.push_back(ord);
         kind.push_back(knd);
+        origin.push_back(-1);
         return static_cast<int>(chains.size()) - 1;
     }
 
@@ -244,7 +246,7 @@ public:
             if (k <= 0 || k >= static_cast<int>(ch.size()) - 1 || ch[k] != j) continue;
             const V3 axis = unitv(mic(X[ch[k + 1]] - X[ch[k - 1]]));
             Tip nt = newTip(j, turn(axis, o.angle * kPi / 180.0, rnd), std::min(order[h] + 1, o.maxOrder), kind[h], X[j]);
-            if (kind[h] == Binding) nt.origin = h;
+            if (kind[h] == Binding) { nt.origin = h; origin[nt.h] = h; }
             if (onBranch) onBranch(nt);
             tips.push_back(nt);
             ++branches;
@@ -323,6 +325,7 @@ public:
                     const int ord = std::min(t.order + 1, o.maxOrder);
                     Tip nt = newTip(n, turn(u, o.angle * kPi / 180.0, rnd), ord, knd, p);
                     nt.origin = t.origin;
+                    origin[nt.h] = t.origin;
                     nt.sign = t.sign;
                     nt.z0 = t.z0;
                     if (onBranch) onBranch(nt);
@@ -367,7 +370,13 @@ void growPolypore(Colony& col, const Params& p)
     const int nSkel = p.spores > 0 ? p.spores : 10;
     const double share = std::clamp(p.binding, 0.0, 0.95);
     const double skelLen = (1.0 - share) * p.length / nSkel;   // per skeletal hypha (both halves)
-    for (int i = 0; i < nSkel; ++i) col.spore(col.rnd.point(), col.rnd.dir(), Skeletal);
+    const double align = std::clamp(p.align, 0.0, 1.0);
+    for (int i = 0; i < nSkel; ++i) {
+        const V3 q = col.rnd.point();   // drawn before the direction: argument order is unspecified
+        V3 u = col.rnd.dir();
+        if (align > 0.0) u = unitv(u * (1.0 - align) + kEz * align);
+        col.spore(q, u, Skeletal);
+    }
     {
         Options o;
         o.wiggle = 0.03; o.unit = 1e9; o.fuse = 0.0; o.avoid = 0.0; o.life = skelLen / 2.0;
@@ -381,18 +390,24 @@ void growPolypore(Colony& col, const Params& p)
     for (size_t j = 0; j < col.X.size(); ++j)
         if (col.hyp[j] >= 0) skel.push_back(static_cast<int>(j));
     if (skel.empty()) return;
-    const int nBind = std::max(1, static_cast<int>(std::lround(14.0 * bindLen / 9.0)));
+    // Aligned fibres need ties between them, so more binding hyphae start (two
+    // more per fibre at full alignment) and spend their length on bridging.
+    const int nBind = std::max(1, static_cast<int>(std::lround(14.0 * bindLen / 9.0 + 2.0 * align * nSkel)));
     for (int i = 0; i < nBind; ++i) {
         const int j = skel[static_cast<size_t>(col.rnd.index(static_cast<int>(skel.size())))];
         Tip t = col.newTip(j, col.rnd.dir(), 1, Binding, col.X[j]);
         t.origin = col.hyp[j];
+        col.origin[t.h] = t.origin;
         col.tips.push_back(t);
         ++col.germ;
     }
     // A binding hypha reaches for the nearest skeletal hypha other than its own
-    // and fuses with anything but the hypha it started on.
-    constexpr double attractR = 0.16, attract = 0.6;
-    col.bias = [&col](Tip& t, const V3& p0) -> V3 {
+    // and fuses with anything but the hypha it started on. Aligned skeletal
+    // hyphae stand ~1/sqrt(n) apart side by side, beyond the 0.16 a random
+    // tangle needs, so the reach grows with the alignment to tie them.
+    const double attractR = 0.16 + align * std::max(0.0, 0.8 / std::sqrt(double(nSkel)) - 0.16);
+    constexpr double attract = 0.6;
+    col.bias = [&col, attractR](Tip& t, const V3& p0) -> V3 {
         if (t.kind != Binding) return {};
         const V3 q = wrap3(p0);
         double bd = attractR * attractR;
@@ -405,12 +420,21 @@ void growPolypore(Colony& col, const Params& p)
         }
         return found ? unitv(best) * attract : V3{};
     };
-    col.canFuse = [&col](const Tip& t, int j) { return col.hyp[j] != t.origin; };
-    col.life = [](int) { return 0.45; };
+    // Aligned skeletal hyphae never cross, so a binding hypha has to reach
+    // another one: it does not fuse into the tuft of its own fibre, and lives
+    // long enough to cross the gap.
+    col.canFuse = [&col, align](const Tip& t, int j) {
+        const int h = col.hyp[j];
+        if (h == t.origin) return false;
+        return !(align > 0.0 && h >= 0 && col.kind[h] == Binding && col.origin[h] == t.origin);
+    };
+    const double life = 0.45 + 0.35 * align;
+    col.life = [life](int) { return life; };
     // Binding hyphae are more tortuous, branch more often and wider than the
     // substrate hyphae of the same settings (defaults: 0.45, 0.09, 70 deg, 0.045).
     Options o;
-    o.wiggle = 1.8 * p.wiggle; o.unit = 0.36 * p.unit; o.angle = std::min(90.0, p.angle * 7.0 / 6.0);
+    o.wiggle = 1.8 * p.wiggle * (1.0 - 0.5 * align); o.unit = 0.36 * p.unit * (1.0 + align);
+    o.angle = std::min(90.0, p.angle * 7.0 / 6.0);
     o.fuse = 0.9 * p.fuse; o.avoid = 0.15; o.avoidR = 0.06; o.maxTips = 40;
     col.grow(bindLen, nullptr, o);
 }

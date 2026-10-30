@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <vector>
 #include "parent_algorithm.h"
+#include "cellforms.h"
 #include "latticefamily.h"
 #include "mycelium.h"
 
@@ -125,6 +126,19 @@
  *     up to a cut-off that is widened when the solved level reaches it. The
  *     pieces go to Parameters::lattice_mycelium_segments and the HDF5 file, and
  *     `mycelium_file` reads them back (one piece per line).
+ *   - Neovius, Fischer-Koch S, Lidinoid (`*_sheet`): three more triply
+ *     periodic minimal surfaces, sheet only, evaluated from their exact
+ *     Fourier expansions (cellforms::tpmsWaves(); the Lidinoid's has a
+ *     constant term), which are also what gets published.
+ *   - Bio-inspired and architected forms (cellforms.h), shaped by the knobs
+ *     `form_a/b/c` in [0, 1]: segment forms (glass sponge, chiral twist,
+ *     woven, Bouligand, diamond ball-and-stick, re-entrant 3D) build a table
+ *     of weighted pieces that is evaluated through the mycelium's bucket grid,
+ *     field forms (radiolarian, trabecular bone, softwood, cuttlebone, Turing
+ *     pattern, hierarchical gyroid) a field per point; bone, wood, cuttlebone
+ *     and the Turing pattern draw from the seed. F is a distance over a
+ *     thickness weight (c the half wall of a weight-1 member) except for the
+ *     Turing pattern, a signed unit-variance level set.
  *   - `lattice_smooth` sigma (cell edges): the full field (after grading and
  *     jitter) is sampled on the grid, values of carved-out voxels are set to
  *     the largest finite value, and a periodic Gaussian blur of sigma is
@@ -261,6 +275,10 @@ private:
     /// Mycelium field at a point in cube fractions: distance to the nearest
     /// piece / its weight, capped at m_mycCut.
     double myceliumField(double X, double Y, double Z) const;
+    /// Mycelium and the segment forms: the cell's field is the piece table.
+    bool   usesPieceTable() const;
+    /// Bio-inspired / architected forms: the piece table or the field of the form.
+    void   buildForm();
     /// Cubic assembly field at a point in cube fractions: fold into the asymmetric
     /// unit, distance to the nearest member / its weight, +inf inside a window.
     double assemblyField(double X, double Y, double Z) const;
@@ -353,6 +371,8 @@ private:
     std::vector<mycelium::Segment> m_mycSegments;     ///< the hyphae, one cell
     mycelium::Stats m_mycStats;
     double  m_mycMinWeight   = 1.0;    ///< thinnest hypha, for the wall estimate
+    cellforms::Knobs m_formKnobs;                     ///< form_a / form_b / form_c
+    cellforms::Field m_formField;                     ///< field forms (radiolarian, bone, ...)
     double  m_mycCut         = 0.2;    ///< field values are exact below this, cell edges
     int     m_mycG           = 1;      ///< buckets per cell edge
     std::vector<int> m_mycStart;       ///< bucket b holds pieces m_mycIndex[m_mycStart[b] .. m_mycStart[b + 1])

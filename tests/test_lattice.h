@@ -33,6 +33,7 @@ private slots:
     void testRandomFoamIsReproducibleAndRoundTrips();
     void testMyceliumGrowsConnectedAndRoundTrips();
     void testMyceliumModes();
+    void testNewSurfacesAndForms();
     void testCliOptions();
 };
 

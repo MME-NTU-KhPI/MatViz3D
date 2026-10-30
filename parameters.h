@@ -163,9 +163,15 @@ class Parameters : public QObject
     Q_PROPERTY(double  mycelium_fuse    READ getMyceliumFuse    WRITE setMyceliumFuse    NOTIFY latticeSettingsChanged)
     Q_PROPERTY(double  mycelium_taper   READ getMyceliumTaper   WRITE setMyceliumTaper   NOTIFY latticeSettingsChanged)
     Q_PROPERTY(double  mycelium_binding READ getMyceliumBinding WRITE setMyceliumBinding NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  mycelium_align   READ getMyceliumAlign   WRITE setMyceliumAlign   NOTIFY latticeSettingsChanged)
     Q_PROPERTY(double  mycelium_anchors READ getMyceliumAnchors WRITE setMyceliumAnchors NOTIFY latticeSettingsChanged)
     Q_PROPERTY(double  mycelium_poor    READ getMyceliumPoor    WRITE setMyceliumPoor    NOTIFY latticeSettingsChanged)
     Q_PROPERTY(QString mycelium_file    READ getMyceliumFile    WRITE setMyceliumFile    NOTIFY latticeSettingsChanged)
+    // Bio-inspired / architected forms (cellforms.h): three shape knobs in [0, 1]
+    // whose meaning depends on the form (cellforms::knobLabel()).
+    Q_PROPERTY(double  form_a           READ getFormA           WRITE setFormA           NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  form_b           READ getFormB           WRITE setFormB           NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  form_c           READ getFormC           WRITE setFormC           NOTIFY latticeSettingsChanged)
     // Material given as numbers instead of a database row (dataset runs): E in
     // GPa (0 = use db_material), Poisson's ratio, and the ratio of the modulus
     // across the print layers (Z) to the in-plane one (1 = isotropic).
@@ -491,12 +497,20 @@ public:
     Q_INVOKABLE void setMyceliumTaper(double value);
     double  getMyceliumBinding()     const { return mycelium_binding; }
     Q_INVOKABLE void setMyceliumBinding(double value);
+    double  getMyceliumAlign()       const { return mycelium_align; }
+    Q_INVOKABLE void setMyceliumAlign(double value);
     double  getMyceliumAnchors()     const { return mycelium_anchors; }
     Q_INVOKABLE void setMyceliumAnchors(double value);
     double  getMyceliumPoor()        const { return mycelium_poor; }
     Q_INVOKABLE void setMyceliumPoor(double value);
     QString getMyceliumFile()        const { return mycelium_file; }
     Q_INVOKABLE void setMyceliumFile(const QString& value);
+    double  getFormA()               const { return form_a; }
+    double  getFormB()               const { return form_b; }
+    double  getFormC()               const { return form_c; }
+    Q_INVOKABLE void setFormA(double value);
+    Q_INVOKABLE void setFormB(double value);
+    Q_INVOKABLE void setFormC(double value);
     double getMatEGpa()    const { return mat_e_gpa; }
     double getMatNu()      const { return mat_nu; }
     double getMatAniso()   const { return mat_aniso; }
@@ -859,9 +873,13 @@ private:
     static double  mycelium_fuse;
     static double  mycelium_taper;
     static double  mycelium_binding;
+    static double  mycelium_align;
     static double  mycelium_anchors;
     static double  mycelium_poor;
     static QString mycelium_file;
+    static double  form_a;
+    static double  form_b;
+    static double  form_c;
     static double  mat_e_gpa;
     static double  mat_nu;
     static double  mat_aniso;

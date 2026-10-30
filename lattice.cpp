@@ -149,8 +149,30 @@ inline double tpmsAreaPerCell(LatticeFamily f)
         case LatticeFamily::SchwarzPSheet: return 2.35;
         case LatticeFamily::SchwarzDSheet: return 3.84;
         case LatticeFamily::IWPSheet:      return 3.47;
+        // Numerical (level-set delta on a 160^3 grid, scaled to the gyroid's 3.09).
+        case LatticeFamily::NeoviusSheet:     return 3.88;
+        case LatticeFamily::FischerKochSheet: return 5.63;
+        case LatticeFamily::LidinoidSheet:    return 6.44;
         default:                           return 0.0;
     }
+}
+
+// Exact Fourier expansions of the newer minimal surfaces, built once.
+const std::vector<cellforms::Wave>& surfaceWaves(LatticeFamily f)
+{
+    static const std::vector<cellforms::Wave> neo = cellforms::tpmsWaves(cellforms::Surface::Neovius);
+    static const std::vector<cellforms::Wave> fks = cellforms::tpmsWaves(cellforms::Surface::FischerKochS);
+    static const std::vector<cellforms::Wave> lid = cellforms::tpmsWaves(cellforms::Surface::Lidinoid);
+    switch (f) {
+        case LatticeFamily::NeoviusSheet:     return neo;
+        case LatticeFamily::FischerKochSheet: return fks;
+        default:                              return lid;
+    }
+}
+
+inline bool isNewSurface(LatticeFamily f)
+{
+    return f == LatticeFamily::NeoviusSheet || f == LatticeFamily::FischerKochSheet || f == LatticeFamily::LidinoidSheet;
 }
 
 } // namespace
@@ -251,9 +273,13 @@ void Lattice::readParameters()
     m_myc.fuse    = std::clamp(p.getMyceliumFuse(), 0.0, 0.2);
     m_myc.taper   = std::clamp(p.getMyceliumTaper(), 0.3, 1.0);
     m_myc.binding = std::clamp(p.getMyceliumBinding(), 0.0, 0.8);
+    m_myc.align   = std::clamp(p.getMyceliumAlign(), 0.0, 1.0);
     m_myc.anchors = std::clamp(p.getMyceliumAnchors(), 0.0, 1.0);
     m_myc.poor    = std::clamp(p.getMyceliumPoor(), 0.05, 1.0);
     m_mycFile     = p.getMyceliumFile();
+    m_formKnobs.a = std::clamp(p.getFormA(), 0.0, 1.0);
+    m_formKnobs.b = std::clamp(p.getFormB(), 0.0, 1.0);
+    m_formKnobs.c = std::clamp(p.getFormC(), 0.0, 1.0);
 
     // Second and third families (united with / carved out of the first).
     // Random families keep state in the same members as the primary, and
@@ -268,6 +294,10 @@ void Lattice::readParameters()
         }
         if (u == m_family) {
             qWarning().noquote() << QString("[Lattice] %1 equals the cell family; ignored").arg(what);
+            return false;
+        }
+        if (isFormFamily(u)) {
+            qWarning().noquote() << QString("[Lattice] %1 cannot be a bio-inspired / architected form (%2); ignored").arg(what, key);
             return false;
         }
         if (isRandomFamily(u)) {
@@ -764,6 +794,11 @@ std::vector<Lattice::Wave> Lattice::tpmsWaves() const
             add( 1, 0, 1, 1.0, 0.0); add(-1, 0, 1, 1.0, 0.0);
             add( 2, 0, 0, 1.0, kPi); add( 0, 2, 0, 1.0, kPi); add( 0, 0, 2, 1.0, kPi);
             break;
+        case LatticeFamily::NeoviusSheet:
+        case LatticeFamily::FischerKochSheet:
+        case LatticeFamily::LidinoidSheet:      // the Lidinoid's constant term is a zero vector
+            for (const cellforms::Wave& w : surfaceWaves(m_family)) add(w.k[0], w.k[1], w.k[2], w.amp, w.phase);
+            break;
         default:
             break;
     }
@@ -780,6 +815,7 @@ bool Lattice::isSheet(LatticeFamily fam) const
         case LatticeFamily::GyroidSheet: case LatticeFamily::SchwarzPSheet:
         case LatticeFamily::SchwarzDSheet: case LatticeFamily::IWPSheet:
         case LatticeFamily::FourierSheet:
+        case LatticeFamily::NeoviusSheet: case LatticeFamily::FischerKochSheet: case LatticeFamily::LidinoidSheet:
             return true;
         default:
             return false;
@@ -823,6 +859,18 @@ bool Lattice::levelSet(LatticeFamily fam, double X, double Y, double Z, double& 
             g[1] = a * (-2.0 * sy * (cx + cz) + 2.0 * std::sin(2 * y));
             g[2] = a * (-2.0 * sz * (cx + cy) + 2.0 * std::sin(2 * z));
             return true;
+        case LatticeFamily::NeoviusSheet:
+        case LatticeFamily::FischerKochSheet:
+        case LatticeFamily::LidinoidSheet: {
+            f = 0.0; g[0] = g[1] = g[2] = 0.0;
+            for (const cellforms::Wave& w : surfaceWaves(fam)) {
+                const double ph = a * (w.k[0] * X + w.k[1] * Y + w.k[2] * Z) + w.phase;
+                f += w.amp * std::cos(ph);
+                const double d = -w.amp * a * std::sin(ph);
+                g[0] += d * w.k[0]; g[1] += d * w.k[1]; g[2] += d * w.k[2];
+            }
+            return true;
+        }
         case LatticeFamily::FourierSheet:
         case LatticeFamily::FourierSkeletal: {
             f = 0.0; g[0] = g[1] = g[2] = 0.0;
@@ -956,6 +1004,17 @@ double Lattice::familyField(LatticeFamily fam, double X, double Y, double Z) con
             return foamField(X, Y, Z);
         case LatticeFamily::Mycelium:
             return myceliumField(X, Y, Z);
+        case LatticeFamily::NeoviusSheet: case LatticeFamily::FischerKochSheet: case LatticeFamily::LidinoidSheet: {
+            double f, g[3];
+            levelSet(fam, X, Y, Z, f, g);
+            return std::abs(f);
+        }
+        case LatticeFamily::GlassSponge: case LatticeFamily::ChiralTwist: case LatticeFamily::Woven:
+        case LatticeFamily::Bouligand: case LatticeFamily::DiamondBallStick: case LatticeFamily::Reentrant3D:
+            return myceliumField(X, Y, Z);
+        case LatticeFamily::Radiolarian: case LatticeFamily::TrabecularBone: case LatticeFamily::Wood:
+        case LatticeFamily::Cuttlebone: case LatticeFamily::Turing: case LatticeFamily::HierarchicalGyroid:
+            return m_formField.at(wrap01(X * m_cells), wrap01(Y * m_cells), wrap01(Z * m_cells));
     }
     return 0.0;
 }
@@ -1377,33 +1436,40 @@ void Lattice::buildMycelium()
     m_mycMinWeight = 1.0;
     Parameters::lattice_mycelium_segments.clear();
     Parameters::lattice_mycelium_stats = mycelium::Stats();
-    if (m_family != LatticeFamily::Mycelium) return;
+    if (!usesPieceTable()) return;
 
-    bool loaded = false;
-    if (!m_mycFile.isEmpty()) {
-        loaded = loadMyceliumFile(m_mycFile);
-        if (!loaded)
-            qWarning().noquote() << QString("[Lattice] could not read mycelium pieces from \"%1\"; growing from seed %2 instead")
-                                        .arg(m_mycFile).arg(Parameters::seed);
+    // The segment forms (cellforms.h) share the piece table and its bucket grid;
+    // their pieces follow from the knobs, so they are not published.
+    const bool grown = m_family == LatticeFamily::Mycelium;
+    if (grown) {
+        bool loaded = false;
+        if (!m_mycFile.isEmpty()) {
+            loaded = loadMyceliumFile(m_mycFile);
+            if (!loaded)
+                qWarning().noquote() << QString("[Lattice] could not read mycelium pieces from \"%1\"; growing from seed %2 instead")
+                                            .arg(m_mycFile).arg(Parameters::seed);
+        }
+        if (loaded) m_mycStats = mycelium::measure(m_mycSegments);
+        else        m_mycSegments = mycelium::grow(m_myc, m_rng, &m_mycStats);
+    } else {
+        m_mycSegments = cellforms::segments(static_cast<cellforms::Kind>(formIndex(m_family)), m_formKnobs);
     }
-    if (loaded) m_mycStats = mycelium::measure(m_mycSegments);
-    else        m_mycSegments = mycelium::grow(m_myc, m_rng, &m_mycStats);
     if (m_mycSegments.empty()) {
-        qWarning() << "[Lattice] mycelium: no hyphae grew; the cell is empty";
+        qWarning() << "[Lattice] the piece table is empty; the cell is empty";
         return;
     }
 
     double wmin = 1e300, sumW2L = 0.0;
-    Parameters::lattice_mycelium_segments.reserve(m_mycSegments.size());
+    if (grown) Parameters::lattice_mycelium_segments.reserve(m_mycSegments.size());
     for (const mycelium::Segment& s : m_mycSegments) {
-        Parameters::lattice_mycelium_segments.push_back({ s.a[0], s.a[1], s.a[2], s.b[0], s.b[1], s.b[2], s.w });
+        if (grown) Parameters::lattice_mycelium_segments.push_back({ s.a[0], s.a[1], s.a[2], s.b[0], s.b[1], s.b[2], s.w });
         double L2 = 0.0;
         for (int i = 0; i < 3; ++i) { const double d = double(s.b[i]) - double(s.a[i]); L2 += d * d; }
         wmin = std::min(wmin, double(s.w));
         sumW2L += double(s.w) * double(s.w) * std::sqrt(L2);
     }
     m_mycMinWeight = wmin;
-    Parameters::lattice_mycelium_stats = m_mycStats;
+    if (grown) Parameters::lattice_mycelium_stats = m_mycStats;
 
     // Cut-off: 2.5 x the radius the pieces' own volume would need for the
     // density (their overlaps make the real one larger); Initialization()
@@ -1411,6 +1477,20 @@ void Lattice::buildMycelium()
     const double cEst = sumW2L > 0.0 ? std::sqrt(m_target / (kPi * sumW2L)) : 0.1;
     m_mycCut = std::clamp(2.5 * cEst, 0.03, 0.5);
     buildMyceliumGrid();
+}
+
+bool Lattice::usesPieceTable() const
+{
+    return m_family == LatticeFamily::Mycelium
+        || (isFormFamily(m_family) && cellforms::isSegmentKind(static_cast<cellforms::Kind>(formIndex(m_family))));
+}
+
+// The field forms; the segment forms build their piece table in buildMycelium().
+void Lattice::buildForm()
+{
+    m_formField.clear();
+    if (!isFormFamily(m_family) || usesPieceTable()) return;
+    m_formField.build(static_cast<cellforms::Kind>(formIndex(m_family)), m_formKnobs, m_rng);
 }
 
 // Bucket b of a G^3 grid over the cell lists every piece that comes within
@@ -2232,6 +2312,9 @@ void Lattice::estimateWall()
         case LatticeFamily::SchwarzPSheet:
         case LatticeFamily::SchwarzDSheet:
         case LatticeFamily::IWPSheet:
+        case LatticeFamily::NeoviusSheet:
+        case LatticeFamily::FischerKochSheet:
+        case LatticeFamily::LidinoidSheet:
             m_wallVox = rho * voxPerCell / tpmsAreaPerCell(m_family);
             break;
         case LatticeFamily::SimpleCubic:
@@ -2256,9 +2339,12 @@ void Lattice::estimateWall()
             // Foams: c is half the wall thickness, or the strut radius of the edges.
             if (isFoamFamily(m_family))
                 m_wallVox = 2.0 * m_c * voxPerCell;
-            // Mycelium: the thinnest hypha is 2 c w_min thick.
-            if (m_family == LatticeFamily::Mycelium)
+            // Mycelium and the segment forms: the thinnest piece is 2 c w_min thick.
+            if (usesPieceTable())
                 m_wallVox = 2.0 * m_c * m_mycMinWeight * voxPerCell;
+            // Field forms: the thinnest wall is 2 c w_min thick (the Turing pattern has no estimate).
+            if (isFormFamily(m_family) && !usesPieceTable() && m_formField.minWeight() > 0.0)
+                m_wallVox = 2.0 * m_c * m_formField.minWeight() * voxPerCell;
             break;   // skeletal / spinodoid: no simple estimate
     }
 }
@@ -2320,6 +2406,7 @@ void Lattice::Initialization(bool /*isWaveGeneration*/)
     buildAssembly();
     buildFoam();
     buildMycelium();
+    buildForm();
     publishWaves();
 
     numColors = 1;
@@ -2332,9 +2419,9 @@ void Lattice::Initialization(bool /*isWaveGeneration*/)
     normalizeJitter();
     buildSmoothed();
     m_c = solveThreshold();
-    // Mycelium: the field is exact below the cut-off only (grading and jitter
+    // Piece tables: the field is exact below the cut-off only (grading and jitter
     // scale it by up to 1 + g + j), so widen the cut-off while the level reaches it.
-    while (m_family == LatticeFamily::Mycelium && !m_mycSegments.empty() && m_mycCut < 0.5
+    while (usesPieceTable() && !m_mycSegments.empty() && m_mycCut < 0.5
            && m_c * (1.0 + m_grading + m_jitter) >= 0.95 * m_mycCut) {
         m_mycCut = std::min(0.5, 2.0 * m_mycCut);
         buildMyceliumGrid();
@@ -2474,6 +2561,7 @@ void Lattice::CleanUp()
     m_mycStart.shrink_to_fit();
     m_mycIndex.clear();
     m_mycIndex.shrink_to_fit();
+    m_formField.clear();
     m_smoothed.clear();
     m_smoothed.shrink_to_fit();
     m_solidCount = 0;
@@ -2571,6 +2659,21 @@ void Lattice::report() const
                                        .arg(st.growthUnit, 0, 'f', 3).arg(100.0 * st.backbone, 0, 'f', 0)
                                  : QString())
                    .arg(m_mycMinWeight, 0, 'f', 3).arg(m_mycCut, 0, 'g', 3).arg(m_mycG);
+    }
+    if (isFormFamily(m_family)) {
+        const auto kind = static_cast<cellforms::Kind>(formIndex(m_family));
+        const double v[3] = { m_formKnobs.a, m_formKnobs.b, m_formKnobs.c };
+        QStringList knobs;
+        for (int k = 0; k < 3; ++k)
+            if (const char* l = cellforms::knobLabel(kind, k))
+                knobs << QString("%1 %2").arg(QString::fromLatin1(l)).arg(v[k], 0, 'g', 3);
+        qInfo().noquote()
+            << QString("[Lattice] form: %1%2%3")
+                   .arg(knobs.join(QStringLiteral(", ")))
+                   .arg(usesPieceTable() ? QString("; %1 pieces, thinnest weight %2, field exact below %3 cell edges")
+                                               .arg(m_mycSegments.size()).arg(m_mycMinWeight, 0, 'f', 2).arg(m_mycCut, 0, 'g', 3)
+                                         : QString())
+                   .arg(isRandomFamily(m_family) ? QString(" (seed %1)").arg(Parameters::seed) : QString());
     }
     if (m_hasUnion)
         qInfo().noquote()
@@ -2707,8 +2810,14 @@ static std::vector<ParamField> latticeSchema()
         { "mycelium_fuse",    "Mycelium fusion distance (cell edges)", ParamField::Double, 0.05, 0.0, 0.2,  {}, "main" },
         { "mycelium_taper",   "Mycelium branch / parent thickness",   ParamField::Double, 0.75, 0.3,  1.0,  {}, "main" },
         { "mycelium_binding", "Polypore: binding hyphae share",       ParamField::Double, 0.36, 0.0,  0.8,  {}, "main" },
+        { "mycelium_align",   "Polypore: skeletal hyphae along Z",    ParamField::Double, 0.0,  0.0,  1.0,  {}, "main" },
         { "mycelium_anchors", "Mat: share of branches as anchors",    ParamField::Double, 0.25, 0.0,  1.0,  {}, "main" },
         { "mycelium_poor",    "Layered: substrate at the faces",      ParamField::Double, 0.25, 0.05, 1.0,  {}, "main" },
+
+        // Bio-inspired / architected forms: three shape knobs, their meaning per form (cellforms::knobLabel()).
+        { "form_a", "Form knob A (meaning per form)", ParamField::Double, 0.5, 0.0, 1.0, {}, "main" },
+        { "form_b", "Form knob B (meaning per form)", ParamField::Double, 0.5, 0.0, 1.0, {}, "main" },
+        { "form_c", "Form knob C (meaning per form)", ParamField::Double, 0.5, 0.0, 1.0, {}, "main" },
     };
 
     // One constituent: the printed base material. Void is the other phase.
@@ -2723,7 +2832,7 @@ MATVIZ_REGISTER_ALGORITHM(AlgorithmPlugin{
     "Lattice",
     "Periodic cellular metamaterial RVE (TPMS sheets and skeletons, strut "
     "lattices, plate lattices with holes, spheres and cylinders, honeycombs, anisotropic spinodoids, open Fourier-series level "
-    "sets with optional cubic symmetry, smoothed random noise, random cubic-symmetric assemblies of plates, struts and shells, foams (Kelvin, rhombic dodecahedra, Weaire-Phelan, random Voronoi; closed, windowed or open cells), grown fungal mycelia (substrate, polypore, mat, layered); unions, carve-outs and smoothing of families): one solid phase plus void, "
+    "sets with optional cubic symmetry, smoothed random noise, random cubic-symmetric assemblies of plates, struts and shells, foams (Kelvin, rhombic dodecahedra, Weaire-Phelan, random Voronoi; closed, windowed or open cells), grown fungal mycelia (substrate, polypore, mat, layered), Neovius / Fischer-Koch S / Lidinoid sheets, bio-inspired and architected forms (glass sponge, chiral twist, woven yarns, Bouligand fibres, diamond ball-and-stick, re-entrant 3D, radiolarian, trabecular bone, softwood, cuttlebone, Turing pattern, hierarchical gyroid); unions, carve-outs and smoothing of families): one solid phase plus void, "
     "sized to a target relative density, with optional thickness grading, jitter and lattice rotation.",
     /*order=*/ 2,
     latticeSchema(),
