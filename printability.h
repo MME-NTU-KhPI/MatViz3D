@@ -30,7 +30,10 @@
  *   - thin walls: solid removed by a morphological opening with a ball of
  *     radius min_wall/2, i.e. material that no ball of the minimum wall
  *     diameter fits into. Uses an exact Euclidean distance transform, so a
- *     wall is "thin" by its true local thickness, not by a voxel count;
+ *     wall is "thin" by its true local thickness, not by a voxel count. The
+ *     ball centres are voxel centres, so the dilation reaches half a voxel
+ *     diagonal further: the best centre for a voxel on an inclined or curved
+ *     surface lies between them, and the staircase is not a thin wall;
  *   - overhangs: for each of the six build directions, solid voxels on a
  *     layer with no solid in the (2r+1)^2 window of the layer below, where
  *     r = round(tan(max_overhang)) (45 deg -> the 3x3 window). The first

@@ -1,5 +1,6 @@
 #include "test_printability.h"
 #include <QTest>
+#include <algorithm>
 #include <cmath>
 #include <functional>
 #include "printability.h"
@@ -204,6 +205,44 @@ void TestPrintability::testThinWallsAreDetected()
     QVERIFY(rk.ok);
     QVERIFY(std::abs(rk.opening_radius_vox - 1.6) < 1e-9);
     QVERIFY(rk.thin_check_resolved);
+}
+
+void TestPrintability::testThinWallsIgnoreTheVoxelStaircase()
+{
+    // Voxel 0.25 mm, opening radius 1.6 voxels. A periodic strut along
+    // [1 2 3] through the cube centre, 1.5 mm across (6 voxels): no part of it
+    // is thinner than 0.8 mm, but its surface is a staircase of voxel
+    // corners -- the opening without slack called 3.6 % of it thin.
+    const int N = 48;
+    const double ax[3] = { 1.0 / std::sqrt(14.0), 2.0 / std::sqrt(14.0), 3.0 / std::sqrt(14.0) };
+    auto strutDistance = [&](int x, int y, int z) {
+        const double p[3] = { (x + 0.5) / N - 0.5, (y + 0.5) / N - 0.5, (z + 0.5) / N - 0.5 };
+        double best = 1e9;
+        for (int i = -2; i <= 2; ++i)
+            for (int j = -2; j <= 2; ++j)
+                for (int k = -2; k <= 2; ++k) {
+                    const double d[3] = { p[0] - i, p[1] - j, p[2] - k };
+                    const double s = d[0] * ax[0] + d[1] * ax[1] + d[2] * ax[2];
+                    double q2 = 0.0;
+                    for (int a = 0; a < 3; ++a) { const double q = d[a] - s * ax[a]; q2 += q * q; }
+                    best = std::min(best, std::sqrt(q2));
+                }
+        return best * N * 0.25;                    // mm
+    };
+    Cube strut(N, [&](int x, int y, int z) { return strutDistance(x, y, z) <= 0.75; });
+    PrintabilityThresholds rod = thresholds(0.25);
+    rod.min_directions = 0;                        // one rod joins in one direction; this test is about thickness
+    const PrintabilityReport rs = checkPrintability(strut.v, strut.N, rod);
+    QVERIFY2(rs.thin_fraction < 1e-3, qPrintable(QString("thick inclined strut: thin fraction %1").arg(rs.thin_fraction)));
+
+    // A slab 0.6 mm thick at an angle to the axes is too thin everywhere.
+    Cube slab(N, [&](int x, int y, int) {
+        const double f = ((x + 0.5) + 2.0 * (y + 0.5)) / N;   // normal (1, 2, 0): periodic in the cube
+        const double d = std::abs(f - std::round(f)) / std::sqrt(5.0) * N * 0.25;
+        return d <= 0.3;
+    });
+    const PrintabilityReport rl = checkPrintability(slab.v, slab.N, rod);
+    QVERIFY2(rl.thin_fraction > 0.99, qPrintable(QString("thin inclined slab: thin fraction %1").arg(rl.thin_fraction)));
 }
 
 void TestPrintability::testOverhangPicksTheBuildDirection()

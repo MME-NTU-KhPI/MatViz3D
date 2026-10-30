@@ -271,11 +271,19 @@ PrintabilityReport checkPrintability(int32_t*** voxels, int N, const Printabilit
         if (ne == 0) {
             r.thin_fraction = 1.0;
         } else {
+            // Dilate back by the radius plus half a voxel diagonal. The eroded
+            // set exists only at voxel centres, so the ball that covers a voxel
+            // of an inclined or curved surface can be centred up to sqrt(3)/2
+            // voxel from the nearest one; without that slack the staircase of
+            // every such surface read as thin (3-14 % of a 4-6 voxel strut
+            // along [1 2 3]), while a wall too thin to erode is all thin still.
             std::vector<double> dEroded;             // distance to the eroded set
             edt3d(eroded, N, t.periodic, dEroded);
+            const double cover = rad + 0.5 * std::sqrt(3.0);
+            const double cover2 = cover * cover;
             std::size_t kept = 0;
             for (std::size_t i = 0; i < M; ++i)
-                if (solid[i] && dEroded[i] <= rad2) ++kept;
+                if (solid[i] && dEroded[i] <= cover2) ++kept;
             r.thin_fraction = 1.0 - double(kept) / double(nsolid);
         }
     }

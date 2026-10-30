@@ -15,6 +15,7 @@ private slots:
     void testBodyMustJoinInThreeDirections();
     void testPeriodicWrapJoinsAcrossFaces();
     void testThinWallsAreDetected();
+    void testThinWallsIgnoreTheVoxelStaircase();
     void testOverhangPicksTheBuildDirection();
     void testClosedPoresAreReported();
     void testGyroidPassesAndReportIsPublished();
