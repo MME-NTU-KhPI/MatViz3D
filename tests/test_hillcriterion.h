@@ -32,6 +32,15 @@ private slots:
     void testHdf5LegacyTensorBasisConverted();
     void testFCCSchmidAndCRSSYieldField();
 
+    void testYieldPointScaleInvariantBelowOldThreshold();
+    void testYieldPointsWrapperScaleInvariantBelowOldThreshold();
+    void testYieldPointSkipsDegenerateStep();
+    void testYieldPercentileOneSelectsMaximum();
+    void testYieldPercentileAutoResolution();
+    void testYieldPercentileParsing();
+    void testYieldPercentileWrittenToHdf5();
+    void testMacroAboveYieldStressWarns();
+
 private:
     // Points on the 5D deviatoric sphere of radius R (random directions)
     static std::vector<std::array<double, 6>> deviatoricSpherePoints(int n, double R, unsigned seed);

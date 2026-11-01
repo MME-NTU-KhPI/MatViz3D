@@ -242,6 +242,8 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
         "[Stress] Hill fit space: auto | deviatoric5d | full6d (keeps the hydrostatic axis). Default: auto (per algorithm)", "space"));
     parser.addOption(QCommandLineOption("yield_stress",
         "[Stress] Von Mises yield threshold in Pa for --local_criterion vonmises (default: 120e6).", "Pa"));
+    parser.addOption(QCommandLineOption("yield_percentile",
+        "[Stress] Percentile of the local stress taken as critical at yield: auto | (0,1], 1 = maximum. Default: auto (DLCA 1.0, others 0.98)", "fraction"));
     parser.addOption(QCommandLineOption("working_directory",
         "[Stress] Working directory for ANSYS scratch and APDL files.", "dir"));
 
@@ -426,6 +428,7 @@ void Commandline_Parser::printJsonHelp()
     addOpt("local_criterion", "Stress", "string", "criterion", "auto", "Local yield criterion for dataset yield points (auto: per algorithm)", QStringList() << "auto" << "schmid" << "vonmises");
     addOpt("hill_space", "Stress", "string", "space", "auto", "Hill fit space; full6d keeps the hydrostatic axis (auto: per algorithm)", QStringList() << "auto" << "deviatoric5d" << "full6d");
     addOpt("yield_stress", "Stress", "double", "Pa", "120e6", "Von Mises yield threshold in Pa for local_criterion vonmises");
+    addOpt("yield_percentile", "Stress", "string", "fraction", "auto", "Percentile of the local stress taken as critical at yield: auto or (0,1], 1 = maximum (auto: DLCA 1.0, others 0.98)");
     addOpt("working_directory", "Stress", "string", "dir", "", "Working directory for ANSYS scratch and APDL files");
 
     // Agent Metadata
@@ -997,6 +1000,20 @@ bool Commandline_Parser::applyParameter(const QString& key, const QString& value
         return true;
     }
 
+    if (normKey == "yield_percentile") {
+        if (value.trimmed().toLower() == "auto") {
+            Parameters::yield_percentile = 0.0;
+            return true;
+        }
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (!(v > 0.0 && v <= 1.0)) {
+            return setErr(QString("Option yield_percentile expects auto or a value in (0, 1]; got \"%1\"").arg(value));
+        }
+        Parameters::yield_percentile = v;
+        return true;
+    }
+
     if (normKey == "eps" || normKey == "stress_eps") {
         const QStringList parts = value.split(',');
         if (parts.size() != 6) {
@@ -1212,6 +1229,7 @@ bool Commandline_Parser::processOptions(const QCommandLineParser& parser, QStrin
     if (parser.isSet("local_criterion"))         if (!applyCliOption("local_criterion", parser.value("local_criterion"))) return false;
     if (parser.isSet("hill_space"))              if (!applyCliOption("hill_space", parser.value("hill_space"))) return false;
     if (parser.isSet("yield_stress"))            if (!applyCliOption("yield_stress", parser.value("yield_stress"))) return false;
+    if (parser.isSet("yield_percentile"))        if (!applyCliOption("yield_percentile", parser.value("yield_percentile"))) return false;
     if (parser.isSet("eps"))                     if (!applyCliOption("eps", parser.value("eps"))) return false;
     if (parser.isSet("output"))                  if (!applyCliOption("output", parser.value("output"))) return false;
     if (parser.isSet("working_directory"))       if (!applyCliOption("working_directory", parser.value("working_directory"))) return false;

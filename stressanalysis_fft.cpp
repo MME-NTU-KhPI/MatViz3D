@@ -149,7 +149,11 @@ void StressAnalysisFFT::estimateStressWithFFT(short int numCubes, short int numP
         qInfo().noquote() << QString("[%1] local criterion = %2 (%3), hill space = %4 (%5)")
                                  .arg("StressAnalysisFFT", criterion, criterionAuto ? src : "explicit",
                                       space, spaceAuto ? src : "explicit");
-        m_hill.setYieldSettings(criterion, space, Parameters::yield_stress);
+        bool percentileAuto = false;
+        const double percentile = Parameters::resolveYieldPercentile(algo, Parameters::yield_percentile, &percentileAuto);
+        qInfo().noquote() << QString("[%1] yield percentile = %2 (%3)")
+                                 .arg("StressAnalysisFFT").arg(percentile).arg(percentileAuto ? src : "explicit");
+        m_hill.setYieldSettings(criterion, space, Parameters::yield_stress, percentile);
     }
 
     const int N = numCubes;
@@ -218,7 +222,7 @@ void StressAnalysisFFT::estimateStressWithFFT(short int numCubes, short int numP
             ++solved;
 
             auto yp = m_hill.computeYieldPointForStep(
-                r.voxel_stress, r.voxel_grain, r.macro_stress, session.local_cs());
+                r.voxel_stress, r.voxel_grain, r.macro_stress, session.local_cs(), n + 1);
             if (yp) yield_points.push_back(*yp);
         }
 
@@ -331,7 +335,7 @@ void StressAnalysisFFT::estimateStressWithFFT(short int numCubes, short int numP
 
             // collect the yield point for the final P_Hill refit
             auto yp = m_hill.computeYieldPointForStep(
-                r.voxel_stress, r.voxel_grain, r.macro_stress, session.local_cs());
+                r.voxel_stress, r.voxel_grain, r.macro_stress, session.local_cs(), static_cast<int>(ls));
             if (yp) final_yield_points.push_back(*yp);
 
             if (ls <= 3 || ls == load_cases.size() || ls % 50 == 0)

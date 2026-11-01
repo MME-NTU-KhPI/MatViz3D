@@ -37,9 +37,11 @@ public:
 
     bool isValid() const { return m_isValid; }
 
-    // Resolved settings (see Parameters::resolveYieldSettings). Defaults are
-    // schmid + deviatoric5d, i.e. the historical behaviour.
-    void setYieldSettings(const QString& localCriterion, const QString& hillSpace, double yieldStress);
+    // Resolved settings (see Parameters::resolveYieldSettings and
+    // Parameters::resolveYieldPercentile). Defaults are schmid + deviatoric5d +
+    // the 98th percentile, i.e. the historical behaviour.
+    void setYieldSettings(const QString& localCriterion, const QString& hillSpace, double yieldStress,
+                          double yieldPercentile = 0.98);
     // Active local criterion and its threshold, for logs, e.g. "von Mises, yield_stress = 1.2000e+08 Pa"
     QString criterionDescription() const {
         return m_vonMises ? QString("von Mises, yield_stress = %1 Pa").arg(m_yieldStress, 0, 'e', 4)
@@ -50,7 +52,8 @@ public:
         const std::vector<std::array<double,6>>& voxel_stress,
         const std::vector<int>&                  voxel_grain,
         const std::array<double,6>&              macro_stress,
-        const std::vector<std::vector<float>>&   local_cs);
+        const std::vector<std::vector<float>>&   local_cs,
+        int                                      step);
 
 private:
     friend class TestHillCriterion;
@@ -64,7 +67,20 @@ private:
     bool   m_vonMises        = false;  // local criterion: von Mises instead of Schmid
     bool   m_full6D          = false;  // Hill fit space: full 6D instead of 5D deviatoric
     double m_yieldStress     = 120e6;  // von Mises threshold (Pa)
+    double m_yieldPercentile = 0.98;   // element taken as critical, (0,1]; 1 = the maximum
     bool   m_fittedFull6D    = false;  // space actually used by the last successful fit
+
+    // A step's critical value below this fraction of the same step's maximum is
+    // numerical noise: scaling by it would blow the yield point up. Relative, so
+    // that it does not depend on the load amplitude or the solid fraction.
+    static constexpr double kDegenerateTauRatio = 1e-12;
+    // Slack on the macro <= yield_stress check. A homogeneous cell sits exactly on
+    // the bound, and the ANSYS path reads its results in single precision.
+    static constexpr double kMacroYieldTolerance = 1e-6;
+
+    static bool isDegenerateStep(double critical_tau, double step_max_tau);
+    int percentileIndex(std::size_t count) const;
+    void warnIfMacroAboveYieldStress(const std::array<double,6>& sigma_yield, int step) const;
 
     static double vonMisesStress(const double s[6]);
     bool fitFull6D(const std::vector<std::array<double,6>>& yield_points, QString* reason);

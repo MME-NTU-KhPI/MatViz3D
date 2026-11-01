@@ -383,6 +383,7 @@ public:
     static QString local_criterion;   // "auto" | "schmid" | "vonmises"
     static QString hill_space;        // "auto" | "deviatoric5d" | "full6d"
     static double  yield_stress;      // Pa, von Mises threshold
+    static double  yield_percentile;  // (0,1], or 0 = "auto" (per algorithm)
     static float halfaxis_a;
     static float halfaxis_b;
     static float halfaxis_c;
@@ -430,6 +431,13 @@ public:
      */
     static void resolveYieldSettings(const QString& algorithm, QString& criterion, QString& space,
                                      bool* criterionAuto = nullptr, bool* spaceAuto = nullptr);
+
+    /**
+     * @brief Resolve yield_percentile: an explicit value in (0,1] is kept, 0
+     *        ("auto") is replaced by the per-algorithm default (aliases accepted).
+     *        isAuto reports whether the value came from the auto table.
+     */
+    static double resolveYieldPercentile(const QString& algorithm, double percentile, bool* isAuto = nullptr);
 
 signals:
     void sizeChanged();

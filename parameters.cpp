@@ -31,6 +31,7 @@ QString Parameters::prob_matrix_mode = "Volume Sampling";
 QString Parameters::local_criterion = "auto";
 QString Parameters::hill_space = "auto";
 double  Parameters::yield_stress = 120e6;   // = 2*CRSS: uniaxial yield at Schmid factor 0.5
+double  Parameters::yield_percentile = 0.0; // auto
 float Parameters::halfaxis_a = 1.5f;
 float Parameters::halfaxis_b = 1.5f;
 float Parameters::halfaxis_c = 1.5f;
@@ -179,6 +180,7 @@ void Parameters::resetDefaults()
     local_criterion = "auto";
     hill_space = "auto";
     yield_stress = 120e6;
+    yield_percentile = 0.0;
     for (int i = 0; i < 6; ++i) stressEps[i] = 0.0;
     textureComponents.clear();
     phaseAssignment.clear();
@@ -1022,6 +1024,23 @@ void Parameters::resolveYieldSettings(const QString& algorithm, QString& criteri
     space     = sAuto ? autoSpace     : space.trimmed().toLower();
     if (criterionAuto) *criterionAuto = cAuto;
     if (spaceAuto)     *spaceAuto     = sAuto;
+}
+
+double Parameters::resolveYieldPercentile(const QString& algorithm, double percentile, bool* isAuto)
+{
+    const bool pAuto = percentile <= 0.0;
+    if (isAuto) *isAuto = pAuto;
+    if (!pAuto)
+        return percentile;
+
+    QString name = algorithm.trimmed();
+    if (const AlgorithmPlugin* plugin = AlgorithmFactory::instance().pluginFor(name))
+        name = plugin->name;
+
+    // Most of a DLCA gel's solid sits in dangling, unloaded branches, so any
+    // percentile below the maximum lands there and the macro yield point
+    // overshoots the solid's own yield stress.
+    return name.compare("DLCA", Qt::CaseInsensitive) == 0 ? 1.0 : 0.98;
 }
 
 void Parameters::setLatticeOverride(const QString& value)

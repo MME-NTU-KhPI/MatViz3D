@@ -56,6 +56,13 @@ public:
     QString readStringAttribute(const std::string& dataGroup, const std::string& dataSetName,
                                 const std::string& attrName);
 
+    // Numeric attribute on an existing dataset. Reading returns fallback when
+    // the dataset or the attribute is absent.
+    void writeDoubleAttribute(const std::string& dataGroup, const std::string& dataSetName,
+                              const std::string& attrName, double value);
+    double readDoubleAttribute(const std::string& dataGroup, const std::string& dataSetName,
+                               const std::string& attrName, double fallback = 0.0);
+
     std::vector<std::string> listDataGroups(const std::string& path);
     std::vector<std::string> listDataGroups();
 

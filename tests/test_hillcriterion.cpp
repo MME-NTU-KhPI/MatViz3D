@@ -15,6 +15,13 @@
 #include "tensormath.hpp"
 #include "hdf5wrapper.h"
 #include "parent_algorithm.h"
+#include "parameters.h"
+#include "commandline_parser.h"
+#include "config_source.h"
+#include <QCommandLineParser>
+#include <QTemporaryFile>
+#include <QDir>
+#include <algorithm>
 
 void TestHillCriterion::init()
 {
@@ -651,3 +658,266 @@ void TestHillCriterion::testFCCSchmidAndCRSSYieldField()
     Parent_Algorithm::Delete3D<int32_t>(vox);
 }
 
+
+namespace {
+// Reproducible, heterogeneous, nonzero local field (Pa); peak von Mises below 1e9.
+std::vector<std::array<double, 6>> syntheticVoxelStress(int n)
+{
+    std::mt19937 gen(99);
+    std::uniform_real_distribution<double> dist(-1.0e8, 1.0e8);
+    std::vector<std::array<double, 6>> field(n);
+    for (auto& s : field)
+        for (double& c : s) c = dist(gen);
+    return field;
+}
+
+std::array<double, 6> scaled(const std::array<double, 6>& s, double f)
+{
+    return { s[0]*f, s[1]*f, s[2]*f, s[3]*f, s[4]*f, s[5]*f };
+}
+
+// Peak local stress of the scaled field is at least 1e6 times below the old 10 Pa cutoff
+const double kBelowOldThreshold = 1e-14;
+
+// 16-char field, short enough for load_loadstep()'s fixed-width slicing at any magnitude
+QString fixedField(double v) { return QString("%1;").arg(v, 16, 'e', 8); }
+
+bool writeLoadStep(ElasticFitWrapper& wr, int ls, const std::vector<std::array<double, 6>>& field,
+                   const std::array<double, 6>& macro)
+{
+    QFile f(wr.filePath(QString("ls_%1.csv").arg(ls)));
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Text)) return false;
+    QTextStream out(&f);
+    out << "header\n";
+    for (int e = 0; e < int(field.size()); ++e) {
+        out << fixedField(e + 1);
+        for (int c = 0; c < 6; ++c) out << fixedField(0);
+        for (double v : field[e]) out << fixedField(v);
+        for (int c = 0; c < 6; ++c) out << fixedField(0);
+        out << "\n";
+    }
+    f.close();
+
+    QFile fe(wr.filePath(QString("lse_%1.csv").arg(ls)));
+    if (!fe.open(QIODevice::WriteOnly | QIODevice::Text)) return false;
+    QTextStream oute(&fe);
+    oute << "header\n";
+    for (double v : macro) oute << fixedField(v);
+    for (int c = 0; c < 6; ++c) oute << fixedField(0);
+    oute << "\n";
+    return true;
+}
+}
+
+void TestHillCriterion::testYieldPointScaleInvariantBelowOldThreshold()
+{
+    const auto field = syntheticVoxelStress(200);
+    const std::array<double, 6> macro = { 3.0e6, -1.0e6, 2.0e6, 1.0e6, -2.0e6, 0.5e6 };
+    const std::vector<int> grains(field.size(), 1);
+    const std::vector<std::vector<float>> local_cs = { {0, 0, 0}, {0.3f, 0.7f, 1.1f} };
+
+    std::vector<std::array<double, 6>> tiny;
+    for (const auto& s : field) tiny.push_back(scaled(s, kBelowOldThreshold));
+
+    struct Case { const char* criterion; const char* space; };
+    for (const Case& c : { Case{"vonmises", "full6d"}, Case{"schmid", "deviatoric5d"} }) {
+        HillCriterion h;
+        h.setYieldSettings(c.criterion, c.space, 120e6);
+        const auto ref = h.computeYieldPointForStep(field, grains, macro, local_cs, 1);
+        const auto got = h.computeYieldPointForStep(tiny, grains, scaled(macro, kBelowOldThreshold), local_cs, 1);
+        QVERIFY(ref.has_value());
+        QVERIFY2(got.has_value(), c.criterion);
+
+        double norm = 0.0;
+        for (double v : *ref) norm = std::max(norm, std::abs(v));
+        for (int i = 0; i < 6; ++i)
+            QVERIFY2(std::abs((*got)[i] - (*ref)[i]) <= 1e-9 * norm,
+                     qPrintable(QString("%1 [%2]: %3 vs %4").arg(c.criterion).arg(i).arg((*got)[i]).arg((*ref)[i])));
+    }
+}
+
+void TestHillCriterion::testYieldPointsWrapperScaleInvariantBelowOldThreshold()
+{
+    // Same invariance through the ANSYS path, step 2 being the tiny copy of step 1
+    const auto field = syntheticVoxelStress(200);
+    const std::array<double, 6> macro = { 3.0e6, -1.0e6, 2.0e6, 1.0e6, -2.0e6, 0.5e6 };
+    std::vector<std::array<double, 6>> tiny;
+    for (const auto& s : field) tiny.push_back(scaled(s, kBelowOldThreshold));
+
+    ElasticFitWrapper wr;
+    wr.eps_as_loading.assign(2, std::vector<float>(6, 0.0f));
+    QVERIFY(writeLoadStep(wr, 1, field, macro));
+    QVERIFY(writeLoadStep(wr, 2, tiny, scaled(macro, kBelowOldThreshold)));
+
+    HillCriterion h;
+    h.setYieldSettings("vonmises", "full6d", 120e6);
+    const auto points = h.computeYieldPoints(&wr, {}, 1, nullptr);
+    QCOMPARE(points.size(), size_t(2));
+    for (int i = 0; i < 6; ++i) // results are single precision on this path
+        QVERIFY2(std::abs(points[1][i] - points[0][i]) <= 1e-5 * std::abs(points[0][i]),
+                 qPrintable(QString("[%1]: %2 vs %3").arg(i).arg(points[1][i]).arg(points[0][i])));
+}
+
+void TestHillCriterion::testYieldPointSkipsDegenerateStep()
+{
+    HillCriterion h;
+    h.setYieldSettings("vonmises", "full6d", 120e6);
+    const std::vector<std::array<double, 6>> zeros(100, std::array<double, 6>{});
+    const std::vector<int> grains(100, 1);
+    const std::array<double, 6> macro = { 1.0, 0, 0, 0, 0, 0 };
+
+    // All zeros
+    QTest::ignoreMessage(QtWarningMsg, QRegularExpression("degenerate"));
+    QVERIFY(!h.computeYieldPointForStep(zeros, grains, macro, {}, 7).has_value());
+
+    // Critical element zero, a few others loaded
+    auto mostlyZero = zeros;
+    mostlyZero[0][0] = 1.0e8;
+    QTest::ignoreMessage(QtWarningMsg, QRegularExpression("degenerate"));
+    QVERIFY(!h.computeYieldPointForStep(mostlyZero, grains, macro, {}, 8).has_value());
+
+    // Critical element nonzero but below kDegenerateTauRatio of the step's maximum
+    auto noisy = zeros;
+    for (auto& s : noisy) s[0] = 1.0e-6;
+    noisy[99][0] = 1.0e8;
+    QTest::ignoreMessage(QtWarningMsg, QRegularExpression("degenerate"));
+    QVERIFY(!h.computeYieldPointForStep(noisy, grains, macro, {}, 9).has_value());
+
+    // The maximum itself is never degenerate
+    h.setYieldSettings("vonmises", "full6d", 120e6, 1.0);
+    QVERIFY(h.computeYieldPointForStep(noisy, grains, macro, {}, 10).has_value());
+}
+
+void TestHillCriterion::testYieldPercentileOneSelectsMaximum()
+{
+    // Uniaxial sx = 1..100 MPa in shuffled order: 0.98 picks index 98, 1.0 the maximum
+    std::vector<std::array<double, 6>> field;
+    for (int i = 1; i <= 100; ++i) field.push_back({ i * 1.0e6, 0, 0, 0, 0, 0 });
+    std::shuffle(field.begin(), field.end(), std::mt19937(5));
+    const std::vector<int> grains(field.size(), 1);
+    const std::array<double, 6> macro = { 1.0e6, 0, 0, 0, 0, 0 };
+    const double Y = 120e6;
+
+    HillCriterion h;
+    h.setYieldSettings("vonmises", "full6d", Y, 1.0);
+    auto p = h.computeYieldPointForStep(field, grains, macro, {}, 1);
+    QVERIFY(p.has_value());
+    QVERIFY(std::abs((*p)[0] - Y / 100.0) <= 1e-9 * Y);
+
+    h.setYieldSettings("vonmises", "full6d", Y, 0.98);
+    p = h.computeYieldPointForStep(field, grains, macro, {}, 1);
+    QVERIFY(p.has_value());
+    QVERIFY(std::abs((*p)[0] - Y / 99.0) <= 1e-9 * Y);
+
+    // Default-constructed is the historical 98th percentile
+    HillCriterion def;
+    def.setYieldSettings("vonmises", "full6d", Y);
+    const auto q = def.computeYieldPointForStep(field, grains, macro, {}, 1);
+    QVERIFY(q.has_value());
+    QCOMPARE((*q)[0], (*p)[0]);
+}
+
+void TestHillCriterion::testYieldPercentileAutoResolution()
+{
+    bool isAuto = false;
+    QCOMPARE(Parameters::resolveYieldPercentile("Voronoi", 0.0, &isAuto), 0.98);
+    QVERIFY(isAuto);
+    QCOMPARE(Parameters::resolveYieldPercentile("DLCA", 0.0, &isAuto), 1.0);
+    QVERIFY(isAuto);
+    for (const char* algo : { "Polycrystall", "Moore", "Probability", "Composite", "" })
+        QCOMPARE(Parameters::resolveYieldPercentile(algo, 0.0), 0.98);
+
+    // Explicit wins over the table, in both directions
+    QCOMPARE(Parameters::resolveYieldPercentile("DLCA", 0.9, &isAuto), 0.9);
+    QVERIFY(!isAuto);
+    QCOMPARE(Parameters::resolveYieldPercentile("Voronoi", 1.0, &isAuto), 1.0);
+    QVERIFY(!isAuto);
+}
+
+void TestHillCriterion::testYieldPercentileParsing()
+{
+    Parameters::resetDefaults();
+    QCOMPARE(Parameters::yield_percentile, 0.0);
+
+    QString err;
+    QVERIFY(applyParameter("yield_percentile", "0.95", &err));
+    QCOMPARE(Parameters::yield_percentile, 0.95);
+    QVERIFY(applyParameter("yield_percentile", "1", &err));
+    QCOMPARE(Parameters::yield_percentile, 1.0);
+    QVERIFY(applyParameter("yield_percentile", " AUTO ", &err));
+    QCOMPARE(Parameters::yield_percentile, 0.0);
+
+    QVERIFY(applyParameter("yield_percentile", "0.9", &err));
+    for (const char* bad : { "0", "-0.5", "1.01", "nan", "inf", "abc" }) {
+        err.clear();
+        QVERIFY2(!applyParameter("yield_percentile", bad, &err), bad);
+        QVERIFY(!err.isEmpty());
+        QCOMPARE(Parameters::yield_percentile, 0.9);
+    }
+
+    // CLI
+    Parameters::resetDefaults();
+    {
+        QCommandLineParser parser;
+        Commandline_Parser::setupParser(parser);
+        QVERIFY(parser.parse({ "MatViz3D", "--yield_percentile", "0.97" }));
+        QVERIFY(Commandline_Parser::processOptions(parser));
+        QCOMPARE(Parameters::yield_percentile, 0.97);
+    }
+
+    // YAML
+    Parameters::resetDefaults();
+    QTemporaryFile f(QDir::tempPath() + "/matviz_percentile_XXXXXX.yaml");
+    QVERIFY(f.open());
+    f.write("yield_percentile: 0.99\n");
+    f.close();
+    QString cfgErr;
+    QVERIFY2(ConfigDispatcher::loadAndApply(f.fileName(), &cfgErr), qPrintable(cfgErr));
+    QCOMPARE(Parameters::yield_percentile, 0.99);
+
+    Parameters::resetDefaults();
+    QCOMPARE(Parameters::yield_percentile, 0.0);
+}
+
+void TestHillCriterion::testYieldPercentileWrittenToHdf5()
+{
+    HillCriterion h;
+    h.setYieldSettings("vonmises", "deviatoric5d", 120e6, 1.0);
+    QVERIFY(h.fit(deviatoricSpherePoints(40, 100.0e6, 3)));
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const std::string path = dir.filePath("hill.h5").toStdString();
+    {
+        HDF5Wrapper out(path);
+        h.saveToHDF5(out, "/1");
+    }
+    HDF5Wrapper in(path);
+    QCOMPARE(in.readDoubleAttribute("/1", "P_Hill", "yield_percentile", -1.0), 1.0);
+    QCOMPARE(in.readDoubleAttribute("/1", "P_Hill", "no_such_attribute", -1.0), -1.0);
+}
+
+void TestHillCriterion::testMacroAboveYieldStressWarns()
+{
+    const double Y = 120e6;
+    const std::vector<std::array<double, 6>> uniform(50, std::array<double, 6>{ 1.0e6, 0, 0, 0, 0, 0 });
+    const std::vector<int> grains(uniform.size(), 1);
+    const std::array<double, 6> macroAtBound = uniform[0];
+
+    HillCriterion h;
+    h.setYieldSettings("vonmises", "full6d", Y);
+
+    // Macro twice the critical element: warned with the step number, point still returned
+    QTest::ignoreMessage(QtWarningMsg, QRegularExpression("Step 42: macro von Mises"));
+    QVERIFY(h.computeYieldPointForStep(uniform, grains, scaled(macroAtBound, 2.0), {}, 42).has_value());
+
+    // A homogeneous cell sits exactly on the bound: any warning here fails the test
+    QTest::failOnWarning(QRegularExpression("macro von Mises"));
+    QVERIFY(h.computeYieldPointForStep(uniform, grains, macroAtBound, {}, 43).has_value());
+
+    // Schmid has no yield_stress to compare against
+    const std::vector<std::vector<float>> local_cs = { {0, 0, 0}, {0, 0, 0} };
+    HillCriterion s;
+    s.setYieldSettings("schmid", "deviatoric5d", Y);
+    QVERIFY(s.computeYieldPointForStep(uniform, grains, scaled(macroAtBound, 1000.0), local_cs, 44).has_value());
+}
