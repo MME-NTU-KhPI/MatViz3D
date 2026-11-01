@@ -371,6 +371,52 @@ QString HDF5Wrapper::readStringAttribute(const std::string& dataGroup, const std
     return out;
 }
 
+void HDF5Wrapper::writeDoubleAttribute(const std::string& dataGroup, const std::string& dataSetName,
+                                       const std::string& attrName, double value)
+{
+    if (!datasetExists(dataGroup, dataSetName)) {
+        qWarning() << "HDF5: no dataset" << fullPath(dataGroup, dataSetName).c_str()
+                   << "-- cannot write attribute" << attrName.c_str();
+        return;
+    }
+    hid_t dataset = H5Dopen(file, fullPath(dataGroup, dataSetName).c_str(), H5P_DEFAULT);
+    if (checkError(dataset, "writeDoubleAttribute: Failed to open dataset"))
+        return;
+
+    if (H5Aexists(dataset, attrName.c_str()) > 0)
+        H5Adelete(dataset, attrName.c_str());
+
+    hid_t space = H5Screate(H5S_SCALAR);
+    hid_t attr = H5Acreate2(dataset, attrName.c_str(), H5T_NATIVE_DOUBLE, space, H5P_DEFAULT, H5P_DEFAULT);
+    if (!checkError(attr, "writeDoubleAttribute: Failed to create attribute " + attrName)) {
+        H5Awrite(attr, H5T_NATIVE_DOUBLE, &value);
+        H5Aclose(attr);
+    }
+    H5Sclose(space);
+    H5Dclose(dataset);
+}
+
+double HDF5Wrapper::readDoubleAttribute(const std::string& dataGroup, const std::string& dataSetName,
+                                        const std::string& attrName, double fallback)
+{
+    if (!datasetExists(dataGroup, dataSetName))
+        return fallback;
+    hid_t dataset = H5Dopen(file, fullPath(dataGroup, dataSetName).c_str(), H5P_DEFAULT);
+    if (dataset < 0)
+        return fallback;
+
+    double out = fallback;
+    if (H5Aexists(dataset, attrName.c_str()) > 0) {
+        hid_t attr = H5Aopen(dataset, attrName.c_str(), H5P_DEFAULT);
+        double value = 0.0;
+        if (H5Aread(attr, H5T_NATIVE_DOUBLE, &value) >= 0)
+            out = value;
+        H5Aclose(attr);
+    }
+    H5Dclose(dataset);
+    return out;
+}
+
 bool HDF5Wrapper::checkError(hid_t id, const std::string& message)
 {
     if (id == H5I_INVALID_HID) {

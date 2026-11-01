@@ -77,10 +77,34 @@ double HillCriterion::resolvedShearStress(const double stress[3][3], const doubl
 // ─────────────────────────────────────────────────────────────────────────────
 //  Resolved local criterion / Hill space (Parameters::resolveYieldSettings)
 // ─────────────────────────────────────────────────────────────────────────────
-void HillCriterion::setYieldSettings(const QString& localCriterion, const QString& hillSpace, double yieldStress) {
+void HillCriterion::setYieldSettings(const QString& localCriterion, const QString& hillSpace, double yieldStress,
+                                     double yieldPercentile) {
     m_vonMises    = localCriterion.trimmed().toLower() == "vonmises";
     m_full6D      = hillSpace.trimmed().toLower() == "full6d";
     m_yieldStress = yieldStress;
+    m_yieldPercentile = yieldPercentile;
+}
+
+bool HillCriterion::isDegenerateStep(double critical_tau, double step_max_tau) {
+    return critical_tau <= 0.0 || critical_tau < kDegenerateTauRatio * step_max_tau;
+}
+
+int HillCriterion::percentileIndex(std::size_t count) const {
+    const int index = static_cast<int>(count * m_yieldPercentile);
+    return std::min(index, static_cast<int>(count) - 1);
+}
+
+// The macro stress is the volume average of the local field, so its von Mises
+// value cannot exceed the local maximum: a macro yield point above yield_stress
+// means the critical element is not the most loaded one.
+void HillCriterion::warnIfMacroAboveYieldStress(const std::array<double,6>& sigma_yield, int step) const {
+    if (!m_vonMises) return;
+    const double macro_vm = vonMisesStress(sigma_yield.data());
+    if (macro_vm > m_yieldStress * (1.0 + kMacroYieldTolerance)) {
+        qWarning() << QString("[HillCriterion] Step %1: macro von Mises at yield %2 Pa exceeds yield_stress %3 Pa "
+                              "(yield_percentile %4): the cell cannot be stronger than its solid phase")
+                          .arg(step).arg(macro_vm, 0, 'e', 4).arg(m_yieldStress, 0, 'e', 4).arg(m_yieldPercentile);
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -210,11 +234,7 @@ std::vector<std::array<double,6>> HillCriterion::computeYieldPoints(
             return a.tau < b.tau;
         });
 
-        double percentile_threshold = 0.98;
-
-        int p_index = static_cast<int>(tau_list.size() * percentile_threshold);
-        if (p_index >= static_cast<int>(tau_list.size()))
-            p_index = static_cast<int>(tau_list.size()) - 1;
+        int p_index = percentileIndex(tau_list.size());
 
         double max_tau = tau_list[p_index].tau;
         int max_elem_idx = tau_list[p_index].idx;
@@ -222,8 +242,8 @@ std::vector<std::array<double,6>> HillCriterion::computeYieldPoints(
         if (elem_skipped > 0)
             qDebug() << QString("[HillCriterion::computeYieldPoints]   Elements skipped (invalid grain_id): %1").arg(elem_skipped);
 
-        if (max_tau < 10.0) {
-            qWarning() << QString("[HillCriterion::computeYieldPoints]   Step %1: max tau is too small (%2), skipping to prevent math explosion").arg(ls).arg(max_tau);
+        if (isDegenerateStep(max_tau, tau_list.back().tau)) {
+            qWarning() << QString("[HillCriterion::computeYieldPoints]   Step %1: critical tau is degenerate (%2, step max %3), skipping to prevent math explosion").arg(ls).arg(max_tau).arg(tau_list.back().tau);
             continue;
         }
 
@@ -248,6 +268,8 @@ std::vector<std::array<double,6>> HillCriterion::computeYieldPoints(
             macro_sx * k, macro_sy * k, macro_sz * k,
             macro_sxy * k, macro_syz * k, macro_sxz * k
         };
+
+        warnIfMacroAboveYieldStress(sigma_yield, ls);
 
         // Subtract hydrostatic part -> pure deviator (full6d keeps it: pressure-sensitive)
         if (!m_full6D) {
@@ -280,7 +302,8 @@ std::optional<std::array<double,6>> HillCriterion::computeYieldPointForStep(
     const std::vector<std::array<double,6>>& voxel_stress,
     const std::vector<int>&                  voxel_grain,
     const std::array<double,6>&              macro_stress,
-    const std::vector<std::vector<float>>&   local_cs)
+    const std::vector<std::vector<float>>&   local_cs,
+    int                                      step)
 {
     const int nv = static_cast<int>(voxel_stress.size());
     if (nv == 0 || (!m_vonMises && local_cs.empty())) return std::nullopt;
@@ -332,17 +355,14 @@ std::optional<std::array<double,6>> HillCriterion::computeYieldPointForStep(
 
     if (tau_list.empty()) return std::nullopt;
 
-    // 98th-percentile element (robust against a single outlier voxel)
+    // m_yieldPercentile element (below 1: robust against a single outlier voxel)
     std::sort(tau_list.begin(), tau_list.end(),
               [](const ElemTau& a, const ElemTau& b){ return a.tau < b.tau; });
-    const double percentile = 0.98;
-    int p_index = static_cast<int>(tau_list.size() * percentile);
-    if (p_index >= (int)tau_list.size()) p_index = (int)tau_list.size() - 1;
-    const double max_tau = tau_list[p_index].tau;
+    const double max_tau = tau_list[percentileIndex(tau_list.size())].tau;
 
-    if (max_tau < 10.0) {
-        qWarning() << "[computeYieldPointForStep] max tau too small (" << max_tau
-                   << "), skipping step to avoid math explosion";
+    if (isDegenerateStep(max_tau, tau_list.back().tau)) {
+        qWarning() << "[computeYieldPointForStep] Step" << step << ": critical tau is degenerate (" << max_tau
+                   << ", step max" << tau_list.back().tau << "), skipping step to avoid math explosion";
         return std::nullopt;
     }
 
@@ -352,6 +372,8 @@ std::optional<std::array<double,6>> HillCriterion::computeYieldPointForStep(
         macro_stress[0]*k, macro_stress[1]*k, macro_stress[2]*k,
         macro_stress[3]*k, macro_stress[4]*k, macro_stress[5]*k
     };
+
+    warnIfMacroAboveYieldStress(sigma_yield, step);
 
     // remove hydrostatic part -> pure deviator (full6d keeps it: pressure-sensitive)
     if (!m_full6D) {
@@ -998,6 +1020,7 @@ void HillCriterion::saveToHDF5(HDF5Wrapper& hdf5, const std::string& prefix) {
     // record how P_Hill was produced (hill_space = space actually used by the fit)
     hdf5.write(prefix, "local_criterion", QString(m_vonMises ? "vonmises" : "schmid"));
     hdf5.write(prefix, "hill_space",      QString(m_fittedFull6D ? "full6d" : "deviatoric5d"));
+    hdf5.writeDoubleAttribute(prefix, "P_Hill", "yield_percentile", m_yieldPercentile);
 
     qDebug() << "[HillCriterion::saveToHDF5] P_Hill written successfully";
 }

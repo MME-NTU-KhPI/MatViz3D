@@ -133,7 +133,11 @@ void StressAnalysis::estimateStressWithANSYS(short int numCubes, short int numPo
         qInfo().noquote() << QString("[%1] local criterion = %2 (%3), hill space = %4 (%5)")
                                  .arg("StressAnalysis", criterion, criterionAuto ? src : "explicit",
                                       space, spaceAuto ? src : "explicit");
-        m_hill.setYieldSettings(criterion, space, Parameters::yield_stress);
+        bool percentileAuto = false;
+        const double percentile = Parameters::resolveYieldPercentile(algo, Parameters::yield_percentile, &percentileAuto);
+        qInfo().noquote() << QString("[%1] yield percentile = %2 (%3)")
+                                 .arg("StressAnalysis").arg(percentile).arg(percentileAuto ? src : "explicit");
+        m_hill.setYieldSettings(criterion, space, Parameters::yield_stress, percentile);
     }
 
     // ─── PHASE 1.0 ──────────────────────────────────────────────────────────
