@@ -184,6 +184,10 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
         "[System] Number of OpenMP worker threads (default: physical CPU cores).", "threads"));
     parser.addOption(QCommandLineOption("seed",
         "[System] RNG seed for reproducibility (default: current timestamp).", "uint"));
+    parser.addOption(QCommandLineOption(QStringList() << "seed-method" << "seed_method",
+        "[Grid] Placement of the initial crystallization seeds: 'random' | 'sobol' (default: random).", "method"));
+    parser.addOption(QCommandLineOption(QStringList() << "seed-sigma" << "seed_sigma",
+        "[Grid] Sobol seed dispersion sigma >= 0: 0 = most uniform grains, 1 ~ random (default: 0.3).", "sigma"));
     parser.addOption(QCommandLineOption("output",
         "[Output] Output HDF5 file path for structure and fields (default: current_ls.hdf5).", "file"));
     parser.addOption(QCommandLineOption("csv",
@@ -450,6 +454,14 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
         "[Stress] Prescribed macroscopic strain tensor for '--stress_mode single': exx,eyy,ezz,exy,eyz,exz", "strains"));
     parser.addOption(QCommandLineOption("num_rnd_loads",
         "[Stress] Number of random loads for Hill yield criterion fit in dataset mode (default: 150).", "count"));
+    parser.addOption(QCommandLineOption("local_criterion",
+        "[Stress] Local yield criterion for dataset yield points: auto | schmid | vonmises. Default: auto (per algorithm)", "criterion"));
+    parser.addOption(QCommandLineOption("hill_space",
+        "[Stress] Hill fit space: auto | deviatoric5d | full6d (keeps the hydrostatic axis). Default: auto (per algorithm)", "space"));
+    parser.addOption(QCommandLineOption("yield_stress",
+        "[Stress] Von Mises yield threshold in Pa for --local_criterion vonmises (default: 120e6).", "Pa"));
+    parser.addOption(QCommandLineOption("yield_percentile",
+        "[Stress] Percentile of the local stress taken as critical at yield: auto | (0,1], 1 = maximum. Default: auto (DLCA 1.0, others 0.98)", "fraction"));
     parser.addOption(QCommandLineOption("working_directory",
         "[Stress] Working directory for ANSYS scratch and APDL files.", "dir"));
 
@@ -560,6 +572,9 @@ void Commandline_Parser::printJsonHelp()
     addOpt("animate", "Execution", "bool", "", "false", "Grow structure iteration by iteration instead of one-shot generation");
     addOpt("np", "System", "int", "threads", "CPU cores", "Number of OpenMP worker threads for algorithm execution");
     addOpt("seed", "System", "uint", "uint", "timestamp", "RNG seed for reproducible structure generation");
+    addOpt("seed-method", "Grid", "string", "method", "random", "Placement of the initial crystallization seeds",
+           QStringList() << "random" << "sobol");
+    addOpt("seed-sigma", "Grid", "double", "sigma", "0.3", "Sobol seed dispersion: 0 = most uniform grains, 1 ~ random");
     addOpt("output", "Output", "string", "file", "current_ls.hdf5", "Output HDF5 filepath for structure and fields");
     addOpt("csv", "Output", "string", "file", "", "CSV export of the voxel grid (X;Y;Z;Color)");
 
@@ -706,6 +721,10 @@ void Commandline_Parser::printJsonHelp()
     addOpt("fft_max_iter", "Stress", "int", "n", "1000", "FFT iteration cap per load case");
     addOpt("eps", "Stress", "string", "strains", "", "Applied strain tensor for --stress_mode single: exx,eyy,ezz,exy,eyz,exz");
     addOpt("num_rnd_loads", "Stress", "uint", "count", "150", "Number of random loads for Hill yield criterion fit in dataset mode");
+    addOpt("local_criterion", "Stress", "string", "criterion", "auto", "Local yield criterion for dataset yield points (auto: per algorithm)", QStringList() << "auto" << "schmid" << "vonmises");
+    addOpt("hill_space", "Stress", "string", "space", "auto", "Hill fit space; full6d keeps the hydrostatic axis (auto: per algorithm)", QStringList() << "auto" << "deviatoric5d" << "full6d");
+    addOpt("yield_stress", "Stress", "double", "Pa", "120e6", "Von Mises yield threshold in Pa for local_criterion vonmises");
+    addOpt("yield_percentile", "Stress", "string", "fraction", "auto", "Percentile of the local stress taken as critical at yield: auto or (0,1], 1 = maximum (auto: DLCA 1.0, others 0.98)");
     addOpt("working_directory", "Stress", "string", "dir", "", "Working directory for ANSYS scratch and APDL files");
 
     // Agent Metadata
@@ -1264,6 +1283,45 @@ bool Commandline_Parser::applyParameter(const QString& key, const QString& value
         return true;
     }
 
+    if (normKey == "local_criterion") {
+        const QString v = value.trimmed().toLower();
+        if (v != "auto" && v != "schmid" && v != "vonmises") {
+            return setErr(QString("Option local_criterion expects auto, schmid or vonmises; got \"%1\"").arg(value));
+        }
+        Parameters::local_criterion = v;
+        return true;
+    }
+
+    if (normKey == "hill_space") {
+        const QString v = value.trimmed().toLower();
+        if (v != "auto" && v != "deviatoric5d" && v != "full6d") {
+            return setErr(QString("Option hill_space expects auto, deviatoric5d or full6d; got \"%1\"").arg(value));
+        }
+        Parameters::hill_space = v;
+        return true;
+    }
+
+    if (normKey == "yield_stress") {
+        double v = 0.0;
+        if (!parseDouble(v, true)) return false;
+        Parameters::yield_stress = v;
+        return true;
+    }
+
+    if (normKey == "yield_percentile") {
+        if (value.trimmed().toLower() == "auto") {
+            Parameters::yield_percentile = 0.0;
+            return true;
+        }
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (!(v > 0.0 && v <= 1.0)) {
+            return setErr(QString("Option yield_percentile expects auto or a value in (0, 1]; got \"%1\"").arg(value));
+        }
+        Parameters::yield_percentile = v;
+        return true;
+    }
+
     if (normKey == "eps" || normKey == "stress_eps") {
         const QStringList parts = value.split(',');
         if (parts.size() != 6) {
@@ -1301,6 +1359,28 @@ bool Commandline_Parser::applyParameter(const QString& key, const QString& value
         unsigned int v = 0;
         if (!parseUInt(v)) return false;
         params->setSeed(v);
+        return true;
+    }
+
+    if (normKey == "seed_method") {
+        const QString v = value.trimmed().toLower();
+        if (v == "random") {
+            params->setSeedMethod(Parameters::Random);
+        } else if (v == "sobol") {
+            params->setSeedMethod(Parameters::Sobol);
+        } else {
+            return setErr(QString("Option seed_method expects 'random' or 'sobol'; got \"%1\"").arg(value));
+        }
+        return true;
+    }
+
+    if (normKey == "seed_sigma") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0.0) {
+            return setErr(QString("Option seed_sigma expects a value >= 0; got %1").arg(value));
+        }
+        params->setSeedSigma(v);
         return true;
     }
 
@@ -2026,6 +2106,10 @@ bool Commandline_Parser::processOptions(const QCommandLineParser& parser, QStrin
     if (parser.isSet("fft_void_eta"))            if (!applyCliOption("fft_void_eta", parser.value("fft_void_eta"))) return false;
     if (parser.isSet("fft_discretization"))      if (!applyCliOption("fft_discretization", parser.value("fft_discretization"))) return false;
     if (parser.isSet("fft_max_iter"))            if (!applyCliOption("fft_max_iter", parser.value("fft_max_iter"))) return false;
+    if (parser.isSet("local_criterion"))         if (!applyCliOption("local_criterion", parser.value("local_criterion"))) return false;
+    if (parser.isSet("hill_space"))              if (!applyCliOption("hill_space", parser.value("hill_space"))) return false;
+    if (parser.isSet("yield_stress"))            if (!applyCliOption("yield_stress", parser.value("yield_stress"))) return false;
+    if (parser.isSet("yield_percentile"))        if (!applyCliOption("yield_percentile", parser.value("yield_percentile"))) return false;
     if (parser.isSet("eps"))                     if (!applyCliOption("eps", parser.value("eps"))) return false;
     if (parser.isSet("output"))                  if (!applyCliOption("output", parser.value("output"))) return false;
     if (parser.isSet("working_directory"))       if (!applyCliOption("working_directory", parser.value("working_directory"))) return false;
@@ -2033,6 +2117,12 @@ bool Commandline_Parser::processOptions(const QCommandLineParser& parser, QStrin
 
     if (parser.isSet("seed")) {
         if (!applyCliOption("seed", parser.value("seed"))) return false;
+    }
+    if (parser.isSet("seed-method")) {
+        if (!applyCliOption("seed_method", parser.value("seed-method"))) return false;
+    }
+    if (parser.isSet("seed-sigma")) {
+        if (!applyCliOption("seed_sigma", parser.value("seed-sigma"))) return false;
     }
 
     if (parser.isSet("np")) {

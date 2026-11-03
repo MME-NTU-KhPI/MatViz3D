@@ -845,12 +845,20 @@ def solid_c11(E, nu, aniso):
     return np.where(ok, C11, np.nan)
 
 
+def shear_basis(ds) -> str:
+    """The `shear_basis` attribute of an S_matrix / C_matrix dataset, "" when absent."""
+    v = ds.attrs.get("shear_basis", b"")
+    return (v.decode() if isinstance(v, bytes) else str(v)).strip("\x00 ")
+
+
 def lattice_props(h5path: Path) -> tuple[dict, list[list[float]]]:
     """One dataset row from one MatViz3D HDF5 file, plus the wave list (may be empty).
 
     Conventions: C_matrix is in the program's pipeline Voigt order
-    [xx, yy, zz, xy, yz, xz] with TENSOR shear strain, so 1/S_ii on a shear
-    entry is twice the shear modulus; G below is corrected for that.
+    [xx, yy, zz, xy, yz, xz]. Files with the `shear_basis = engineering`
+    attribute hold the engineering shear basis (C44 = G); older ones, dataset v1
+    among them, the TENSOR basis (shear columns of C twice as large) and are
+    brought to the engineering one first, so every row means the same.
     """
     import h5py
     row: dict = {}
@@ -873,18 +881,19 @@ def lattice_props(h5path: Path) -> tuple[dict, list[list[float]]]:
         row["n_waves"] = len(waves)
         if "1/C_matrix" in f:
             C = np.array(f["1/C_matrix"][()], dtype=float)
+            if shear_basis(f["1/C_matrix"]) != "engineering":
+                C[:, 3:] *= 0.5                       # tensor -> engineering: C_eng = C D^-1
             S = np.linalg.inv(C)
             Ex, Ey, Ez = 1 / S[0, 0], 1 / S[1, 1], 1 / S[2, 2]
             row.update({
                 "E_x": Ex, "E_y": Ey, "E_z": Ez,
-                "G_xy": 0.5 / S[3, 3], "G_yz": 0.5 / S[4, 4], "G_xz": 0.5 / S[5, 5],
+                "G_xy": 1 / S[3, 3], "G_yz": 1 / S[4, 4], "G_xz": 1 / S[5, 5],
                 "nu_xy": -S[1, 0] / S[0, 0], "nu_xz": -S[2, 0] / S[0, 0], "nu_yz": -S[2, 1] / S[1, 1],
                 "E_ratio": max(Ex, Ey, Ez) / max(min(Ex, Ey, Ez), 1e-30),
             })
-            # Voigt / Reuss averages and the universal anisotropy index A_U
-            # (0 = isotropic), with the shear entries moved to engineering form.
-            C44, C55, C66 = C[3, 3] / 2, C[4, 4] / 2, C[5, 5] / 2
-            S44, S55, S66 = 2 * S[3, 3], 2 * S[4, 4], 2 * S[5, 5]
+            # Voigt / Reuss averages and the universal anisotropy index A_U (0 = isotropic).
+            C44, C55, C66 = C[3, 3], C[4, 4], C[5, 5]
+            S44, S55, S66 = S[3, 3], S[4, 4], S[5, 5]
             KV = (C[0, 0] + C[1, 1] + C[2, 2] + 2 * (C[0, 1] + C[0, 2] + C[1, 2])) / 9
             GV = (C[0, 0] + C[1, 1] + C[2, 2] - C[0, 1] - C[0, 2] - C[1, 2] + 3 * (C44 + C55 + C66)) / 15
             KR = 1 / (S[0, 0] + S[1, 1] + S[2, 2] + 2 * (S[0, 1] + S[0, 2] + S[1, 2]))

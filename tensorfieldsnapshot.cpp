@@ -197,7 +197,7 @@ buildSnapshotFromFFT(const FieldVisualizationData& field, int32_t*** voxels, int
     // The FFT solver has no nodal displacement field, so hasDisp stays false;
     // the deformed view approximates it affinely from macroStrain instead.
 
-    if (component >= 0 && component <= EpsEQV &&
+    if (component >= 0 && component <= YIELD_STATUS &&
         field.componentValid[component] && field.perVoxel[component].size() == total)
     {
         s->scalarMin = field.componentMin[component];
@@ -243,7 +243,7 @@ buildSnapshotFromAnsys(ansysWrapper& wr, int numCubes, int32_t*** voxels, int co
     s->strain.assign(total, {});
     s->disp.assign(total, {});
 
-    const bool wantScalar = (component >= 0 && component <= EpsEQV);
+    const bool wantScalar = (component >= 0 && component <= YIELD_STATUS);
     std::vector<float> rawScalar;
     if (wantScalar) rawScalar.assign(total, 0.0f);
 

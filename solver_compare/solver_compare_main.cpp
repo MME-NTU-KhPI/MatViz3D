@@ -378,7 +378,13 @@ int main(int argc, char** argv)
                     field[(static_cast<size_t>(iz) * N + iy) * N + ix] = vox[ix][iy][iz];
         for (int v : field) nG = std::max(nG, v);
         auto orient = buildGrainOrientations(nG, seed);
-        fftsa::FFTSolverSession sess(N, N, N, field, orient);
+        // Cubic Cu stiffness (the former constructor defaults) as a full Voigt 6x6
+        double Cv[6][6];
+        cubicVoigt(168.4e9, 121.4e9, 75.4e9, Cv);
+        fftsa::Mat6 base_voigt{};
+        for (int i = 0; i < 6; ++i)
+            for (int j = 0; j < 6; ++j) base_voigt[i][j] = Cv[i][j];
+        fftsa::FFTSolverSession sess(N, N, N, field, orient, base_voigt);
         sess.set_tolerance(tol);
         sess.set_max_iters(maxit);
         double S[6][6], C[6][6];

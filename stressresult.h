@@ -13,6 +13,7 @@
 #include <QDebug>
 #include "ansyswrapper.h"   // tensor_components enum, ansysWrapper (kept alive for field visualization)
 #include "phasematerial.h"  // PhaseAssignment, PhaseMaterial, cubicVoigt()
+#include "matviz_homog.hpp" // mvh::compute_fcc_schmid_field, mvh::YieldCriterionParams
 
 // Per-voxel field data produced by a single-shot FFT solve, dense over the
 // full N^3 grid -- index (z*N+y)*N+x, matching
@@ -29,10 +30,10 @@ struct FieldVisualizationData
 {
     int numCubes = 0;
 
-    std::array<bool, EpsEQV + 1>               componentValid{};
-    std::array<std::vector<float>, EpsEQV + 1> perVoxel;      // [component][denseIdx], size numCubes^3 when valid
-    std::array<float, EpsEQV + 1>              componentMin{};
-    std::array<float, EpsEQV + 1>              componentMax{};
+    std::array<bool, YIELD_STATUS + 1>               componentValid{};
+    std::array<std::vector<float>, YIELD_STATUS + 1> perVoxel;      // [component][denseIdx], size numCubes^3 when valid
+    std::array<float, YIELD_STATUS + 1>              componentMin{};
+    std::array<float, YIELD_STATUS + 1>              componentMax{};
 
     double macroStrain[6] = {0};   // pipeline tensor strain (exx,eyy,ezz,exy,eyz,exz) -- drives the affine deformed view
 
@@ -68,45 +69,17 @@ inline bool invert6x6(const double A[6][6], double out[6][6])
 }
 
 // Symmetrize a PIPELINE-basis stiffness matrix, i.e. one whose column j is the
-// macroscopic stress produced by a unit *tensor* strain e[j] = 1, in the
-// pipeline component order (xx, yy, zz, xy, yz, xz).
+// macroscopic stress produced by a unit *engineering* strain (gamma_j = 1 for
+// shear), in the pipeline component order (xx, yy, zz, xy, yz, xz).
 //
-// Such a matrix is NOT symmetric in the normal<->shear coupling block, and the
-// asymmetry is exact rather than numerical. For a shear column j >= 3 the
-// applied strain has eps_xy = eps_yx = 1, i.e. twice the tensor component, so
-// working a column through strain_pipeline_to_mandel/stress_mandel_to_pipeline
-// gives, for i < 3 <= j:
-//
-//     C[i][j] == 2 * C[j][i]        (exactly, by construction)
-//
-// The obvious 0.5*(C[i][j] + C[j][i]) average therefore destroys BOTH entries
-// rather than removing numerical noise. This routine averages the two blocks
-// that really are symmetric (normal-normal and shear-shear) and reconstructs
-// the coupling block in its correct 2X / X form.
-//
-// This only changes results for aggregates with non-zero normal<->shear
-// coupling -- cubic and orthotropic aggregates have none, which is why the old
-// averaging never visibly misbehaved. A textured, non-orthotropic aggregate
-// does.
+// In the engineering shear basis C is symmetric (C44 = G), so this is the plain
+// (C + C^T) / 2 average that removes numerical noise only.
 inline void symmetrizePipelineC(double C[6][6])
 {
-    for (int i = 0; i < 3; ++i)                     // normal-normal: truly symmetric
-        for (int j = i + 1; j < 3; ++j) {
-            const double m = 0.5 * (C[i][j] + C[j][i]);
-            C[i][j] = C[j][i] = m;
-        }
-
-    for (int i = 3; i < 6; ++i)                     // shear-shear: truly symmetric
+    for (int i = 0; i < 6; ++i)
         for (int j = i + 1; j < 6; ++j) {
             const double m = 0.5 * (C[i][j] + C[j][i]);
             C[i][j] = C[j][i] = m;
-        }
-
-    for (int i = 0; i < 3; ++i)                     // coupling: the pair is (2X, X)
-        for (int j = 3; j < 6; ++j) {
-            const double X = 0.5 * (0.5 * C[i][j] + C[j][i]);
-            C[i][j] = 2.0 * X;
-            C[j][i] = X;
         }
 }
 
@@ -292,6 +265,125 @@ inline std::shared_ptr<FieldVisualizationData> buildFieldFromResults(
     return field;
 }
 
+// Populate SCHMID_FACTOR and YIELD_STATUS on a dense FieldVisualizationData (FFT / per-voxel HDF5)
+inline void populateFFTFieldSchmidAndYield(
+    FieldVisualizationData& field,
+    int32_t*** voxels,
+    const std::vector<std::vector<float>>& local_cs,
+    const mvh::YieldCriterionParams& params)
+{
+    const int N = field.numCubes;
+    if (N <= 0 || !voxels || local_cs.empty()) return;
+
+    const std::size_t denseN = static_cast<std::size_t>(N) * N * N;
+    std::vector<std::array<float, 6>> denseStress(denseN, {0.f, 0.f, 0.f, 0.f, 0.f, 0.f});
+
+    static const int stressComp[6] = { SX, SY, SZ, SXY, SYZ, SXZ };
+    for (int c = 0; c < 6; ++c) {
+        const int comp = stressComp[c];
+        if (field.componentValid[comp] && field.perVoxel[comp].size() == denseN) {
+            for (std::size_t idx = 0; idx < denseN; ++idx)
+                denseStress[idx][c] = field.perVoxel[comp][idx];
+        }
+    }
+
+    mvh::compute_fcc_schmid_field(
+        N, voxels, local_cs, denseStress, params,
+        field.perVoxel[SCHMID_FACTOR],
+        field.perVoxel[YIELD_STATUS]);
+
+    auto updateBounds = [&](int comp, bool isBinaryMode) {
+        field.componentValid[comp] = true;
+        if (isBinaryMode) {
+            field.componentMin[comp] = 0.0f;
+            field.componentMax[comp] = 1.0f;
+            return;
+        }
+        float mn =  std::numeric_limits<float>::max();
+        float mx = -std::numeric_limits<float>::max();
+        for (int iz = 0; iz < N; ++iz)
+            for (int iy = 0; iy < N; ++iy)
+                for (int ix = 0; ix < N; ++ix) {
+                    if (voxels[ix][iy][iz] <= 0) continue;
+                    const float v = field.perVoxel[comp][field.denseIndex(ix, iy, iz)];
+                    mn = std::min(mn, v);
+                    mx = std::max(mx, v);
+                }
+        if (mn >= mx - 1e-6f) {
+            mn = std::max(0.0f, mn - 0.01f);
+            mx = mx + 0.01f;
+        }
+        field.componentMin[comp] = mn;
+        field.componentMax[comp] = mx;
+    };
+
+    updateBounds(SCHMID_FACTOR, false);
+    updateBounds(YIELD_STATUS, !params.continuousOutput);
+}
+
+// Populate SCHMID_FACTOR and YIELD_STATUS on an ansysWrapper's nodal result table
+inline void populateAnsysWrapperSchmidAndYield(
+    ansysWrapper& wr,
+    int N,
+    int32_t*** voxels,
+    const mvh::YieldCriterionParams& params)
+{
+    if (N <= 0 || !voxels || wr.local_cs.empty() || wr.loadstep_results.empty()) return;
+
+    const std::size_t denseN = static_cast<std::size_t>(N) * N * N;
+    std::vector<std::array<float, 6>> denseStress(denseN, {0.f, 0.f, 0.f, 0.f, 0.f, 0.f});
+
+    #pragma omp parallel for schedule(static)
+    for (int idx = 0; idx < static_cast<int>(denseN); ++idx) {
+        const int iz = idx / (N * N);
+        const int iy = (idx / N) % N;
+        const int ix = idx % N;
+        if (voxels[ix][iy][iz] <= 0) continue;
+
+        n3d::node3d key{ { float(ix), float(iy), float(iz) } };
+        denseStress[static_cast<std::size_t>(idx)] = {
+            wr.getValByCoord(key, SX),  wr.getValByCoord(key, SY),  wr.getValByCoord(key, SZ),
+            wr.getValByCoord(key, SXY), wr.getValByCoord(key, SYZ), wr.getValByCoord(key, SXZ)
+        };
+    }
+
+    std::vector<float> schmid1D, yield1D;
+    mvh::compute_fcc_schmid_field(N, voxels, wr.local_cs, denseStress, params, schmid1D, yield1D);
+
+    if (wr.loadstep_results_min.size() <= YIELD_STATUS) {
+        wr.loadstep_results_min.resize(YIELD_STATUS + 1, 0.0f);
+        wr.loadstep_results_max.resize(YIELD_STATUS + 1, 1.0f);
+        wr.loadstep_results_avg.resize(YIELD_STATUS + 1, 0.0f);
+    }
+
+    float mMin = std::numeric_limits<float>::max(), mMax = -std::numeric_limits<float>::max(), mSum = 0.0f;
+    float yMin = std::numeric_limits<float>::max(), yMax = -std::numeric_limits<float>::max(), ySum = 0.0f;
+
+    const int nRows = static_cast<int>(wr.loadstep_results.size());
+    for (int r = 0; r < nRows; ++r) {
+        auto& row = wr.loadstep_results[r];
+        if (row.size() <= YIELD_STATUS) row.resize(YIELD_STATUS + 1, 0.0f);
+        const int ix = std::clamp(static_cast<int>(row[X]), 0, N - 1);
+        const int iy = std::clamp(static_cast<int>(row[Y]), 0, N - 1);
+        const int iz = std::clamp(static_cast<int>(row[Z]), 0, N - 1);
+        const int denseIdx = (iz * N + iy) * N + ix;
+
+        row[SCHMID_FACTOR] = schmid1D[static_cast<std::size_t>(denseIdx)];
+        row[YIELD_STATUS]  = yield1D[static_cast<std::size_t>(denseIdx)];
+
+        mMin = std::min(mMin, row[SCHMID_FACTOR]); mMax = std::max(mMax, row[SCHMID_FACTOR]); mSum += row[SCHMID_FACTOR];
+        yMin = std::min(yMin, row[YIELD_STATUS]);  yMax = std::max(yMax, row[YIELD_STATUS]);  ySum += row[YIELD_STATUS];
+    }
+
+    wr.loadstep_results_min[SCHMID_FACTOR] = (mMin <= mMax) ? mMin : 0.0f;
+    wr.loadstep_results_max[SCHMID_FACTOR] = (mMin <= mMax) ? mMax : 0.5f;
+    wr.loadstep_results_avg[SCHMID_FACTOR] = nRows > 0 ? (mSum / nRows) : 0.0f;
+
+    wr.loadstep_results_min[YIELD_STATUS]  = params.continuousOutput && (yMin <= yMax) ? yMin : 0.0f;
+    wr.loadstep_results_max[YIELD_STATUS]  = params.continuousOutput && (yMin <= yMax) ? yMax : 1.0f;
+    wr.loadstep_results_avg[YIELD_STATUS]  = nRows > 0 ? (ySum / nRows) : 0.0f;
+}
+
 // Uniform-random SO(3) orientations as Bunge ZXZ Euler angles (radians), one
 // per grain id (index 0 is the unused void slot), size = nGrains+1.
 //
@@ -376,7 +468,8 @@ inline GrainMaterials resolveGrainMaterials(
     const std::array<double,3>* forceOrientation,
     const std::vector<TextureLibrary::Component>& texture,
     const PhaseAssignment& phases,
-    double fallbackC11, double fallbackC12, double fallbackC44)
+    double fallbackC11, double fallbackC12, double fallbackC44,
+    const PhaseMaterial* single = nullptr)
 {
     GrainMaterials out;
 
@@ -397,6 +490,19 @@ inline GrainMaterials resolveGrainMaterials(
 
     if (!usable) {
         out.maxC11 = fallbackC11;
+        // A non-cubic single material (hcp, ti, ...) keeps its full 6x6
+        // stiffness by going through the per-grain Voigt path as one phase.
+        if (single && !single->isCubic()) {
+            std::array<std::array<double,6>,6> Cv{};
+            for (int i = 0; i < 6; ++i)
+                for (int j = 0; j < 6; ++j) Cv[i][j] = single->C[i][j];
+            out.multiPhase   = true;
+            out.phaseNames   = { single->name };
+            out.phaseVoigtPa = { Cv };
+            out.phaseOfGrain.assign(static_cast<size_t>(nGrains) + 1, 0);
+            out.voigtPa.assign(static_cast<size_t>(nGrains) + 1, Cv);
+            out.maxC11 = Cv[0][0];
+        }
         return out;
     }
 

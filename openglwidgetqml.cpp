@@ -621,6 +621,8 @@ QString OpenGLWidgetQML::getFieldComponentName() const
         case UY: return QStringLiteral("UY");
         case UZ: return QStringLiteral("UZ");
         case USUM: return QStringLiteral("USUM");
+        case SCHMID_FACTOR: return QStringLiteral("Schmid Factor");
+        case YIELD_STATUS: return QStringLiteral("Yield Status");
         default: return QStringLiteral("Field");
     }
 }

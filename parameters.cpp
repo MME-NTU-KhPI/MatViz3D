@@ -3,6 +3,7 @@
 #include "fft_solver_session.hpp"
 #include "openglwidgetqml.h"
 #include "dbmanager.h"
+#include "algorithmfactory.h"
 #include <QDebug>
 #include <QDir>
 
@@ -13,6 +14,8 @@ int Parameters::size = 10;
 int Parameters::points = 10;
 QString Parameters::algorithm = "";
 unsigned int Parameters::seed = 0;
+Parameters::SeedMethod Parameters::seed_method = Parameters::Random;
+double Parameters::seed_sigma = 0.3;
 QString Parameters::filename = "";
 int Parameters::num_threads = 1;
 QString Parameters::working_directory = "";
@@ -27,6 +30,10 @@ unsigned int Parameters::num_rnd_loads = 0;
 QString Parameters::prob_preset = "Sphere (Circle)";
 QString Parameters::polycrystall_neighborhood = "Moore (26)";
 QString Parameters::prob_matrix_mode = "Volume Sampling";
+QString Parameters::local_criterion = "auto";
+QString Parameters::hill_space = "auto";
+double  Parameters::yield_stress = 120e6;   // = 2*CRSS: uniaxial yield at Schmid factor 0.5
+double  Parameters::yield_percentile = 0.0; // auto
 float Parameters::halfaxis_a = 1.5f;
 float Parameters::halfaxis_b = 1.5f;
 float Parameters::halfaxis_c = 1.5f;
@@ -64,6 +71,14 @@ double  Parameters::mat_c11 = 168.40;    // GPa, Cu -- the solvers' historical d
 double  Parameters::mat_c12 = 121.40;
 double  Parameters::mat_c44 = 75.40;
 QString Parameters::mat_type = "fcc";
+double  Parameters::mat_C[6][6] = {    // GPa, Cu default (cubic)
+    {168.40, 121.40, 121.40,  0.00,  0.00,  0.00},
+    {121.40, 168.40, 121.40,  0.00,  0.00,  0.00},
+    {121.40, 121.40, 168.40,  0.00,  0.00,  0.00},
+    {  0.00,   0.00,   0.00, 75.40,  0.00,  0.00},
+    {  0.00,   0.00,   0.00,  0.00, 75.40,  0.00},
+    {  0.00,   0.00,   0.00,  0.00,  0.00, 75.40},
+};
 
 QString Parameters::texture_preset   = "random";
 double  Parameters::texture_scatter  = 11.0;
@@ -175,6 +190,8 @@ void Parameters::resetDefaults()
     points = 10;
     algorithm = "";
     seed = 0;
+    seed_method = Random;
+    seed_sigma = 0.3;
     filename = "";
     num_threads = 1;
     working_directory = "";
@@ -220,6 +237,10 @@ void Parameters::resetDefaults()
     mat_c12 = 121.40;
     mat_c44 = 75.40;
     mat_type = "fcc";
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 6; ++j)
+            mat_C[i][j] = (i < 3 && j < 3) ? (i == j ? 168.40 : 121.40)
+                                           : (i == j ? 75.40 : 0.0);
     texture_preset = "random";
     texture_scatter = 11.0;
     lattice_override = "";
@@ -310,6 +331,10 @@ void Parameters::resetDefaults()
     fft_max_iter = 1000;
     stressSolver = "ansys";
     stressMode = "dataset";
+    local_criterion = "auto";
+    hill_space = "auto";
+    yield_stress = 120e6;
+    yield_percentile = 0.0;
     for (int i = 0; i < 6; ++i) stressEps[i] = 0.0;
     textureComponents.clear();
     phaseAssignment.clear();
@@ -384,6 +409,20 @@ void Parameters::setSeed(unsigned int value) {
     if (seed != value) {
         seed = value;
         emit seedChanged();
+    }
+}
+
+void Parameters::setSeedMethod(SeedMethod value) {
+    if (seed_method != value) {
+        seed_method = value;
+        emit seedMethodChanged();
+    }
+}
+
+void Parameters::setSeedSigma(double value) {
+    if (seed_sigma != value) {
+        seed_sigma = value;
+        emit seedSigmaChanged();
     }
 }
 
@@ -887,6 +926,28 @@ void Parameters::setDbMaterial(const QString& value)
                    << mat_c11 << mat_c12 << mat_c44 << "GPa";
     }
 
+    // Cache the full 6x6 stiffness so the solvers keep non-cubic components.
+    double G[6][6] = {{0}};
+    QString gType;
+    if (value.isEmpty()) {
+        // Back to the built-in Cu constants.
+        for (int i = 0; i < 6; ++i)
+            for (int j = 0; j < 6; ++j)
+                G[i][j] = (i < 3 && j < 3) ? (i == j ? 168.40 : 121.40)
+                                           : (i == j ? 75.40 : 0.0);
+        std::copy(&G[0][0], &G[0][0] + 36, &mat_C[0][0]);
+    } else if (DBManager::stiffnessMatrix(value, G, gType) && G[0][0] > 0.0) {
+        std::copy(&G[0][0], &G[0][0] + 36, &mat_C[0][0]);
+    } else {
+        // No usable full matrix: leaving mat_C alone would keep the previous
+        // material's stiffness behind this one's name, so rebuild it from the
+        // cubic constants resolved above instead.
+        qWarning() << "material" << value
+                   << "has no usable 6x6 stiffness in the database; using the cubic"
+                   << "matrix from C11/C12/C44 =" << mat_c11 << mat_c12 << mat_c44 << "GPa";
+        cubicVoigt(mat_c11, mat_c12, mat_c44, mat_C);
+    }
+
     // The lattice may have flipped fcc <-> bcc, and the presets differ per
     // lattice, so the texture has to follow the material.
     rebuildTextureFromPreset();
@@ -1067,6 +1128,13 @@ void Parameters::cubicConstantsPa(double& c11, double& c12, double& c44)
     c44 = mat_c44 * 1e9;
 }
 
+void Parameters::stiffnessPa(double C[6][6])
+{
+    // GPa -> Pa for the solvers.
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 6; ++j) C[i][j] = mat_C[i][j] * 1e9;
+}
+
 bool Parameters::materialStiffnessPa(const QString& name, double C[6][6])
 {
     double G[6][6] = {{0}};
@@ -1120,6 +1188,50 @@ bool Parameters::publishCellMaterial(const QVariantMap& parameters, const QStrin
     pa.grainOrientation.assign(2, std::array<double,3>{ 0.0, 0.0, 0.0 });
     qInfo().noquote() << QString("[HDF5] solid of the opened cell = %1 (the material it was solved with)").arg(solid.name);
     return true;
+}
+
+void Parameters::resolveYieldSettings(const QString& algorithm, QString& criterion, QString& space,
+                                      bool* criterionAuto, bool* spaceAuto)
+{
+    // Canonicalise aliases ("Moore", "Probability Circle", ...) via the registry.
+    QString name = algorithm.trimmed();
+    if (const AlgorithmPlugin* plugin = AlgorithmFactory::instance().pluginFor(name))
+        name = plugin->name;
+
+    // Porous (DLCA) structures are pressure-sensitive -> keep the hydrostatic axis.
+    // Unknown / no algorithm keeps the historical Schmid + deviatoric behaviour.
+    QString autoCriterion = "schmid";
+    QString autoSpace     = "deviatoric5d";
+    if (name.compare("DLCA", Qt::CaseInsensitive) == 0) {
+        autoCriterion = "vonmises";
+        autoSpace     = "full6d";
+    } else if (name.compare("Composite", Qt::CaseInsensitive) == 0) {
+        autoCriterion = "vonmises";
+    }
+
+    const bool cAuto = criterion.trimmed().isEmpty() || criterion.trimmed().toLower() == "auto";
+    const bool sAuto = space.trimmed().isEmpty() || space.trimmed().toLower() == "auto";
+    criterion = cAuto ? autoCriterion : criterion.trimmed().toLower();
+    space     = sAuto ? autoSpace     : space.trimmed().toLower();
+    if (criterionAuto) *criterionAuto = cAuto;
+    if (spaceAuto)     *spaceAuto     = sAuto;
+}
+
+double Parameters::resolveYieldPercentile(const QString& algorithm, double percentile, bool* isAuto)
+{
+    const bool pAuto = percentile <= 0.0;
+    if (isAuto) *isAuto = pAuto;
+    if (!pAuto)
+        return percentile;
+
+    QString name = algorithm.trimmed();
+    if (const AlgorithmPlugin* plugin = AlgorithmFactory::instance().pluginFor(name))
+        name = plugin->name;
+
+    // Most of a DLCA gel's solid sits in dangling, unloaded branches, so any
+    // percentile below the maximum lands there and the macro yield point
+    // overshoots the solid's own yield stress.
+    return name.compare("DLCA", Qt::CaseInsensitive) == 0 ? 1.0 : 0.98;
 }
 
 void Parameters::setLatticeOverride(const QString& value)

@@ -4,6 +4,7 @@
 #include <fstream>
 #include "parameters.h"
 #include "parent_algorithm.h"
+#include "lowdiscrepancy.hpp"
 #include <cstdint>
 
 Parent_Algorithm::Parent_Algorithm()
@@ -110,6 +111,9 @@ void Parent_Algorithm::Random_Generate_Points(int currentPoints)
     const int maxVoxels = numCubes * numCubes * numCubes;
     const int target = std::min(currentPoints, maxVoxels);
     int placed = 0;
+    // Sobol places everything itself; the random loop below only tops up if it fell short
+    if (Parameters::seed_method == Parameters::Sobol)
+        placed = Sobol_Generate_Points(target);
     int maxRetries = target * 100 + 1000;
     while (placed < target && maxRetries-- > 0)
     {
@@ -120,6 +124,30 @@ void Parent_Algorithm::Random_Generate_Points(int currentPoints)
             placed++;
         }
     }
+}
+
+// Seeds from qmc::seedVoxels (scrambled Sobol + jitter of Parameters::seed_sigma).
+// Point i becomes grain i + 1; seedVoxels' (x, y, z) maps onto voxels[x][y][z].
+// Returns the number of seeds placed.
+int Parent_Algorithm::Sobol_Generate_Points(int currentPoints)
+{
+    std::vector<std::array<int, 3>> pts;
+    try {
+        pts = qmc::seedVoxels(currentPoints, numCubes, Parameters::seed, Parameters::seed_sigma);
+    } catch (const std::exception& e) {
+        qWarning() << "Sobol seed generation failed:" << e.what();
+        return 0;
+    }
+    int placed = 0;
+    for (const auto& v : pts)
+    {
+        if (voxels[v[0]][v[1]][v[2]] == 0)
+        {
+            birthGrain(v[0], v[1], v[2]);
+            placed++;
+        }
+    }
+    return placed;
 }
 
 void Parent_Algorithm::Thin_Layer_Generate_Points(int currentPoints)

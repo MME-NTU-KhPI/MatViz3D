@@ -16,12 +16,14 @@
 //     - strain vectors carry *tensor* shear (eps_xy = gamma_xy/2), matching
 //       ansysWrapper::eps_as_loading (verified against load_loadstep()).
 //     - stress vectors carry physical stress components in Pa.
+//     - effective S / C (computeCompliance) are in the ENGINEERING shear
+//       basis (gamma = 2*eps, C44 = G), the same as the ANSYS path.
 //  ffth Mandel order:        [ 11, 22, 33, sqrt2*23, sqrt2*13, sqrt2*12 ]
 //
 //  All moduli in Pa, strains dimensionless (CRSS lives in Pa, so we must too).
 //
 //  Orientations are Bunge ZXZ Euler angles in RADIANS, one triple per grain id.
-//  The same triple drives BOTH the elastic rotation (mvh::cubic_grain_mandel)
+//  The same triple drives BOTH the elastic rotation (mvh::aniso_grain_mandel)
 //  and the Schmid rotation downstream, so the two are always consistent.
 //
 //  Depends only on fft_homog.hpp + matviz_homog.hpp.  Pure C++17, no Qt, so it
@@ -88,37 +90,17 @@ inline Vec6 strain_mandel_to_engineering(const ffth::Vec6& m) {
 
 // ----------------------------------------------------------------------------
 //  Symmetrize a PIPELINE-basis stiffness (column j = macro stress for a unit
-//  TENSOR strain e[j] = 1).
-//
-//  Such a matrix is not symmetric across the normal<->shear coupling block, and
-//  the asymmetry is exact, not numerical: for a shear column j >= 3 the applied
-//  strain has eps_xy = eps_yx = 1, so for i < 3 <= j
-//
-//      C[i][j] == 2 * C[j][i]      (by construction)
-//
-//  A plain 0.5*(C[i][j] + C[j][i]) average therefore destroys both entries
-//  instead of removing noise. Average only the two genuinely symmetric blocks,
-//  and rebuild the coupling block in its correct 2X / X form.
+//  ENGINEERING strain, gamma_j = 1 for shear). In that basis C is symmetric,
+//  so this is the plain (C + C^T) / 2 average.
 //
 //  Mirrors symmetrizePipelineC() in stressresult.h; kept separate only because
 //  this header is standalone and Mat6-typed.
 // ----------------------------------------------------------------------------
 inline void symmetrize_pipeline_C(Mat6& C) {
-    for (int i = 0; i < 3; ++i)
-        for (int j = i + 1; j < 3; ++j) {
-            const double m = 0.5 * (C[i][j] + C[j][i]);
-            C[i][j] = C[j][i] = m;
-        }
-    for (int i = 3; i < 6; ++i)
+    for (int i = 0; i < 6; ++i)
         for (int j = i + 1; j < 6; ++j) {
             const double m = 0.5 * (C[i][j] + C[j][i]);
             C[i][j] = C[j][i] = m;
-        }
-    for (int i = 0; i < 3; ++i)
-        for (int j = 3; j < 6; ++j) {
-            const double X = 0.5 * (0.5 * C[i][j] + C[j][i]);
-            C[i][j] = 2.0 * X;
-            C[j][i] = X;
         }
 }
 
@@ -166,10 +148,13 @@ public:
     //              id 0 == void/empty; ids 1..G == grains.
     // orient_rad : per-grain Bunge ZXZ Euler angles (radians); index == grain id.
     //              orient_rad[0] is the (unused) void slot; size must be G+1.
+    // Single-material constructor: any symmetry (cubic, hcp, ti, ...).
+    // base_voigt_Pa is the full 6x6 Voigt stiffness in the material's own
+    // axes, rotated here by each grain's orientation.
     FFTSolverSession(int nx, int ny, int nz,
                      std::vector<int> grain_field,
                      std::vector<std::array<double,3>> orient_rad,
-                     double C11 = 168.4e9, double C12 = 121.4e9, double C44 = 75.4e9,
+                     const Mat6& base_voigt_Pa,
                      double void_eta = 1e-4)         // soft-phase factor for pores
         : nx_(nx), ny_(ny), nz_(nz),
           N_(static_cast<std::size_t>(nx) * ny * nz),
@@ -178,15 +163,41 @@ public:
     {
         const int G = check_inputs();
 
-        // Material library indexed directly by grain id.  lib[g] = rotated
-        // cubic stiffness (Mandel, Pa) for grain g.
         lib_.assign(orient_.size(), Mat6{});
         for (int g = 1; g <= G; ++g) {
             const auto& a = orient_[g];
-            lib_[g] = mvh::cubic_grain_mandel(C11, C12, C44, a[0], a[1], a[2]);
+            double Cv[6][6];
+            for (int i = 0; i < 6; ++i)
+                for (int j = 0; j < 6; ++j) Cv[i][j] = base_voigt_Pa[i][j];
+            // Generic rotation, valid for any symmetry
+            lib_[g] = mvh::aniso_grain_mandel(Cv, a[0], a[1], a[2]);
         }
-        finish_init(void_eta * C11);
+        // C11 (element [0][0]) sizes the soft phase that stands in for pores
+        finish_init(void_eta * base_voigt_Pa[0][0]);
     }
+
+    // Previous cubic-only constructor, superseded by the Mat6 one above.
+    // FFTSolverSession(int nx, int ny, int nz,
+    //                  std::vector<int> grain_field,
+    //                  std::vector<std::array<double,3>> orient_rad,
+    //                  double C11 = 168.4e9, double C12 = 121.4e9, double C44 = 75.4e9,
+    //                  double void_eta = 1e-4)         // soft-phase factor for pores
+    //     : nx_(nx), ny_(ny), nz_(nz),
+    //       N_(static_cast<std::size_t>(nx) * ny * nz),
+    //       grain_(std::move(grain_field)),
+    //       orient_(std::move(orient_rad))
+    // {
+    //     const int G = check_inputs();
+    //
+    //     // Material library indexed directly by grain id.  lib[g] = rotated
+    //     // cubic stiffness (Mandel, Pa) for grain g.
+    //     lib_.assign(orient_.size(), Mat6{});
+    //     for (int g = 1; g <= G; ++g) {
+    //         const auto& a = orient_[g];
+    //         lib_[g] = mvh::cubic_grain_mandel(C11, C12, C44, a[0], a[1], a[2]);
+    //     }
+    //     finish_init(void_eta * C11);
+    // }
 
     // Multi-phase overload: one Voigt stiffness per grain, given in that
     // grain's OWN material axes, rotated here by that grain's orientation.
@@ -344,13 +355,16 @@ public:
     // Sensitivity tensor of the cell: the second moments of the six strain
     // fields, in Mandel components, averaged over the WHOLE cell (voids carry no
     // law change, so they drop out of the sum but stay in the volume):
-    //     T[i][j][a][b] = (1/N) sum_{x in solid} eM_a^(i)(x) eM_b^(j)(x) / m_i^2
-    // with eM = (exx, eyy, ezz, gxy/sqrt2, gyz/sqrt2, gxz/sqrt2) and m_i = 1 for
-    // the three normal unit loads, sqrt2 for the three tensor-shear unit loads.
-    // By Hill's lemma the first-order change of the pipeline stiffness under a
-    // change dC of the material law (given in Mandel form, Pa) is exactly
-    //     dC_pipeline[i][j] = sum_{a,b} T[i][j][a][b] * dC_Mandel[a][b],
-    // and with dC = eta * C_s it reproduces eta * C_pipeline to solver precision.
+    //     T[i][j][a][b] = (1/N) sum_{x in solid} eM_a^(i)(x) eM_b^(j)(x)
+    // with eM = (exx, eyy, ezz, gxy/sqrt2, gyz/sqrt2, gxz/sqrt2). The six fields
+    // must come from the unit ENGINEERING strain loads computeStiffnessMatrix()
+    // applies (gamma_j = 1, i.e. e[j] = 0.5 for shear): then C[i][j] is the
+    // energy pairing e^(i) : C : e^(j), and by Hill's lemma the first-order
+    // change of the engineering-basis stiffness under a change dC of the
+    // material law (given in Mandel form, Pa) is exactly
+    //     dC[i][j] = sum_{a,b} T[i][j][a][b] * dC_Mandel[a][b],
+    // and with dC = eta * C_s it reproduces eta * C to solver precision.
+    // (Unit TENSOR shear loads would need T divided by 2 in the shear rows.)
     // Layout of the returned vector: ((i*6 + j)*6 + a)*6 + b, 1296 numbers.
     static std::vector<double> sensitivity_tensor(const std::vector<std::vector<Vec6>>& voxel_strain_eng_per_load,
                                                   std::size_t n_total_voxels) {
@@ -363,7 +377,6 @@ public:
         const double invN = 1.0 / static_cast<double>(n_total_voxels);
         for (int i = 0; i < 6; ++i) {
             const auto& fi = voxel_strain_eng_per_load[static_cast<std::size_t>(i)];
-            const double mi2 = (i < 3) ? 1.0 : 2.0;
             for (int j = i; j < 6; ++j) {
                 const auto& fj = voxel_strain_eng_per_load[static_cast<std::size_t>(j)];
                 if (fi.size() != fj.size()) continue;
@@ -376,19 +389,17 @@ public:
                 for (int p = 0; p < 6; ++p)
                     for (int q = 0; q < 6; ++q) {
                         const double m = acc[p * 6 + q] * invN;
-                        T[static_cast<std::size_t>(((i * 6 + j) * 6 + p) * 6 + q)] = m / mi2;
-                        if (j != i) {   // T[j][i][q][p] = same moment, scaled by m_j^2
-                            const double mj2 = (j < 3) ? 1.0 : 2.0;
-                            T[static_cast<std::size_t>(((j * 6 + i) * 6 + q) * 6 + p)] = m / mj2;
-                        }
+                        T[static_cast<std::size_t>(((i * 6 + j) * 6 + p) * 6 + q)] = m;
+                        if (j != i)     // T[j][i][q][p] is the same moment
+                            T[static_cast<std::size_t>(((j * 6 + i) * 6 + q) * 6 + p)] = m;
                     }
             }
         }
         return T;
     }
 
-    // Predicted first-order change of the pipeline stiffness for a Mandel law
-    // change dC (6x6, Pa): dC_pipeline[i][j] = sum_ab T[i][j][a][b] dC[a][b].
+    // Predicted first-order change of the engineering-basis stiffness for a
+    // Mandel law change dC (6x6, Pa): dC_eff[i][j] = sum_ab T[i][j][a][b] dC[a][b].
     static Mat6 predict_stiffness_change(const std::vector<double>& T, const Mat6& dC_mandel) {
         Mat6 d{}; for (auto& r : d) r.fill(0.0);
         if (T.size() != 1296) return d;
@@ -447,7 +458,8 @@ public:
         Mat6 C{}; for (auto& row : C) row.fill(0.0);
         int itsum = 0;
         for (int j = 0; j < 6; ++j) {
-            Vec6 e{}; e.fill(0.0); e[j] = 1.0;         // unit tensor strain e_j
+            Vec6 e{}; e.fill(0.0);
+            e[j] = (j >= 3) ? 0.5 : 1.0;         // unit engineering strain (gamma_j = 1)
             StepResult r = solveLoadCase(e);
             itsum += r.iterations;
             for (int i = 0; i < 6; ++i) C[i][j] = r.macro_stress[i];

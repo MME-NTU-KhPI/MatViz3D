@@ -24,6 +24,19 @@ double relDiff(const Mat6& A, const Mat6& B)
     return std::sqrt(num / den);
 }
 
+// Voigt stiffness (engineering shear, C44 = G) of a cubic material, Pa -- the
+// form FFTSolverSession's single-material constructor takes. An isotropic
+// solid is C11 = lam + 2 mu, C12 = lam, C44 = mu.
+fftsa::Mat6 cubicVoigt(double C11, double C12, double C44)
+{
+    fftsa::Mat6 C{}; for (auto& row : C) row.fill(0.0);
+    for (int i = 0; i < 3; ++i) {
+        for (int j = 0; j < 3; ++j) C[i][j] = (i == j) ? C11 : C12;
+        C[i + 3][i + 3] = C44;
+    }
+    return C;
+}
+
 // Phase field: 1 inside a centred sphere of the given radius (in voxels), 0 outside.
 std::vector<int> sphereInclusion(int n, double radius)
 {
@@ -137,7 +150,8 @@ void TestFftHomog::testSessionAutoPicksScheme()
 
     // Dense single grain: auto stays with the basic scheme.
     {
-        fftsa::FFTSolverSession dense(n, n, n, std::vector<int>(static_cast<size_t>(n) * n * n, 1), orient);
+        fftsa::FFTSolverSession dense(n, n, n, std::vector<int>(static_cast<size_t>(n) * n * n, 1), orient,
+                                      cubicVoigt(168.4e9, 121.4e9, 75.4e9));
         QCOMPARE(QString(dense.scheme_name()), QString("basic"));
         dense.set_scheme(fftsa::FFTSolverSession::Scheme::CG);
         QCOMPARE(QString(dense.scheme_name()), QString("cg"));
@@ -146,7 +160,7 @@ void TestFftHomog::testSessionAutoPicksScheme()
     {
         std::vector<int> g(static_cast<size_t>(n) * n * n, 1);
         g[0] = 0;
-        fftsa::FFTSolverSession porous(n, n, n, g, orient);
+        fftsa::FFTSolverSession porous(n, n, n, g, orient, cubicVoigt(168.4e9, 121.4e9, 75.4e9));
         QVERIFY(porous.solid_fraction() < 1.0);
         QCOMPARE(QString(porous.scheme_name()), QString("cg"));
         porous.set_scheme(fftsa::FFTSolverSession::Scheme::Basic);
@@ -196,7 +210,7 @@ void TestFftHomog::testSensitivityIndex()
 
     {
         std::vector<int> grain(static_cast<size_t>(n) * n * n, 1);
-        FFTSolverSession s(n, n, n, grain, orient, lam + 2 * mu, lam, mu);
+        FFTSolverSession s(n, n, n, grain, orient, cubicVoigt(lam + 2 * mu, lam, mu));
         s.set_tolerance(1e-8);
         for (int j = 0; j < 6; ++j) {
             fftsa::Vec6 e{}; e.fill(0.0); e[j] = 1.0;
@@ -214,7 +228,7 @@ void TestFftHomog::testSensitivityIndex()
             for (int y = 0; y < n; ++y)
                 for (int x = 0; x < n; ++x)
                     grain[(static_cast<size_t>(z) * n + y) * n + x] = (x < n / 2) ? 1 : 0;
-        FFTSolverSession s(n, n, n, grain, orient, lam + 2 * mu, lam, mu);
+        FFTSolverSession s(n, n, n, grain, orient, cubicVoigt(lam + 2 * mu, lam, mu));
         s.set_tolerance(1e-8);
         s.set_max_iters(2000);
         s.set_scheme(FFTSolverSession::Scheme::CG);
@@ -239,7 +253,7 @@ void TestFftHomog::testSensitivityIndex()
             for (int y = 4; y < 12; ++y)
                 for (int x = 4; x < 12; ++x)
                     grain[(static_cast<size_t>(z) * m + y) * m + x] = 0;   // cubic hole
-        FFTSolverSession s(m, m, m, grain, orient, lam + 2 * mu, lam, mu);
+        FFTSolverSession s(m, m, m, grain, orient, cubicVoigt(lam + 2 * mu, lam, mu));
         s.set_tolerance(1e-7);
         s.set_max_iters(2000);
         s.set_scheme(FFTSolverSession::Scheme::CG);
@@ -275,12 +289,12 @@ void TestFftHomog::testSensitivityTensor()
     using fftsa::FFTSolverSession;
     auto solve = [&](double nu_, double C_out[6][6], std::vector<std::vector<fftsa::Vec6>>* fields) {
         auto [lam, mu] = lame(E, nu_);
-        FFTSolverSession s(m, m, m, grain, orient, lam + 2 * mu, lam, mu, 1e-2 /*inclusion / solid stiffness*/);
+        FFTSolverSession s(m, m, m, grain, orient, cubicVoigt(lam + 2 * mu, lam, mu), 1e-2 /*inclusion / solid stiffness*/);
         s.set_tolerance(1e-9); s.set_max_iters(20000); s.set_scheme(FFTSolverSession::Scheme::CG);
         fftsa::Mat6 C{}; for (auto& row : C) row.fill(0.0);
         if (fields) fields->assign(6, {});
         for (int j = 0; j < 6; ++j) {
-            fftsa::Vec6 e{}; e.fill(0.0); e[j] = 1.0;
+            fftsa::Vec6 e{}; e.fill(0.0); e[j] = (j >= 3) ? 0.5 : 1.0;   // unit engineering strain, as in computeStiffnessMatrix
             std::vector<fftsa::Vec6> eng;
             auto step = s.solveLoadCaseFull(e, eng);
             QVERIFY2(step.error < 1e-7, qPrintable(QString("load %1 did not converge: err %2 after %3 iterations").arg(j).arg(step.error).arg(step.iterations)));
@@ -335,14 +349,14 @@ void TestFftHomog::testRotatedScheme()
 
     auto stiffness = [&](int n, const std::vector<int>& grain, double eta, Disc disc,
                          std::vector<std::vector<fftsa::Vec6>>* fields, int* iters, double* worst_err, double C[6][6]) {
-        FFTSolverSession s(n, n, n, grain, orient, lam + 2 * mu, lam, mu, eta);
+        FFTSolverSession s(n, n, n, grain, orient, cubicVoigt(lam + 2 * mu, lam, mu), eta);
         s.set_tolerance(1e-7); s.set_max_iters(4000);
         s.set_scheme(FFTSolverSession::Scheme::CG);
         s.set_discretization(disc);
         if (fields) fields->assign(6, {});
         *iters = 0; *worst_err = 0.0;
         for (int j = 0; j < 6; ++j) {
-            fftsa::Vec6 e{}; e.fill(0.0); e[j] = 1.0;
+            fftsa::Vec6 e{}; e.fill(0.0); e[j] = (j >= 3) ? 0.5 : 1.0;   // unit engineering strain, as in computeStiffnessMatrix
             std::vector<fftsa::Vec6> eng;
             auto step = s.solveLoadCaseFull(e, eng);
             *iters += step.iterations; *worst_err = std::max(*worst_err, step.error);

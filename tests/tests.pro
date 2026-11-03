@@ -99,7 +99,8 @@ HEADERS += \
     ../fft_solver_session.hpp \
     ../texturemath.hpp \
     ../svgexporter.hpp \
-    ../cpuinfo.hpp
+    ../cpuinfo.hpp \
+    ../lowdiscrepancy.hpp
 
 # Test sources
 SOURCES += \
@@ -116,7 +117,8 @@ SOURCES += \
     test_ffthomog.cpp \
     test_printability.cpp \
     test_datasetbrowser.cpp \
-    ../datasetbrowsercontroller.cpp
+    ../datasetbrowsercontroller.cpp \
+    test_seed_distribution.cpp
 
 HEADERS += \
     test_polycrystall_seeding.h \
@@ -130,6 +132,7 @@ HEADERS += \
     test_ffthomog.h \
     test_printability.h \
     test_datasetbrowser.h \
-    ../datasetbrowsercontroller.h
+    ../datasetbrowsercontroller.h \
+    test_seed_distribution.h
 
 TARGET = tests

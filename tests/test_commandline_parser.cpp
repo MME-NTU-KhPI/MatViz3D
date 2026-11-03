@@ -2,6 +2,7 @@
 #include <QTest>
 #include <QCommandLineParser>
 #include <QTemporaryFile>
+#include <QDir>
 #include <setjmp.h>
 #include "commandline_parser.h"
 #include "config_source.h"
@@ -678,4 +679,117 @@ void TestCommandlineParser::testCliCallerPathGracefulErrors()
     QVERIFY(!Commandline_Parser::processOptions(parser, &err));
     QVERIFY(!err.isEmpty());
     QVERIFY(err.contains("Option --size", Qt::CaseInsensitive));
+}
+
+void TestCommandlineParser::testYieldSettingsAutoResolution()
+{
+    struct Case { const char* algo; const char* crit; const char* space; };
+    const Case cases[] = {
+        { "Voronoi",            "schmid",   "deviatoric5d" },
+        { "Polycrystall",       "schmid",   "deviatoric5d" },
+        { "Probability",        "schmid",   "deviatoric5d" },
+        { "DLCA",               "vonmises", "full6d"       },
+        { "Composite",          "vonmises", "deviatoric5d" },
+        { "",                   "schmid",   "deviatoric5d" },
+        { "NoSuchAlgorithm",    "schmid",   "deviatoric5d" },
+        // aliases resolve through the registry
+        { "Moore",              "schmid",   "deviatoric5d" },
+        { "Probability Circle", "schmid",   "deviatoric5d" },
+        { "dlca",               "vonmises", "full6d"       },
+    };
+    for (const Case& c : cases) {
+        QString crit = "auto", space = "AUTO";
+        bool critAuto = false, spaceAuto = false;
+        Parameters::resolveYieldSettings(c.algo, crit, space, &critAuto, &spaceAuto);
+        QVERIFY2(crit == c.crit && space == c.space,
+                 qPrintable(QString("%1 -> %2 + %3").arg(c.algo, crit, space)));
+        QVERIFY(critAuto);
+        QVERIFY(spaceAuto);
+    }
+
+    // Explicit values always win over the auto table
+    QString crit = "Schmid", space = "deviatoric5d";
+    bool critAuto = true, spaceAuto = true;
+    Parameters::resolveYieldSettings("DLCA", crit, space, &critAuto, &spaceAuto);
+    QCOMPARE(crit, QString("schmid"));
+    QCOMPARE(space, QString("deviatoric5d"));
+    QVERIFY(!critAuto);
+    QVERIFY(!spaceAuto);
+
+    crit = "vonmises"; space = "full6d";
+    Parameters::resolveYieldSettings("Voronoi", crit, space, &critAuto, &spaceAuto);
+    QCOMPARE(crit, QString("vonmises"));
+    QCOMPARE(space, QString("full6d"));
+    QVERIFY(!critAuto);
+    QVERIFY(!spaceAuto);
+
+    // Mixed: one explicit, one auto
+    crit = "auto"; space = "full6d";
+    Parameters::resolveYieldSettings("Composite", crit, space, &critAuto, &spaceAuto);
+    QCOMPARE(crit, QString("vonmises"));
+    QCOMPARE(space, QString("full6d"));
+    QVERIFY(critAuto);
+    QVERIFY(!spaceAuto);
+}
+
+void TestCommandlineParser::testYieldSettingsParsing()
+{
+    QString err;
+
+    // Defaults
+    QCOMPARE(Parameters::local_criterion, QString("auto"));
+    QCOMPARE(Parameters::hill_space, QString("auto"));
+    QCOMPARE(Parameters::yield_stress, 120e6);
+
+    // Valid, case-insensitive, stored lowercase
+    QVERIFY(applyParameter("local_criterion", "VonMises", &err));
+    QCOMPARE(Parameters::local_criterion, QString("vonmises"));
+    QVERIFY(applyParameter("local_criterion", " SCHMID ", &err));
+    QCOMPARE(Parameters::local_criterion, QString("schmid"));
+    QVERIFY(applyParameter("local_criterion", "Auto", &err));
+    QCOMPARE(Parameters::local_criterion, QString("auto"));
+
+    QVERIFY(applyParameter("hill_space", "Full6D", &err));
+    QCOMPARE(Parameters::hill_space, QString("full6d"));
+    QVERIFY(applyParameter("Hill-Space", "DEVIATORIC5D", &err));
+    QCOMPARE(Parameters::hill_space, QString("deviatoric5d"));
+
+    QVERIFY(applyParameter("yield_stress", "2.5e8", &err));
+    QCOMPARE(Parameters::yield_stress, 2.5e8);
+
+    // Invalid values rejected through the existing error path, state unchanged
+    QVERIFY(!applyParameter("local_criterion", "tresca", &err));
+    QVERIFY(err.contains("local_criterion", Qt::CaseInsensitive));
+    QCOMPARE(Parameters::local_criterion, QString("auto"));
+
+    QVERIFY(!applyParameter("hill_space", "4d", &err));
+    QVERIFY(err.contains("hill_space", Qt::CaseInsensitive));
+    QCOMPARE(Parameters::hill_space, QString("deviatoric5d"));
+
+    QVERIFY(!applyParameter("yield_stress", "-1", &err));
+    QVERIFY(!err.isEmpty());
+    QVERIFY(!applyParameter("yield_stress", "abc", &err));
+    QCOMPARE(Parameters::yield_stress, 2.5e8);
+
+    // CLI options route through the same layer
+    QCommandLineParser parser;
+    Commandline_Parser::setupParser(parser);
+    QVERIFY(parser.parse({ "MatViz3D", "--local_criterion", "VONMISES", "--hill_space", "full6d",
+                           "--yield_stress", "3e8" }));
+    QVERIFY(Commandline_Parser::processOptions(parser));
+    QCOMPARE(Parameters::local_criterion, QString("vonmises"));
+    QCOMPARE(Parameters::hill_space, QString("full6d"));
+    QCOMPARE(Parameters::yield_stress, 3e8);
+
+    // JSON config routes through the same layer
+    Parameters::resetDefaults();
+    QTemporaryFile f(QDir::tempPath() + "/matviz_yield_XXXXXX.json");
+    QVERIFY(f.open());
+    f.write(R"({"local_criterion": "Schmid", "hill_space": "FULL6D", "yield_stress": 9e7})");
+    f.close();
+    QString cfgErr;
+    QVERIFY2(ConfigDispatcher::loadAndApply(f.fileName(), &cfgErr), qPrintable(cfgErr));
+    QCOMPARE(Parameters::local_criterion, QString("schmid"));
+    QCOMPARE(Parameters::hill_space, QString("full6d"));
+    QCOMPARE(Parameters::yield_stress, 9e7);
 }

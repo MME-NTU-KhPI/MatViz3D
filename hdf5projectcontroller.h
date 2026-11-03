@@ -41,6 +41,12 @@ class Hdf5ProjectController : public QObject
     Q_PROPERTY(double      macroVonMises         READ macroVonMises         NOTIFY loadStepChanged)
     Q_PROPERTY(bool        autoSync3D            READ autoSync3D            WRITE setAutoSync3D      NOTIFY autoSync3DChanged)
 
+    // FCC Schmid / CRSS yield visualization properties
+    Q_PROPERTY(int         yieldCriterionMode    READ yieldCriterionMode    WRITE setYieldCriterionMode NOTIFY yieldParamsChanged)
+    Q_PROPERTY(double      schmidThreshold       READ schmidThreshold       WRITE setSchmidThreshold    NOTIFY yieldParamsChanged)
+    Q_PROPERTY(double      crssLimit             READ crssLimit             WRITE setCrssLimit          NOTIFY yieldParamsChanged)
+    Q_PROPERTY(bool        continuousYieldOutput READ continuousYieldOutput WRITE setContinuousYieldOutput NOTIFY yieldParamsChanged)
+
     // Statistics properties
     Q_PROPERTY(QStringList  availableProperties   READ availableProperties   NOTIFY modeChanged)
     Q_PROPERTY(int          selectedPropertyIndex READ selectedPropertyIndex WRITE selectProperty   NOTIFY propertyChanged)
@@ -75,6 +81,10 @@ public:
     Q_INVOKABLE void setBinCount(int count);
     Q_INVOKABLE void setAutoSync3D(bool autoSync);
     Q_INVOKABLE void pushTo3DView();
+    Q_INVOKABLE void setYieldCriterionMode(int mode);
+    Q_INVOKABLE void setSchmidThreshold(double threshold);
+    Q_INVOKABLE void setCrssLimit(double crssPa);
+    Q_INVOKABLE void setContinuousYieldOutput(bool continuous);
     Q_INVOKABLE void exportCSV(const QString& filePath);
     Q_INVOKABLE bool exportSvg(const QUrl& fileUrl, bool dark, bool withStats);
     Q_INVOKABLE QString toLocalFile(const QUrl& fileUrl) const;
@@ -105,6 +115,11 @@ public:
     double      macroVonMises() const { return m_macroVonMises; }
     bool        autoSync3D() const { return m_autoSync3D; }
 
+    int         yieldCriterionMode() const { return static_cast<int>(m_yieldParams.mode); }
+    double      schmidThreshold() const { return m_yieldParams.schmidThreshold; }
+    double      crssLimit() const { return m_yieldParams.crss; }
+    bool        continuousYieldOutput() const { return m_yieldParams.continuousOutput; }
+
     QStringList  availableProperties() const;
     int          selectedPropertyIndex() const { return m_selectedPropertyIndex; }
     QString      selectedPropertyName() const;
@@ -132,6 +147,7 @@ signals:
     void statModeChanged();
     void binCountChanged();
     void statsChanged();
+    void yieldParamsChanged();
 
 private:
     void reloadGeometryMetadata(int geomSetNum);
@@ -167,6 +183,7 @@ private:
     double             m_macroVonMises = 0.0;
 
     bool m_autoSync3D = true;
+    mvh::YieldCriterionParams m_yieldParams;
 
     // Statistics state
     int                                    m_selectedPropertyIndex = 0;

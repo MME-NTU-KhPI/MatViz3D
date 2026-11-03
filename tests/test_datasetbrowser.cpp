@@ -45,7 +45,9 @@ void TestDatasetBrowser::testManifestFiltersAndSections()
     }
     {
         // The cell of row 1: compliance with known moduli, the parameters JSON and
-        // the solver diagnostics, written the way hdf5wrapper.cpp writes them.
+        // the solver diagnostics, written the way hdf5wrapper.cpp writes them. The
+        // S_matrix has no shear_basis attribute, like the dataset v1 cells: tensor
+        // shear basis, S_ii = 1 / (2 G), which the browser converts.
         HDF5Wrapper h(d.filePath(QStringLiteral("cells/000001.hdf5")).toStdString());
         h.write("/", "last_set", 1);
         h.write("/1", "cubeSize", 64);

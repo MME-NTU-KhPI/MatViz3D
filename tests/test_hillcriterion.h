@@ -2,6 +2,8 @@
 #define TEST_HILLCRITERION_H
 
 #include <QObject>
+#include <array>
+#include <vector>
 
 class TestHillCriterion : public QObject
 {
@@ -15,6 +17,33 @@ private slots:
     void testResolvedShearStress();
     void testFitEllipsoidKnownInput();
     void testFitEllipsoidFewerThan15PointsRejection();
+
+    void testVonMisesUniaxialAndShear();
+    void testFitFull6DRecoversKnownEllipsoid();
+    void testFitFull6DFallbackDeviatoric();
+    void testFitFull6DFallbackNearlyPressureInsensitive();
+    void testGenerateLoadsDefaultEqualsExplicitSchmid5D();
+
+    void testElasticPropertiesEngineeringShearBasis();
+    void testSymmetrizeKeepsSymmetricEngineeringC();
+    void testStressToStrainLoadHalvesShear();
+    void testGenerateLoadsUsesEngineeringCompliance();
+    void testPipelineCToMandelIsotropic();
+    void testHdf5LegacyTensorBasisConverted();
+    void testFCCSchmidAndCRSSYieldField();
+
+    void testYieldPointScaleInvariantBelowOldThreshold();
+    void testYieldPointsWrapperScaleInvariantBelowOldThreshold();
+    void testYieldPointSkipsDegenerateStep();
+    void testYieldPercentileOneSelectsMaximum();
+    void testYieldPercentileAutoResolution();
+    void testYieldPercentileParsing();
+    void testYieldPercentileWrittenToHdf5();
+    void testMacroAboveYieldStressWarns();
+
+private:
+    // Points on the 5D deviatoric sphere of radius R (random directions)
+    static std::vector<std::array<double, 6>> deviatoricSpherePoints(int n, double R, unsigned seed);
 };
 
 #endif // TEST_HILLCRITERION_H

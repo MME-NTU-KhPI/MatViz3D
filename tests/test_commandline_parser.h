@@ -32,6 +32,8 @@ private slots:
     void testConfigCallerPathUnknownKey();
     void testConfigCallerPathMissingAndMalformed();
     void testCliCallerPathGracefulErrors();
+    void testYieldSettingsAutoResolution();
+    void testYieldSettingsParsing();
 };
 
 #endif // TEST_COMMANDLINE_PARSER_H

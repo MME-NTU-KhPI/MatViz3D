@@ -19,6 +19,11 @@ class Parameters : public QObject
     Q_PROPERTY(int points READ getPoints WRITE setPoints NOTIFY pointsChanged)
     Q_PROPERTY(QString algorithm READ getAlgorithm WRITE setAlgorithm NOTIFY algorithmChanged)
     Q_PROPERTY(unsigned int seed READ getSeed WRITE setSeed NOTIFY seedChanged)
+    // How the initial crystallization seeds are placed: Random = uniform
+    // rejection sampling (historical behaviour), Sobol = scrambled Sobol
+    // sequence with Gaussian jitter of seed_sigma (see lowdiscrepancy.hpp).
+    Q_PROPERTY(SeedMethod seed_method READ getSeedMethod WRITE setSeedMethod NOTIFY seedMethodChanged)
+    Q_PROPERTY(double seed_sigma READ getSeedSigma WRITE setSeedSigma NOTIFY seedSigmaChanged)
     Q_PROPERTY(QString filename READ getFilename WRITE setFilename NOTIFY filenameChanged)
     Q_PROPERTY(int num_threads READ getNumThreads WRITE setNumThreads NOTIFY numThreadsChanged)
     Q_PROPERTY(QString working_directory READ getWorkingDirectory WRITE setWorkingDirectory NOTIFY workingDirectoryChanged)
@@ -219,6 +224,9 @@ class Parameters : public QObject
     Q_PROPERTY(QString polycrystall_neighborhood READ getPolycrystallNeighborhood WRITE setPolycrystallNeighborhood NOTIFY polycrystallNeighborhoodChanged)
 
 public:
+    enum SeedMethod { Random = 0, Sobol = 1 };
+    Q_ENUM(SeedMethod)
+
     explicit Parameters(QObject* parent = nullptr);
 
     static Parameters* instance()
@@ -238,6 +246,12 @@ public:
 
     unsigned int getSeed() const { return seed; }
     Q_INVOKABLE void setSeed(unsigned int value);
+
+    SeedMethod getSeedMethod() const { return seed_method; }
+    Q_INVOKABLE void setSeedMethod(SeedMethod value);
+
+    double getSeedSigma() const { return seed_sigma; }
+    Q_INVOKABLE void setSeedSigma(double value);
 
     QString getFilename() const { return filename; }
     Q_INVOKABLE void setFilename(const QString& value);
@@ -631,6 +645,8 @@ public:
     static int32_t*** voxels;
 
     static unsigned int seed;
+    static SeedMethod seed_method;
+    static double seed_sigma;
     static QString filename;
     static int num_threads;
     static QString working_directory;
@@ -644,6 +660,10 @@ public:
     static QString prob_preset;
     static QString polycrystall_neighborhood;
     static QString prob_matrix_mode;
+    static QString local_criterion;   // "auto" | "schmid" | "vonmises"
+    static QString hill_space;        // "auto" | "deviatoric5d" | "full6d"
+    static double  yield_stress;      // Pa, von Mises threshold
+    static double  yield_percentile;  // (0,1], or 0 = "auto" (per algorithm)
     static float halfaxis_a;
     static float halfaxis_b;
     static float halfaxis_c;
@@ -708,11 +728,37 @@ public:
      */
     static bool materialStiffnessPa(const QString& name, double C[6][6]);
 
+    /**
+     * @brief Cached full 6x6 stiffness of the selected material (mat_C), in Pa.
+     *        Thread-safe for solver worker threads: no QSqlDatabase access.
+     */
+    static void stiffnessPa(double C[6][6]);
+
+    /**
+     * @brief Resolves "auto" local yield criterion / Hill fit space from the
+     *        generation algorithm name (aliases accepted).
+     *
+     * criterion and space are in/out: an explicit (non-"auto") value is kept,
+     * "auto" is replaced by the per-algorithm default. criterionAuto/spaceAuto
+     * report whether the value came from the auto table.
+     */
+    static void resolveYieldSettings(const QString& algorithm, QString& criterion, QString& space,
+                                     bool* criterionAuto = nullptr, bool* spaceAuto = nullptr);
+
+    /**
+     * @brief Resolve yield_percentile: an explicit value in (0,1] is kept, 0
+     *        ("auto") is replaced by the per-algorithm default (aliases accepted).
+     *        isAuto reports whether the value came from the auto table.
+     */
+    static double resolveYieldPercentile(const QString& algorithm, double percentile, bool* isAuto = nullptr);
+
 signals:
     void sizeChanged();
     void pointsChanged();
     void algorithmChanged();
     void seedChanged();
+    void seedMethodChanged();
+    void seedSigmaChanged();
     void filenameChanged();
     void numThreadsChanged();
     void workingDirectoryChanged();
@@ -814,6 +860,8 @@ private:
     // stores; cubicConstantsPa() converts. Defaults are the Cu values the
     // solvers used to hardcode, so an unset material changes nothing.
     static double  mat_c11, mat_c12, mat_c44;
+    // Full 6x6 stiffness of db_material in GPa (Voigt), cached by setDbMaterial().
+    static double  mat_C[6][6];
     static QString mat_type;
 
     static QString texture_preset;

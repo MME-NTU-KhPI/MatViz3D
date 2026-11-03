@@ -443,6 +443,14 @@ void DatasetBrowserController::buildSections(const DatasetRowsModel::Row& row)
         if (hasS && !hasCm) hasC = invert6(S, C);
         else if (hasCm && !hasS) hasC = invert6(C, S);
         else hasC = hasS && hasCm;
+        // Engineering shear basis (C44 = G) from here on. Cells written before
+        // the shear_basis attribute existed -- dataset v1 among them -- hold the
+        // tensor basis: S_eng = D S with D = diag(1, 1, 1, 2, 2, 2).
+        if (hasC && h.readStringAttribute(pre, hasS ? "S_matrix" : "C_matrix", "shear_basis") != QLatin1String("engineering")) {
+            for (int i = 3; i < 6; ++i)
+                for (int j = 0; j < 6; ++j) S[i][j] *= 2.0;
+            hasC = invert6(S, C);
+        }
         if (h.datasetExists(pre, "iterations_total")) iterations = h.readInt(pre, "iterations_total");
     }
 
@@ -633,16 +641,15 @@ void DatasetBrowserController::buildSections(const DatasetRowsModel::Row& row)
         // The unit goes into the label, so a row of three values fits on one line.
         auto mpa = [](double pa) { return num(pa / 1e6); };
         const double Ex = 1.0 / S[0][0], Ey = 1.0 / S[1][1], Ez = 1.0 / S[2][2];
-        // Pipeline order (xx, yy, zz, xy, yz, xz) with tensor shear: G = 1 / (2 S_ii).
-        const double Gxy = 0.5 / S[3][3], Gyz = 0.5 / S[4][4], Gxz = 0.5 / S[5][5];
+        // Pipeline order (xx, yy, zz, xy, yz, xz), engineering shear: G = 1 / S_ii.
+        const double Gxy = 1.0 / S[3][3], Gyz = 1.0 / S[4][4], Gxz = 1.0 / S[5][5];
         it << item(QStringLiteral("E x / y / z, MPa"), mpa(Ex) + QStringLiteral(" / ") + mpa(Ey) + QStringLiteral(" / ") + mpa(Ez))
            << item(QStringLiteral("G xy / yz / xz, MPa"), mpa(Gxy) + QStringLiteral(" / ") + mpa(Gyz) + QStringLiteral(" / ") + mpa(Gxz))
            << item(QStringLiteral("ν xy / xz / yz"), num(-S[1][0] / S[0][0], 3) + QStringLiteral(" / ") + num(-S[2][0] / S[0][0], 3)
                                                        + QStringLiteral(" / ") + num(-S[2][1] / S[1][1], 3));
-        // Voigt / Reuss averages and the universal anisotropy index (0 = isotropic),
-        // shear entries moved to engineering form.
-        const double C44 = C[3][3] / 2, C55 = C[4][4] / 2, C66 = C[5][5] / 2;
-        const double S44 = 2 * S[3][3], S55 = 2 * S[4][4], S66 = 2 * S[5][5];
+        // Voigt / Reuss averages and the universal anisotropy index (0 = isotropic).
+        const double C44 = C[3][3], C55 = C[4][4], C66 = C[5][5];
+        const double S44 = S[3][3], S55 = S[4][4], S66 = S[5][5];
         const double KV = (C[0][0] + C[1][1] + C[2][2] + 2 * (C[0][1] + C[0][2] + C[1][2])) / 9;
         const double GV = (C[0][0] + C[1][1] + C[2][2] - C[0][1] - C[0][2] - C[1][2] + 3 * (C44 + C55 + C66)) / 15;
         const double KR = 1 / (S[0][0] + S[1][1] + S[2][2] + 2 * (S[0][1] + S[0][2] + S[1][2]));

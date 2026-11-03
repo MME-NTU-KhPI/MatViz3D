@@ -13,6 +13,7 @@
 #include "test_ffthomog.h"
 #include "test_printability.h"
 #include "test_datasetbrowser.h"
+#include "test_seed_distribution.h"
 
 int main(int argc, char *argv[])
 {
@@ -66,6 +67,9 @@ int main(int argc, char *argv[])
 
     TestDatasetBrowser testBrowser;
     runSuite(&testBrowser, "TestDatasetBrowser");
+
+    TestSeedDistribution testSeeds;
+    runSuite(&testSeeds, "TestSeedDistribution");
 
     std::cout << "\n=======================================================\n";
     if (totalFailures == 0) {
