@@ -79,6 +79,7 @@ void PropertySelectorController::reset()
 {
     m_batch.stop();
     m_cells.clear();
+    m_own.clear();
     m_pending.clear();
     m_next = 0;
     m_failed = 0;
@@ -145,6 +146,9 @@ void PropertySelectorController::finish()
     m_batch.stop();
     m_indexing = false;
     m_ready = true;
+    m_own.clear();
+    m_own.reserve(m_cells.size());
+    for (const auto& c : m_cells) m_own.push_back(propsearch::moduli(c.C));
     QStringList keys;
     for (const auto& c : m_cells)
         if (!keys.contains(c.family)) keys << c.family;
@@ -164,7 +168,9 @@ void PropertySelectorController::finish()
 
 void PropertySelectorController::buildIndex()
 {
-    if (m_indexing || m_preparing) return;
+    // Built already for this dataset (a new or reloaded one resets it): a call
+    // queued while the index was being read must not start it over.
+    if (m_indexing || m_preparing || m_ready) return;
     prepare();
     if (!m_indexing) return;
     m_batch.start();
@@ -360,4 +366,32 @@ void PropertySelectorController::show(int i)
     m_current = i;
     m_browser->selectId(m_cells[static_cast<size_t>(m_matches[static_cast<size_t>(i)].cell)].id);
     emit currentChanged();
+}
+
+QVariantMap PropertySelectorController::ranges(double eLowGpa, double eHighGpa) const
+{
+    // Moduli divided by the cell's own E: the material E scales them exactly.
+    std::vector<double> E, G, nu, rho;
+    for (size_t i = 0; i < m_cells.size() && i < m_own.size(); ++i) {
+        const auto& v = m_own[i];
+        const double per = 1.0 / (m_cells[i].law.eGpa * 1e6);   // MPa per GPa of the material
+        for (int t = propsearch::Ex; t <= propsearch::Ez; ++t) if (v[t] > 0.0) E.push_back(v[t] * per);
+        for (int t = propsearch::Gxy; t <= propsearch::Gxz; ++t) if (v[t] > 0.0) G.push_back(v[t] * per);
+        for (int t = propsearch::NuXy; t <= propsearch::NuYz; ++t) if (std::isfinite(v[t])) nu.push_back(v[t]);
+        rho.push_back(m_cells[i].density);
+    }
+    auto at = [](std::vector<double>& v, double q) {
+        const size_t k = std::min(v.size() - 1, static_cast<size_t>(q * static_cast<double>(v.size() - 1)));
+        std::nth_element(v.begin(), v.begin() + static_cast<std::ptrdiff_t>(k), v.end());
+        return v[k];
+    };
+    auto span = [&](std::vector<double>& v, double sLo, double sHi, double lo, double hi) {
+        if (v.empty()) return QVariantList{ lo, hi };
+        const double a = at(v, 0.005) * sLo, b = at(v, 0.995) * sHi;
+        return a < b ? QVariantList{ a, b } : QVariantList{ lo, hi };
+    };
+    return { { QStringLiteral("E"), span(E, eLowGpa, eHighGpa, 1.0, 1000.0) },
+             { QStringLiteral("G"), span(G, eLowGpa, eHighGpa, 0.5, 400.0) },
+             { QStringLiteral("nu"), span(nu, 1.0, 1.0, -0.3, 0.5) },
+             { QStringLiteral("rho"), span(rho, 1.0, 1.0, 0.0, 1.0) } };
 }

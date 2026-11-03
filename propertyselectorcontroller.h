@@ -66,6 +66,12 @@ public:
     Q_INVOKABLE void search(const QVariantMap& query);
     /// Opens result `i` in the browser (3D view + cell panel).
     Q_INVOKABLE void show(int i);
+    /**
+     * What the indexed cells span, for the sliders, each as [low, high]: E and G
+     * in MPa from the 0.5th percentile with a material of E = `eLowGpa` to the
+     * 99.5th with E = `eHighGpa`; nu and the density between the same percentiles.
+     */
+    Q_INVOKABLE QVariantMap ranges(double eLowGpa, double eHighGpa) const;
 
     const std::vector<propsearch::Cell>& cells() const { return m_cells; }
     const std::vector<propsearch::Match>& matches() const { return m_matches; }
@@ -91,6 +97,7 @@ private:
     DatasetBrowserController* m_browser = nullptr;
     QString m_folder;
     std::vector<propsearch::Cell> m_cells;
+    std::vector<propsearch::Values> m_own;   ///< each cell's moduli with its own law
     std::vector<Pending> m_pending;
     size_t m_next = 0;
     int m_failed = 0;

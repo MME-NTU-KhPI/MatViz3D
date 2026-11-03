@@ -6,8 +6,10 @@ import QtQuick.Layouts
 
 // The "Selector" tab of the main window's Data panel: target elastic properties
 // and the printing material in, the closest accepted cells of the open dataset
-// out (PropertySelectorController). Choosing a result opens that cell in the 3D
-// view and its parameters in DatasetCellPanel on the right, like the Dataset tab.
+// out (PropertySelectorController). Every number is a slider; the moduli move on
+// a logarithmic scale over what the dataset spans for the chosen material, and
+// the search reruns a moment after a slider is let go. Choosing a result opens
+// that cell in the 3D view and its parameters in DatasetCellPanel on the right.
 Item {
     id: panel
     clip: true
@@ -24,39 +26,50 @@ Item {
     readonly property color accent: "#22c3a6"
     readonly property color warn: "#ffb74d"
 
+    // The sliders' ends: what the dataset spans for any material the E slider can
+    // give, so moving the material never pushes a target off its slider.
+    readonly property var span: ctrl.ready ? ctrl.ranges(matE.from, matE.to)
+                                           : ({ E: [1, 1000], G: [0.5, 400], nu: [-0.3, 0.5], rho: [0, 1] })
+
     // Target values survive switching between one value for all directions and per-axis ones.
     property bool sameInAllDirections: true
     property var targets: ({
-        E:    { on: true,  v: "300" }, G:    { on: false, v: "100" }, nu:   { on: false, v: "0.3" },
-        Ex:   { on: true,  v: "300" }, Ey:   { on: true,  v: "300" }, Ez:   { on: true,  v: "300" },
-        Gxy:  { on: false, v: "100" }, Gyz:  { on: false, v: "100" }, Gxz:  { on: false, v: "100" },
-        nuXy: { on: false, v: "0.3" }
+        E:    { on: true,  v: 300 }, G:    { on: false, v: 100 }, nu:   { on: false, v: 0.3 },
+        Ex:   { on: true,  v: 300 }, Ey:   { on: true,  v: 300 }, Ez:   { on: true,  v: 300 },
+        Gxy:  { on: false, v: 100 }, Gyz:  { on: false, v: 100 }, Gxz:  { on: false, v: 100 },
+        nuXy: { on: false, v: 0.3 }
     })
     readonly property var isoRows: [
-        { key: "E",  label: qsTr("E"), unit: "MPa" },
-        { key: "G",  label: qsTr("G"), unit: "MPa" },
-        { key: "nu", label: qsTr("ν"), unit: "" }
+        { key: "E",  label: qsTr("E"),  kind: "E" },
+        { key: "G",  label: qsTr("G"),  kind: "G" },
+        { key: "nu", label: qsTr("ν"),  kind: "nu" }
     ]
     readonly property var axisRows: [
-        { key: "Ex", label: qsTr("E x"), unit: "MPa" }, { key: "Ey", label: qsTr("E y"), unit: "MPa" },
-        { key: "Ez", label: qsTr("E z"), unit: "MPa" }, { key: "Gxy", label: qsTr("G xy"), unit: "MPa" },
-        { key: "Gyz", label: qsTr("G yz"), unit: "MPa" }, { key: "Gxz", label: qsTr("G xz"), unit: "MPa" },
-        { key: "nuXy", label: qsTr("ν xy"), unit: "" }
+        { key: "Ex", label: qsTr("E x"), kind: "E" }, { key: "Ey", label: qsTr("E y"), kind: "E" },
+        { key: "Ez", label: qsTr("E z"), kind: "E" }, { key: "Gxy", label: qsTr("G xy"), kind: "G" },
+        { key: "Gyz", label: qsTr("G yz"), kind: "G" }, { key: "Gxz", label: qsTr("G xz"), kind: "G" },
+        { key: "nuXy", label: qsTr("ν xy"), kind: "nu" }
     ]
 
-    function num(t) { return Number(String(t).trim().replace(",", ".")); }
+    function fmt(x) {
+        const a = Math.abs(x);
+        return a >= 100 ? x.toFixed(0) : a >= 10 ? x.toFixed(1) : a >= 1 ? x.toFixed(2) : x.toPrecision(2);
+    }
+    function log10(x) { return Math.log(x) / Math.LN10; }
 
     function startIndexIfNeeded() {
         if (panel.visible && ctrl.hasDataset && !ctrl.ready && !ctrl.indexing)
             Qt.callLater(ctrl.buildIndex);
     }
+    // The search reruns shortly after the last change, not on every slider step.
+    function scheduleSearch() { if (ctrl.ready) searchTimer.restart(); }
 
     function runSearch() {
         let t = {};
         function put(key, names) {
             const s = panel.targets[key];
-            if (!s.on || String(s.v).trim() === "") return;
-            for (const n of names) t[n] = panel.num(s.v);
+            if (!s.on) return;
+            for (const n of names) t[n] = s.v;
         }
         if (panel.sameInAllDirections) {
             put("E", ["Ex", "Ey", "Ez"]);
@@ -66,19 +79,27 @@ Item {
             for (const k of ["Ex", "Ey", "Ez", "Gxy", "Gyz", "Gxz", "nuXy"]) put(k, [k]);
         }
         ctrl.search({
-            material: { e_gpa: panel.num(matE.text), nu: panel.num(matNu.text), aniso: panel.num(matR.text) },
+            material: { e_gpa: matE.value, nu: matNu.value, aniso: matR.value },
             targets: t,
-            rho_min: panel.num(rhoMin.text),
-            rho_max: panel.num(rhoMax.text),
+            rho_min: rhoRange.first.value,
+            rho_max: rhoRange.second.value,
             family: familyBox.currentValue === undefined ? "" : familyBox.currentValue,
             count: 10
         });
     }
 
+    Timer { id: searchTimer; interval: 250; onTriggered: panel.runSearch() }
+
     onVisibleChanged: startIndexIfNeeded()
     Connections {
         target: panel.ctrl
-        function onIndexChanged() { panel.startIndexIfNeeded(); }
+        function onIndexChanged() {
+            panel.startIndexIfNeeded();
+            if (panel.ctrl.ready) {
+                rhoRange.setValues(rhoRange.from, rhoRange.to);
+                panel.scheduleSearch();
+            }
+        }
     }
 
     FolderDialog {
@@ -96,26 +117,50 @@ Item {
         font.capitalization: Font.AllUppercase
         font.letterSpacing: 0.6
     }
-    component NumberField: TextField {
-        Layout.preferredHeight: 30
-        topInset: 0
-        bottomInset: 0
-        horizontalAlignment: Text.AlignRight
+    component RowLabel: Text {
+        color: panel.textColor
         font.family: panel.fontSans
         font.pixelSize: 12
-        inputMethodHints: Qt.ImhFormattedNumbersOnly
-        validator: RegularExpressionValidator { regularExpression: /^-?[0-9]*[.,]?[0-9]*$/ }
-        onAccepted: panel.runSearch()
     }
-    component Unit: Text {
-        color: panel.subText
+    component ValueText: Text {
+        Layout.preferredWidth: 78
+        horizontalAlignment: Text.AlignRight
+        color: panel.textColor
         font.family: panel.fontSans
-        font.pixelSize: 11
+        font.pixelSize: 12
+    }
+    // A plain slider row: label, slider, value with its unit.
+    component SliderRow: RowLayout {
+        id: row
+        property alias label: rowLabel.text
+        property alias from: rowSlider.from
+        property alias to: rowSlider.to
+        property alias stepSize: rowSlider.stepSize
+        property alias value: rowSlider.value
+        property string unit: ""
+        property int decimals: 2
+        property string tip: ""
+        Layout.fillWidth: true
+        spacing: 6
+        RowLabel { id: rowLabel; Layout.preferredWidth: 64 }
+        Slider {
+            id: rowSlider
+            Layout.fillWidth: true
+            Layout.preferredHeight: 26
+            topPadding: 0
+            bottomPadding: 0
+            snapMode: Slider.SnapAlways
+            onMoved: panel.scheduleSearch()
+            ToolTip.visible: hovered && row.tip !== ""
+            ToolTip.delay: 400
+            ToolTip.text: row.tip
+        }
+        ValueText { text: rowSlider.value.toFixed(row.decimals) + (row.unit ? " " + row.unit : "") }
     }
 
     ColumnLayout {
         anchors.fill: parent
-        spacing: 6
+        spacing: 4
 
         // ── Source ──
         RowLayout {
@@ -155,22 +200,13 @@ Item {
 
         // ── Material ──
         Caption { text: qsTr("Material you print with") }
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 4
-            Unit { text: "E" }
-            NumberField { id: matE; Layout.fillWidth: true; text: "2.0" }
-            Unit { text: "GPa  ν" }
-            NumberField { id: matNu; Layout.fillWidth: true; text: "0.38" }
-            Unit { text: qsTr("across ×") }
-            NumberField {
-                id: matR
-                Layout.fillWidth: true
-                text: "1.0"
-                ToolTip.visible: hovered
-                ToolTip.delay: 400
-                ToolTip.text: qsTr("E across the printed layers (along Z) as a share of E along them; 1 = the same in every direction")
-            }
+        SliderRow { id: matE; label: qsTr("E"); from: 0.5; to: 5.0; stepSize: 0.05; value: 2.0; unit: "GPa" }
+        SliderRow { id: matNu; label: qsTr("ν"); from: 0.25; to: 0.49; stepSize: 0.01; value: 0.38 }
+        SliderRow {
+            id: matR
+            label: qsTr("across ×")
+            from: 0.3; to: 1.0; stepSize: 0.01; value: 1.0
+            tip: qsTr("E across the printed layers (along Z) as a share of E along them; 1 = the same in every direction")
         }
 
         // ── Targets ──
@@ -178,49 +214,55 @@ Item {
             Layout.fillWidth: true
             Caption { text: qsTr("Target properties") }
             CheckBox {
-                id: isoBox
                 text: qsTr("same in all directions")
                 checked: panel.sameInAllDirections
                 font.family: panel.fontSans
                 font.pixelSize: 11
                 topPadding: 0
                 bottomPadding: 0
-                onToggled: panel.sameInAllDirections = checked
+                onToggled: { panel.sameInAllDirections = checked; panel.scheduleSearch(); }
             }
         }
-        GridLayout {
-            Layout.fillWidth: true
-            columns: panel.sameInAllDirections ? 1 : 2
-            columnSpacing: 8
-            rowSpacing: 2
-            Repeater {
-                model: panel.sameInAllDirections ? panel.isoRows : panel.axisRows
-                delegate: RowLayout {
-                    id: targetRow
-                    required property var modelData
+        Repeater {
+            model: panel.sameInAllDirections ? panel.isoRows : panel.axisRows
+            delegate: RowLayout {
+                id: targetRow
+                required property var modelData
+                readonly property bool isModulus: modelData.kind !== "nu"
+                readonly property var ends: panel.span[modelData.kind]
+                Layout.fillWidth: true
+                spacing: 6
+                CheckBox {
+                    id: useBox
+                    Layout.preferredWidth: 64
+                    text: targetRow.modelData.label
+                    checked: panel.targets[targetRow.modelData.key].on
+                    font.family: panel.fontSans
+                    font.pixelSize: 12
+                    topPadding: 0
+                    bottomPadding: 0
+                    onToggled: { panel.targets[targetRow.modelData.key].on = checked; panel.scheduleSearch(); }
+                }
+                // Moduli on a log scale (the slider holds log10 of MPa), ratios plain.
+                Slider {
+                    id: targetSlider
                     Layout.fillWidth: true
-                    spacing: 4
-                    CheckBox {
-                        id: useBox
-                        Layout.preferredWidth: panel.sameInAllDirections ? 70 : 64
-                        text: targetRow.modelData.label
-                        checked: panel.targets[targetRow.modelData.key].on
-                        font.family: panel.fontSans
-                        font.pixelSize: 12
-                        topPadding: 0
-                        bottomPadding: 0
-                        onToggled: panel.targets[targetRow.modelData.key].on = checked
-                    }
-                    NumberField {
-                        Layout.fillWidth: true
-                        enabled: useBox.checked
-                        text: panel.targets[targetRow.modelData.key].v
-                        onTextEdited: panel.targets[targetRow.modelData.key].v = text
-                    }
-                    Unit {
-                        Layout.preferredWidth: 26
-                        text: targetRow.modelData.unit
-                    }
+                    Layout.preferredHeight: 26
+                    topPadding: 0
+                    bottomPadding: 0
+                    enabled: useBox.checked
+                    from: targetRow.isModulus ? panel.log10(targetRow.ends[0]) : targetRow.ends[0]
+                    to: targetRow.isModulus ? panel.log10(targetRow.ends[1]) : targetRow.ends[1]
+                    stepSize: targetRow.isModulus ? 0.005 : 0.01
+                    value: targetRow.isModulus ? panel.log10(panel.targets[targetRow.modelData.key].v)
+                                               : panel.targets[targetRow.modelData.key].v
+                    readonly property real actual: targetRow.isModulus ? Math.pow(10, value) : value
+                    onActualChanged: panel.targets[targetRow.modelData.key].v = actual
+                    onMoved: panel.scheduleSearch()
+                }
+                ValueText {
+                    opacity: useBox.checked ? 1.0 : 0.4
+                    text: panel.fmt(targetSlider.actual) + (targetRow.isModulus ? " MPa" : "")
                 }
             }
         }
@@ -229,11 +271,27 @@ Item {
         Caption { text: qsTr("Limits") }
         RowLayout {
             Layout.fillWidth: true
-            spacing: 4
-            Unit { text: qsTr("ρ from") }
-            NumberField { id: rhoMin; Layout.preferredWidth: 52; text: "0.0" }
-            Unit { text: qsTr("to") }
-            NumberField { id: rhoMax; Layout.preferredWidth: 52; text: "1.0" }
+            spacing: 6
+            RowLabel { text: qsTr("density ρ"); Layout.preferredWidth: 64 }
+            RangeSlider {
+                id: rhoRange
+                Layout.fillWidth: true
+                Layout.preferredHeight: 26
+                topPadding: 0
+                bottomPadding: 0
+                from: Math.floor(panel.span.rho[0] * 20) / 20
+                to: Math.ceil(panel.span.rho[1] * 20) / 20
+                stepSize: 0.01
+                snapMode: RangeSlider.SnapAlways
+                first.onMoved: panel.scheduleSearch()
+                second.onMoved: panel.scheduleSearch()
+            }
+            ValueText { text: rhoRange.first.value.toFixed(2) + "–" + rhoRange.second.value.toFixed(2) }
+        }
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 6
+            RowLabel { text: qsTr("family"); Layout.preferredWidth: 64 }
             ComboBox {
                 id: familyBox
                 Layout.fillWidth: true
@@ -244,22 +302,12 @@ Item {
                 model: panel.ctrl.families
                 textRole: "label"
                 valueRole: "key"
+                onActivated: panel.scheduleSearch()
             }
-        }
-        Button {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 34
-            topInset: 0
-            bottomInset: 0
-            text: qsTr("Find cells")
-            highlighted: true
-            enabled: panel.ctrl.ready
-            font.family: panel.fontSans
-            font.pixelSize: 13
-            onClicked: panel.runSearch()
         }
         Text {
             Layout.fillWidth: true
+            Layout.topMargin: 2
             visible: text !== ""
             text: panel.ctrl.message
             wrapMode: Text.WordWrap
@@ -267,7 +315,6 @@ Item {
             font.family: panel.fontSans
             font.pixelSize: 11
         }
-
         Text {
             Layout.fillWidth: true
             visible: resultList.count > 0
@@ -375,8 +422,8 @@ Item {
                     width: parent.width - 30
                     horizontalAlignment: Text.AlignHCenter
                     wrapMode: Text.WordWrap
-                    text: !panel.ctrl.hasDataset ? qsTr("Open a dataset (Dataset tab or the button above), then give the properties you need.")
-                          : panel.ctrl.ready ? qsTr("Give the properties you need and press Find cells.")
+                    text: !panel.ctrl.hasDataset ? qsTr("Open a dataset (Dataset tab or the button above), then set the properties you need.")
+                          : panel.ctrl.ready ? qsTr("Tick a target property and move its slider.")
                           : qsTr("Reading the accepted cells…")
                     color: panel.subText
                     font.family: panel.fontSans

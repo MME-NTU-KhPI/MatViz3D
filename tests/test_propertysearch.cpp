@@ -277,6 +277,10 @@ void TestPropertySearch::testControllerOnADatasetFolder()
     QVERIFY(sel.ready());
     QCOMPARE(sel.cellCount(), 3);
     QCOMPARE(sel.families().size(), 3);   // "All families" + two
+    // Slider ends: the cells span E 100-260 MPa with their own 2 GPa material.
+    const QVariantList spanE = sel.ranges(2.0, 4.0).value(QStringLiteral("E")).toList();
+    QVERIFY2(std::abs(spanE.at(0).toDouble() - 100.0) < 1e-3 && std::abs(spanE.at(1).toDouble() - 520.0) < 1e-3,
+             qPrintable(QString("%1 .. %2").arg(spanE.at(0).toDouble()).arg(spanE.at(1).toDouble())));
 
     browser.setGroupFilter(QStringLiteral("struts"));   // hides the answer: showing it must relax the filter
     sel.search({ { QStringLiteral("material"), QVariantMap{ { QStringLiteral("e_gpa"), 2.0 }, { QStringLiteral("nu"), 0.38 }, { QStringLiteral("aniso"), 1.0 } } },
@@ -300,8 +304,12 @@ void TestPropertySearch::testControllerOnADatasetFolder()
     QVERIFY(sel.results().isEmpty());
     QVERIFY(!sel.message().isEmpty());
 
-    // A second index of the same folder comes from the cache and finds the same cells.
+    // A second index of the same folder comes from the cache and finds the same cells,
+    // in batches through the event loop; asking again once it is built changes nothing.
     PropertySelectorController again(&browser);
-    again.buildIndexNow();
+    again.buildIndex();
+    QTRY_VERIFY(again.ready());
     QCOMPARE(again.cellCount(), 3);
+    again.buildIndex();
+    QVERIFY(again.ready() && !again.indexing());
 }
