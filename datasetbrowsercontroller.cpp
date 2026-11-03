@@ -14,6 +14,7 @@
 #include "cellforms.h"
 #include "hdf5wrapper.h"
 #include "latticefamily.h"
+#include "propertysearch.h"
 
 namespace {
 
@@ -92,17 +93,6 @@ bool invert6(const double A[6][6], double B[6][6])
     }
     for (int i = 0; i < 6; ++i) for (int j = 0; j < 6; ++j) B[i][j] = M[i][j + 6];
     return true;
-}
-
-// Hashin-Shtrikman upper bound on the Young's modulus of an isotropic porous solid
-// (the same formula as hs_upper_E in tools/dataset/make_dataset.py).
-double hsUpperE(double Es, double nus, double porosity)
-{
-    if (!(porosity >= 0.0 && porosity < 1.0) || Es <= 0.0) return NAN;
-    const double K = Es / (3.0 * (1.0 - 2.0 * nus)), G = Es / (2.0 * (1.0 + nus)), f = porosity;
-    const double Khs = K + f / (-1.0 / K + 3.0 * (1.0 - f) / (3.0 * K + 4.0 * G));
-    const double Ghs = G + f / (-1.0 / G + 6.0 * (1.0 - f) * (K + 2.0 * G) / (5.0 * G * (3.0 * K + 4.0 * G)));
-    return 9.0 * Khs * Ghs / (3.0 * Khs + Ghs);
 }
 
 } // namespace
@@ -360,15 +350,44 @@ void DatasetBrowserController::prev()
     if (m_current > 0) select(m_current - 1);
 }
 
+QString DatasetBrowserController::cellFile(const DatasetRowsModel::Row& row) const
+{
+    const QString f = !row.file.isEmpty() ? row.file
+                                          : QDir(m_folder).absoluteFilePath(QStringLiteral("cells/") + row.id + QStringLiteral(".hdf5"));
+    return QFileInfo::exists(f) ? f : QString();
+}
+
+bool DatasetBrowserController::selectId(const QString& id)
+{
+    auto find = [&]() {
+        for (int i = 0; i < m_model.size(); ++i)
+            if (m_model.at(i)->id == id) return i;
+        return -1;
+    };
+    int i = find();
+    if (i < 0 && (m_groupFilter != kAllGroups || m_statusFilter != QLatin1String("All rows"))) {
+        m_groupFilter = kAllGroups;
+        m_statusFilter = QStringLiteral("All rows");
+        applyFilter();
+        i = find();
+    }
+    if (i < 0 && !m_search.isEmpty()) {
+        m_search.clear();
+        applyFilter();
+        i = find();
+    }
+    if (i < 0) return false;
+    select(i);
+    return true;
+}
+
 void DatasetBrowserController::select(int index)
 {
     const DatasetRowsModel::Row* r = m_model.at(index);
     if (!r) return;
     m_current = index;
     m_currentId = r->id;
-    m_currentFile = !r->file.isEmpty() ? r->file
-                                       : QDir(m_folder).absoluteFilePath(QStringLiteral("cells/") + r->id + QStringLiteral(".hdf5"));
-    if (!QFileInfo::exists(m_currentFile)) m_currentFile.clear();
+    m_currentFile = cellFile(*r);
 
     LatticeFamily fam;
     const QString famLabel = parseLatticeFamily(r->family, fam) ? latticeFamilyLabel(fam) : r->family;
@@ -668,7 +687,7 @@ void DatasetBrowserController::buildSections(const DatasetRowsModel::Row& row)
         const double Emean = (Ex + Ey + Ez) / 3.0;
         if (Es > 0.0) {
             it << item(QStringLiteral("Mean E / E solid"), num(Emean / Es, 3));
-            const double hs = hsUpperE(Es, dval("mat_nu"), std::isfinite(rho) ? 1.0 - rho : NAN);
+            const double hs = propsearch::hsUpperE(Es, dval("mat_nu"), std::isfinite(rho) ? 1.0 - rho : NAN);
             if (std::isfinite(hs) && hs > 0) it << item(QStringLiteral("Mean E / HS bound"), num(Emean / hs, 3));
         }
         if (std::isfinite(sens)) it << item(QStringLiteral("Sensitivity index"), num(sens, 3));

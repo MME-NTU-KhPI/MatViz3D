@@ -118,7 +118,10 @@ SOURCES += \
     test_printability.cpp \
     test_datasetbrowser.cpp \
     ../datasetbrowsercontroller.cpp \
-    test_seed_distribution.cpp
+    test_seed_distribution.cpp \
+    test_propertysearch.cpp \
+    ../propertysearch.cpp \
+    ../propertyselectorcontroller.cpp
 
 HEADERS += \
     test_polycrystall_seeding.h \
@@ -133,6 +136,9 @@ HEADERS += \
     test_printability.h \
     test_datasetbrowser.h \
     ../datasetbrowsercontroller.h \
-    test_seed_distribution.h
+    test_seed_distribution.h \
+    test_propertysearch.h \
+    ../propertysearch.h \
+    ../propertyselectorcontroller.h
 
 TARGET = tests

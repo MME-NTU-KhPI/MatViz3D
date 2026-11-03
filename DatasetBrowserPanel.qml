@@ -130,6 +130,7 @@ Item {
             }
         }
         TextField {
+            id: searchField
             Layout.fillWidth: true
             Layout.preferredHeight: 32
             topInset: 0
@@ -138,6 +139,11 @@ Item {
             font.family: panel.fontSans
             font.pixelSize: 12
             onTextEdited: panel.ctrl.search = text
+            // The Selector tab clears the search when it has to show a hidden row.
+            Connections {
+                target: panel.ctrl
+                function onFilterChanged() { if (searchField.text !== panel.ctrl.search) searchField.text = panel.ctrl.search; }
+            }
         }
 
         // ── Rows ──

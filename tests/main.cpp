@@ -14,6 +14,7 @@
 #include "test_printability.h"
 #include "test_datasetbrowser.h"
 #include "test_seed_distribution.h"
+#include "test_propertysearch.h"
 
 int main(int argc, char *argv[])
 {
@@ -70,6 +71,9 @@ int main(int argc, char *argv[])
 
     TestSeedDistribution testSeeds;
     runSuite(&testSeeds, "TestSeedDistribution");
+
+    TestPropertySearch testSelector;
+    runSuite(&testSelector, "TestPropertySearch");
 
     std::cout << "\n=======================================================\n";
     if (totalFailures == 0) {

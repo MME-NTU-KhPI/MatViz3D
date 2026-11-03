@@ -15,9 +15,11 @@ Window {
     minimumWidth: 1024
     title: qsTr("MatViz3D")
 
-    // The Data panel shows either the generator (algorithm + parameters) or the
-    // dataset browser (rows of a dataset folder + the selected cell's parameters).
-    property bool datasetMode: false
+    // The Data panel shows the generator (algorithm + parameters), the dataset
+    // browser (rows of a dataset folder) or the property selector (target
+    // properties -> closest cells); the last two share the cell panel on the right.
+    property int dataTab: 0
+    readonly property bool datasetMode: dataTab > 0
 
     Material.theme: Material.Dark
     Material.accent: Material.Teal
@@ -70,7 +72,7 @@ Window {
     }
 
     function openDatasetBrowser() {
-        mainWindow.datasetMode = true
+        mainWindow.dataTab = 1
         _itemData.visible = true
         checkData.checked = true
     }
@@ -569,13 +571,13 @@ Window {
                             Layout.rightMargin: 29
                             Layout.topMargin: 10
 
-                            // Two pages: the generator and the dataset browser.
+                            // Three pages: the generator, the dataset browser and the property selector.
                             Repeater {
-                                model: [qsTr("Generator"), qsTr("Dataset")]
+                                model: [qsTr("Generator"), qsTr("Dataset"), qsTr("Selector")]
                                 delegate: Text {
                                     required property int index
                                     required property string modelData
-                                    readonly property bool active: (index === 1) === mainWindow.datasetMode
+                                    readonly property bool active: index === mainWindow.dataTab
                                     Layout.rightMargin: 14
                                     text: modelData
                                     color: active ? "#d9d9d9" : "#7a7a7a"
@@ -585,7 +587,7 @@ Window {
                                     MouseArea {
                                         anchors.fill: parent
                                         cursorShape: Qt.PointingHandCursor
-                                        onClicked: mainWindow.datasetMode = (parent.index === 1)
+                                        onClicked: mainWindow.dataTab = parent.index
                                     }
                                 }
                             }
@@ -828,9 +830,23 @@ Window {
                             Layout.rightMargin: 16
                             Layout.topMargin: 6
                             Layout.bottomMargin: 14
-                            visible: mainWindow.datasetMode
+                            visible: mainWindow.dataTab === 1
                             fontSans: inter.name
                             fontTitle: montserrat.name
+                        }
+
+                        PropertySelectorPanel {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            Layout.leftMargin: 16
+                            Layout.rightMargin: 16
+                            Layout.topMargin: 6
+                            Layout.bottomMargin: 14
+                            visible: mainWindow.dataTab === 2
+                            fontSans: inter.name
+                            fontTitle: montserrat.name
+                            // Same as "Reproduce Geometry" in the HDF5 view, then show the generator.
+                            onGeneratorRequested: if (hdf5ProjectController.reproduceGeometry()) mainWindow.dataTab = 0
                         }
                     }
                 }

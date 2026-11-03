@@ -109,11 +109,18 @@ public:
     Q_INVOKABLE bool openPath(const QString& path);
     Q_INVOKABLE bool openUrl(const QUrl& url) { return openPath(url.toLocalFile()); }
     Q_INVOKABLE void select(int index);
+    /// Selects the row with this id, relaxing the filters if they hide it.
+    Q_INVOKABLE bool selectId(const QString& id);
     Q_INVOKABLE void next();
     Q_INVOKABLE void prev();
     Q_INVOKABLE void reload();
     /// Ask the main window to show the browser (used by `--browse`).
     Q_INVOKABLE void requestShow() { emit showRequested(); }
+
+    /// Every row of the open dataset, unfiltered (the property selector indexes them).
+    const std::vector<DatasetRowsModel::Row>& allRows() const { return m_all; }
+    /// The HDF5 file of a row, empty when it has none.
+    QString cellFile(const DatasetRowsModel::Row& row) const;
 
     /// Opens a cell file in the 3D view; returns false when it could not.
     void setCellOpener(std::function<bool(const QString&)> opener) { m_opener = std::move(opener); }

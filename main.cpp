@@ -23,6 +23,7 @@
 #include "texturecontroller.h"
 #include "hdf5projectcontroller.h"
 #include "datasetbrowsercontroller.h"
+#include "propertyselectorcontroller.h"
 #include "exportcontroller.h"
 #include "tensormath_selftest.hpp"
 #include <hdf5.h>
@@ -233,6 +234,7 @@ int main(int argc, char *argv[])
     SchemaController schemaController;
     Hdf5ProjectController hdf5ProjectController;
     DatasetBrowserController datasetBrowserController;
+    PropertySelectorController propertySelectorController(&datasetBrowserController);
     StatisticsController statisticsController;
     ExportController exportController;
     StressAnalysisController stressAnalysisController;
@@ -261,6 +263,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("textureController", &textureController);
     engine.rootContext()->setContextProperty("hdf5ProjectController", &hdf5ProjectController);
     engine.rootContext()->setContextProperty("datasetBrowserController", &datasetBrowserController);
+    engine.rootContext()->setContextProperty("propertySelectorController", &propertySelectorController);
     // The browser opens a cell through the HDF5 project controller, which loads
     // it and puts the voxels into the 3D view.
     datasetBrowserController.setCellOpener([&hdf5ProjectController](const QString& path) {

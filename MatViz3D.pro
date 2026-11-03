@@ -134,6 +134,8 @@ SOURCES += \
         stressanalysiscontroller.cpp \
         hdf5projectcontroller.cpp \
         datasetbrowsercontroller.cpp \
+        propertysearch.cpp \
+        propertyselectorcontroller.cpp \
         tensorfieldsnapshot.cpp \
         tensorglyphbuilder.cpp \
         tensorstreamlinebuilder.cpp \
@@ -173,6 +175,8 @@ HEADERS += \
     grain_analyzer.h \
     hdf5projectcontroller.h \
     datasetbrowsercontroller.h \
+    propertysearch.h \
+    propertyselectorcontroller.h \
     hdf5wrapper.h \
     hillcriterion.h \
     algorithmfactory.h \
