@@ -8,7 +8,10 @@ import QtQuick.Layouts
 // and the printing material in, the closest accepted cells of the open dataset
 // out (PropertySelectorController). Every number is a slider; the moduli move on
 // a logarithmic scale over what the dataset spans for the chosen material, and
-// the search reruns a moment after a slider is let go. Choosing a result opens
+// the search reruns a moment after a slider is let go. Below the moduli sit the
+// anisotropy targets (E z / E x, E y / E x, E max / E min over all directions,
+// the Zener ratio of cubic cells); while one is ticked, E and G in the "same in
+// all directions" mode set the level only (the geometric mean over the axes). Choosing a result opens
 // that cell in the 3D view and its parameters in DatasetCellPanel on the right.
 Item {
     id: panel
@@ -29,7 +32,8 @@ Item {
     // The sliders' ends: what the dataset spans for any material the E slider can
     // give, so moving the material never pushes a target off its slider.
     readonly property var span: ctrl.ready ? ctrl.ranges(matE.from, matE.to)
-                                           : ({ E: [1, 1000], G: [0.5, 400], nu: [-0.3, 0.5], rho: [0, 1] })
+                                           : ({ E: [1, 1000], G: [0.5, 400], nu: [-0.3, 0.5], rho: [0, 1],
+                                                axisRatio: [0.2, 5], allDir: [1, 10], zener: [0.2, 5] })
 
     // Target values survive switching between one value for all directions and per-axis ones.
     property bool sameInAllDirections: true
@@ -37,12 +41,32 @@ Item {
         E:    { on: true,  v: 300 }, G:    { on: false, v: 100 }, nu:   { on: false, v: 0.3 },
         Ex:   { on: true,  v: 300 }, Ey:   { on: true,  v: 300 }, Ez:   { on: true,  v: 300 },
         Gxy:  { on: false, v: 100 }, Gyz:  { on: false, v: 100 }, Gxz:  { on: false, v: 100 },
-        nuXy: { on: false, v: 0.3 }
+        nuXy: { on: false, v: 0.3 },
+        EzEx: { on: false, v: 1.0 }, EyEx: { on: false, v: 1.0 }, EmaxEmin: { on: false, v: 1.5 },
+        zener: { on: false, v: 1.0 }
     })
+    // `targets` is a plain JS object, so ticking a box does not notify; this does.
+    property int targetsRevision: 0
+    readonly property bool anisoActive: {
+        targetsRevision;
+        return targets.EzEx.on || targets.EyEx.on || targets.EmaxEmin.on || targets.zener.on;
+    }
     readonly property var isoRows: [
-        { key: "E",  label: qsTr("E"),  kind: "E" },
-        { key: "G",  label: qsTr("G"),  kind: "G" },
+        { key: "E",  label: anisoActive ? qsTr("E mean") : qsTr("E"), kind: "E",
+          tip: anisoActive ? qsTr("The level of E: the geometric mean of E x, E y and E z (the anisotropy targets below set their ratios)") : "" },
+        { key: "G",  label: anisoActive ? qsTr("G mean") : qsTr("G"), kind: "G",
+          tip: anisoActive ? qsTr("The level of G: the geometric mean of G xy, G yz and G xz") : "" },
         { key: "nu", label: qsTr("ν"),  kind: "nu" }
+    ]
+    readonly property var anisoRows: [
+        { key: "EzEx", label: qsTr("E z / E x"), kind: "axisRatio",
+          tip: qsTr("E along Z (the build direction) over E along X: 1 = the same, 3 = three times stiffer along Z") },
+        { key: "EyEx", label: qsTr("E y / E x"), kind: "axisRatio",
+          tip: qsTr("E along Y over E along X: 1 = the same") },
+        { key: "EmaxEmin", label: qsTr("E max / min"), kind: "allDir",
+          tip: qsTr("The stiffest direction over the weakest, over all directions, not only the axes: 1 = isotropic") },
+        { key: "zener", label: qsTr("Zener"), kind: "zener",
+          tip: qsTr("Zener ratio 2·C44 / (C11 − C12) of a cubic cell: 1 = isotropic, above 1 stiffer along the cube diagonals, below 1 along the axes. Only cells within 5 % of cubic symmetry are searched") }
     ]
     readonly property var axisRows: [
         { key: "Ex", label: qsTr("E x"), kind: "E" }, { key: "Ey", label: qsTr("E y"), kind: "E" },
@@ -72,12 +96,14 @@ Item {
             for (const n of names) t[n] = s.v;
         }
         if (panel.sameInAllDirections) {
-            put("E", ["Ex", "Ey", "Ez"]);
-            put("G", ["Gxy", "Gyz", "Gxz"]);
+            // With an anisotropy target E and G cannot be the same along every axis: they set the level.
+            put("E", panel.anisoActive ? ["Emean"] : ["Ex", "Ey", "Ez"]);
+            put("G", panel.anisoActive ? ["Gmean"] : ["Gxy", "Gyz", "Gxz"]);
             put("nu", ["nuXy", "nuXz", "nuYz"]);
         } else {
             for (const k of ["Ex", "Ey", "Ez", "Gxy", "Gyz", "Gxz", "nuXy"]) put(k, [k]);
         }
+        for (const k of ["EzEx", "EyEx", "EmaxEmin", "zener"]) put(k, [k]);
         ctrl.search({
             material: { e_gpa: matE.value, nu: matNu.value, aniso: matR.value },
             targets: t,
@@ -123,7 +149,7 @@ Item {
         font.pixelSize: 12
     }
     component ValueText: Text {
-        Layout.preferredWidth: 78
+        Layout.preferredWidth: 64
         horizontalAlignment: Text.AlignRight
         color: panel.textColor
         font.family: panel.fontSans
@@ -142,7 +168,7 @@ Item {
         property string tip: ""
         Layout.fillWidth: true
         spacing: 6
-        RowLabel { id: rowLabel; Layout.preferredWidth: 72 }
+        RowLabel { id: rowLabel; Layout.preferredWidth: 100 }
         Slider {
             id: rowSlider
             Layout.fillWidth: true
@@ -156,6 +182,58 @@ Item {
             ToolTip.text: row.tip
         }
         ValueText { text: rowSlider.value.toFixed(row.decimals) + (row.unit ? " " + row.unit : "") }
+    }
+
+    // One target: tick box, label, slider, value. Moduli and the anisotropy ratios
+    // move on a log scale (the slider holds log10 of the value), ν plainly.
+    component TargetRow: RowLayout {
+        id: targetRow
+        required property var modelData
+        property int labelWidth: 64
+        readonly property bool logScale: modelData.kind !== "nu"
+        readonly property bool isModulus: modelData.kind === "E" || modelData.kind === "G"
+        readonly property var ends: panel.span[modelData.kind]
+        Layout.fillWidth: true
+        spacing: 6
+        CheckBox {
+            id: useBox
+            Layout.preferredWidth: 30
+            checked: panel.targets[targetRow.modelData.key].on
+            padding: 0
+            onToggled: {
+                panel.targets[targetRow.modelData.key].on = checked;
+                panel.targetsRevision++;
+                panel.scheduleSearch();
+            }
+        }
+        RowLabel {
+            Layout.preferredWidth: targetRow.labelWidth
+            text: targetRow.modelData.label
+            opacity: useBox.checked ? 1.0 : 0.5
+        }
+        Slider {
+            id: targetSlider
+            Layout.fillWidth: true
+            Layout.preferredHeight: 26
+            topPadding: 0
+            bottomPadding: 0
+            enabled: useBox.checked
+            from: targetRow.logScale ? panel.log10(targetRow.ends[0]) : targetRow.ends[0]
+            to: targetRow.logScale ? panel.log10(targetRow.ends[1]) : targetRow.ends[1]
+            stepSize: targetRow.logScale ? 0.005 : 0.01
+            value: targetRow.logScale ? panel.log10(panel.targets[targetRow.modelData.key].v)
+                                      : panel.targets[targetRow.modelData.key].v
+            readonly property real actual: targetRow.logScale ? Math.pow(10, value) : value
+            onActualChanged: panel.targets[targetRow.modelData.key].v = actual
+            onMoved: panel.scheduleSearch()
+            ToolTip.visible: hovered && (targetRow.modelData.tip || "") !== ""
+            ToolTip.delay: 400
+            ToolTip.text: targetRow.modelData.tip || ""
+        }
+        ValueText {
+            opacity: useBox.checked ? 1.0 : 0.4
+            text: panel.fmt(targetSlider.actual) + (targetRow.isModulus ? " MPa" : "")
+        }
     }
 
     ColumnLayout {
@@ -240,47 +318,14 @@ Item {
                 }
                 Repeater {
                     model: panel.sameInAllDirections ? panel.isoRows : panel.axisRows
-                    delegate: RowLayout {
-                        id: targetRow
-                        required property var modelData
-                        readonly property bool isModulus: modelData.kind !== "nu"
-                        readonly property var ends: panel.span[modelData.kind]
-                        Layout.fillWidth: true
-                        spacing: 6
-                        CheckBox {
-                            id: useBox
-                            Layout.preferredWidth: 30
-                            checked: panel.targets[targetRow.modelData.key].on
-                            padding: 0
-                            onToggled: { panel.targets[targetRow.modelData.key].on = checked; panel.scheduleSearch(); }
-                        }
-                        RowLabel {
-                            Layout.preferredWidth: 36
-                            text: targetRow.modelData.label
-                            opacity: useBox.checked ? 1.0 : 0.5
-                        }
-                        // Moduli on a log scale (the slider holds log10 of MPa), ratios plain.
-                        Slider {
-                            id: targetSlider
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 26
-                            topPadding: 0
-                            bottomPadding: 0
-                            enabled: useBox.checked
-                            from: targetRow.isModulus ? panel.log10(targetRow.ends[0]) : targetRow.ends[0]
-                            to: targetRow.isModulus ? panel.log10(targetRow.ends[1]) : targetRow.ends[1]
-                            stepSize: targetRow.isModulus ? 0.005 : 0.01
-                            value: targetRow.isModulus ? panel.log10(panel.targets[targetRow.modelData.key].v)
-                                                       : panel.targets[targetRow.modelData.key].v
-                            readonly property real actual: targetRow.isModulus ? Math.pow(10, value) : value
-                            onActualChanged: panel.targets[targetRow.modelData.key].v = actual
-                            onMoved: panel.scheduleSearch()
-                        }
-                        ValueText {
-                            opacity: useBox.checked ? 1.0 : 0.4
-                            text: panel.fmt(targetSlider.actual) + (targetRow.isModulus ? " MPa" : "")
-                        }
-                    }
+                    delegate: TargetRow {}
+                }
+
+                // ── Anisotropy ──
+                Caption { text: qsTr("Anisotropy") }
+                Repeater {
+                    model: panel.anisoRows
+                    delegate: TargetRow {}
                 }
 
                 // ── Limits ──
@@ -288,7 +333,7 @@ Item {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 6
-                    RowLabel { text: qsTr("density ρ"); Layout.preferredWidth: 72 }
+                    RowLabel { text: qsTr("density ρ"); Layout.preferredWidth: 100 }
                     RangeSlider {
                         id: rhoRange
                         Layout.fillWidth: true
@@ -307,7 +352,7 @@ Item {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 6
-                    RowLabel { text: qsTr("family"); Layout.preferredWidth: 72 }
+                    RowLabel { text: qsTr("family"); Layout.preferredWidth: 100 }
                     ComboBox {
                         id: familyBox
                         Layout.fillWidth: true
@@ -410,6 +455,14 @@ Item {
                                         font.pixelSize: 10
                                     }
                                 }
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                text: resultDelegate.modelData.anisotropy
+                                wrapMode: Text.WordWrap
+                                color: panel.subText
+                                font.family: panel.fontSans
+                                font.pixelSize: 10
                             }
                             Text {
                                 Layout.fillWidth: true

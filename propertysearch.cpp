@@ -16,6 +16,68 @@ namespace {
 // Pipeline index (xx, yy, zz, xy, yz, xz) -> Voigt index (11, 22, 33, 23, 13, 12).
 constexpr int kPipeToVoigt[6] = { 0, 1, 2, 5, 3, 4 };
 
+// 1 / E along the unit vector n: n n : S : n n with engineering shear in S.
+double inverseModulus(const fftsa::Mat6& S, const std::array<double, 3>& n)
+{
+    const double s[6] = { n[0] * n[0], n[1] * n[1], n[2] * n[2], n[0] * n[1], n[1] * n[2], n[0] * n[2] };
+    double r = 0.0;
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 6; ++j) r += s[i] * S[i][j] * s[j];
+    return r;
+}
+
+// Start points of the search over the sphere: a Fibonacci half sphere (E(n) = E(-n))
+// plus the 13 directions where a cubic or orthotropic cell has its extremes.
+const std::vector<std::array<double, 3>>& sphereDirections()
+{
+    static const std::vector<std::array<double, 3>> dirs = [] {
+        std::vector<std::array<double, 3>> d;
+        const int n = 600;
+        const double golden = M_PI * (3.0 - std::sqrt(5.0));
+        for (int k = 0; k < n; ++k) {
+            const double z = (k + 0.5) / n, r = std::sqrt(1.0 - z * z), phi = golden * k;
+            d.push_back({ r * std::cos(phi), r * std::sin(phi), z });
+        }
+        const double a = 1.0 / std::sqrt(2.0), b = 1.0 / std::sqrt(3.0);
+        for (const std::array<double, 3> v : std::initializer_list<std::array<double, 3>>{
+                 { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 }, { a, a, 0 }, { a, -a, 0 }, { a, 0, a }, { a, 0, -a },
+                 { 0, a, a }, { 0, a, -a }, { b, b, b }, { b, b, -b }, { b, -b, b }, { -b, b, b } })
+            d.push_back(v);
+        return d;
+    }();
+    return dirs;
+}
+
+// Pattern search in the tangent plane from n towards the largest sign * 1/E.
+double refineExtreme(const fftsa::Mat6& S, std::array<double, 3> n, double sign)
+{
+    double best = sign * inverseModulus(S, n);
+    double h = 0.05;
+    for (int it = 0; it < 400 && h > 1e-5; ++it) {
+        // Tangent basis: n x (the axis n is least along), then n x t1.
+        const int k = (std::abs(n[0]) <= std::abs(n[1]) && std::abs(n[0]) <= std::abs(n[2])) ? 0
+                    : (std::abs(n[1]) <= std::abs(n[2]) ? 1 : 2);
+        std::array<double, 3> e{ 0, 0, 0 };
+        e[static_cast<size_t>(k)] = 1.0;
+        std::array<double, 3> t1{ n[1] * e[2] - n[2] * e[1], n[2] * e[0] - n[0] * e[2], n[0] * e[1] - n[1] * e[0] };
+        const double l1 = std::sqrt(t1[0] * t1[0] + t1[1] * t1[1] + t1[2] * t1[2]);
+        for (double& x : t1) x /= l1;
+        const std::array<double, 3> t2{ n[1] * t1[2] - n[2] * t1[1], n[2] * t1[0] - n[0] * t1[2], n[0] * t1[1] - n[1] * t1[0] };
+        bool moved = false;
+        for (int q = 0; q < 8 && !moved; ++q) {
+            const double c = std::cos(q * M_PI / 4.0), s = std::sin(q * M_PI / 4.0);
+            std::array<double, 3> m{ n[0] + h * (c * t1[0] + s * t2[0]), n[1] + h * (c * t1[1] + s * t2[1]),
+                                     n[2] + h * (c * t1[2] + s * t2[2]) };
+            const double l = std::sqrt(m[0] * m[0] + m[1] * m[1] + m[2] * m[2]);
+            for (double& x : m) x /= l;
+            const double v = sign * inverseModulus(S, m);
+            if (v > best) { best = v; n = m; moved = true; }
+        }
+        if (!moved) h *= 0.5;
+    }
+    return sign * best;
+}
+
 std::string cellGroup(HDF5Wrapper& h)
 {
     int set = h.readInt("/", "last_set");
@@ -32,11 +94,13 @@ double scalar(HDF5Wrapper& h, const std::string& group, const char* name, double
 
 QString targetKey(int t)
 {
-    static const char* keys[TargetCount] = { "Ex", "Ey", "Ez", "Gxy", "Gyz", "Gxz", "nuXy", "nuXz", "nuYz" };
+    static const char* keys[TargetCount] = { "Ex", "Ey", "Ez", "Gxy", "Gyz", "Gxz", "nuXy", "nuXz", "nuYz",
+                                             "Emean", "Gmean", "EzEx", "EyEx", "EmaxEmin", "zener" };
     return (t >= 0 && t < TargetCount) ? QString::fromLatin1(keys[t]) : QString();
 }
 
-bool isModulus(int t) { return t >= Ex && t <= Gxz; }
+bool isModulus(int t) { return (t >= Ex && t <= Gxz) || t == EMean || t == GMean; }
+bool isRatio(int t) { return t >= EzEx && t <= Zener; }
 
 bool readCell(const QString& file, Cell& cell, QString* error)
 {
@@ -93,7 +157,7 @@ bool readSensitivity(const QString& file, std::vector<double>& T)
     return true;
 }
 
-Values moduli(const Mat6& C)
+Values moduli(const Mat6& C, bool allDirections)
 {
     Values v;
     v.fill(std::numeric_limits<double>::quiet_NaN());
@@ -105,7 +169,60 @@ Values moduli(const Mat6& C)
     v[NuXy] = -S[1][0] / S[0][0];
     v[NuXz] = -S[2][0] / S[0][0];
     v[NuYz] = -S[2][1] / S[1][1];
+    if (v[Ex] > 0.0 && v[Ey] > 0.0 && v[Ez] > 0.0) {
+        v[EMean] = std::cbrt(v[Ex] * v[Ey] * v[Ez]);
+        v[EzEx] = v[Ez] / v[Ex];
+        v[EyEx] = v[Ey] / v[Ex];
+    }
+    if (v[Gxy] > 0.0 && v[Gyz] > 0.0 && v[Gxz] > 0.0) v[GMean] = std::cbrt(v[Gxy] * v[Gyz] * v[Gxz]);
+    const double c11 = (C[0][0] + C[1][1] + C[2][2]) / 3.0;
+    const double c12 = (C[0][1] + C[1][2] + C[0][2] + C[1][0] + C[2][1] + C[2][0]) / 6.0;
+    const double c44 = (C[3][3] + C[4][4] + C[5][5]) / 3.0;
+    if (c11 > c12) v[Zener] = 2.0 * c44 / (c11 - c12);
+    if (allDirections) {
+        double lo = 0.0, hi = 0.0;
+        directionalModulus(C, lo, hi);
+        if (lo > 0.0) v[EmaxEmin] = hi / lo;
+    }
     return v;
+}
+
+double cubicDeviation(const Mat6& C)
+{
+    const double c11 = (C[0][0] + C[1][1] + C[2][2]) / 3.0;
+    const double c12 = (C[0][1] + C[1][2] + C[0][2] + C[1][0] + C[2][1] + C[2][0]) / 6.0;
+    const double c44 = (C[3][3] + C[4][4] + C[5][5]) / 3.0;
+    double diff = 0.0, norm = 0.0;
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 6; ++j) {
+            const double k = (i < 3 && j < 3) ? (i == j ? c11 : c12) : (i == j ? c44 : 0.0);
+            diff += (C[i][j] - k) * (C[i][j] - k);
+            norm += C[i][j] * C[i][j];
+        }
+    return norm > 0.0 ? std::sqrt(diff / norm) : std::numeric_limits<double>::quiet_NaN();
+}
+
+void directionalModulus(const Mat6& C, double& eMin, double& eMax)
+{
+    eMin = eMax = std::numeric_limits<double>::quiet_NaN();
+    fftsa::Mat6 S{};
+    fftsa::Mat6 Cm{};
+    for (int i = 0; i < 6; ++i) for (int j = 0; j < 6; ++j) Cm[i][j] = C[i][j];
+    if (!fftsa::invert6x6(Cm, S)) return;
+    // The best start points on the sphere, then a local search from each.
+    double lo = std::numeric_limits<double>::infinity(), hi = -lo;
+    std::array<double, 3> nLo{}, nHi{};
+    for (const auto& n : sphereDirections()) {
+        const double r = inverseModulus(S, n);
+        if (!(r > 0.0)) return;   // not positive definite
+        if (r < lo) { lo = r; nLo = n; }
+        if (r > hi) { hi = r; nHi = n; }
+    }
+    lo = refineExtreme(S, nLo, -1.0);
+    hi = refineExtreme(S, nHi, +1.0);
+    if (!(lo > 0.0)) return;
+    eMax = 1.0 / lo;
+    eMin = 1.0 / hi;
 }
 
 bool lawMandel(const Law& law, Mat6& M)
@@ -218,7 +335,7 @@ double fitError(const Values& p, const Query& q)
         if (!q.use[static_cast<size_t>(t)]) continue;
         const double y = q.value[static_cast<size_t>(t)], x = p[static_cast<size_t>(t)];
         double e;
-        if (isModulus(t)) {
+        if (isModulus(t) || isRatio(t)) {
             if (!(x > 0.0) || !(y > 0.0)) return std::numeric_limits<double>::infinity();
             e = std::log(x / y);
         } else {
@@ -235,6 +352,7 @@ double fitError(const Values& p, const Query& q)
 std::vector<Match> search(const std::vector<Cell>& cells, const Query& q,
                           const std::function<bool(const Cell&, std::vector<double>&)>& tensor)
 {
+    const bool cubicOnly = q.use[Zener];
     std::vector<Match> all;
     all.reserve(cells.size());
     for (int i = 0; i < static_cast<int>(cells.size()); ++i) {
@@ -243,12 +361,21 @@ std::vector<Match> search(const std::vector<Cell>& cells, const Query& q,
         if (!q.family.isEmpty() && c.family != q.family) continue;
         Match m;
         m.cell = i;
-        m.predicted = moduli(predictStiffness(c, q.material, nullptr));
+        const Mat6 P = predictStiffness(c, q.material, nullptr);
+        m.predicted = moduli(P, q.use[EmaxEmin]);
         m.fit = fitError(m.predicted, q);
         if (!std::isfinite(m.fit)) continue;
         // The scaling-only estimate ignores the step in nu / anisotropy altogether.
         m.uncertainty = scalingStepError(lawStep(c.law, q.material));
         m.score = std::hypot(m.fit, m.uncertainty);
+        if (cubicOnly) {
+            // A cubic cell printed weaker across the layers is not cubic as solved;
+            // the tensor step below can make it cubic again for the user's material,
+            // so here the distance from cubic only ranks, with a wide cut.
+            m.cubic = cubicDeviation(P);
+            if (!(m.cubic <= 3.0 * kMaxCubicDeviation)) continue;
+            m.score = std::hypot(m.score, m.cubic);
+        }
         all.push_back(m);
     }
     auto byScore = [](const Match& a, const Match& b) { return a.score < b.score; };
@@ -259,13 +386,17 @@ std::vector<Match> search(const std::vector<Cell>& cells, const Query& q,
     std::vector<double> T;
     for (Match& m : all) {
         const Cell& c = cells[static_cast<size_t>(m.cell)];
-        if (!tensor || !tensor(c, T)) continue;
-        m.predicted = moduli(predictStiffness(c, q.material, &T));
+        m.corrected = tensor && tensor(c, T);
+        const Mat6 P = predictStiffness(c, q.material, m.corrected ? &T : nullptr);
+        m.predicted = moduli(P);
         m.fit = fitError(m.predicted, q);
-        m.uncertainty = tensorStepError(lawStep(c.law, q.material));
+        m.cubic = cubicDeviation(P);
+        m.uncertainty = m.corrected ? tensorStepError(lawStep(c.law, q.material)) : scalingStepError(lawStep(c.law, q.material));
         m.score = std::hypot(m.fit, m.uncertainty);
-        m.corrected = true;
     }
+    all.erase(std::remove_if(all.begin(), all.end(), [&](const Match& m) {
+                  return !std::isfinite(m.fit) || (cubicOnly && !(m.cubic <= kMaxCubicDeviation));
+              }), all.end());
     std::sort(all.begin(), all.end(), byScore);
     if (static_cast<int>(all.size()) > q.count) all.resize(static_cast<size_t>(std::max(0, q.count)));
     return all;

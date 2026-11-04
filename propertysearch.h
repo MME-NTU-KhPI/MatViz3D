@@ -44,12 +44,22 @@ struct Cell {
     Mat6 C{};               ///< effective stiffness, Pa
 };
 
-enum Target { Ex, Ey, Ez, Gxy, Gyz, Gxz, NuXy, NuXz, NuYz, TargetCount };
+/// Targets: the moduli and Poisson's ratios along the axes, the level of E and G
+/// (geometric mean over the three axes / planes) and four anisotropy measures:
+/// E z / E x, E y / E x, E max / E min over all directions, and the Zener ratio
+/// 2 C44 / (C11 - C12) of the nearest cubic matrix (searched among near-cubic cells only).
+enum Target { Ex, Ey, Ez, Gxy, Gyz, Gxz, NuXy, NuXz, NuYz, EMean, GMean, EzEx, EyEx, EmaxEmin, Zener, TargetCount };
 using Values = std::array<double, TargetCount>;
 
-/// Short key of a target as the QML side names it ("Ex", "Gxy", "nuXy", ...).
+/// Short key of a target as the QML side names it ("Ex", "Gxy", "nuXy", "EzEx", "zener", ...).
 QString targetKey(int t);
 bool isModulus(int t);
+/// The anisotropy ratios; like the moduli they are compared on a log scale.
+bool isRatio(int t);
+
+/// A Zener target is searched among cells whose stiffness, for the user's
+/// material, is within this distance of a cubic matrix (cubicDeviation()).
+constexpr double kMaxCubicDeviation = 0.05;
 
 struct Query {
     Law material;
@@ -63,10 +73,11 @@ struct Query {
 struct Match {
     int cell = -1;          ///< index into the cell list
     Values predicted{};     ///< the cell's properties with the user's material
-    double fit = 0.0;       ///< rms deviation from the targets (log for moduli, plain for ratios)
+    double fit = 0.0;       ///< rms deviation from the targets (log for moduli and anisotropy ratios, plain for nu)
     double uncertainty = 0.0; ///< estimated relative error of the material step
     double score = 0.0;     ///< sqrt(fit^2 + uncertainty^2), the ranking key
     bool corrected = false; ///< the sensitivity tensor was applied
+    double cubic = 0.0;     ///< cubicDeviation() of the predicted stiffness
 };
 
 /// Effective stiffness and what the search needs of one cell file. Files without
@@ -75,8 +86,15 @@ bool readCell(const QString& file, Cell& cell, QString* error = nullptr);
 /// The cell's 1296-number sensitivity tensor, in the engineering basis.
 bool readSensitivity(const QString& file, std::vector<double>& T);
 
-/// E x/y/z, G xy/yz/xz (Pa) and nu xy/xz/yz of a stiffness matrix; NaN if singular.
-Values moduli(const Mat6& C);
+/// E x/y/z, G xy/yz/xz (Pa), nu xy/xz/yz and the derived levels and ratios of a
+/// stiffness matrix; NaN if singular. `allDirections` = false skips E max / E min
+/// (a search over the sphere, the only costly entry).
+Values moduli(const Mat6& C, bool allDirections = true);
+/// Relative distance (Frobenius) of C from the cubic matrix with the mean C11, C12
+/// and C44 of its three axes: 0 for a cubic or isotropic cell.
+double cubicDeviation(const Mat6& C);
+/// Extremes of the directional Young's modulus 1 / (n n : S : n n) over all unit n.
+void directionalModulus(const Mat6& C, double& eMin, double& eMax);
 /// The law's stiffness in Mandel form, pipeline order (what the tensor pairs with).
 bool lawMandel(const Law& law, Mat6& M);
 /// The cell's stiffness had it been printed in `law`: exact E scaling, then the
@@ -94,6 +112,7 @@ double fitError(const Values& predicted, const Query& q);
 
 /// Ranked matches, best first: every cell scored with the exact E scaling, the
 /// best few hundred re-scored with their sensitivity tensors through `tensor`.
+/// With a Zener target only cells within kMaxCubicDeviation of cubic remain.
 std::vector<Match> search(const std::vector<Cell>& cells, const Query& q,
                           const std::function<bool(const Cell&, std::vector<double>&)>& tensor);
 

@@ -40,7 +40,8 @@ QString familyLabel(const QString& key)
 
 QString targetLabel(int t)
 {
-    static const char* labels[propsearch::TargetCount] = { "E x", "E y", "E z", "G xy", "G yz", "G xz", "ν xy", "ν xz", "ν yz" };
+    static const char* labels[propsearch::TargetCount] = { "E x", "E y", "E z", "G xy", "G yz", "G xz", "ν xy", "ν xz", "ν yz",
+                                                           "E mean", "G mean", "E z/E x", "E y/E x", "E max/E min", "Zener" };
     return QString::fromUtf8(labels[t]);
 }
 
@@ -274,7 +275,7 @@ void PropertySelectorController::search(const QVariantMap& query)
         if (!targets.contains(key)) continue;
         bool ok = false;
         const double v = targets.value(key).toDouble(&ok);
-        if (!ok || !std::isfinite(v) || (propsearch::isModulus(t) && !(v > 0.0))) continue;
+        if (!ok || !std::isfinite(v) || ((propsearch::isModulus(t) || propsearch::isRatio(t)) && !(v > 0.0))) continue;
         q.use[static_cast<size_t>(t)] = true;
         q.value[static_cast<size_t>(t)] = propsearch::isModulus(t) ? v * 1e6 : v;
         ++used;
@@ -298,7 +299,7 @@ void PropertySelectorController::search(const QVariantMap& query)
     QStringList beyond;
     const double Es = q.material.eGpa * 1e9;
     const double bound = propsearch::hsUpperE(Es, q.material.nu, 1.0 - std::min(q.rhoMax, 0.999));
-    for (int t = propsearch::Ex; t <= propsearch::Ez; ++t)
+    for (int t : { propsearch::Ex, propsearch::Ey, propsearch::Ez, propsearch::EMean })
         if (q.use[static_cast<size_t>(t)] && q.value[static_cast<size_t>(t)] > bound)
             beyond << targetLabel(t);
 
@@ -310,19 +311,24 @@ void PropertySelectorController::search(const QVariantMap& query)
             if (!q.use[static_cast<size_t>(t)]) continue;
             const double y = q.value[static_cast<size_t>(t)], p = m.predicted[static_cast<size_t>(t)];
             const bool mod = propsearch::isModulus(t);
+            const bool logScale = mod || propsearch::isRatio(t);
             rows << QVariantMap{
                 { QStringLiteral("label"), targetLabel(t) },
                 { QStringLiteral("target"), mod ? fmt(y / 1e6) : fmt(y, 3) },
                 { QStringLiteral("value"), mod ? fmt(p / 1e6) : fmt(p, 3) },
-                { QStringLiteral("deviation"), mod ? deviationPct(100.0 * (p / y - 1.0))
-                                                   : QString::asprintf("%+.2f", p - y) },
-                { QStringLiteral("good"), mod ? std::abs(std::log(p / y)) < 0.1 : std::abs(p - y) < 0.05 },
+                { QStringLiteral("deviation"), logScale ? deviationPct(100.0 * (p / y - 1.0))
+                                                        : QString::asprintf("%+.2f", p - y) },
+                { QStringLiteral("good"), logScale ? std::abs(std::log(p / y)) < 0.1 : std::abs(p - y) < 0.05 },
             };
         }
         const auto& v = m.predicted;
         const QString summary = QString("E %1 / %2 / %3 · G %4 / %5 / %6 MPa · ν %7")
                                     .arg(fmt(v[0] / 1e6), fmt(v[1] / 1e6), fmt(v[2] / 1e6), fmt(v[3] / 1e6),
                                          fmt(v[4] / 1e6), fmt(v[5] / 1e6), fmt(v[propsearch::NuXy], 2));
+        // How the cell's stiffness depends on direction; Zener only where it means something.
+        QString anisotropy = QString("E z/E x %1 · E y/E x %2 · E max/E min %3")
+                                 .arg(fmt(v[propsearch::EzEx], 3), fmt(v[propsearch::EyEx], 3), fmt(v[propsearch::EmaxEmin], 3));
+        if (m.cubic <= propsearch::kMaxCubicDeviation) anisotropy += QString(" · Zener %1").arg(fmt(v[propsearch::Zener], 3));
         const QString law = QString("solved with E %1 GPa · ν %2%3")
                                 .arg(fmt(c.law.eGpa), fmt(c.law.nu, 2),
                                      std::abs(c.law.aniso - 1.0) < 1e-9 ? QString()
@@ -339,6 +345,7 @@ void PropertySelectorController::search(const QVariantMap& query)
             { QStringLiteral("corrected"), m.corrected },
             { QStringLiteral("law"), law },
             { QStringLiteral("summary"), summary },
+            { QStringLiteral("anisotropy"), anisotropy },
             { QStringLiteral("rows"), rows },
         };
     }
@@ -346,12 +353,18 @@ void PropertySelectorController::search(const QVariantMap& query)
     int inLimits = 0;
     for (const auto& c : m_cells)
         if (c.density >= q.rhoMin && c.density <= q.rhoMax && (q.family.isEmpty() || c.family == q.family)) ++inLimits;
+    const bool zener = q.use[propsearch::Zener];
     if (m_matches.empty()) {
         m_message = inLimits == 0 ? QStringLiteral("No cell within the density and family limits.")
-                                  : QStringLiteral("No cell gives finite values for these targets.");
+                  : zener ? QString("No cell stays within %1 % of cubic symmetry with this material%2; Zener is defined for cubic cells only.")
+                                .arg(fmt(100.0 * propsearch::kMaxCubicDeviation, 2))
+                                .arg(q.material.aniso < 0.999 ? QStringLiteral(" (weaker across the layers, so Z differs from X and Y — set “across ×” to 1)") : QString())
+                  : QStringLiteral("No cell gives finite values for these targets.");
     } else {
         m_message = QString("%1 of %2 cells within the limits; best fit %3 % off.")
                         .arg(inLimits).arg(m_cells.size()).arg(fmt(100.0 * (std::exp(m_matches.front().fit) - 1.0), 2));
+        if (zener)
+            m_message += QString(" Zener: only cells within %1 % of cubic symmetry.").arg(fmt(100.0 * propsearch::kMaxCubicDeviation, 2));
     }
     if (!beyond.isEmpty())
         m_message += QString(" %1 above the Hashin–Shtrikman bound at ρ ≤ %2 (%3 MPa): no isotropic cell of this material reaches it.")
@@ -371,13 +384,18 @@ void PropertySelectorController::show(int i)
 QVariantMap PropertySelectorController::ranges(double eLowGpa, double eHighGpa) const
 {
     // Moduli divided by the cell's own E: the material E scales them exactly.
-    std::vector<double> E, G, nu, rho;
+    // The anisotropy ratios do not depend on E at all.
+    std::vector<double> E, G, nu, rho, axisRatio, allDir, zener;
     for (size_t i = 0; i < m_cells.size() && i < m_own.size(); ++i) {
         const auto& v = m_own[i];
         const double per = 1.0 / (m_cells[i].law.eGpa * 1e6);   // MPa per GPa of the material
         for (int t = propsearch::Ex; t <= propsearch::Ez; ++t) if (v[t] > 0.0) E.push_back(v[t] * per);
         for (int t = propsearch::Gxy; t <= propsearch::Gxz; ++t) if (v[t] > 0.0) G.push_back(v[t] * per);
         for (int t = propsearch::NuXy; t <= propsearch::NuYz; ++t) if (std::isfinite(v[t])) nu.push_back(v[t]);
+        for (int t : { propsearch::EzEx, propsearch::EyEx }) if (v[t] > 0.0) axisRatio.push_back(v[t]);
+        if (v[propsearch::EmaxEmin] > 0.0) allDir.push_back(v[propsearch::EmaxEmin]);
+        if (v[propsearch::Zener] > 0.0 && propsearch::cubicDeviation(m_cells[i].C) <= propsearch::kMaxCubicDeviation)
+            zener.push_back(v[propsearch::Zener]);
         rho.push_back(m_cells[i].density);
     }
     auto at = [](std::vector<double>& v, double q) {
@@ -393,5 +411,8 @@ QVariantMap PropertySelectorController::ranges(double eLowGpa, double eHighGpa) 
     return { { QStringLiteral("E"), span(E, eLowGpa, eHighGpa, 1.0, 1000.0) },
              { QStringLiteral("G"), span(G, eLowGpa, eHighGpa, 0.5, 400.0) },
              { QStringLiteral("nu"), span(nu, 1.0, 1.0, -0.3, 0.5) },
-             { QStringLiteral("rho"), span(rho, 1.0, 1.0, 0.0, 1.0) } };
+             { QStringLiteral("rho"), span(rho, 1.0, 1.0, 0.0, 1.0) },
+             { QStringLiteral("axisRatio"), span(axisRatio, 1.0, 1.0, 0.2, 5.0) },
+             { QStringLiteral("allDir"), QVariantList{ 1.0, span(allDir, 1.0, 1.0, 1.0, 10.0).at(1) } },
+             { QStringLiteral("zener"), span(zener, 1.0, 1.0, 0.2, 5.0) } };
 }

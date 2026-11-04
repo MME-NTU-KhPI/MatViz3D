@@ -32,6 +32,18 @@ Mat6 isotropicC(double E, double nu)
     return C;
 }
 
+// Engineering-basis stiffness of a cubic solid.
+Mat6 cubicC(double C11, double C12, double C44)
+{
+    Mat6 C{};
+    for (auto& r : C) r.fill(0.0);
+    for (int i = 0; i < 3; ++i) {
+        for (int j = 0; j < 3; ++j) C[i][j] = (i == j) ? C11 : C12;
+        C[i + 3][i + 3] = C44;
+    }
+    return C;
+}
+
 // The six unit engineering-strain solves of a session: C (pipeline order) and the tensor.
 void solveCell(fftsa::FFTSolverSession& s, int nVox, Mat6& C, std::vector<double>& T)
 {
@@ -245,6 +257,91 @@ void TestPropertySearch::testSearchRanksAndFilters()
     r = propsearch::search(two, q2, nullptr);
     QCOMPARE(two[static_cast<size_t>(r[0].cell)].id, QStringLiteral("same law"));
     QVERIFY(r[1].uncertainty > 0.1);
+}
+
+void TestPropertySearch::testAnisotropyMeasures()
+{
+    // Isotropic: every ratio 1, cubic, Zener 1.
+    auto v = propsearch::moduli(isotropicC(100e6, 0.3));
+    for (int t : { propsearch::EzEx, propsearch::EyEx, propsearch::EmaxEmin, propsearch::Zener })
+        QVERIFY2(std::abs(v[t] - 1.0) < 1e-9, qPrintable(propsearch::targetKey(t) + QString(" = %1").arg(v[t])));
+    QVERIFY(std::abs(v[propsearch::EMean] - 100e6) < 1e-3);
+    QVERIFY(propsearch::cubicDeviation(isotropicC(100e6, 0.3)) < 1e-12);
+
+    // Cubic: Ex = Ey = Ez, the Zener ratio as defined, and E max / E min between
+    // <100> and <111> in closed form: 1/E(n) = S11 - 2 (S11 - S12 - S44/2) (n1²n2² + n2²n3² + n3²n1²).
+    for (const double A : { 0.4, 2.5 }) {
+        const double C11 = 300e6, C12 = 120e6, C44 = 0.5 * A * (C11 - C12);
+        const Mat6 C = cubicC(C11, C12, C44);
+        v = propsearch::moduli(C);
+        QVERIFY(std::abs(v[propsearch::EzEx] - 1.0) < 1e-12 && std::abs(v[propsearch::EyEx] - 1.0) < 1e-12);
+        QVERIFY(std::abs(v[propsearch::Zener] - A) < 1e-12);
+        QVERIFY(propsearch::cubicDeviation(C) < 1e-12);
+        const double S11 = (C11 + C12) / ((C11 - C12) * (C11 + 2 * C12)), S12 = -C12 / ((C11 - C12) * (C11 + 2 * C12));
+        const double J = S11 - S12 - 0.5 / C44;
+        const double e100 = 1.0 / S11, e111 = 1.0 / (S11 - 2.0 * J / 3.0);
+        const double expected = std::max(e100, e111) / std::min(e100, e111);
+        QVERIFY2(std::abs(v[propsearch::EmaxEmin] / expected - 1.0) < 1e-6,
+                 qPrintable(QString("A %1: E max/E min %2, expected %3").arg(A).arg(v[propsearch::EmaxEmin]).arg(expected)));
+    }
+
+    // Weaker along Z: the axis ratio is exact, the cell is no longer cubic, and
+    // E max / E min over all directions is at least the axis ratio.
+    double Cv[6][6];
+    QVERIFY(Parameters::lawStiffnessPa(2.0, 0.35, 0.5, Cv));
+    Mat6 ti{};
+    constexpr int kPipeToVoigt[6] = { 0, 1, 2, 5, 3, 4 };
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 6; ++j) ti[i][j] = Cv[kPipeToVoigt[i]][kPipeToVoigt[j]];
+    v = propsearch::moduli(ti);
+    QVERIFY2(std::abs(v[propsearch::EzEx] - 0.5) < 1e-9, qPrintable(QString::number(v[propsearch::EzEx])));
+    QVERIFY(v[propsearch::EmaxEmin] >= 2.0 - 1e-9);
+    QVERIFY(propsearch::cubicDeviation(ti) > propsearch::kMaxCubicDeviation);
+}
+
+void TestPropertySearch::testSearchByAnisotropy()
+{
+    std::vector<Cell> cells;
+    auto add = [&](const char* id, const Mat6& C) {
+        Cell c;
+        c.id = QString::fromLatin1(id);
+        c.family = QStringLiteral("cubic_assembly");
+        c.law = { 2.0, 0.38, 1.0 };
+        c.density = 0.3;
+        c.C = C;
+        cells.push_back(c);
+    };
+    add("isotropic", isotropicC(200e6, 0.3));
+    add("diagonals", cubicC(300e6, 120e6, 0.5 * 2.5 * 180e6));   // Zener 2.5
+    add("axes", cubicC(300e6, 120e6, 0.5 * 0.4 * 180e6));        // Zener 0.4
+    Mat6 tall = isotropicC(200e6, 0.3);
+    tall[2][2] *= 3.0;                                             // stiffer along Z, not cubic
+    add("tall", tall);
+
+    propsearch::Query q;
+    q.material = { 2.0, 0.38, 1.0 };
+    auto best = [&]() {
+        const auto r = propsearch::search(cells, q, nullptr);
+        return r.empty() ? QString() : cells[static_cast<size_t>(r.front().cell)].id;
+    };
+    q.use[propsearch::Zener] = true;
+    q.value[propsearch::Zener] = 2.2;
+    QCOMPARE(best(), QStringLiteral("diagonals"));
+    q.value[propsearch::Zener] = 0.5;
+    QCOMPARE(best(), QStringLiteral("axes"));
+    // A Zener target leaves the non-cubic cell out, however close its number.
+    for (const auto& m : propsearch::search(cells, q, nullptr))
+        QVERIFY(cells[static_cast<size_t>(m.cell)].id != QStringLiteral("tall"));
+    q.use[propsearch::Zener] = false;
+
+    q.use[propsearch::EzEx] = true;
+    q.value[propsearch::EzEx] = 2.5;
+    QCOMPARE(best(), QStringLiteral("tall"));
+    q.use[propsearch::EzEx] = false;
+
+    q.use[propsearch::EmaxEmin] = true;
+    q.value[propsearch::EmaxEmin] = 1.0;
+    QCOMPARE(best(), QStringLiteral("isotropic"));
 }
 
 void TestPropertySearch::testControllerOnADatasetFolder()

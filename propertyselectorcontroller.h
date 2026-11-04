@@ -60,8 +60,9 @@ public:
     void buildIndexNow();
     /**
      * Ranks the indexed cells. `query`: material {e_gpa, nu, aniso}; targets
-     * {Ex, Ey, Ez, Gxy, Gyz, Gxz (MPa), nuXy, nuXz, nuYz} for the ticked ones
-     * only; rho_min, rho_max; family (key, "" = all); count.
+     * {Ex, Ey, Ez, Gxy, Gyz, Gxz, Emean, Gmean (MPa), nuXy, nuXz, nuYz, EzEx,
+     * EyEx, EmaxEmin, zener} for the ticked ones only; rho_min, rho_max; family
+     * (key, "" = all); count.
      */
     Q_INVOKABLE void search(const QVariantMap& query);
     /// Opens result `i` in the browser (3D view + cell panel).
@@ -69,7 +70,9 @@ public:
     /**
      * What the indexed cells span, for the sliders, each as [low, high]: E and G
      * in MPa from the 0.5th percentile with a material of E = `eLowGpa` to the
-     * 99.5th with E = `eHighGpa`; nu and the density between the same percentiles.
+     * 99.5th with E = `eHighGpa`; nu, the density, E z/E x and E y/E x together
+     * ("axisRatio"), E max/E min from 1 ("allDir") and the Zener ratio of the
+     * near-cubic cells ("zener") between the same percentiles.
      */
     Q_INVOKABLE QVariantMap ranges(double eLowGpa, double eHighGpa) const;
 

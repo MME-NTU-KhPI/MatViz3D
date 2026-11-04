@@ -13,6 +13,8 @@ private slots:
     void testPredictionAgainstASolve();
     void testReadCellConvertsTheShearBasis();
     void testSearchRanksAndFilters();
+    void testAnisotropyMeasures();
+    void testSearchByAnisotropy();
     void testControllerOnADatasetFolder();
 };
 
