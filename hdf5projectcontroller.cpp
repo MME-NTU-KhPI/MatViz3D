@@ -307,6 +307,7 @@ void Hdf5ProjectController::pushTo3DView()
         p->setPoints(m_numPoints);
         Parameters::filename = m_filePath;
         Parameters::phaseAssignment.clear();
+        Parameters::percolation_rank6 = -1;
 
         if (Parameters::voxels) {
             Parent_Algorithm::Delete3D<int32_t>(Parameters::voxels);

@@ -44,6 +44,7 @@ public:
     bool check_collision(size_t i, size_t j);
     void join_aggregates(size_t _i, size_t _j);
 private:
+    void reportPercolation();
     size_t m_prevClusters = 0;
 };
 
