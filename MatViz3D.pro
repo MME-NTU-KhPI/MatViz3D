@@ -167,6 +167,7 @@ HEADERS += \
     ansyswrapper.h \
     composite.h \
     dlca.h \
+    periodic_wrap.hpp \
     legendview.h \
     logo_printer.h \
     loadstepmanager.h \

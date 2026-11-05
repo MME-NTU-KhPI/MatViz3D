@@ -63,6 +63,10 @@ public:
     double readDoubleAttribute(const std::string& dataGroup, const std::string& dataSetName,
                                const std::string& attrName, double fallback = 0.0);
 
+    // Integer attribute on an existing dataset or group.
+    void writeIntAttribute(const std::string& dataGroup, const std::string& objectName,
+                           const std::string& attrName, int value);
+
     std::vector<std::string> listDataGroups(const std::string& path);
     std::vector<std::string> listDataGroups();
 

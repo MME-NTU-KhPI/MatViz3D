@@ -10,6 +10,7 @@
 #include "test_svgexporter.h"
 #include "test_commandline_parser.h"
 #include "test_seed_distribution.h"
+#include "test_dlca.h"
 
 int main(int argc, char *argv[])
 {
@@ -54,6 +55,9 @@ int main(int argc, char *argv[])
 
     TestSeedDistribution testSeeds;
     runSuite(&testSeeds, "TestSeedDistribution");
+
+    TestDlca testDlca;
+    runSuite(&testDlca, "TestDlca");
 
     std::cout << "\n=======================================================\n";
     if (totalFailures == 0) {

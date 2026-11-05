@@ -94,6 +94,7 @@ void MainWindowAlgorithmHandler::executeAlgorithm(Parent_Algorithm& algorithm, c
     // run would otherwise be applied to the next structure's grains -- whose
     // ids mean something completely different.
     Parameters::phaseAssignment.clear();
+    Parameters::percolation_rank6 = -1;
 
     algorithm.Initialization(params.getIsWaveGeneration());
 

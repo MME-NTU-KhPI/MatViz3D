@@ -406,6 +406,12 @@ public:
     static PhaseAssignment phaseAssignment;
 
     /**
+     * @brief Periodic wrap rank (0..3) of the current structure under 6-connectivity,
+     *        or -1 when it was not computed. Published by DLCA; saved with the geometry.
+     */
+    static int percolation_rank6;
+
+    /**
      * @brief Full anisotropic stiffness of a named database material, in Pa.
      *
      * The generalisation of cubicConstantsPa(): reads all 21 columns, so
