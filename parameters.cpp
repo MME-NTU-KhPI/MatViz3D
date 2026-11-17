@@ -229,6 +229,7 @@ double  Parameters::stressEps[6] = {0, 0, 0, 0, 0, 0};
 
 std::vector<TextureLibrary::Component> Parameters::textureComponents;
 PhaseAssignment Parameters::phaseAssignment;
+int Parameters::percolation_rank6 = -1;
 
 Parameters::Parameters(QObject* parent) : QObject(parent) {}
 
@@ -391,6 +392,7 @@ void Parameters::resetDefaults()
     for (int i = 0; i < 6; ++i) stressEps[i] = 0.0;
     textureComponents.clear();
     phaseAssignment.clear();
+    percolation_rank6 = -1;
 }
 
 void Parameters::processPointInput(const QString &text)

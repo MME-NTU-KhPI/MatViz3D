@@ -455,6 +455,31 @@ double HDF5Wrapper::readDoubleAttribute(const std::string& dataGroup, const std:
     return out;
 }
 
+void HDF5Wrapper::writeIntAttribute(const std::string& dataGroup, const std::string& objectName,
+                                    const std::string& attrName, int value)
+{
+    if (!datasetExists(dataGroup, objectName)) {
+        qWarning() << "HDF5: no object" << fullPath(dataGroup, objectName).c_str()
+                   << "-- cannot write attribute" << attrName.c_str();
+        return;
+    }
+    hid_t object = H5Oopen(file, fullPath(dataGroup, objectName).c_str(), H5P_DEFAULT);
+    if (checkError(object, "writeIntAttribute: Failed to open object"))
+        return;
+
+    if (H5Aexists(object, attrName.c_str()) > 0)
+        H5Adelete(object, attrName.c_str());
+
+    hid_t space = H5Screate(H5S_SCALAR);
+    hid_t attr = H5Acreate2(object, attrName.c_str(), H5T_NATIVE_INT, space, H5P_DEFAULT, H5P_DEFAULT);
+    if (!checkError(attr, "writeIntAttribute: Failed to create attribute " + attrName)) {
+        H5Awrite(attr, H5T_NATIVE_INT, &value);
+        H5Aclose(attr);
+    }
+    H5Sclose(space);
+    H5Oclose(object);
+}
+
 bool HDF5Wrapper::checkError(hid_t id, const std::string& message)
 {
     if (id == H5I_INVALID_HID) {
@@ -1295,6 +1320,9 @@ void saveGeometryMetadataToHDF5(HDF5Wrapper& hdf5, const std::string& prefix, co
 
     hdf5.write(geomGroup, "parameters_json",    jsonStr);
     hdf5.write(geomGroup, "parameters_summary", summaryStr);
+
+    if (Parameters::percolation_rank6 >= 0)
+        hdf5.writeIntAttribute(prefix, "geometry", "percolation_rank6", Parameters::percolation_rank6);
 
     qDebug() << "[HDF5] Saved geometry metadata for algorithm" << algo << "to" << geomGroup.c_str();
 }

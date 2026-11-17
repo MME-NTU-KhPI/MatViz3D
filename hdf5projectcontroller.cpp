@@ -320,6 +320,7 @@ void Hdf5ProjectController::pushTo3DView()
         Parameters::filename = m_filePath;
         Parameters::phaseAssignment.clear();
         Parameters::publishCellMaterial(m_geomParams, m_geomMeta.algorithm);
+        Parameters::percolation_rank6 = -1;
 
         if (Parameters::voxels) {
             Parent_Algorithm::Delete3D<int32_t>(Parameters::voxels);

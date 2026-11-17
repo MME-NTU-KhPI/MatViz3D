@@ -2,10 +2,12 @@
 #include "algorithmplugin.h"
 #include "parameters.h"
 #include "lowdiscrepancy.hpp"
+#include "periodic_wrap.hpp"
+#include <algorithm>
+#include <cstdlib>
 #include <fstream>
 #include <random>
 #include <QDebug>
-#include <limits.h>
 
 using namespace std;
 
@@ -180,10 +182,19 @@ void DLCA::random_walk()
             dz = int_distro(m_rng);
         } while (dx == 0 && dy == 0 && dz == 0);
 
-        if (aggregates[i].is_can_move_aggregate(dx, dy, dz))
-            aggregates[i].move_aggregate(dx, dy, dz);
-        else if (aggregates[i].is_can_move_aggregate(-dx, -dy, -dz))
-            aggregates[i].move_aggregate(-dx, -dy, -dz);
+        if (!aggregates[i].is_can_move_aggregate(dx, dy, dz)) {
+            dx = -dx;
+            dy = -dy;
+            dz = -dz;
+            if (!aggregates[i].is_can_move_aggregate(dx, dy, dz))
+                continue;
+        }
+
+        // Update the grid right away so the next aggregate's check sees this move
+        for (const Coordinate& c : aggregates[i].aggr)
+            voxels[c.x][c.y][c.z] = 0;
+        aggregates[i].move_aggregate(dx, dy, dz);
+        aggregates[i].map_to_voxels();
     }
 }
 
@@ -289,11 +300,27 @@ void DLCA::Initialization(bool /*isWaveGeneration*/)
                .arg(static_cast<uint64_t>(numCubes) * numCubes * numCubes)
                .arg(aggregates.size())
                .arg(successfully_placed);
+
+    // A single particle is already the final cluster: Next_Iteration never runs
+    if (getDone())
+        reportPercolation();
 }
 
-static inline int32_t my_abs(int32_t a) {
-    int32_t mask = (a >> (sizeof(int32_t) * CHAR_BIT - 1));
-    return (a + mask) ^ mask;
+void DLCA::reportPercolation()
+{
+    const int rank = aggregates.empty() ? 0 : periodic::wrapRank6(aggregates[0].aggr, cubeSize);
+    Parameters::percolation_rank6 = rank;
+
+    qDebug().noquote() << QString("[DLCA] periodic wrap rank (6-conn) = %1").arg(rank);
+    if (rank < 3)
+        qWarning("[DLCA] cluster does not percolate in 3D: periodic wrap rank (6-conn) = %d, "
+                 "load paths through the cell rely on edge/corner contacts", rank);
+}
+
+// Distance along one axis to the nearest periodic image
+static inline int32_t min_image_dist(int32_t a, int32_t b, int32_t size) {
+    const int32_t d = std::abs(a - b);
+    return std::min(d, size - d);
 }
 
 bool DLCA::check_collision(size_t _i, size_t _j)
@@ -310,9 +337,9 @@ bool DLCA::check_collision(size_t _i, size_t _j)
             const DLCA::Coordinate &c1 = a1.aggr[i];
             const DLCA::Coordinate &c2 = a2.aggr[j];
 
-            int dist_ij = my_abs(c1.x - c2.x) +
-                          my_abs(c1.y - c2.y) +
-                          my_abs(c1.z - c2.z);
+            int dist_ij = min_image_dist(c1.x, c2.x, cubeSize) +
+                          min_image_dist(c1.y, c2.y, cubeSize) +
+                          min_image_dist(c1.z, c2.z, cubeSize);
 
             if (dist_ij == 1)
                 return true;
@@ -374,6 +401,7 @@ void DLCA::Next_Iteration()
             << QString("[DLCA] Step %1: 1 cluster remaining (%2 voxels) | aggregation complete")
                    .arg(IterationNumber, 2)
                    .arg(clusterSize);
+        reportPercolation();
     } else if (currentClusters != m_prevClusters || IterationNumber % 50 == 0) {
         qDebug().noquote()
             << QString("[DLCA] Step %1: %2 clusters remaining")

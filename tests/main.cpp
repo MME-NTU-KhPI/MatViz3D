@@ -20,6 +20,7 @@
 #include "test_cellpredictor.h"
 #include "test_cellstiffness.h"
 #include "test_requestcheck.h"
+#include "test_dlca.h"
 
 int main(int argc, char *argv[])
 {
@@ -94,6 +95,9 @@ int main(int argc, char *argv[])
 
     TestRequestCheck testRequestCheck;
     runSuite(&testRequestCheck, "TestRequestCheck");
+
+    TestDlca testDlca;
+    runSuite(&testDlca, "TestDlca");
 
     std::cout << "\n=======================================================\n";
     if (totalFailures == 0) {

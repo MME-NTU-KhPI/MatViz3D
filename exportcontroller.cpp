@@ -1212,6 +1212,7 @@ void ExportController::openHDF5()
         p->setSize(cubeSize);
         p->setPoints(numPoints);
         Parameters::filename = fileName;
+        Parameters::percolation_rank6 = -1;
 
         if (Parameters::voxels) {
             Parent_Algorithm::Delete3D<int32_t>(Parameters::voxels);

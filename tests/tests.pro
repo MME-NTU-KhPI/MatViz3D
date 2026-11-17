@@ -107,7 +107,8 @@ HEADERS += \
     ../texturemath.hpp \
     ../svgexporter.hpp \
     ../cpuinfo.hpp \
-    ../lowdiscrepancy.hpp
+    ../lowdiscrepancy.hpp \
+    ../periodic_wrap.hpp
 
 # Test sources
 SOURCES += \
@@ -140,7 +141,8 @@ SOURCES += \
     ../cellstiffness.cpp \
     test_requestcheck.cpp \
     ../requestcheck.cpp \
-    ../cellstiffness_gpu.cpp
+    ../cellstiffness_gpu.cpp \
+    test_dlca.cpp
 
 HEADERS += \
     test_polycrystall_seeding.h \
@@ -170,7 +172,8 @@ HEADERS += \
     ../cellstiffness.h \
     test_requestcheck.h \
     ../requestcheck.h \
-    ../cellstiffness_gpu.h
+    ../cellstiffness_gpu.h \
+    test_dlca.h
 
 # The decoder weights the program ships (:/models/cell_decoder.bin)
 RESOURCES += ../models.qrc

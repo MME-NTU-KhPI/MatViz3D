@@ -213,6 +213,7 @@ HEADERS += \
     mycelium.h \
     cellforms.h \
     printability.h \
+    periodic_wrap.hpp \
     legendview.h \
     logo_printer.h \
     loadstepmanager.h \
