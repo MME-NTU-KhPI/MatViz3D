@@ -148,6 +148,9 @@ QString Commandline_Parser::buildApplicationDescription()
     desc += "  --print_max_components:  separate solid bodies tolerated, 0 = no limit (default: 1 — a stack of slabs is not one part)\n";
     desc += "  --print_min_directions:  independent directions the solid must join its periodic neighbours in, 0 = no check (default: 3 — a slab joins in 2, a rod in 1)\n";
     desc += "  --require_printable:     headless: stop before the stress solve and exit with code 3 if the structure fails the check\n";
+    desc += "  --remove_islands:        Lattice: remove every floating island (any size) from the cell before the printability check and the solve\n";
+    desc += "  --lattice_metric_y/z:    Lattice thickness metric, 0.25..4 (default 1): a distance along Y / Z counts this many times, so members\n"
+            "                           measured along that axis come out thinner (struts, plates, cubic assembly, uniform-wall sheets)\n";
     desc += "  --prob_matrix_mode:      volume ('Volume Sampling') | surface ('Surface Flux')\n";
     desc += "  --texture:               random | extrusion | rolling | recrystallization | shear | scattered_cube\n";
     desc += "  --lattice:               fcc | bcc\n";
@@ -403,6 +406,14 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
         "[Printability] Tolerated fraction of unsupported solid along the best build direction (default: 0.05).", "frac"));
     parser.addOption(QCommandLineOption("require_printable",
         "[Printability] Headless: skip the stress solve and exit with code 3 when the structure fails the check."));
+    parser.addOption(QCommandLineOption("remove_islands",
+        "[Lattice] Remove every floating island (a solid piece that does not join the body, any size) from the rasterized cell "
+        "before the printability check and the stress solve; the achieved density is that of the cleaned cell."));
+    parser.addOption(QCommandLineOption("lattice_metric_y",
+        "[Lattice] Thickness metric along Y, 0.25..4 (default 1): a distance along Y counts this many times (struts, plates, cubic assembly, "
+        "uniform-wall sheets), so members measured along Y come out thinner and the cell stiffer along Y.", "factor"));
+    parser.addOption(QCommandLineOption("lattice_metric_z",
+        "[Lattice] Thickness metric along Z, 0.25..4 (default 1): as lattice_metric_y for Z (a cubic cell becomes tetragonal about Z).", "factor"));
 
     // ── Probability Cellular Automaton ────────────────────────────────────
     parser.addOption(QCommandLineOption("prob_preset",
@@ -702,6 +713,9 @@ void Commandline_Parser::printJsonHelp()
     addOpt("print_min_directions", "Printability", "int", "n", "3", "Independent directions the solid must join its periodic neighbours in (slab 2, rod 1), 0 = no check");
     addOpt("print_max_unsupported_fraction", "Printability", "double", "frac", "0.05", "Tolerated unsupported fraction along the best build direction");
     addOpt("require_printable", "Printability", "bool", "", "false", "Headless: skip the stress solve and exit 3 when the structure is not printable");
+    addOpt("remove_islands", "Lattice", "bool", "", "false", "Remove every floating island (any size) before the printability check and the solve");
+    addOpt("lattice_metric_y", "Lattice", "double", "factor", "1", "Thickness metric along Y (0.25..4): a distance along Y counts this many times; struts, plates, cubic assembly, uniform-wall sheets");
+    addOpt("lattice_metric_z", "Lattice", "double", "factor", "1", "Thickness metric along Z (0.25..4): a distance along Z counts this many times; struts, plates, cubic assembly, uniform-wall sheets");
 
     // Probability
     addOpt("prob_preset", "Probability", "string", "preset", "", "Kernel shape preset",
@@ -1934,6 +1948,20 @@ bool Commandline_Parser::applyParameter(const QString& key, const QString& value
         return true;
     }
 
+    if (normKey == "remove_islands") {
+        bool b = false;
+        if (!parseBool(b)) return false;
+        params->setLatticeRemoveIslands(b);
+        return true;
+    }
+    if (normKey == "lattice_metric_y" || normKey == "lattice_metric_z") {
+        double v = 0.0;
+        if (!parseDouble(v, true)) return false;
+        if (v < 0.25 || v > 4.0) return setErr(QString("Option %1 expects a value in [0.25, 4]; got %2").arg(normKey, value));
+        if (normKey == "lattice_metric_y") params->setLatticeMetricY(v); else params->setLatticeMetricZ(v);
+        return true;
+    }
+
     return setErr(QString("Unknown parameter key: '%1'").arg(key));
 }
 
@@ -2069,6 +2097,9 @@ bool Commandline_Parser::processOptions(const QCommandLineParser& parser, QStrin
     if (parser.isSet("print_min_directions"))    if (!applyCliOption("print_min_directions", parser.value("print_min_directions"))) return false;
     if (parser.isSet("print_max_unsupported_fraction")) if (!applyCliOption("print_max_unsupported_fraction", parser.value("print_max_unsupported_fraction"))) return false;
     if (parser.isSet("require_printable"))       if (!applyCliOption("require_printable", "true")) return false;
+    if (parser.isSet("remove_islands"))          if (!applyCliOption("remove_islands", "true")) return false;
+    if (parser.isSet("lattice_metric_y"))        if (!applyCliOption("lattice_metric_y", parser.value("lattice_metric_y"))) return false;
+    if (parser.isSet("lattice_metric_z"))        if (!applyCliOption("lattice_metric_z", parser.value("lattice_metric_z"))) return false;
 
     if (parser.isSet("prob_preset"))             if (!applyCliOption("prob_preset", parser.value("prob_preset"))) return false;
     if (parser.isSet("prob_matrix_mode"))        if (!applyCliOption("prob_matrix_mode", parser.value("prob_matrix_mode"))) return false;

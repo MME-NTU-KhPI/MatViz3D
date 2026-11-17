@@ -37,7 +37,7 @@ struct Components {
     std::size_t largest = 0;
 };
 
-Components components(const std::vector<unsigned char>& mask, int N, bool periodic)
+Components components(const std::vector<unsigned char>& mask, int N, bool periodic, std::vector<int>* labelsOut = nullptr)
 {
     Components c;
     const std::size_t M = mask.size();
@@ -112,6 +112,7 @@ Components components(const std::vector<unsigned char>& mask, int N, bool period
         if (anchored) c.anchoredVoxels += c.size[id];
         if (c.size[id] > c.largest) c.largest = c.size[id];
     }
+    if (labelsOut) labelsOut->swap(label);
     return c;
 }
 
@@ -184,6 +185,42 @@ void edt3d(const std::vector<unsigned char>& feature, int N, bool periodic, std:
 }
 
 } // namespace
+
+std::size_t removeIslands(int32_t*** voxels, int N, bool periodic, int* islands)
+{
+    if (islands) *islands = 0;
+    if (!voxels || N <= 0) return 0;
+    const std::size_t M = static_cast<std::size_t>(N) * N * N;
+    std::vector<unsigned char> solid(M, 0);
+    for (int x = 0; x < N; ++x)
+        for (int y = 0; y < N; ++y)
+            for (int z = 0; z < N; ++z)
+                solid[at(x, y, z, N)] = voxels[x][y][z] != 0;
+    std::vector<int> label;
+    const Components cs = components(solid, N, periodic, &label);
+    if (cs.count == 0) return 0;
+    // The body as checkPrintability() defines it: every component that wraps the
+    // torus (periodic; when none does, the largest one), or the largest one.
+    bool anyAnchored = false;
+    if (periodic)
+        for (int k = 0; k < cs.count; ++k) if (cs.anchored[k]) { anyAnchored = true; break; }
+    std::vector<char> island(cs.count, 0);
+    int n = 0;
+    for (int k = 0; k < cs.count; ++k) {
+        const bool body = anyAnchored ? (cs.anchored[k] != 0) : (cs.size[k] == cs.largest);
+        if (!body) { island[k] = 1; ++n; }
+    }
+    if (n == 0) return 0;
+    std::size_t removed = 0;
+    for (int x = 0; x < N; ++x)
+        for (int y = 0; y < N; ++y)
+            for (int z = 0; z < N; ++z) {
+                const std::size_t i = at(x, y, z, N);
+                if (solid[i] && island[label[i]]) { voxels[x][y][z] = 0; ++removed; }
+            }
+    if (islands) *islands = n;
+    return removed;
+}
 
 const char* PrintabilityReport::directionName(int d)
 {

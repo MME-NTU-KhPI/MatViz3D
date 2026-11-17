@@ -562,6 +562,9 @@ public:
     int    getPrintMinDirections()          const { return print_min_directions; }
     double getPrintMaxUnsupportedFraction() const { return print_max_unsupported_fraction; }
     bool   getRequirePrintable()            const { return require_printable; }
+    bool   getLatticeRemoveIslands()        const { return lattice_remove_islands; }
+    double getLatticeMetricY()              const { return lattice_metric_y; }
+    double getLatticeMetricZ()              const { return lattice_metric_z; }
     Q_INVOKABLE void setLatticeCellMm(double value);
     Q_INVOKABLE void setPrintMinWallMm(double value);
     Q_INVOKABLE void setPrintMaxOverhangDeg(double value);
@@ -571,6 +574,11 @@ public:
     Q_INVOKABLE void setPrintMinDirections(int value);
     Q_INVOKABLE void setPrintMaxUnsupportedFraction(double value);
     Q_INVOKABLE void setRequirePrintable(bool value);
+    /// Lattice: remove every floating island (any size) from the rasterized cell before the printability check.
+    Q_INVOKABLE void setLatticeRemoveIslands(bool value);
+    /// Lattice thickness metric (1 = off): a distance along Y / Z counts this many times (lattice.h). 0.25..4.
+    Q_INVOKABLE void setLatticeMetricY(double value);
+    Q_INVOKABLE void setLatticeMetricZ(double value);
     /// Thresholds for checkPrintability(), built from the fields above.
     static PrintabilityThresholds printThresholds(double voxel_mm);
 
@@ -732,6 +740,9 @@ public:
     static PrintabilityReport printability;
     // Voxel edge in mm of the last Lattice run (cells * cell_mm / size).
     static double lattice_voxel_mm;
+    // Floating islands removed from the last Lattice cell (lattice_remove_islands) and their voxels.
+    static int lattice_islands_removed;
+    static long long lattice_island_voxels_removed;
 
     // "auto" | "basic" | "cg"; both FFT entry points read it at construction.
     static QString fft_scheme;
@@ -965,6 +976,9 @@ private:
     static int     print_min_directions;
     static double  print_max_unsupported_fraction;
     static bool    require_printable;
+    static bool    lattice_remove_islands;
+    static double  lattice_metric_y;
+    static double  lattice_metric_z;
 };
 
 #endif // PARAMETERS_H

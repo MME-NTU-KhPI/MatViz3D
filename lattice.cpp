@@ -85,6 +85,21 @@ inline void foldToUnit(double x, double y, double z, double out[3])
     out[0] = a; out[1] = b; out[2] = c;
 }
 
+// foldToUnit that also says where each axis went: out[k] is the folded value
+// of the original axis ax[k]. Needed by the thickness metric, which is not
+// the same along every axis and so has to follow the axes into the unit.
+inline void foldToUnitAxes(double x, double y, double z, double out[3], int ax[3])
+{
+    double v[3] = { wrap01(x), wrap01(y), wrap01(z) };
+    for (double& a : v) a = std::min(a, 1.0 - a);
+    ax[0] = 0; ax[1] = 1; ax[2] = 2;
+    auto swp = [&](int i, int j) { std::swap(v[i], v[j]); std::swap(ax[i], ax[j]); };
+    if (v[0] < v[1]) swp(0, 1);                    // the same three swaps as foldToUnit, so out[] is identical
+    if (v[1] < v[2]) swp(1, 2);
+    if (v[0] < v[1]) swp(0, 1);
+    out[0] = v[0]; out[1] = v[1]; out[2] = v[2];
+}
+
 inline double dist3(const double p[3], const double q[3])
 {
     const double dx = p[0] - q[0], dy = p[1] - q[1], dz = p[2] - q[2];
@@ -250,6 +265,20 @@ void Lattice::readParameters()
         m_hcCustom = false;
     }
     m_plateHole    = std::clamp(p.getPlateHole(), 0.0, 0.9);
+    m_metric[0]    = 1.0;
+    m_metric[1]    = std::clamp(p.getLatticeMetricY(), 0.25, 4.0);
+    m_metric[2]    = std::clamp(p.getLatticeMetricZ(), 0.25, 4.0);
+    m_metricOn     = m_metric[1] != 1.0 || m_metric[2] != 1.0;
+    for (int i = 0; i < 3; ++i) {
+        const int j = (i + 1) % 3;
+        m_plateDen110[i] = std::sqrt(1.0 / (m_metric[i] * m_metric[i]) + 1.0 / (m_metric[j] * m_metric[j]));   // sqrt(2) without the metric
+    }
+    m_plateDen111 = std::sqrt(1.0 / (m_metric[0] * m_metric[0]) + 1.0 / (m_metric[1] * m_metric[1]) + 1.0 / (m_metric[2] * m_metric[2]));
+    if (m_metricOn) {
+        const bool used = metricApplies(m_family);
+        qInfo().noquote() << QString("[Lattice] thickness metric x 1, y %1, z %2%3").arg(m_metric[1], 0, 'g', 4).arg(m_metric[2], 0, 'g', 4)
+                             .arg(used ? QString() : QStringLiteral(" - IGNORED: this family is not measured by distances (struts, plates, cubic assembly, uniform-wall sheets are)"));
+    }
     m_smooth       = std::clamp(p.getLatticeSmooth(), 0.0, 0.3);
     m_subtractSize = std::clamp(p.getLatticeSubtractSize(), 0.01, 1.0);
     m_asmStruts    = std::clamp(p.getAssemblyStruts(), 0, 12);
@@ -902,6 +931,8 @@ double Lattice::familyField(LatticeFamily fam, double X, double Y, double Z) con
     if (m_uniformWall && isSheet(fam)) {
         double f, g[3];
         levelSet(fam, X, Y, Z, f, g);
+        if (m_metricOn)                            // first-order distance in the metric: |f| / |grad f| in the inverse metric
+            for (int i = 0; i < 3; ++i) g[i] /= m_metric[i];
         const double gn = std::sqrt(g[0] * g[0] + g[1] * g[1] + g[2] * g[2]);
         // At a critical point on the surface (f = 0, grad f = 0) the ratio is
         // 0/0: that point is on the surface, so it is solid.
@@ -941,6 +972,18 @@ double Lattice::familyField(LatticeFamily fam, double X, double Y, double Z) con
             const double v = wrap01(Y * m_cells);
             const double w = wrap01(Z * m_cells);
             double best = 1e300;
+            if (m_metricOn) {                      // the distance in the metric = the plain distance after scaling every axis
+                const double mx = m_metric[0], my = m_metric[1], mz = m_metric[2];
+                for (const Segment& s : m_segments)
+                    for (int ox = -1; ox <= 1; ++ox)
+                        for (int oy = -1; oy <= 1; ++oy)
+                            for (int oz = -1; oz <= 1; ++oz) {
+                                const double d = segmentDistance(mx * (u + ox), my * (v + oy), mz * (w + oz),
+                                                                 mx * s.ax, my * s.ay, mz * s.az, mx * s.bx, my * s.by, mz * s.bz);
+                                if (d < best) best = d;
+                            }
+                return std::round(best * 1e9) / 1e9;
+            }
             for (const Segment& s : m_segments)
                 for (int ox = -1; ox <= 1; ++ox)
                     for (int oy = -1; oy <= 1; ++oy)
@@ -1604,9 +1647,83 @@ void Lattice::finishMember(Member& m) const
         }
 }
 
+bool Lattice::metricApplies(LatticeFamily fam) const
+{
+    switch (fam) {
+        case LatticeFamily::SimpleCubic: case LatticeFamily::BCC: case LatticeFamily::FCC: case LatticeFamily::Octet:
+        case LatticeFamily::CubicAssembly:
+            return true;
+        default:
+            return isPlateFamily(fam) || (m_uniformWall && isSheet(fam));
+    }
+}
+
+// The cubic assembly in the thickness metric. The fold maps the point into the
+// asymmetric unit by a mirror / swap of axes; the metric goes with it (unit
+// axis k carries the metric of the original axis ax[k]). In the plain metric
+// the member in the unit is the nearest image of its orbit; in a metric that
+// differs between axes an image across a diagonal mirror plane of the unit
+// may be nearer, and taking only the member in the unit would break the field
+// along those planes (the two sides of the plane see different metrics). So
+// every member is measured together with its images under the six swaps of
+// the unit's axes: on a diagonal plane both sides then see the same set, and
+// the field is continuous. Windows (cuts) follow their member.
+double Lattice::assemblyFieldMetric(const double p[3], const int ax[3]) const
+{
+    static const int SW[6][3] = { {0, 1, 2}, {1, 0, 2}, {0, 2, 1}, {2, 1, 0}, {1, 2, 0}, {2, 0, 1} };
+    const double sc[3] = { m_metric[ax[0]], m_metric[ax[1]], m_metric[ax[2]] };
+    const double q[3]  = { p[0] * sc[0], p[1] * sc[1], p[2] * sc[2] };
+    double best = 1e300;
+    for (const Member& m : m_members) {
+        if (m.kind == Member::Hole) continue;
+        // Inside a window of the member itself the member has no material, and neither do its swapped images: as in
+        // the plain field, where only the member in the unit is looked at. Without this the images fill the windows
+        // (checked: with the images and metric 1 the assembly of seed 7 changed in 19 608 voxels and closed 70 % of
+        // its pores; with this rule metric 1 gives the plain field voxel for voxel).
+        bool inOwnWindow = false;
+        for (const auto& c : m.cuts) {
+            const double dx = p[0] - c[0], dy = p[1] - c[1], dz = p[2] - c[2];
+            if (dx * dx + dy * dy + dz * dz <= c[3] * c[3]) { inOwnWindow = true; break; }
+        }
+        if (inOwnWindow) continue;
+        for (const int* P : SW) {
+            // The image: its coordinate k is the member's coordinate P[k]; scaled by the metric of unit axis k.
+            auto img = [&](const double a[3], double out[3]) { for (int k = 0; k < 3; ++k) out[k] = a[P[k]] * sc[k]; };
+            bool cut = false;                       // windows of the image: the member's windows moved the same way (plain distance)
+            for (const auto& c : m.cuts) {
+                double d2 = 0.0;
+                for (int k = 0; k < 3; ++k) { const double dk = p[k] - c[P[k]]; d2 += dk * dk; }
+                if (d2 <= c[3] * c[3]) { cut = true; break; }
+            }
+            if (cut) continue;
+            double d = 1e300, a[3], b[3], c3[3];
+            switch (m.kind) {
+                case Member::Strut:
+                    img(m.p[0], a); img(m.p[1], b);
+                    d = segmentDistance(q[0], q[1], q[2], a[0], a[1], a[2], b[0], b[1], b[2]);
+                    break;
+                case Member::Plate:
+                    img(m.p[0], a); img(m.p[1], b); img(m.p[2], c3);
+                    d = triangleDistance(q, a, b, c3);
+                    break;
+                default:                            // shell: the sphere becomes an ellipsoid of the same "radius" in the metric
+                    for (const auto& ctr : m.centres) { img(ctr.data(), a); d = std::min(d, std::abs(dist3(q, a) - m.r)); }
+                    break;
+            }
+            best = std::min(best, d / m.w);
+        }
+    }
+    return best < 1e300 ? std::round(best * 1e9) / 1e9 : best;
+}
+
 double Lattice::assemblyField(double X, double Y, double Z) const
 {
     double p[3];
+    if (m_metricOn) {
+        int ax[3];
+        foldToUnitAxes(X * m_cells, Y * m_cells, Z * m_cells, p, ax);
+        return assemblyFieldMetric(p, ax);
+    }
     foldToUnit(X * m_cells, Y * m_cells, Z * m_cells, p);
     // A window belongs to one plate or shell, like plate_hole: inside it that
     // member has no material, every other member keeps its own.
@@ -2119,7 +2236,7 @@ double Lattice::plateField(LatticeFamily fam, double X, double Y, double Z) cons
                 const double dj = u[j] - 0.5, dk = u[k] - 0.5;
                 if (dj * dj + dk * dk < r2) continue;           // in the hole of this plate
             }
-            best = std::min(best, std::abs(wrapc(u[i])));
+            best = std::min(best, std::abs(wrapc(u[i])) * m_metric[i]);      // metric 1: unchanged
         }
     }
     // A hole belongs to the NEAREST plate of its orientation only: the panel
@@ -2141,7 +2258,7 @@ double Lattice::plateField(LatticeFamily fam, double X, double Y, double Z) cons
                     const double b = wrapc(u[k] - 0.5);
                     if (a * a + b * b < r2) continue;
                 }
-                best = std::min(best, std::abs(wrapc(sv)) / std::sqrt(2.0));
+                best = std::min(best, std::abs(wrapc(sv)) / m_plateDen110[i]);   // sqrt(2) without the metric
             }
         }
     }
@@ -2171,7 +2288,7 @@ double Lattice::plateField(LatticeFamily fam, double X, double Y, double Z) cons
                 }
                 if (inHole) continue;
             }
-            best = std::min(best, std::abs(wrapc(su)) / std::sqrt(3.0));
+            best = std::min(best, std::abs(wrapc(su)) / m_plateDen111);      // sqrt(3) without the metric
         }
     }
     // Snap away rounding noise: the two sides of a plate must tie exactly, or
@@ -2303,6 +2420,13 @@ void Lattice::estimateWall()
     const double voxPerCell = static_cast<double>(numCubes) / m_cells;
     m_wallVox = 0.0;
 
+    // In the thickness metric the thinnest member is the one measured along the
+    // axis whose distances count the most: 2c / max(metric) thick.
+    struct MetricScale {
+        Lattice* l;
+        ~MetricScale() { if (l->m_metricOn && l->metricApplies(l->m_family))
+                             l->m_wallVox /= std::max({ l->m_metric[0], l->m_metric[1], l->m_metric[2] }); }
+    } metricScale{ this };
     if (m_uniformWall && isSheet()) {
         m_wallVox = 2.0 * m_c * numCubes;          // c is the half thickness in cube fractions
         return;
@@ -2476,6 +2600,21 @@ void Lattice::Next_Iteration()
 void Lattice::finish()
 {
     const long long total = static_cast<long long>(numCubes) * numCubes * numCubes;
+    // Floating islands of any size go before anything is measured (dataset runs: --remove_islands),
+    // so the density, the wall, the printability report and the solve all see the cleaned cell.
+    Parameters::lattice_islands_removed = 0;
+    Parameters::lattice_island_voxels_removed = 0;
+    if (Parameters::instance()->getLatticeRemoveIslands()) {
+        int n = 0;
+        const std::size_t removed = removeIslands(voxels, numCubes, Parameters::printThresholds(1.0).periodic, &n);
+        const long long before = m_solidCount;
+        m_solidCount -= static_cast<long long>(removed);
+        Parameters::lattice_islands_removed = n;
+        Parameters::lattice_island_voxels_removed = static_cast<long long>(removed);
+        qInfo().noquote() << QString("[Lattice] removed %1 floating island(s), %2 voxel(s) = %3 % of the solid")
+                                 .arg(n).arg(static_cast<qulonglong>(removed))
+                                 .arg(before > 0 ? 100.0 * double(removed) / double(before) : 0.0, 0, 'f', 3);
+    }
     m_achieved    = static_cast<double>(m_solidCount) / static_cast<double>(total);
     filled_voxels = static_cast<unsigned int>(m_solidCount);
     estimateWall();

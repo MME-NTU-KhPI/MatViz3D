@@ -61,6 +61,25 @@
  *     is half the plate thickness in cell units. `plate_hole` punches a
  *     circular hole of that diameter (cell edges) through the centre of
  *     every panel, along its normal.
+ *   - `lattice_metric_y`, `lattice_metric_z` (thickness metric, default 1):
+ *     the distance families measure distances with the metric
+ *     diag(1, my^2, mz^2), so a distance along Z counts mz times. With
+ *     mz > 1 the members whose thickness runs along Z (horizontal plates,
+ *     the height of horizontal struts) come out thinner, and once the level
+ *     is solved for the density the vertical ones thicker: the cell is
+ *     stiffer along Z than across. A cubic cell becomes tetragonal (4/mmm
+ *     about Z) for my = 1, orthorhombic (mmm) for three different values;
+ *     the cell stays periodic and keeps its mirror planes, and the shift of
+ *     stiffness is continuous in the metric (a stretched cell, 1 x 1 x 2
+ *     cells, only gives steps). Applies to the strut lattices (simple
+ *     cubic, BCC, FCC, octet; exact), the plate lattices (exact: distance
+ *     to a plane n.x = d is |n.x - d| / |n| in the inverse metric), the
+ *     cubic assembly (each folded point is measured in the metric carried
+ *     into the asymmetric unit, against every member and its images under
+ *     the six swaps of the unit's axes, so the field stays continuous across
+ *     the diagonal mirror planes) and the uniform-wall sheets (first order:
+ *     |f| / |grad f| with the gradient's length in the inverse metric).
+ *     Other families ignore it (a warning says so).
  *   - `lattice_union`: a second family whose solid is united with the
  *     first (F = min of the two fields, one shared level c), e.g. plates +
  *     octet struts. Both fields are distances for the strut, plate,
@@ -282,6 +301,8 @@ private:
     /// Cubic assembly field at a point in cube fractions: fold into the asymmetric
     /// unit, distance to the nearest member / its weight, +inf inside a window.
     double assemblyField(double X, double Y, double Z) const;
+    double assemblyFieldMetric(const double p[3], const int ax[3]) const;
+    bool   metricApplies(LatticeFamily fam) const;   ///< the family is measured by distances, so the thickness metric acts on it
     /// Exact Fourier expansion of the TPMS level sets (k per cube edge), for publishing.
     std::vector<Wave> tpmsWaves() const;
     /// Family field at a point in cube fractions [0,1)^3 (already rotated):
@@ -341,6 +362,10 @@ private:
     QString m_fourierFile;
     bool    m_cubicSym       = false;  ///< Fourier families: symmetrize the waves under the cubic group
     double  m_plateHole      = 0.0;    ///< plate lattices: hole diameter, cell edges (0 = none)
+    double  m_metric[3]      = { 1.0, 1.0, 1.0 };  ///< thickness metric: a distance along axis i counts m_metric[i] times (x is 1)
+    bool    m_metricOn       = false;  ///< some m_metric[i] != 1
+    double  m_plateDen110[3] = { 0.0, 0.0, 0.0 };  ///< {110} plates x_i +- x_j: length of the normal in the inverse metric
+    double  m_plateDen111    = 0.0;    ///< {111} plates: the same
     bool    m_hasUnion       = false;
     LatticeFamily m_union    = LatticeFamily::GyroidSheet;   ///< second family united with the first
     bool    m_hasSubtract    = false;

@@ -25,6 +25,7 @@ private slots:
     void testMaterialOverrideAndTpmsWaves();
     void testOpenedCellKeepsItsMaterial();
     void testPlateLatticesSymmetryAndUnion();
+    void testThicknessMetric();
     void testSitesCarvingAndSmoothing();
     void testHoneycombShape();
     void testCubicAssemblyIsTheOrbitDistance();

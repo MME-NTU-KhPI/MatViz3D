@@ -1156,6 +1156,19 @@ void saveGeometryMetadataToHDF5(HDF5Wrapper& hdf5, const std::string& prefix, co
             hdf5.write(geomGroup, "print_largest_island_vox",  int(pr.largest_island_vox));
             hdf5.write(geomGroup, "print_island_fraction",     float(pr.island_fraction));
             hdf5.write(geomGroup, "print_island_fraction_box", float(pr.island_fraction_box));
+            if (p->getLatticeMetricY() != 1.0 || p->getLatticeMetricZ() != 1.0) {   // only in cells made with the thickness metric
+                hdf5.write(geomGroup, "lattice_metric_y", float(p->getLatticeMetricY()));
+                hdf5.write(geomGroup, "lattice_metric_z", float(p->getLatticeMetricZ()));
+                paramsObj["lattice_metric_y"] = p->getLatticeMetricY();
+                paramsObj["lattice_metric_z"] = p->getLatticeMetricZ();
+            }
+            if (p->getLatticeRemoveIslands()) {   // only in runs that removed islands, so other files keep their layout
+                hdf5.write(geomGroup, "remove_islands",        1);
+                hdf5.write(geomGroup, "islands_removed",       Parameters::lattice_islands_removed);
+                hdf5.write(geomGroup, "island_voxels_removed", int(Parameters::lattice_island_voxels_removed));
+                paramsObj["islands_removed"]       = Parameters::lattice_islands_removed;
+                paramsObj["island_voxels_removed"] = double(Parameters::lattice_island_voxels_removed);
+            }
             paramsObj["print_islands"]              = pr.islands;
             paramsObj["print_largest_island_vox"]   = int(pr.largest_island_vox);
             paramsObj["print_island_fraction_box"]  = pr.island_fraction_box;

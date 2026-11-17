@@ -115,6 +115,15 @@ manifest and `dataset.parquet` record it as `k_max`. Fourier rows stay inside by
 fewer than 5 directions and the band widens to 0.5-2 x. TPMS tables are exact
 unit vectors per cell and are not checked.
 
+## Floating islands
+
+`remove_islands: true` in the config adds `--remove_islands` to every run, probe and solve:
+every floating island (a solid piece that does not join the body, any size) is turned
+into void before the printability check, so the density, the wall estimate, the report
+and the stiffness all belong to the cleaned cell. The cell file records `remove_islands`,
+`islands_removed` and `island_voxels_removed`. Without it the check only rejects an island
+above `print_max_island_vox` (8 voxels), and smaller specks stay in the cell.
+
 ## Load path
 
 A cell is only a material if its solid joins every neighbouring cell. Two checks

@@ -601,6 +601,96 @@ void TestLattice::testOpenedCellKeepsItsMaterial()
     QVERIFY(Parameters::phaseAssignment.materials.empty());
 }
 
+// The thickness metric (lattice_metric_y / _z): distances along Z count mz
+// times. A cubic cell becomes tetragonal about Z (mirrors and the swap of
+// X and Y hold, a swap with Z does not), three different values leave the
+// mirrors only, metric 1 changes nothing, and the plates show the metric in
+// closed form: a point d above a horizontal plate is mz d away.
+// The {111} plates all lean to Z alike, so a metric along Z scales them
+// all the same: plate_fcc alone stays cubic (only its level changes).
+void TestLattice::testThicknessMetric()
+{
+    Parameters* p = Parameters::instance();
+    const int N = 32;
+    p->setSize(N);
+    p->setCellsPerEdge(1);
+    p->setRelativeDensity(0.30);
+    const double X = 0.2 * N, Y = 0.35 * N, Z = 0.6 * N;                 // a point off every mirror plane
+    // A broken symmetry shows at some points, not at every one (a point whose nearest member is symmetric itself
+    // can tie): look for the largest change over a few points.
+    const double pts[5][3] = { { 0.2, 0.35, 0.6 }, { 0.1, 0.27, 0.43 }, { 0.31, 0.12, 0.84 }, { 0.44, 0.07, 0.19 }, { 0.15, 0.62, 0.71 } };
+    auto broken = [&](const Lattice& L, int a, int b) {
+        double worst = 0.0;
+        for (const auto& q : pts) {
+            double s[3] = { q[0] * N, q[1] * N, q[2] * N }; const double f0 = L.fieldAt(s[0], s[1], s[2]); std::swap(s[a], s[b]);
+            worst = std::max(worst, std::abs(f0 - L.fieldAt(s[0], s[1], s[2])));
+        }
+        return worst;
+    };
+    struct Fam { const char* key; bool uniform; };
+    for (const Fam& f : { Fam{ "plate_sc_bcc", false }, Fam{ "octet", false }, Fam{ "cubic_assembly", false }, Fam{ "schwarz_p_sheet", true } }) {
+        p->setLatticeFamily(f.key);
+        p->setLatticeUniformWall(f.uniform);
+        Parameters::seed = 11;
+        // Metric 1: the cubic symmetry, the swap of X and Z included.
+        p->setLatticeMetricY(1.0);
+        p->setLatticeMetricZ(1.0);
+        double plain = 0.0;
+        {
+            TestableLattice L(N);
+            L.Initialization(false);
+            plain = L.fieldAt(X, Y, Z);
+            QVERIFY2(std::abs(plain - L.fieldAt(Z, Y, X)) < 1e-9, f.key);
+        }
+        // Metric along Z: tetragonal about Z.
+        p->setLatticeMetricZ(1.4);
+        {
+            TestableLattice L(N);
+            L.Initialization(false);
+            const double a = L.fieldAt(X, Y, Z);
+            QVERIFY2(std::abs(a - L.fieldAt(Y, X, Z)) < 1e-9, f.key);                    // swap X, Y
+            QVERIFY2(std::abs(a - L.fieldAt(N - X, Y, Z)) < 1e-9, f.key);                // mirror X
+            QVERIFY2(std::abs(a - L.fieldAt(X, N - Y, Z)) < 1e-9, f.key);                // mirror Y
+            QVERIFY2(std::abs(a - L.fieldAt(X, Y, N - Z)) < 1e-9, f.key);                // mirror Z
+            QVERIFY2(broken(L, 0, 2) > 1e-6, f.key);                                      // swap X, Z: broken
+            QVERIFY2(std::abs(a - plain) > 1e-6, f.key);
+            L.Generate_To_End();
+            QVERIFY2(std::abs(L.achievedDensity() - 0.30) < 0.03, qPrintable(QString("%1 %2").arg(f.key).arg(L.achievedDensity())));
+        }
+        // Three different values: the mirrors stay, the swap of X and Y goes too.
+        p->setLatticeMetricY(1.3);
+        p->setLatticeMetricZ(0.8);
+        {
+            TestableLattice L(N);
+            L.Initialization(false);
+            const double a = L.fieldAt(X, Y, Z);
+            QVERIFY2(std::abs(a - L.fieldAt(N - X, N - Y, N - Z)) < 1e-9, f.key);
+            QVERIFY2(broken(L, 0, 1) > 1e-6, f.key);
+        }
+        p->setLatticeMetricY(1.0);
+        p->setLatticeMetricZ(1.0);
+        p->setLatticeUniformWall(false);
+    }
+    // Plates in closed form: 0.1 cell above the plate z = 0 the field is 0.15
+    // with mz = 1.5; 0.1 cell from the plate x = 0 it stays 0.1.
+    p->setLatticeFamily("plate_sc");
+    p->setLatticeMetricZ(1.5);
+    {
+        TestableLattice L(N);
+        L.Initialization(false);
+        QVERIFY(std::abs(L.fieldAt(0.5 * N, 0.5 * N, 0.1 * N) - 0.15) < 1e-9);
+        QVERIFY(std::abs(L.fieldAt(0.1 * N, 0.5 * N, 0.5 * N) - 0.10) < 1e-9);
+        L.Generate_To_End();
+        // The horizontal plates are the thin ones: fewer solid voxels in the layer through the
+        // middle of a vertical plate's span at z = 0 than at x = 0.
+        long long zLayer = 0, xLayer = 0;
+        for (int i = 0; i < N; ++i)
+            for (int j = 0; j < N; ++j) { zLayer += L.voxels[i][j][1] != 0; xLayer += L.voxels[1][i][j] != 0; }
+        QVERIFY2(xLayer > zLayer || (xLayer == N * N && zLayer == N * N), qPrintable(QString("%1 %2").arg(xLayer).arg(zLayer)));
+    }
+    p->setLatticeMetricZ(1.0);
+}
+
 void TestLattice::testPlateLatticesSymmetryAndUnion()
 {
     Parameters* p = Parameters::instance();

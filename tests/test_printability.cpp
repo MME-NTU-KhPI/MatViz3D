@@ -371,10 +371,77 @@ void TestPrintability::testCliOptions()
     QVERIFY(!applyParameter("print_max_thin_fraction", "1.5", &err));
     QVERIFY(applyParameter("require_printable", "true", &err));
     QVERIFY(p->getRequirePrintable());
+    QVERIFY(!p->getLatticeRemoveIslands());
+    QVERIFY(applyParameter("remove_islands", "true", &err));
+    QVERIFY(p->getLatticeRemoveIslands());
     const PrintabilityThresholds t = Parameters::printThresholds(0.25);
     QCOMPARE(t.min_wall_mm, 1.2);
     QCOMPARE(t.max_overhang_deg, 60.0);
     QCOMPARE(t.max_island_vox, 27);
     QCOMPARE(t.max_components, 2);
     QCOMPARE(t.voxel_mm, 0.25);
+}
+
+void TestPrintability::testRemoveIslandsClearsEveryIsland()
+{
+    // A periodic body (three rods along the axes, joined at the corner: one body in 3 directions),
+    // a single floating voxel, a floating 3^3 block and a floating 5^3 block: every island goes,
+    // whatever its size, and the body stays voxel for voxel.
+    auto body = [](int x, int y, int z) {
+        const bool rx = y < 3 && z < 3, ry = x < 3 && z < 3, rz = x < 3 && y < 3;
+        return rx || ry || rz;
+    };
+    auto speck = [](int x, int y, int z) { return x == 12 && y == 12 && z == 12; };
+    auto block3 = [](int x, int y, int z) { return x >= 7 && x < 10 && y >= 15 && y < 18 && z >= 7 && z < 10; };
+    auto block5 = [](int x, int y, int z) { return x >= 15 && x < 20 && y >= 6 && y < 11 && z >= 15 && z < 20; };
+    Cube c(24, [&](int x, int y, int z) { return body(x, y, z) || speck(x, y, z) || block3(x, y, z) || block5(x, y, z); });
+    const PrintabilityReport before = checkPrintability(c.v, c.N, thresholds());
+    QCOMPARE(before.islands, 3);
+    QCOMPARE(int(before.largest_island_vox), 125);
+
+    int n = -1;
+    const std::size_t removed = removeIslands(c.v, c.N, true, &n);
+    QCOMPARE(n, 3);
+    QCOMPARE(int(removed), 1 + 27 + 125);
+    for (int x = 0; x < c.N; ++x)
+        for (int y = 0; y < c.N; ++y)
+            for (int z = 0; z < c.N; ++z)
+                QCOMPARE(c.v[x][y][z] != 0, body(x, y, z));
+    const PrintabilityReport after = checkPrintability(c.v, c.N, thresholds());
+    QCOMPARE(after.islands, 0);
+    QCOMPARE(after.components, 1);
+    QCOMPARE(after.connected_directions, 3);
+    QCOMPARE(int(removeIslands(c.v, c.N, true, &n)), 0);   // nothing left to remove
+    QCOMPARE(n, 0);
+
+    // No component wraps: the largest one is the body, the rest goes.
+    Cube d(16, [](int x, int y, int z) {
+        return (x >= 2 && x < 8 && y >= 2 && y < 8 && z >= 2 && z < 8) || (x == 12 && y == 12 && z == 12);
+    });
+    QCOMPARE(int(removeIslands(d.v, d.N, true, &n)), 1);
+    QCOMPARE(n, 1);
+
+    // In a Lattice run the flag cleans the cell before the density and the report; a gyroid has no
+    // islands, so its voxels are those of a run without the flag.
+    Parameters* p = Parameters::instance();
+    const int N = 32;
+    p->setSize(N);
+    p->setCellsPerEdge(1);
+    p->setRelativeDensity(0.35);
+    p->setLatticeFamily("gyroid_sheet");
+    p->setLatticeCellMm(10.0);
+    TestableLattice plain(N);
+    plain.Initialization(false);
+    plain.Generate_To_End();
+    p->setLatticeRemoveIslands(true);
+    TestableLattice cleaned(N);
+    cleaned.Initialization(false);
+    cleaned.Generate_To_End();
+    QCOMPARE(Parameters::lattice_islands_removed, 0);
+    QCOMPARE(Parameters::lattice_island_voxels_removed, 0LL);
+    for (int x = 0; x < N; ++x)
+        for (int y = 0; y < N; ++y)
+            for (int z = 0; z < N; ++z)
+                QCOMPARE(cleaned.voxels[x][y][z], plain.voxels[x][y][z]);
+    QCOMPARE(Parameters::printability.islands, 0);
 }

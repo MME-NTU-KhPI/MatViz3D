@@ -55,7 +55,7 @@ PARAM_KEYS = {
     "spinodoid_theta_x", "spinodoid_theta_y", "spinodoid_theta_z",
     "fourier_terms", "fourier_kmin", "fourier_kmax", "fourier_decay",
     "noise_smooth", "lattice_cell_mm",
-    "fourier_symmetry", "plate_hole", "lattice_union",
+    "fourier_symmetry", "plate_hole", "lattice_union", "lattice_metric_y", "lattice_metric_z",
     "lattice_subtract", "lattice_subtract_size", "lattice_smooth",
     "honeycomb_angle", "honeycomb_rib",
     "assembly_struts", "assembly_plates", "assembly_shells", "assembly_holes", "assembly_spread",
@@ -425,6 +425,10 @@ def build_command(cfg, row: dict, out_file: Path, size: int | None = None, solve
         else:
             cmd += ["--cells_per_edge", str(cells_override)]
     cmd += ["--require_printable", "--no_fields"]
+    # `remove_islands: true`: every floating island (any size) leaves the cell before the check and the
+    # solve, on the probe grid and on the solution grid alike (rows solved before keep their specks).
+    if cfg.get("remove_islands"):
+        cmd += ["--remove_islands"]
     if solve:
         cmd += ["--run_stress_calc", "--solver", "fft", "--stress_mode", "stiffness",
                 "--fft_tol", str(cfg["fft_tol"]), "--fft_max_iter", str(cfg["fft_max_iter"])]

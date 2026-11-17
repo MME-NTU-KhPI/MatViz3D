@@ -210,8 +210,13 @@ int     Parameters::print_max_components           = 1;
 int     Parameters::print_min_directions           = 3;
 double  Parameters::print_max_unsupported_fraction = 0.05;
 bool    Parameters::require_printable      = false;
+bool    Parameters::lattice_remove_islands = false;
+double  Parameters::lattice_metric_y = 1.0;
+double  Parameters::lattice_metric_z = 1.0;
 PrintabilityReport Parameters::printability;
 double  Parameters::lattice_voxel_mm       = 0.0;
+int     Parameters::lattice_islands_removed       = 0;
+long long Parameters::lattice_island_voxels_removed = 0;
 QString Parameters::fft_scheme             = "auto";
 double  Parameters::fft_tol                = 1e-5;
 double  Parameters::fft_void_eta           = 1e-4;
@@ -365,8 +370,13 @@ void Parameters::resetDefaults()
     print_min_directions = 3;
     print_max_unsupported_fraction = 0.05;
     require_printable = false;
+    lattice_remove_islands = false;
+    lattice_metric_y = 1.0;
+    lattice_metric_z = 1.0;
     printability = PrintabilityReport();
     lattice_voxel_mm = 0.0;
+    lattice_islands_removed = 0;
+    lattice_island_voxels_removed = 0;
     fft_scheme = "auto";
     fft_tol = 1e-5;
     fft_void_eta = 1e-4;
@@ -1958,6 +1968,29 @@ void Parameters::setRequirePrintable(bool value)
 {
     if (require_printable == value) return;
     require_printable = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setLatticeRemoveIslands(bool value)
+{
+    if (lattice_remove_islands == value) return;
+    lattice_remove_islands = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setLatticeMetricY(double value)
+{
+    if (!(value >= 0.25 && value <= 4.0)) { qWarning() << "lattice_metric_y expects 0.25..4; got" << value; return; }
+    if (lattice_metric_y == value) return;
+    lattice_metric_y = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setLatticeMetricZ(double value)
+{
+    if (!(value >= 0.25 && value <= 4.0)) { qWarning() << "lattice_metric_z expects 0.25..4; got" << value; return; }
+    if (lattice_metric_z == value) return;
+    lattice_metric_z = value;
     emit latticeSettingsChanged();
 }
 

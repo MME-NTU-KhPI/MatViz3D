@@ -92,4 +92,11 @@ struct PrintabilityReport {
 /// Runs the check on voxels[x][y][z], a cube of edge N.
 PrintabilityReport checkPrintability(int32_t*** voxels, int N, const PrintabilityThresholds& t);
 
+/// Removes every floating island from voxels[x][y][z] (a cube of edge N): each solid component
+/// that is not part of the body as checkPrintability() defines it (periodic: the components that
+/// wrap the torus, or the largest one when none does; non-periodic: the largest one) becomes void
+/// (id 0), whatever its size. Returns the number of voxels removed; *islands receives the number
+/// of islands removed.
+std::size_t removeIslands(int32_t*** voxels, int N, bool periodic, int* islands = nullptr);
+
 #endif // PRINTABILITY_H

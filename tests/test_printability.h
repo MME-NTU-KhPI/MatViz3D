@@ -21,6 +21,7 @@ private slots:
     void testGyroidPassesAndReportIsPublished();
     void testUniformWallMakesRandomSheetsPrintable();
     void testCliOptions();
+    void testRemoveIslandsClearsEveryIsland();
 };
 
 #endif // TEST_PRINTABILITY_H
