@@ -1,52 +1,52 @@
-# Проверка решателя жёсткости на любом компьютере
+# Checking the stiffness solver on any computer
 
-`stiffness_check.py` считает жёсткость ячейки «материал / пустота» решателем кнопки **Solve and compare** вкладки Neural (`gpu_stiffness.py`, должен лежать в той же папке). Расчёт идёт на видеокарте, если PyTorch её видит, иначе на процессоре.
+`stiffness_check.py` computes the stiffness of a solid / void cell with the solver of the **Solve and compare** button of the Neural tab (`gpu_stiffness.py`, which must sit in the same folder). It runs on the GPU when PyTorch sees one, otherwise on the CPU.
 
-Из всей MatViz3D на Python работает только `gpu_stiffness.py`. Генерация структур, проверка печатаемости, FFT-решатель на процессоре, которым посчитан датасет, и все три нейросети вкладки Neural написаны на C++. Если программа не находит Python с PyTorch и видеокартой, «Solve and compare» считает тем же методом на C++ на процессоре, только медленнее.
+`gpu_stiffness.py` is the only part of MatViz3D written in Python. Structure generation, the printability check, the CPU FFT solver the dataset was computed with and all three networks of the Neural tab are C++. When the program finds no Python with PyTorch and a GPU, Solve and compare uses the same scheme in C++ on the CPU, only slower.
 
-## Установка
+## Installation
 
-Нужны Python 3.9 или новее, NumPy и PyTorch, для файлов `.hdf5` ещё h5py. Подходят видеокарты NVIDIA (`cuda`), Apple Silicon (`mps`) и Intel (`xpu`). Без них, в том числе с AMD на Windows, считает процессор, примерно в 10-15 раз медленнее.
+Python 3.9 or newer, NumPy and PyTorch are needed, and h5py for `.hdf5` files. Supported GPUs: NVIDIA (`cuda`), Apple Silicon (`mps`) and Intel (`xpu`). Without one, AMD on Windows included, the CPU computes, about 10-15 times slower.
 
-Windows с NVIDIA:
+Windows with NVIDIA:
 
-1. Поставить Python с python.org, отметив «Add python.exe to PATH».
+1. Install Python from python.org with "Add python.exe to PATH" ticked.
 2. `py -m pip install numpy h5py`
-3. Поставить PyTorch со сборкой для CUDA: команду даёт pytorch.org, раздел «Get Started» (Windows, Pip, CUDA). Обычный `pip install torch` на Windows ставит сборку без CUDA.
-4. Проверить: `py -c "import torch; print(torch.cuda.is_available())"` должно напечатать `True`.
+3. Install PyTorch built for CUDA: pytorch.org gives the command under "Get Started" (Windows, Pip, CUDA). A plain `pip install torch` on Windows installs a build without CUDA.
+4. Check: `py -c "import torch; print(torch.cuda.is_available())"` must print `True`.
 
 Mac: `python3 -m pip install torch numpy h5py`.
 
-## Запуск
+## Running
 
-На Windows `py`, на Mac и Linux `python3`:
+`py` on Windows, `python3` on Mac and Linux:
 
-| Команда | Что делает |
+| Command | What it does |
 |---|---|
-| `py stiffness_check.py` | самопроверка, около минуты |
-| `py stiffness_check.py cell.hdf5` | ячейка из файла MatViz3D или датасета; сравнение с ответом, записанным в файле |
-| `py stiffness_check.py folder` | все файлы `.hdf5`, `.h5`, `.npy` папки и общая таблица |
-| `py stiffness_check.py cell.npy` | массив n × n × n, ненулевое значение = материал |
-| `py stiffness_check.py cell.raw --n 64` | n³ байт в порядке, в каком программа передаёт ячейку решателю |
+| `py stiffness_check.py` | self-test, about a minute |
+| `py stiffness_check.py cell.hdf5` | a cell from a MatViz3D or dataset file, compared with the answer stored in the file |
+| `py stiffness_check.py folder` | every `.hdf5`, `.h5`, `.npy` file of the folder and a summary table |
+| `py stiffness_check.py cell.npy` | an n × n × n array, non-zero = solid |
+| `py stiffness_check.py cell.raw --n 64` | n³ bytes in the order the program hands a cell to the solver |
 
-Ключи: `--device cuda|mps|xpu|cpu` (где считать), `--compare_cpu` (повторить на процессоре и сравнить), `--e_gpa`, `--nu`, `--aniso` (материал; по умолчанию из файла, иначе 2 ГПа, 0.38, 1), `--json results.json` (сохранить результаты).
+Options: `--device cuda|mps|xpu|cpu` (where to compute), `--compare_cpu` (repeat on the CPU and compare), `--e_gpa`, `--nu`, `--aniso` (the material; by default from the file, else 2 GPa, 0.38, 1), `--json results.json` (save the results).
 
-## Самопроверка
+## Self-test
 
-| Ячейка | Чем проверяется |
+| Cell | Checked against |
 |---|---|
-| `solid`, сплошной куб | ответ совпадает с матрицей материала |
-| `layers_x`, `layers_y`, `layers_z`, плоские слои | ответ совпадает с точной формулой для слоёв; материал мягче вдоль z, поэтому перепутанные оси дают расхождение |
-| `gyroid` | кубическая симметрия: Ex = Ey = Ez, три модуля сдвига равны |
-| `gyroid` 32³ | видеокарта и процессор дают один ответ |
+| `solid`, a full cube | the answer equals the material matrix |
+| `layers_x`, `layers_y`, `layers_z`, flat layers | the answer equals the exact formula for layers; the material is softer along z, so mixed-up axes show as a difference |
+| `gyroid` | cubic symmetry: Ex = Ey = Ez, the three shear moduli equal |
+| `gyroid` 32³ | the GPU and the CPU give one answer |
 
-В конце должно быть `all 6 checks passed`. У слоёв доля энергии в материале около 0 и второй проход: поперёк слоёв материал нагрузку не несёт, так и должно быть.
+The run must end with `all 6 checks passed`. For the layers the solid share of the energy is about 0 and a second pass runs: across the layers the solid carries no load, as it should.
 
-## Примеры с выводом
+## Examples with their output
 
-Каждый блок начинается с команды (`$` обозначает приглашение терминала), дальше идёт её вывод без изменений. Выводы получены на Mac с видеокартой Apple (`mps`) командами из папки со скриптом; ячейки `000004.hdf5` и `000066.hdf5` лежат там в папке `examples`. Видеокарту в это время делило обучение нейросети, поэтому время завышено. На компьютере с NVIDIA вместо `mps` будет `cuda` с названием видеокарты; модули и расхождения должны совпасть до последних знаков, время и число итераций могут немного отличаться. Строки, начинающиеся с `...`, показывают ход расчёта раз в 5 секунд и от запуска к запуску разные; в примерах 3 и 4 они опущены.
+Each block starts with the command (`$` is the terminal prompt) followed by its output unchanged. The outputs were produced on a Mac with an Apple GPU (`mps`) from the folder of the script, with dataset cells `000004.hdf5` and `000066.hdf5` copied into a folder `examples` next to it (dataset cells are not kept in this repository). A network training shared the GPU at the time, so the times are higher than usual. On a computer with NVIDIA, `cuda` and the name of the card appear instead of `mps`; the moduli and the differences must agree to the last digits, the time and the number of iterations may differ slightly. Lines starting with `...` show the progress every 5 seconds and differ from run to run; they are left out in examples 3 and 4.
 
-### 1. Самопроверка
+### 1. Self-test
 
 ```
 $ python3 stiffness_check.py
@@ -100,9 +100,9 @@ self-test on 64^3 cells: material nu 0.38, aniso 0.8 (stiffness across z is 0.8 
 all 6 checks passed on mps
 ```
 
-### 2. Одна ячейка из файла датасета
+### 2. One cell of a dataset file
 
-Ячейка 000004: материал 2.568 ГПа, ν 0.4305, поперёк слоёв печати 0.811 от жёсткости вдоль них; всё это скрипт берёт из файла.
+Cell 000004: material 2.568 GPa, ν 0.4305, across the print layers 0.811 of the stiffness along them; the script reads all of it from the file.
 
 ```
 $ python3 stiffness_check.py examples/000004.hdf5
@@ -130,9 +130,9 @@ solving on mps: Apple GPU (Metal), arm64
 everything passed
 ```
 
-### 3. Все ячейки папки
+### 3. Every cell of a folder
 
-Ячейка 000066 считается дважды: с пустотой 1e-4 материал несёт 0.983 энергии, меньше порога 0.985, поэтому второй проход идёт с пустотой 1e-6, как в датасете.
+Cell 000066 is solved twice: with the void at 1e-4 the solid carries 0.983 of the energy, below the threshold 0.985, so a second pass runs with the void at 1e-6, as in the dataset.
 
 ```
 $ python3 stiffness_check.py examples
@@ -140,7 +140,7 @@ Python 3.12.7 (/opt/anaconda3/bin/python3), PyTorch 2.12.0, NumPy 1.26.4, Darwin
 devices PyTorch sees: mps, cpu
 solving on mps: Apple GPU (Metal), arm64
 
-(блок ячейки 000004.hdf5, как в примере 2)
+(the block of cell 000004.hdf5, as in example 2)
 
 000066.hdf5 (group 1): 64^3, solid share of the voxels 0.400, material E 2.115 GPa, nu 0.4465, aniso 0.672 (from the file)
    mps: 6335 iterations, converged, second pass with void 1e-6 (solid held 0.983 < 0.985 of the energy with 1e-4), solid share 1.000, 95.7 s, GPU memory 1.17 GB
@@ -163,7 +163,7 @@ cell                                 grid  seconds   Ex / E   vs file  result
 everything passed
 ```
 
-### 4. Видеокарта против процессора
+### 4. GPU against CPU
 
 ```
 $ python3 stiffness_check.py gyroid --n 32 --compare_cpu
@@ -190,29 +190,29 @@ gyroid (built in): 32^3, solid share of the voxels 0.285, material E 2 GPa, nu 0
 everything passed
 ```
 
-## Как читать вывод
+## Reading the output
 
-- `converged`: расчёт сошёлся. При `NOT CONVERGED` ответу верить нельзя.
-- `second pass with void 1e-6`: ячейка пересчитана с более мягкой пустотой, по тому же правилу, что и весь датасет.
-- `solid share` ниже 0.9: у ячейки нет пути нагрузки хотя бы в одном направлении.
-- Модули Ex, Ey, Ez, Gxy, Gyz, Gxz и матрица C даются в ГПа, порядок xx, yy, zz, xy, yz, xz.
-- `stored answer of the file ... PASS`: расхождение с ответом, записанным в файле датасета, не больше 0.1 % (обычно 0.001-0.01 %).
+- `converged`: the solve converged. With `NOT CONVERGED` the answer cannot be trusted.
+- `second pass with void 1e-6`: the cell was solved again with a softer void, by the same rule as the whole dataset.
+- `solid share` below 0.9: the cell has no load path in at least one direction.
+- The moduli Ex, Ey, Ez, Gxy, Gyz, Gxz and the matrix C are in GPa, order xx, yy, zz, xy, yz, xz.
+- `stored answer of the file ... PASS`: the difference from the answer stored in the dataset file is at most 0.1 % (usually 0.001-0.01 %).
 
-Код выхода 0 означает, что всё прошло.
+Exit code 0 means everything passed.
 
-## Частые проблемы
+## Common problems
 
-| Сообщение | Что делать |
+| Message | What to do |
 |---|---|
-| `CUDA: this PyTorch is a CPU-only build` | поставить PyTorch со сборкой для CUDA (Установка, шаг 3) |
-| `PyTorch is built for CUDA ... but sees no card` | обновить драйвер NVIDIA |
+| `CUDA: this PyTorch is a CPU-only build` | install PyTorch built for CUDA (Installation, step 3) |
+| `PyTorch is built for CUDA ... but sees no card` | update the NVIDIA driver |
 | `reading .hdf5 needs h5py` | `py -m pip install h5py` |
-| `out of memory` | ячейке 128³ нужно около 5 ГБ видеопамяти, 64³ около 1 ГБ; взять `--device cpu` |
+| `out of memory` | a 128³ cell needs about 5 GB of GPU memory, 64³ about 1 GB; use `--device cpu` |
 
-## MatViz3D на Windows
+## MatViz3D on Windows
 
-Программа ищет Python только по путям macOS и Linux. На Windows ей нужно указать Python, на котором прошла самопроверка, и перезапустить её:
+The program looks for Python only in macOS and Linux paths. On Windows, point it to the Python the self-test passed with and restart it:
 
 ```
-setx MATVIZ_GPU_PYTHON "C:\Users\<имя>\AppData\Local\Programs\Python\Python312\python.exe"
+setx MATVIZ_GPU_PYTHON "C:\Users\<name>\AppData\Local\Programs\Python\Python312\python.exe"
 ```
