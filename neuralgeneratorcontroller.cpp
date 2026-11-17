@@ -361,6 +361,7 @@ void NeuralGeneratorController::finish()
     // No results file: a solve on this cell must not write into the cell file opened last.
     Parameters::filename.clear();
     Parameters::phaseAssignment.clear();
+    Parameters::percolation_rank6 = -1;          // the rank DLCA published belongs to the previous structure
     const QVariantMap material = m_condition.value(QStringLiteral("material")).toMap();
     Parameters::publishCellMaterial({ { QStringLiteral("mat_e_gpa"), material.value(QStringLiteral("e_gpa"), 2.0) },
                                       { QStringLiteral("mat_nu"), material.value(QStringLiteral("nu"), 0.38) },
