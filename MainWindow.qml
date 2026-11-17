@@ -16,8 +16,9 @@ Window {
     title: qsTr("MatViz3D")
 
     // The Data panel shows the generator (algorithm + parameters), the dataset
-    // browser (rows of a dataset folder) or the property selector (target
-    // properties -> closest cells); the last two share the cell panel on the right.
+    // browser (rows of a dataset folder), the property selector (target
+    // properties -> closest cells; these two share the cell panel on the right)
+    // or the neural generator (target properties -> a cell decoded by the network).
     property int dataTab: 0
     readonly property bool datasetMode: dataTab > 0
 
@@ -75,6 +76,32 @@ Window {
         mainWindow.dataTab = 1
         _itemData.visible = true
         checkData.checked = true
+    }
+
+    // --select <targets>: show the Selector tab and run that search once the dataset is read.
+    Connections {
+        target: propertySelectorController
+        function onShowRequested(spec) {
+            mainWindow.dataTab = 2
+            _itemData.visible = true
+            checkData.checked = true
+            if (spec.console === 0) {          // more room for the panels (documentation shots)
+                _itemConsole.visible = false
+                checkConsole.checked = false
+            }
+            selectorPanel.applySpec(spec)
+        }
+    }
+
+    // --neural <seed>: show the Neural tab and decode that code with the form as it stands.
+    Connections {
+        target: neuralGeneratorController
+        function onShowRequested(seed) {
+            mainWindow.dataTab = 3
+            _itemData.visible = true
+            checkData.checked = true
+            neuralPanel.generate(seed)
+        }
     }
 
     function openTextureEditor() {
@@ -565,23 +592,28 @@ Window {
                         spacing: 0
 
                         RowLayout {
+                            id: tabRow
+                            // The four names have to fit the narrowest panel (310 px): a row wider
+                            // than the panel widens every page under it past the panel's background.
+                            readonly property bool narrow: _itemData.width < 330
                             Layout.fillWidth: true
                             Layout.preferredHeight: 32
                             Layout.leftMargin: 29
-                            Layout.rightMargin: 29
+                            Layout.rightMargin: 16
                             Layout.topMargin: 10
+                            spacing: 0
 
-                            // Three pages: the generator, the dataset browser and the property selector.
+                            // Four pages: the generator, the dataset browser, the property selector and the neural generator.
                             Repeater {
-                                model: [qsTr("Generator"), qsTr("Dataset"), qsTr("Selector")]
+                                model: [qsTr("Generator"), qsTr("Dataset"), qsTr("Selector"), qsTr("Neural")]
                                 delegate: Text {
                                     required property int index
                                     required property string modelData
                                     readonly property bool active: index === mainWindow.dataTab
-                                    Layout.rightMargin: 14
+                                    Layout.rightMargin: tabRow.narrow ? 8 : 12
                                     text: modelData
                                     color: active ? "#d9d9d9" : "#7a7a7a"
-                                    font.pixelSize: 14
+                                    font.pixelSize: tabRow.narrow ? 13 : 14
                                     font.family: montserrat.name
                                     font.underline: active
                                     MouseArea {
@@ -836,6 +868,7 @@ Window {
                         }
 
                         PropertySelectorPanel {
+                            id: selectorPanel
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             Layout.leftMargin: 16
@@ -848,12 +881,25 @@ Window {
                             // Same as "Reproduce Geometry" in the HDF5 view, then show the generator.
                             onGeneratorRequested: if (hdf5ProjectController.reproduceGeometry()) mainWindow.dataTab = 0
                         }
+
+                        NeuralGeneratorPanel {
+                            id: neuralPanel
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            Layout.leftMargin: 16
+                            Layout.rightMargin: 16
+                            Layout.topMargin: 6
+                            Layout.bottomMargin: 14
+                            visible: mainWindow.dataTab === 3
+                            fontSans: inter.name
+                            fontTitle: montserrat.name
+                        }
                     }
                 }
             }
 
-            // Dataset mode: the selected cell's parameters, full height on the right,
-            // where the field panel sits otherwise (hidden for dataset cells).
+            // Dataset and Selector tabs: the selected cell's parameters, full height on the
+            // right, where the field panel sits otherwise (hidden for dataset cells).
             Item {
                 id: _itemCellDetails
                 anchors.top: parent.top
@@ -861,7 +907,7 @@ Window {
                 anchors.right: parent.right
                 anchors.margins: 20
                 width: mainWindow.width < 1440 ? 330 : 420
-                visible: mainWindow.datasetMode && _itemData.visible
+                visible: (mainWindow.dataTab === 1 || mainWindow.dataTab === 2) && _itemData.visible
 
                 Rectangle {
                     color: "#F2282828"
@@ -2023,13 +2069,16 @@ Window {
     }
 
     // Tensor overlays, stacked directly under the field-view card and shown
-    // under the same condition, so the two read as one panel.
+    // only while that card is, so the two read as one panel. On the Dataset /
+    // Selector / Neural tabs the card is hidden and the cell panel takes the
+    // right side; a stress result left over from the Generator tab showed this
+    // panel on top of the cell panel there.
     TensorViewPanel {
         id: _itemTensorView
         x: _itemFieldView.x
         y: _itemFieldView.y + _itemFieldView.height + 12
         width: _itemFieldView.width
-        visible: stressAnalysisController.hasResult
+        visible: _itemFieldView.visible && stressAnalysisController.hasResult
 
         target: glWidget
         titleFont: montserrat.name

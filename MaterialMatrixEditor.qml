@@ -27,8 +27,9 @@ Window {
     minimumHeight: 820
     modality: Qt.NonModal
     color: theme.windowBg
-    title: targetRow >= 0 ? qsTr("Edit material \u2013 matrix view")
-                           : qsTr("Add material \u2013 matrix view")
+    title: viewOnly ? qsTr("%1 \u2013 matrix view").arg(viewHeading)
+         : targetRow >= 0 ? qsTr("Edit material \u2013 matrix view")
+                          : qsTr("Add material \u2013 matrix view")
 
     // Without this, every plain (un-themed) Controls item -- TextField,
     // ComboBox, Button -- falls back to whatever style the platform default
@@ -86,6 +87,33 @@ Window {
     property string statusText: ""
     property bool statusIsError: false
 
+    /// Read-only view of a matrix that is not a database row (a dataset cell's
+    /// stiffness, opened from the cell panel by openForMatrix()): no name /
+    /// type / comment, no editing, no New / Delete / Save, and a C / S switch.
+    property bool viewOnly: false
+    property string viewHeading: ""
+    /// Unit of the entries and of the summary: GPa for the database, the
+    /// cell panel's unit (MPa or GPa) in the view. The averages and the
+    /// eigenvalues are linear in C, so they come out in the same unit.
+    property string unit: "GPa"
+    /// S, same order as matrixData, in sUnit; shown instead of C while showS.
+    /// A thousand times the reciprocal of C's unit (1/GPa for C in MPa), so the
+    /// entries read 4.784 rather than 0.004784 and fit their cells.
+    property var viewS: null
+    property string sUnit: "1/TPa"
+    property bool showS: false
+    readonly property bool showingS: viewOnly && showS && viewS !== null
+    /// Voigt order of the rows and columns, for the axis labels.
+    readonly property var axisNames: ["xx", "yy", "zz", "yz", "xz", "xy"]
+    /// The largest entry shown, for treating rounding noise as 0 in the view.
+    readonly property real shownMax: {
+        localRev; showingS;
+        var m = 0;
+        for (var i = 0; i < 6; ++i)
+            for (var j = 0; j < 6; ++j) m = Math.max(m, Math.abs(cell(i, j)));
+        return m;
+    }
+
     function emptyMatrix() {
         var m = [];
         for (var i = 0; i < 6; ++i) {
@@ -98,7 +126,15 @@ Window {
 
     function cell(i, j) {
         localRev;
-        return matrixData[i][j];
+        return showingS ? viewS[i][j] : matrixData[i][j];
+    }
+
+    /// An entry of the read-only view: 4 significant digits, and 0 for what is
+    /// below a millionth of the largest entry (solver noise of a symmetric cell).
+    function viewText(v) {
+        if (v === undefined || v === null || isNaN(v)) return "–";
+        if (Math.abs(v) < 1e-6 * shownMax) return "0";
+        return parseFloat(v.toPrecision(4)).toString();
     }
 
     function setCell(i, j, value) {
@@ -136,8 +172,47 @@ Window {
         return parseFloat(v.toPrecision(digits === undefined ? 5 : digits)).toString();
     }
 
+    /// Shows a matrix read-only: c and s are 6 rows of 6 numbers in Voigt order
+    /// (xx yy zz yz xz xy), c in unitName (MPa or GPa), s in 1 / unitName. bringUp = false
+    /// refreshes an open window without taking the focus (Prev / Next in the panel).
+    function openForMatrix(heading, unitName, c, s, bringUp) {
+        viewOnly = true;
+        targetRow = -1;
+        viewHeading = heading;
+        unit = unitName;
+        var m = emptyMatrix();
+        for (var i = 0; i < 6 && i < c.length; ++i)
+            for (var j = 0; j < 6 && j < c[i].length; ++j)
+                m[i][j] = c[i][j];
+        matrixData = m;
+        sUnit = unitName === "MPa" ? "1/GPa" : "1/TPa";
+        var sv = null;
+        if (s && s.length === 6) {
+            sv = emptyMatrix();
+            for (var a = 0; a < 6; ++a)
+                for (var b = 0; b < 6 && b < s[a].length; ++b)
+                    sv[a][b] = 1000 * s[a][b];
+        }
+        viewS = sv;
+        ++localRev;
+        statusText = "";
+        if (bringUp !== false) {
+            editor.visible = true;
+            editor.raise();
+            editor.requestActivate();
+        }
+    }
+
+    function leaveView() {
+        viewOnly = false;
+        showS = false;
+        viewS = null;
+        unit = "GPa";
+    }
+
     /// Loads an existing row for editing.
     function openForRow(row) {
+        leaveView();
         targetRow = row;
         if (row >= 0) {
             materialName = dbManager.materialNameAt(row);
@@ -164,6 +239,7 @@ Window {
 
     /// Clears the form for entering a brand new material.
     function openForNew() {
+        leaveView();
         targetRow = -1;
         materialName = "";
         materialType = "";
@@ -207,7 +283,9 @@ Window {
         spacing: 10
 
         Text {
-            text: qsTr("Material as a 6\u00d76 stiffness matrix")
+            Layout.fillWidth: true
+            text: editor.viewOnly ? editor.viewHeading : qsTr("Material as a 6\u00d76 stiffness matrix")
+            wrapMode: Text.WordWrap
             color: theme.textStrong
             font.family: interFont.name
             font.pixelSize: 16
@@ -217,6 +295,7 @@ Window {
         // ── Name / type ─────────────────────────────────────────────────
         GridLayout {
             Layout.fillWidth: true
+            visible: !editor.viewOnly
             columns: 4
             columnSpacing: 8
             rowSpacing: 6
@@ -269,6 +348,7 @@ Window {
         // ── Comment / source ───────────────────────────────────────────────
         GridLayout {
             Layout.fillWidth: true
+            visible: !editor.viewOnly
             columns: 2
             columnSpacing: 8
             rowSpacing: 6
@@ -324,7 +404,11 @@ Window {
 
         Text {
             Layout.fillWidth: true
-            text: targetRow >= 0
+            text: editor.viewOnly
+                  ? qsTr("Read only. Entries below are %1, Voigt order 1=xx 2=yy 3=zz 4=yz 5=xz 6=xy, engineering shear "
+                         + "strains (C44 = G yz). The cell panel lists the same matrix in the order xx yy zz xy yz xz.")
+                        .arg(editor.showingS ? editor.sUnit : editor.unit)
+                  : targetRow >= 0
                   ? qsTr("Editing row %1. Entries below are GPa, Voigt order 1=xx 2=yy 3=zz 4=yz 5=xz 6=xy.")
                         .arg(targetRow)
                   : qsTr("New material. Entries below are GPa, Voigt order 1=xx 2=yy 3=zz 4=yz 5=xz 6=xy.")
@@ -332,6 +416,27 @@ Window {
             font.family: interFont.name
             font.pixelSize: 11
             wrapMode: Text.WordWrap
+        }
+
+        // C or S, in the read-only view.
+        RowLayout {
+            Layout.fillWidth: true
+            visible: editor.viewOnly && editor.viewS !== null
+            spacing: 8
+            RadioButton {
+                text: qsTr("C, stiffness")
+                checked: !editor.showS
+                font.family: interFont.name
+                font.pixelSize: 12
+                onToggled: if (checked) editor.showS = false
+            }
+            RadioButton {
+                text: qsTr("S, compliance")
+                checked: editor.showS
+                font.family: interFont.name
+                font.pixelSize: 12
+                onToggled: if (checked) editor.showS = true
+            }
         }
 
         // ── The matrix ───────────────────────────────────────────────────
@@ -354,13 +459,13 @@ Window {
                 Repeater {
                     model: 7
                     delegate: Rectangle {
-                        Layout.preferredWidth: index === 0 ? 34 : 62
+                        Layout.preferredWidth: index === 0 ? 50 : 62
                         Layout.preferredHeight: 28
                         color: "transparent"
                         Text {
                             anchors.centerIn: parent
                             visible: index > 0
-                            text: index
+                            text: index > 0 ? index + " " + editor.axisNames[index - 1] : ""
                             color: theme.textDim
                             font.family: interFont.name
                             font.pixelSize: 13
@@ -383,13 +488,13 @@ Window {
                         readonly property int i: r
                         readonly property int j: c - 1
                         readonly property bool isHeader: c === 0
-                        Layout.preferredWidth: isHeader ? 34 : 62
+                        Layout.preferredWidth: isHeader ? 50 : 62
                         Layout.preferredHeight: 34
 
                         Text {
                             anchors.centerIn: parent
                             visible: bodyCell.isHeader
-                            text: bodyCell.r + 1
+                            text: (bodyCell.r + 1) + " " + editor.axisNames[bodyCell.r]
                             color: theme.textDim
                             font.family: interFont.name
                             font.pixelSize: 13
@@ -410,6 +515,12 @@ Window {
                                 padding: 0
                                 topPadding: 0
                                 bottomPadding: 0
+                                // Set explicitly: the Material style gives a TextField
+                                // its own side padding (~16 px), which `padding: 0` does
+                                // not override, and in a 62 px cell that cut the first
+                                // digits off ("121.4" read "l21.4", "-0.68" read "68").
+                                leftPadding: 2
+                                rightPadding: 2
                                 verticalAlignment: TextInput.AlignVCenter
                                 horizontalAlignment: TextInput.AlignHCenter
                                 font.family: interFont.name
@@ -417,13 +528,16 @@ Window {
                                 color: theme.textStrong
                                 background: Rectangle { color: "transparent" }
                                 validator: DoubleValidator { notation: DoubleValidator.StandardNotation }
+                                readOnly: editor.viewOnly
                                 // Guarded rather than relying on visibility:
                                 // bindings evaluate even while hidden, and
                                 // j === -1 in the header column would index
                                 // matrixData out of range.
-                                text: bodyCell.isHeader ? "" : editor.cell(bodyCell.i, bodyCell.j).toString()
+                                text: bodyCell.isHeader ? ""
+                                    : editor.viewOnly ? editor.viewText(editor.cell(bodyCell.i, bodyCell.j))
+                                    : editor.cell(bodyCell.i, bodyCell.j).toString()
                                 onEditingFinished: {
-                                    if (!bodyCell.isHeader)
+                                    if (!bodyCell.isHeader && !editor.viewOnly)
                                         editor.setCell(bodyCell.i, bodyCell.j, parseFloat(text))
                                 }
                             }
@@ -435,6 +549,7 @@ Window {
 
         Text {
             Layout.fillWidth: true
+            visible: !editor.viewOnly
             text: qsTr("Off-diagonal entries are mirrored automatically \u2014 edit either side of the diagonal.")
             color: theme.textFaint
             font.family: interFont.name
@@ -502,17 +617,17 @@ Window {
                         color: theme.textBody; font.family: interFont.name; font.pixelSize: 12
                     }
                     Text {
-                        text: fmt(summary.KV) + " GPa"
+                        text: fmt(summary.KV) + " " + editor.unit
                         color: theme.textStrong; font.family: interFont.name; font.pixelSize: 12
                         Layout.fillWidth: true; horizontalAlignment: Text.AlignRight
                     }
                     Text {
-                        text: fmt(summary.EV) + " GPa"
+                        text: fmt(summary.EV) + " " + editor.unit
                         color: theme.textStrong; font.family: interFont.name; font.pixelSize: 12
                         Layout.fillWidth: true; horizontalAlignment: Text.AlignRight
                     }
                     Text {
-                        text: fmt(summary.GV) + " GPa"
+                        text: fmt(summary.GV) + " " + editor.unit
                         color: theme.textStrong; font.family: interFont.name; font.pixelSize: 12
                         Layout.fillWidth: true; horizontalAlignment: Text.AlignRight
                     }
@@ -527,17 +642,17 @@ Window {
                         color: theme.textBody; font.family: interFont.name; font.pixelSize: 12
                     }
                     Text {
-                        text: fmt(summary.KR) + " GPa"
+                        text: fmt(summary.KR) + " " + editor.unit
                         color: theme.textStrong; font.family: interFont.name; font.pixelSize: 12
                         Layout.fillWidth: true; horizontalAlignment: Text.AlignRight
                     }
                     Text {
-                        text: fmt(summary.ER) + " GPa"
+                        text: fmt(summary.ER) + " " + editor.unit
                         color: theme.textStrong; font.family: interFont.name; font.pixelSize: 12
                         Layout.fillWidth: true; horizontalAlignment: Text.AlignRight
                     }
                     Text {
-                        text: fmt(summary.GR) + " GPa"
+                        text: fmt(summary.GR) + " " + editor.unit
                         color: theme.textStrong; font.family: interFont.name; font.pixelSize: 12
                         Layout.fillWidth: true; horizontalAlignment: Text.AlignRight
                     }
@@ -552,17 +667,17 @@ Window {
                         color: theme.textBody; font.family: interFont.name; font.pixelSize: 12
                     }
                     Text {
-                        text: fmt(summary.KH) + " GPa"
+                        text: fmt(summary.KH) + " " + editor.unit
                         color: theme.textStrong; font.family: interFont.name; font.pixelSize: 12
                         Layout.fillWidth: true; horizontalAlignment: Text.AlignRight
                     }
                     Text {
-                        text: fmt(summary.EH) + " GPa"
+                        text: fmt(summary.EH) + " " + editor.unit
                         color: theme.textStrong; font.family: interFont.name; font.pixelSize: 12
                         Layout.fillWidth: true; horizontalAlignment: Text.AlignRight
                     }
                     Text {
-                        text: fmt(summary.GH) + " GPa"
+                        text: fmt(summary.GH) + " " + editor.unit
                         color: theme.textStrong; font.family: interFont.name; font.pixelSize: 12
                         Layout.fillWidth: true; horizontalAlignment: Text.AlignRight
                     }
@@ -597,7 +712,7 @@ Window {
                         model: summary.eigenvalues ? summary.eigenvalues : []
                         delegate: Text {
                             required property double modelData
-                            text: fmt(modelData, 4) + " GPa"
+                            text: fmt(modelData, 4) + " " + editor.unit
                             color: modelData > 0 ? theme.textStrong : theme.danger
                             font.family: interFont.name
                             font.pixelSize: 12
@@ -660,6 +775,7 @@ Window {
 
             Button {
                 id: newButton
+                visible: !editor.viewOnly
                 Layout.preferredWidth: 90
                 Layout.preferredHeight: 40
                 text: qsTr("New")
@@ -696,6 +812,7 @@ Window {
 
             Button {
                 id: deleteButton
+                visible: !editor.viewOnly
                 Layout.preferredWidth: 90
                 Layout.preferredHeight: 40
                 text: qsTr("Delete")
@@ -760,6 +877,7 @@ Window {
             }
             Button {
                 id: saveButton
+                visible: !editor.viewOnly
                 Layout.preferredWidth: 90
                 Layout.preferredHeight: 40
                 text: targetRow >= 0 ? qsTr("Save") : qsTr("Add")

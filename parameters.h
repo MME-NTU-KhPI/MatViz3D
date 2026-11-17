@@ -5,7 +5,7 @@
 #include <QString>
 #include <QVariantMap>
 #include <array>
-#include <vector>
+#include <functional>
 #include <vector>
 #include "texturelibrary.h"
 #include "phasematerial.h"
@@ -548,7 +548,7 @@ public:
     /// its geometry parameters: mat_e_gpa / mat_nu / mat_aniso / mat_source)
     /// as phaseAssignment, so a stress run on an opened cell uses it; false
     /// when the file carries none (other algorithms, old files).
-    static bool publishCellMaterial(const QVariantMap& parameters, const QString& algorithm);
+    static bool publishCellMaterial(const QVariantMap& parameters, const QString& algorithm, const QString& logLine = QString());
     static QString overrideMaterialName();
 
     double getLatticeCellMm()               const { return lattice_cell_mm; }
@@ -643,6 +643,29 @@ public:
     static Parameters* m_instance;
 
     static int32_t*** voxels;
+
+    /// The grid above is in use by something that keeps its pointer while the
+    /// event loop runs: a structure generation (its own array is the grid, and it
+    /// lets queued events run to redraw the 3D view - once before filling, after
+    /// every step of an animation) and a stress solve (a worker thread reads it).
+    /// Meanwhile nothing may free or replace the grid: a cell opened from a file
+    /// or shown by the Neural tab did, and the generator or solver went on in
+    /// freed memory (SIGSEGV in Lattice::rasterize / OpenGLWidgetQML::setVoxels).
+    /// Main thread only. acquireVoxels() / releaseVoxels() count the users;
+    /// whenVoxelsFree() runs fn at once when there is none, else when the last one
+    /// is done (later in the event loop, and only while ctx still exists).
+    static void acquireVoxels();
+    static void releaseVoxels();
+    static bool voxelsBusy() { return voxelUsers > 0; }
+    static void whenVoxelsFree(QObject* ctx, std::function<void()> fn);
+    /// acquireVoxels() for the lifetime of a scope.
+    struct VoxelUse {
+        VoxelUse() { acquireVoxels(); }
+        ~VoxelUse() { releaseVoxels(); }
+        VoxelUse(const VoxelUse&) = delete;
+        VoxelUse& operator=(const VoxelUse&) = delete;
+    };
+    static int voxelUsers;
 
     static unsigned int seed;
     static SeedMethod seed_method;

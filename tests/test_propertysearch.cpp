@@ -299,6 +299,77 @@ void TestPropertySearch::testAnisotropyMeasures()
     QVERIFY(propsearch::cubicDeviation(ti) > propsearch::kMaxCubicDeviation);
 }
 
+void TestPropertySearch::testMoreMeasures()
+{
+    // Isotropic: every ratio 1, A^U 0, K = E / 3(1 - 2 nu), nu the same in every direction.
+    auto v = propsearch::moduli(isotropicC(100e6, 0.3));
+    for (int t : { propsearch::EzEy, propsearch::GxzGxy, propsearch::GyzGxy, propsearch::GyzGxz, propsearch::GmaxGmin })
+        QVERIFY2(std::abs(v[t] - 1.0) < 1e-9, qPrintable(propsearch::targetKey(t) + QString(" = %1").arg(v[t])));
+    QVERIFY2(std::abs(v[propsearch::AU]) < 1e-9, qPrintable(QString::number(v[propsearch::AU])));
+    QVERIFY(std::abs(v[propsearch::K] / (100e6 / (3.0 * 0.4)) - 1.0) < 1e-12);
+    QVERIFY2(std::abs(v[propsearch::NuMin] - 0.3) < 1e-9, qPrintable(QString::number(v[propsearch::NuMin])));
+
+    // Cubic: G lies between C44 and (C11 - C12) / 2, so G max / G min = max(A, 1/A);
+    // A^U = 6/5 (sqrt A - 1/sqrt A)^2; K = (C11 + 2 C12) / 3.
+    for (const double A : { 0.4, 2.5 }) {
+        const double C11 = 300e6, C12 = 120e6, C44 = 0.5 * A * (C11 - C12);
+        const Mat6 C = cubicC(C11, C12, C44);
+        v = propsearch::moduli(C);
+        QVERIFY2(std::abs(v[propsearch::GmaxGmin] / std::max(A, 1.0 / A) - 1.0) < 1e-6,
+                 qPrintable(QString("A %1: G max/G min %2").arg(A).arg(v[propsearch::GmaxGmin])));
+        const double aU = 1.2 * std::pow(std::sqrt(A) - 1.0 / std::sqrt(A), 2);
+        QVERIFY2(std::abs(v[propsearch::AU] - aU) < 1e-9, qPrintable(QString("A %1: A^U %2, expected %3").arg(A).arg(v[propsearch::AU]).arg(aU)));
+        QVERIFY(std::abs(v[propsearch::K] / ((C11 + 2 * C12) / 3.0) - 1.0) < 1e-12);
+        for (int t : { propsearch::EzEy, propsearch::GxzGxy, propsearch::GyzGxy, propsearch::GyzGxz })
+            QVERIFY(std::abs(v[t] - 1.0) < 1e-12);
+
+        // nu min against a dense search over load directions and directions across them.
+        fftsa::Mat6 Cm{}, S{};
+        for (int i = 0; i < 6; ++i) for (int j = 0; j < 6; ++j) Cm[i][j] = C[i][j];
+        QVERIFY(fftsa::invert6x6(Cm, S));
+        auto axial = [](const std::array<double, 3>& n) {
+            return std::array<double, 6>{ n[0] * n[0], n[1] * n[1], n[2] * n[2], n[0] * n[1], n[1] * n[2], n[0] * n[2] };
+        };
+        auto q = [&](const std::array<double, 6>& a, const std::array<double, 6>& b) {
+            double r = 0.0;
+            for (int i = 0; i < 6; ++i) for (int j = 0; j < 6; ++j) r += a[i] * S[i][j] * b[j];
+            return r;
+        };
+        double brute = 1e9;
+        for (int i = 0; i < 400; ++i) {
+            const double th = M_PI * (i + 0.5) / 400;
+            for (int j = 0; j < 400; ++j) {
+                const double ph = M_PI * j / 400;
+                const std::array<double, 3> n{ std::sin(th) * std::cos(ph), std::sin(th) * std::sin(ph), std::cos(th) };
+                const std::array<double, 3> t1{ std::cos(th) * std::cos(ph), std::cos(th) * std::sin(ph), -std::sin(th) };
+                const std::array<double, 3> t2{ -std::sin(ph), std::cos(ph), 0.0 };
+                for (int k = 0; k < 36; ++k) {
+                    const double ps = M_PI * k / 36;
+                    const std::array<double, 3> m{ std::cos(ps) * t1[0] + std::sin(ps) * t2[0], std::cos(ps) * t1[1] + std::sin(ps) * t2[1],
+                                                   std::cos(ps) * t1[2] + std::sin(ps) * t2[2] };
+                    brute = std::min(brute, -q(axial(m), axial(n)) / q(axial(n), axial(n)));
+                }
+            }
+        }
+        QVERIFY2(v[propsearch::NuMin] <= brute + 1e-6 && v[propsearch::NuMin] > brute - 1e-3,
+                 qPrintable(QString("A %1: nu min %2, dense search %3").arg(A).arg(v[propsearch::NuMin]).arg(brute)));
+    }
+
+    // Weaker across the layers (transversely isotropic about Z): G xz = G yz = r G xy.
+    double Cv[6][6];
+    QVERIFY(Parameters::lawStiffnessPa(2.0, 0.35, 0.5, Cv));
+    Mat6 ti{};
+    constexpr int kPipeToVoigt[6] = { 0, 1, 2, 5, 3, 4 };
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 6; ++j) ti[i][j] = Cv[kPipeToVoigt[i]][kPipeToVoigt[j]];
+    v = propsearch::moduli(ti);
+    QVERIFY2(std::abs(v[propsearch::GxzGxy] - 0.5) < 1e-9, qPrintable(QString::number(v[propsearch::GxzGxy])));
+    QVERIFY(std::abs(v[propsearch::GyzGxz] - 1.0) < 1e-9);
+    QVERIFY(std::abs(v[propsearch::EzEy] - 0.5) < 1e-9);
+    QVERIFY(v[propsearch::GmaxGmin] >= 2.0 - 1e-9);
+    QVERIFY(v[propsearch::AU] > 0.1);
+}
+
 void TestPropertySearch::testSearchByAnisotropy()
 {
     std::vector<Cell> cells;
@@ -342,6 +413,32 @@ void TestPropertySearch::testSearchByAnisotropy()
     q.use[propsearch::EmaxEmin] = true;
     q.value[propsearch::EmaxEmin] = 1.0;
     QCOMPARE(best(), QStringLiteral("isotropic"));
+    q.use[propsearch::EmaxEmin] = false;
+
+    q.use[propsearch::EzEy] = true;
+    q.value[propsearch::EzEy] = 2.5;
+    QCOMPARE(best(), QStringLiteral("tall"));
+    q.use[propsearch::EzEy] = false;
+
+    q.use[propsearch::AU] = true;
+    q.value[propsearch::AU] = 0.0;
+    QCOMPARE(best(), QStringLiteral("isotropic"));
+
+    // The precomputed moduli of every cell give the same ranking as computing them anew.
+    q.use[propsearch::GmaxGmin] = true;
+    q.value[propsearch::GmaxGmin] = 2.0;
+    q.use[propsearch::Ex] = true;
+    q.value[propsearch::Ex] = 150e6;
+    q.material = { 3.0, 0.38, 1.0 };
+    std::vector<propsearch::Values> own;
+    for (const auto& c : cells) own.push_back(propsearch::moduli(c.C));
+    const auto fresh = propsearch::search(cells, q, nullptr);
+    const auto cached = propsearch::search(cells, q, nullptr, &own);
+    QCOMPARE(cached.size(), fresh.size());
+    for (size_t i = 0; i < fresh.size(); ++i) {
+        QCOMPARE(cached[i].cell, fresh[i].cell);
+        QVERIFY(std::abs(cached[i].fit - fresh[i].fit) < 1e-9);
+    }
 }
 
 void TestPropertySearch::testControllerOnADatasetFolder()

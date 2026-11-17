@@ -11,6 +11,9 @@ macos {
     QMAKE_CXXFLAGS += -Xpreprocessor -fopenmp
     INCLUDEPATH += /opt/homebrew/opt/libomp/include /opt/homebrew/opt/hdf5/include
     LIBS += -L/opt/homebrew/opt/libomp/lib -lomp -L/opt/homebrew/opt/hdf5/lib -lhdf5 -lhdf5_cpp
+    # cellnet.cpp (the layers of celldiffusion.cpp and cellpredictor.cpp): the matrix products go to Accelerate's sgemm, as in the program
+    DEFINES += MATVIZ_USE_ACCELERATE
+    LIBS += -framework Accelerate
 } else {
     QMAKE_CXXFLAGS += -fopenmp
     LIBS += -fopenmp
@@ -18,6 +21,10 @@ macos {
 
 INCLUDEPATH += ..
 DEPENDPATH += ..
+
+# TestCellDiffusion and TestCellPredictor read models/cell_diffusion.bin and models/cell_predictor.bin of the source tree
+# (not in git; skipped when absent)
+DEFINES += "MATVIZ_SOURCE_DIR=\\\"$$clean_path($$PWD/..)\\\""
 
 # HDF5
 unix:!macos {
@@ -121,7 +128,19 @@ SOURCES += \
     test_seed_distribution.cpp \
     test_propertysearch.cpp \
     ../propertysearch.cpp \
-    ../propertyselectorcontroller.cpp
+    ../propertyselectorcontroller.cpp \
+    test_celldecoder.cpp \
+    ../celldecoder.cpp \
+    test_celldiffusion.cpp \
+    ../celldiffusion.cpp \
+    ../cellnet.cpp \
+    test_cellpredictor.cpp \
+    ../cellpredictor.cpp \
+    test_cellstiffness.cpp \
+    ../cellstiffness.cpp \
+    test_requestcheck.cpp \
+    ../requestcheck.cpp \
+    ../cellstiffness_gpu.cpp
 
 HEADERS += \
     test_polycrystall_seeding.h \
@@ -139,6 +158,21 @@ HEADERS += \
     test_seed_distribution.h \
     test_propertysearch.h \
     ../propertysearch.h \
-    ../propertyselectorcontroller.h
+    ../propertyselectorcontroller.h \
+    test_celldecoder.h \
+    ../celldecoder.h \
+    test_celldiffusion.h \
+    ../celldiffusion.h \
+    ../cellnet.h \
+    test_cellpredictor.h \
+    ../cellpredictor.h \
+    test_cellstiffness.h \
+    ../cellstiffness.h \
+    test_requestcheck.h \
+    ../requestcheck.h \
+    ../cellstiffness_gpu.h
+
+# The decoder weights the program ships (:/models/cell_decoder.bin)
+RESOURCES += ../models.qrc
 
 TARGET = tests

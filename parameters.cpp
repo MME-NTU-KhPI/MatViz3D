@@ -6,10 +6,53 @@
 #include "algorithmfactory.h"
 #include <QDebug>
 #include <QDir>
+#include <QPointer>
+#include <QTimer>
+#include <utility>
 
 Parameters* Parameters::m_instance = nullptr;
 
 int32_t*** Parameters::voxels;
+int Parameters::voxelUsers = 0;
+
+namespace {
+// What waits for the grid to be free: the receiver it belongs to and what to run.
+std::vector<std::pair<QPointer<QObject>, std::function<void()>>>& voxelWaiters()
+{
+    static std::vector<std::pair<QPointer<QObject>, std::function<void()>>> w;
+    return w;
+}
+} // namespace
+
+void Parameters::acquireVoxels()
+{
+    ++voxelUsers;
+}
+
+void Parameters::releaseVoxels()
+{
+    if (voxelUsers > 0) --voxelUsers;
+    if (voxelUsers > 0 || voxelWaiters().empty()) return;
+    auto waiting = std::move(voxelWaiters());
+    voxelWaiters().clear();
+    // Later in the event loop, not from here: the last user may be deep in a call
+    // (executeAlgorithm) that the caller continues with, and the autostart path takes
+    // the grid again at once for its stress solve - so each one asks again then.
+    for (auto& [ctx, fn] : waiting) {
+        if (!ctx) continue;
+        QObject* receiver = ctx.data();
+        QTimer::singleShot(0, receiver, [receiver, fn = std::move(fn)]() { whenVoxelsFree(receiver, fn); });
+    }
+}
+
+void Parameters::whenVoxelsFree(QObject* ctx, std::function<void()> fn)
+{
+    if (voxelUsers == 0) {
+        fn();
+        return;
+    }
+    voxelWaiters().emplace_back(ctx, std::move(fn));
+}
 int Parameters::size = 10;
 int Parameters::points = 10;
 QString Parameters::algorithm = "";
@@ -1160,7 +1203,7 @@ bool Parameters::materialStiffnessPa(const QString& name, double C[6][6])
 // opened cell solve the same problem as the run that wrote the file. Without it
 // the solvers fall back to the panel's material -- isotropic for the printing
 // polymers -- and a cubic cell printed weaker along Z comes out Ex = Ey = Ez.
-bool Parameters::publishCellMaterial(const QVariantMap& parameters, const QString& algorithm)
+bool Parameters::publishCellMaterial(const QVariantMap& parameters, const QString& algorithm, const QString& logLine)
 {
     const QString algo = algorithm.isEmpty() ? parameters.value(QStringLiteral("algorithm")).toString() : algorithm;
     if (algo.compare(QStringLiteral("Lattice"), Qt::CaseInsensitive) != 0) return false;
@@ -1186,7 +1229,9 @@ bool Parameters::publishCellMaterial(const QVariantMap& parameters, const QStrin
     pa.materials = { solid };
     pa.grainPhase.assign(2, 0);
     pa.grainOrientation.assign(2, std::array<double,3>{ 0.0, 0.0, 0.0 });
-    qInfo().noquote() << QString("[HDF5] solid of the opened cell = %1 (the material it was solved with)").arg(solid.name);
+    // logLine: for a cell that was not read from a file (the Neural tab); %1 = the solid.
+    qInfo().noquote() << (logLine.isEmpty() ? QStringLiteral("[HDF5] solid of the opened cell = %1 (the material it was solved with)")
+                                            : logLine).arg(solid.name);
     return true;
 }
 

@@ -8,11 +8,14 @@ import QtQuick.Layouts
 // and the printing material in, the closest accepted cells of the open dataset
 // out (PropertySelectorController). Every number is a slider; the moduli move on
 // a logarithmic scale over what the dataset spans for the chosen material, and
-// the search reruns a moment after a slider is let go. Below the moduli sit the
-// anisotropy targets (E z / E x, E y / E x, E max / E min over all directions,
-// the Zener ratio of cubic cells); while one is ticked, E and G in the "same in
-// all directions" mode set the level only (the geometric mean over the axes). Choosing a result opens
-// that cell in the 3D view and its parameters in DatasetCellPanel on the right.
+// the search reruns a moment after a slider is let go. Below the moduli (with the
+// bulk modulus K and the smallest Poisson's ratio over all directions) sit the
+// anisotropy targets: the ratios of E and of G between the axes, then E max / E min
+// and G max / G min over all directions, the universal anisotropy index A^U and
+// the Zener ratio of cubic cells. While one is ticked, E and G in the "same in
+// all directions" mode set the level only (the geometric mean over the axes).
+// Choosing a result opens that cell in the 3D view and its parameters in
+// DatasetCellPanel on the right.
 Item {
     id: panel
     clip: true
@@ -32,24 +35,30 @@ Item {
     // The sliders' ends: what the dataset spans for any material the E slider can
     // give, so moving the material never pushes a target off its slider.
     readonly property var span: ctrl.ready ? ctrl.ranges(matE.from, matE.to)
-                                           : ({ E: [1, 1000], G: [0.5, 400], nu: [-0.3, 0.5], rho: [0, 1],
-                                                axisRatio: [0.2, 5], allDir: [1, 10], zener: [0.2, 5] })
+                                           : ({ E: [1, 1000], G: [0.5, 400], K: [1, 1000], nu: [-0.3, 0.5],
+                                                nuMin: [-1, 0.5], rho: [0, 1], axisRatio: [0.2, 5], shearRatio: [0.2, 5],
+                                                allDir: [1, 10], allDirG: [1, 10], aU: [0, 5], zener: [0.2, 5] })
 
     // Target values survive switching between one value for all directions and per-axis ones.
     property bool sameInAllDirections: true
     property var targets: ({
         E:    { on: true,  v: 300 }, G:    { on: false, v: 100 }, nu:   { on: false, v: 0.3 },
+        K:    { on: false, v: 300 }, nuMin: { on: false, v: 0.0 },
         Ex:   { on: true,  v: 300 }, Ey:   { on: true,  v: 300 }, Ez:   { on: true,  v: 300 },
         Gxy:  { on: false, v: 100 }, Gyz:  { on: false, v: 100 }, Gxz:  { on: false, v: 100 },
-        nuXy: { on: false, v: 0.3 },
-        EzEx: { on: false, v: 1.0 }, EyEx: { on: false, v: 1.0 }, EmaxEmin: { on: false, v: 1.5 },
+        nuXy: { on: false, v: 0.3 }, nuXz: { on: false, v: 0.3 }, nuYz: { on: false, v: 0.3 },
+        EzEx: { on: false, v: 1.0 }, EyEx: { on: false, v: 1.0 }, EzEy: { on: false, v: 1.0 },
+        GxzGxy: { on: false, v: 1.0 }, GyzGxy: { on: false, v: 1.0 }, GyzGxz: { on: false, v: 1.0 },
+        EmaxEmin: { on: false, v: 1.5 }, GmaxGmin: { on: false, v: 1.5 }, AU: { on: false, v: 0.5 },
         zener: { on: false, v: 1.0 }
     })
+    readonly property var anisoKeys: ["EzEx", "EyEx", "EzEy", "GxzGxy", "GyzGxy", "GyzGxz",
+                                      "EmaxEmin", "GmaxGmin", "AU", "zener"]
     // `targets` is a plain JS object, so ticking a box does not notify; this does.
     property int targetsRevision: 0
     readonly property bool anisoActive: {
         targetsRevision;
-        return targets.EzEx.on || targets.EyEx.on || targets.EmaxEmin.on || targets.zener.on;
+        return anisoKeys.some(k => targets[k].on);
     }
     readonly property var isoRows: [
         { key: "E",  label: anisoActive ? qsTr("E mean") : qsTr("E"), kind: "E",
@@ -58,13 +67,34 @@ Item {
           tip: anisoActive ? qsTr("The level of G: the geometric mean of G xy, G yz and G xz") : "" },
         { key: "nu", label: qsTr("ν"),  kind: "nu" }
     ]
-    readonly property var anisoRows: [
+    // In both modes, below E, G and ν.
+    readonly property var extraRows: [
+        { key: "K", label: qsTr("K"), kind: "K",
+          tip: qsTr("Bulk modulus: uniform pressure over the volume change it causes (squeezing from all sides at once)") },
+        { key: "nuMin", label: qsTr("ν min"), kind: "nuMin",
+          tip: qsTr("The smallest Poisson's ratio over every load direction and every direction across it. Below 0 the cell widens when stretched (auxetic)") }
+    ]
+    readonly property var axisAnisoRows: [
         { key: "EzEx", label: qsTr("E z / E x"), kind: "axisRatio",
           tip: qsTr("E along Z (the build direction) over E along X: 1 = the same, 3 = three times stiffer along Z") },
         { key: "EyEx", label: qsTr("E y / E x"), kind: "axisRatio",
           tip: qsTr("E along Y over E along X: 1 = the same") },
+        { key: "EzEy", label: qsTr("E z / E y"), kind: "axisRatio",
+          tip: qsTr("E along Z (the build direction) over E along Y: 1 = the same") },
+        { key: "GxzGxy", label: qsTr("G xz / G xy"), kind: "shearRatio",
+          tip: qsTr("Shear across the layers (plane XZ) over shear in the layer plane (XY): 1 = the same") },
+        { key: "GyzGxy", label: qsTr("G yz / G xy"), kind: "shearRatio",
+          tip: qsTr("Shear across the layers (plane YZ) over shear in the layer plane (XY): 1 = the same") },
+        { key: "GyzGxz", label: qsTr("G yz / G xz"), kind: "shearRatio",
+          tip: qsTr("Shear in plane YZ over shear in plane XZ: 1 = the same") }
+    ]
+    readonly property var allDirRows: [
         { key: "EmaxEmin", label: qsTr("E max / min"), kind: "allDir",
           tip: qsTr("The stiffest direction over the weakest, over all directions, not only the axes: 1 = isotropic") },
+        { key: "GmaxGmin", label: qsTr("G max / min"), kind: "allDirG",
+          tip: qsTr("The largest shear modulus over the smallest, over every shear plane and every direction in it: 1 = isotropic") },
+        { key: "AU", label: qsTr("Aᵁ"), kind: "aU",
+          tip: qsTr("Universal anisotropy index 5·G_V/G_R + K_V/K_R − 6 (Ranganathan and Ostoja-Starzewski, 2008): one number for any symmetry, 0 = isotropic, the larger the more the stiffness depends on direction") },
         { key: "zener", label: qsTr("Zener"), kind: "zener",
           tip: qsTr("Zener ratio 2·C44 / (C11 − C12) of a cubic cell: 1 = isotropic, above 1 stiffer along the cube diagonals, below 1 along the axes. Only cells within 5 % of cubic symmetry are searched") }
     ]
@@ -72,7 +102,9 @@ Item {
         { key: "Ex", label: qsTr("E x"), kind: "E" }, { key: "Ey", label: qsTr("E y"), kind: "E" },
         { key: "Ez", label: qsTr("E z"), kind: "E" }, { key: "Gxy", label: qsTr("G xy"), kind: "G" },
         { key: "Gyz", label: qsTr("G yz"), kind: "G" }, { key: "Gxz", label: qsTr("G xz"), kind: "G" },
-        { key: "nuXy", label: qsTr("ν xy"), kind: "nu" }
+        { key: "nuXy", label: qsTr("ν xy"), kind: "nu", tip: qsTr("Stretched along X, the share it narrows along Y") },
+        { key: "nuXz", label: qsTr("ν xz"), kind: "nu", tip: qsTr("Stretched along X, the share it narrows along Z") },
+        { key: "nuYz", label: qsTr("ν yz"), kind: "nu", tip: qsTr("Stretched along Y, the share it narrows along Z") }
     ]
 
     function fmt(x) {
@@ -101,9 +133,11 @@ Item {
             put("G", panel.anisoActive ? ["Gmean"] : ["Gxy", "Gyz", "Gxz"]);
             put("nu", ["nuXy", "nuXz", "nuYz"]);
         } else {
-            for (const k of ["Ex", "Ey", "Ez", "Gxy", "Gyz", "Gxz", "nuXy"]) put(k, [k]);
+            for (const k of ["Ex", "Ey", "Ez", "Gxy", "Gyz", "Gxz", "nuXy", "nuXz", "nuYz"]) put(k, [k]);
         }
-        for (const k of ["EzEx", "EyEx", "EmaxEmin", "zener"]) put(k, [k]);
+        put("K", ["K"]);
+        put("nuMin", ["nuMin"]);
+        for (const k of panel.anisoKeys) put(k, [k]);
         ctrl.search({
             material: { e_gpa: matE.value, nu: matNu.value, aniso: matR.value },
             targets: t,
@@ -116,6 +150,51 @@ Item {
 
     Timer { id: searchTimer; interval: 250; onTriggered: panel.runSearch() }
 
+    // --select: a search given on the command line. Keys of `spec`: the keys of `targets`
+    // (those listed are ticked, the rest unticked; moduli in MPa), mat_e (GPa), mat_nu,
+    // mat_r, rho_min, rho_max, axes (1 = per-axis targets), result (the row to show),
+    // scroll (pixels to scroll the panel down, -1 = to the list of matches) and, in the
+    // main window, console (0 hides it). Waits until the dataset is read.
+    property var pendingSpec: null
+    function applySpec(spec) {
+        panel.pendingSpec = spec;
+        if (ctrl.ready) applyPendingSpec(); else startIndexIfNeeded();
+    }
+    function applyPendingSpec() {
+        const spec = panel.pendingSpec;
+        if (!spec) return;
+        panel.pendingSpec = null;
+        if (spec.mat_e !== undefined) matE.value = spec.mat_e;
+        if (spec.mat_nu !== undefined) matNu.value = spec.mat_nu;
+        if (spec.mat_r !== undefined) matR.value = spec.mat_r;
+        if (spec.axes !== undefined) panel.sameInAllDirections = !spec.axes;
+        let t = {};
+        for (const k in panel.targets)
+            t[k] = spec[k] !== undefined ? { on: true, v: spec[k] } : { on: false, v: panel.targets[k].v };
+        panel.targets = t;
+        panel.targetsRevision++;
+        rhoRange.setValues(spec.rho_min !== undefined ? spec.rho_min : rhoRange.from,
+                           spec.rho_max !== undefined ? spec.rho_max : rhoRange.to);
+        searchTimer.stop();
+        panel.runSearch();
+        if (ctrl.results.length > 0)
+            ctrl.show(Math.min(spec.result !== undefined ? spec.result : 0, ctrl.results.length - 1));
+        if (spec.scroll !== undefined) {
+            specScroll.to = spec.scroll;
+            specScroll.restart();
+        }
+    }
+    // After the list of matches has been laid out.
+    Timer {
+        id: specScroll
+        property real to: 0
+        interval: 300
+        onTriggered: {
+            const f = scroll.contentItem;
+            f.contentY = Math.max(0, Math.min(to < 0 ? resultsNote.y - 6 : to, f.contentHeight - f.height));
+        }
+    }
+
     onVisibleChanged: startIndexIfNeeded()
     Connections {
         target: panel.ctrl
@@ -124,6 +203,7 @@ Item {
             if (panel.ctrl.ready) {
                 rhoRange.setValues(rhoRange.from, rhoRange.to);
                 panel.scheduleSearch();
+                panel.applyPendingSpec();
             }
         }
     }
@@ -185,14 +265,18 @@ Item {
     }
 
     // One target: tick box, label, slider, value. Moduli and the anisotropy ratios
-    // move on a log scale (the slider holds log10 of the value), ν plainly.
+    // move on a log scale (the slider holds log10 of the value), A^U on the log of
+    // 1 + A^U (it starts at 0), the Poisson's ratios plainly.
     component TargetRow: RowLayout {
         id: targetRow
         required property var modelData
-        property int labelWidth: 64
-        readonly property bool logScale: modelData.kind !== "nu"
-        readonly property bool isModulus: modelData.kind === "E" || modelData.kind === "G"
-        readonly property var ends: panel.span[modelData.kind]
+        property int labelWidth: 84
+        readonly property string kind: modelData.kind
+        readonly property bool plain: kind === "nu" || kind === "nuMin"
+        readonly property bool isModulus: kind === "E" || kind === "G" || kind === "K"
+        readonly property var ends: panel.span[kind]
+        function toSlider(v) { return plain ? v : kind === "aU" ? panel.log10(1 + v) : panel.log10(v); }
+        function fromSlider(x) { return plain ? x : kind === "aU" ? Math.pow(10, x) - 1 : Math.pow(10, x); }
         Layout.fillWidth: true
         spacing: 6
         CheckBox {
@@ -218,12 +302,11 @@ Item {
             topPadding: 0
             bottomPadding: 0
             enabled: useBox.checked
-            from: targetRow.logScale ? panel.log10(targetRow.ends[0]) : targetRow.ends[0]
-            to: targetRow.logScale ? panel.log10(targetRow.ends[1]) : targetRow.ends[1]
-            stepSize: targetRow.logScale ? 0.005 : 0.01
-            value: targetRow.logScale ? panel.log10(panel.targets[targetRow.modelData.key].v)
-                                      : panel.targets[targetRow.modelData.key].v
-            readonly property real actual: targetRow.logScale ? Math.pow(10, value) : value
+            from: targetRow.toSlider(targetRow.ends[0])
+            to: targetRow.toSlider(targetRow.ends[1])
+            stepSize: targetRow.plain ? 0.01 : 0.005
+            value: targetRow.toSlider(panel.targets[targetRow.modelData.key].v)
+            readonly property real actual: targetRow.fromSlider(value)
             onActualChanged: panel.targets[targetRow.modelData.key].v = actual
             onMoved: panel.scheduleSearch()
             ToolTip.visible: hovered && (targetRow.modelData.tip || "") !== ""
@@ -320,11 +403,20 @@ Item {
                     model: panel.sameInAllDirections ? panel.isoRows : panel.axisRows
                     delegate: TargetRow {}
                 }
+                Repeater {
+                    model: panel.extraRows
+                    delegate: TargetRow {}
+                }
 
                 // ── Anisotropy ──
-                Caption { text: qsTr("Anisotropy") }
+                Caption { text: qsTr("Anisotropy along the axes") }
                 Repeater {
-                    model: panel.anisoRows
+                    model: panel.axisAnisoRows
+                    delegate: TargetRow {}
+                }
+                Caption { text: qsTr("Anisotropy over all directions") }
+                Repeater {
+                    model: panel.allDirRows
                     delegate: TargetRow {}
                 }
 
@@ -377,6 +469,7 @@ Item {
                     font.pixelSize: 11
                 }
                 Text {
+                    id: resultsNote
                     Layout.fillWidth: true
                     visible: panel.ctrl.results.length > 0
                     text: qsTr("Values below are for your material; the panel on the right shows the cell as it was solved.")

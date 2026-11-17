@@ -15,6 +15,11 @@
 #include "test_datasetbrowser.h"
 #include "test_seed_distribution.h"
 #include "test_propertysearch.h"
+#include "test_celldecoder.h"
+#include "test_celldiffusion.h"
+#include "test_cellpredictor.h"
+#include "test_cellstiffness.h"
+#include "test_requestcheck.h"
 
 int main(int argc, char *argv[])
 {
@@ -74,6 +79,21 @@ int main(int argc, char *argv[])
 
     TestPropertySearch testSelector;
     runSuite(&testSelector, "TestPropertySearch");
+
+    TestCellDecoder testDecoder;
+    runSuite(&testDecoder, "TestCellDecoder");
+
+    TestCellDiffusion testDiffusion;
+    runSuite(&testDiffusion, "TestCellDiffusion");
+
+    TestCellPredictor testPredictor;
+    runSuite(&testPredictor, "TestCellPredictor");
+
+    TestCellStiffness testStiffness;
+    runSuite(&testStiffness, "TestCellStiffness");
+
+    TestRequestCheck testRequestCheck;
+    runSuite(&testRequestCheck, "TestRequestCheck");
 
     std::cout << "\n=======================================================\n";
     if (totalFailures == 0) {

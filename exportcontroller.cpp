@@ -1177,11 +1177,23 @@ void ExportController::exportToHDF5()
 
 void ExportController::openHDF5()
 {
+    // Opening replaces the grid, which a running generation or stress solve still works on
+    // (Parameters::voxelsBusy()). Refused rather than queued: this is a file dialog the user
+    // opened, and a solve can take minutes.
+    const QString busy = tr("A structure is being generated or solved: open the project when that is done");
+    if (Parameters::voxelsBusy()) {
+        emit exportFailed(busy);
+        return;
+    }
     QString fileName = QFileDialog::getOpenFileName(
         nullptr, tr("Open MatViz3D HDF5 Project"), "",
         tr("HDF5 Files (*.h5 *.hdf5 *.hdf);;All Files (*.*)"));
     if (fileName.isEmpty()) {
         qDebug() << "OpenHDF: no file selected";
+        return;
+    }
+    if (Parameters::voxelsBusy()) {   // the dialog ran its own event loop
+        emit exportFailed(busy);
         return;
     }
 

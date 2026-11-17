@@ -3,9 +3,12 @@
 #include <QFile>
 #include <QTemporaryDir>
 #include <QTest>
+#include <algorithm>
 #include <vector>
 #include "datasetbrowsercontroller.h"
 #include "hdf5wrapper.h"
+#include "parameters.h"
+#include <QCoreApplication>
 
 namespace {
 
@@ -94,6 +97,15 @@ void TestDatasetBrowser::testManifestFiltersAndSections()
     QCOMPARE(valueOf(c, "Properties", "Mean E / E solid"), QStringLiteral("0.125"));
     QCOMPARE(valueOf(c, "Properties", "Sensitivity index"), QStringLiteral("3.5"));
     QCOMPARE(valueOf(c, "Properties", "Solid energy share"), QStringLiteral("0.97"));
+    {
+        // The matrix section is a grid now: 36 entries in MPa for this soft cell.
+        QVariantMap mat;
+        for (const QVariant& s : c.sections())
+            if (s.toMap().contains(QStringLiteral("grid"))) mat = s.toMap();
+        QCOMPARE(mat.value(QStringLiteral("title")).toString(), QStringLiteral("Stiffness matrix C, MPa"));
+        QCOMPARE(mat.value(QStringLiteral("grid")).toList().size(), 36);
+        QCOMPARE(mat.value(QStringLiteral("grid")).toList().at(3 * 6 + 3).toString(), QStringLiteral("50.0"));   // G xy, engineering
+    }
 
     // Filters keep the selection when they can, and rows without a file say why.
     c.setStatusFilter(QStringLiteral("All rows"));
@@ -128,4 +140,89 @@ void TestDatasetBrowser::testManifestFiltersAndSections()
 
     // Anything else is refused with a message.
     QVERIFY(!c2.openPath(d.filePath(QStringLiteral("manifest.txt"))));
+}
+
+void TestDatasetBrowser::testMatrixSection()
+{
+    // Every entry different, so a wrong reordering shows: C[i][j] = 10 (i + 1) + (j + 1) MPa above the diagonal.
+    double C[6][6], S[6][6];
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 6; ++j) {
+            const int a = std::min(i, j), b = std::max(i, j);
+            C[i][j] = (10.0 * (a + 1) + (b + 1)) * 1e6;
+            S[i][j] = (i == j ? 1.0 + i : 0.0) * 1e-9;             // 1/Pa
+        }
+    C[0][5] = C[5][0] = 1e-3;                                       // rounding noise of a symmetric cell
+    QVariantMap m = DatasetBrowserController::matrixSection(C, S);
+    QCOMPARE(m.value(QStringLiteral("unit")).toString(), QStringLiteral("MPa"));
+    QCOMPARE(m.value(QStringLiteral("title")).toString(), QStringLiteral("Stiffness matrix C, MPa"));
+    const QVariantList g = m.value(QStringLiteral("grid")).toList(), f = m.value(QStringLiteral("gridFaint")).toList();
+    QCOMPARE(g.size(), 36);
+    QCOMPARE(g.at(0).toString(), QStringLiteral("11.00"));                  // largest 66 -> 4 significant digits
+    QCOMPARE(g.at(3 * 6 + 4).toString(), QStringLiteral("45.00"));          // (xy, yz) in the pipeline order
+    QCOMPARE(g.at(5).toString(), QStringLiteral("0"));
+    QVERIFY(f.at(5).toBool());
+    QVERIFY(!f.at(0).toBool());
+    QCOMPARE(m.value(QStringLiteral("gridLabels")).toStringList(),
+             (QStringList{ "xx", "yy", "zz", "xy", "yz", "xz" }));
+
+    // Voigt order of the matrix window: 4 = yz, 5 = xz, 6 = xy.
+    const QVariantList vc = m.value(QStringLiteral("voigtC")).toList(), vs = m.value(QStringLiteral("voigtS")).toList();
+    QCOMPARE(vc.size(), 6);
+    auto at = [](const QVariantList& M, int i, int j) { return M.at(i).toList().at(j).toDouble(); };
+    QCOMPARE(at(vc, 3, 3), 55.0);       // yz, yz = pipeline [4][4]
+    QCOMPARE(at(vc, 4, 4), 66.0);       // xz, xz = pipeline [5][5]
+    QCOMPARE(at(vc, 5, 5), 44.0);       // xy, xy = pipeline [3][3]
+    QCOMPARE(at(vc, 3, 5), 45.0);       // yz, xy = pipeline [4][3]
+    QCOMPARE(at(vc, 0, 5), 14.0);       // xx, xy = pipeline [0][3]
+    QVERIFY(qAbs(at(vs, 5, 5) - 4e-3) < 1e-12);   // S xy,xy = pipeline [3][3] = 4e-9 1/Pa = 4e-3 1/MPa
+
+    // A dense polycrystal: hundreds of GPa go to GPa.
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 6; ++j) C[i][j] *= 3000.0;
+    m = DatasetBrowserController::matrixSection(C, S);
+    QCOMPARE(m.value(QStringLiteral("unit")).toString(), QStringLiteral("GPa"));
+    QCOMPARE(m.value(QStringLiteral("grid")).toList().at(0).toString(), QStringLiteral("33.0"));   // largest 198 GPa
+}
+
+void TestDatasetBrowser::testGridWaitsForItsUsers()
+{
+    // What opens a cell asks Parameters::whenVoxelsFree() first: at once when nothing uses the
+    // grid, after the last user otherwise - and again then, since the autostart path takes the
+    // grid for its stress solve right after the generation.
+    QObject ctx;
+    int runs = 0;
+    QVERIFY(!Parameters::voxelsBusy());
+    Parameters::whenVoxelsFree(&ctx, [&runs]() { ++runs; });
+    QCOMPARE(runs, 1);
+
+    {
+        Parameters::VoxelUse generation;
+        Parameters::acquireVoxels();                       // a stress solve as well
+        QVERIFY(Parameters::voxelsBusy());
+        Parameters::whenVoxelsFree(&ctx, [&runs]() { ++runs; });
+        QCoreApplication::processEvents();
+        QCOMPARE(runs, 1);
+        Parameters::releaseVoxels();                       // the solve ends, the generation goes on
+        QCoreApplication::processEvents();
+        QCOMPARE(runs, 1);
+    }                                                      // the generation ends ...
+    QCOMPARE(runs, 1);                                     // ... and the cell goes later in the event loop,
+    Parameters::acquireVoxels();                           // but a solve took the grid first: it waits again
+    QCoreApplication::processEvents();
+    QCOMPARE(runs, 1);
+    Parameters::releaseVoxels();
+    QCoreApplication::processEvents();
+    QCOMPARE(runs, 2);
+    QVERIFY(!Parameters::voxelsBusy());
+
+    // A waiter whose receiver is gone is dropped.
+    {
+        QObject gone;
+        Parameters::acquireVoxels();
+        Parameters::whenVoxelsFree(&gone, [&runs]() { ++runs; });
+    }
+    Parameters::releaseVoxels();
+    QCoreApplication::processEvents();
+    QCOMPARE(runs, 2);
 }

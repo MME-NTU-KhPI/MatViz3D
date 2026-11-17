@@ -18,6 +18,9 @@ Item {
     readonly property color subText: "#969696"
     readonly property color lineColor: "#4a4a4a"
     readonly property color accent: "#22c3a6"
+    readonly property color faintText: "#6a6a6a"
+    readonly property color cellColor: "#333333"
+    readonly property color diagColor: "#3d4d4a"     // the diagonal, as in the material matrix window
 
     ColumnLayout {
                 anchors.fill: parent
@@ -129,9 +132,103 @@ Item {
                                         }
                                     }
                                 }
+
+                                // The stiffness matrix section: a 6 x 6 grid (axis labels, the
+                                // diagonal marked, entries that round to zero faint) and the
+                                // button that opens it in the material matrix window.
+                                Grid {
+                                    id: cGrid
+                                    readonly property var cells: sectionBlock.modelData.grid || []
+                                    readonly property var faint: sectionBlock.modelData.gridFaint || []
+                                    readonly property var labels: sectionBlock.modelData.gridLabels || []
+                                    readonly property int labelW: 22
+                                    readonly property int cellW: Math.floor((sectionBlock.width - labelW - 6 * columnSpacing) / 6)
+                                    visible: cells.length === 36
+                                    columns: 7
+                                    columnSpacing: 2
+                                    rowSpacing: 2
+                                    topPadding: 4
+                                    Repeater {
+                                        model: cGrid.visible ? 49 : 0
+                                        delegate: Rectangle {
+                                            id: gridCell
+                                            required property int index
+                                            readonly property int r: Math.floor(index / 7) - 1     // -1: the label row
+                                            readonly property int c: index % 7 - 1                 // -1: the label column
+                                            readonly property bool isLabel: r < 0 || c < 0
+                                            width: c < 0 ? cGrid.labelW : cGrid.cellW
+                                            height: 20
+                                            radius: 3
+                                            color: gridCell.isLabel ? "transparent" : gridCell.r === gridCell.c ? panel.diagColor : panel.cellColor
+                                            Text {
+                                                anchors.fill: parent
+                                                anchors.leftMargin: 2
+                                                anchors.rightMargin: gridCell.isLabel ? 2 : 4
+                                                horizontalAlignment: gridCell.isLabel ? Text.AlignHCenter : Text.AlignRight
+                                                verticalAlignment: Text.AlignVCenter
+                                                text: gridCell.r < 0 && gridCell.c < 0 ? "" : gridCell.r < 0 ? cGrid.labels[gridCell.c]
+                                                    : gridCell.c < 0 ? cGrid.labels[gridCell.r] : cGrid.cells[gridCell.r * 6 + gridCell.c]
+                                                color: gridCell.isLabel ? panel.subText
+                                                     : cGrid.faint[gridCell.r * 6 + gridCell.c] ? panel.faintText : panel.textColor
+                                                font.family: panel.fontSans
+                                                font.pixelSize: 11
+                                                fontSizeMode: Text.HorizontalFit    // a long entry in a narrow panel shrinks, never spills
+                                                minimumPixelSize: 8
+                                            }
+                                        }
+                                    }
+                                }
+                                Button {
+                                    visible: cGrid.visible
+                                    flat: true
+                                    highlighted: true
+                                    text: qsTr("Open as matrix…")
+                                    font.family: panel.fontSans
+                                    font.pixelSize: 11
+                                    topPadding: 2
+                                    bottomPadding: 2
+                                    leftPadding: 6
+                                    rightPadding: 6
+                                    onClicked: panel.openMatrix(sectionBlock.modelData, true)
+                                    ToolTip.visible: hovered
+                                    ToolTip.delay: 500
+                                    ToolTip.text: qsTr("C and S as 6 × 6 matrices in Voigt order, with the Voigt / Reuss / Hill averages and the eigenvalues")
+                                }
                             }
                         }
                     }
                 }
             }
+
+    // The material matrix window, read-only, for the selected cell's matrix; made on
+    // first use, and it follows Prev / Next while it is open.
+    Loader {
+        id: matrixWindow
+        active: false
+        sourceComponent: Component { MaterialMatrixEditor { } }
+    }
+
+    function matrixOf(sections) {
+        for (let k = 0; k < sections.length; ++k)
+            if (sections[k].grid !== undefined) return sections[k];
+        return null;
+    }
+
+    function openMatrix(sec, bringUp) {
+        if (!sec) return;
+        matrixWindow.active = true;
+        const heading = ctrl.currentTitle.length > 0 ? ctrl.currentTitle : qsTr("Cell %1").arg(ctrl.currentId);
+        matrixWindow.item.openForMatrix(heading, sec.unit, sec.voigtC, sec.voigtS, bringUp);
+    }
+
+    Connections {
+        target: panel.ctrl
+        function onCurrentChanged() {
+            const w = matrixWindow.item;
+            if (!w || !w.visible || !w.viewOnly) return;
+            const sec = panel.matrixOf(panel.ctrl.sections);
+            if (sec) panel.openMatrix(sec, false);
+            else w.close();                     // the new row has no solved cell
+        }
+    }
 }

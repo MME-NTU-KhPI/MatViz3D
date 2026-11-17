@@ -34,10 +34,16 @@ macos {
     QMAKE_CXXFLAGS += -Xpreprocessor -fopenmp
     INCLUDEPATH += /opt/homebrew/opt/libomp/include /opt/homebrew/opt/hdf5/include
     LIBS += -L/opt/homebrew/opt/libomp/lib -lomp -L/opt/homebrew/opt/hdf5/lib -lhdf5 -lhdf5_cpp
+    # The matrix products of the networks of the Neural tab (cellnet.cpp) go to Accelerate's sgemm
+    DEFINES += MATVIZ_USE_ACCELERATE
+    LIBS += -framework Accelerate
 } else {
     QMAKE_CXXFLAGS += -fopenmp
     LIBS += -fopenmp
 }
+
+# Where the sources are: models/cell_diffusion.bin (94 MB) and models/cell_predictor.bin (12 MB), not embedded, are looked for there too
+DEFINES += "MATVIZ_SOURCE_DIR=\\\"$$PWD\\\""
 
 CONFIG += qmltypes
 QML_IMPORT_NAME = OpenGLUnderQML
@@ -136,6 +142,14 @@ SOURCES += \
         datasetbrowsercontroller.cpp \
         propertysearch.cpp \
         propertyselectorcontroller.cpp \
+        celldecoder.cpp \
+        celldiffusion.cpp \
+        cellnet.cpp \
+        cellpredictor.cpp \
+        cellstiffness.cpp \
+        requestcheck.cpp \
+        cellstiffness_gpu.cpp \
+        neuralgeneratorcontroller.cpp \
         tensorfieldsnapshot.cpp \
         tensorglyphbuilder.cpp \
         tensorstreamlinebuilder.cpp \
@@ -144,6 +158,8 @@ SOURCES += \
         voronoi.cpp
 
 RESOURCES += qml.qrc
+# Weights of the cell decoder (the Neural tab), written by tools/neural/export_cell_decoder.py
+RESOURCES += models.qrc
 
 # Additional import path used to resolve QML modules in Qt Creator's code model
 QML_IMPORT_PATH =
@@ -177,6 +193,14 @@ HEADERS += \
     datasetbrowsercontroller.h \
     propertysearch.h \
     propertyselectorcontroller.h \
+    celldecoder.h \
+    celldiffusion.h \
+    cellnet.h \
+    cellpredictor.h \
+    cellstiffness.h \
+    requestcheck.h \
+    cellstiffness_gpu.h \
+    neuralgeneratorcontroller.h \
     hdf5wrapper.h \
     hillcriterion.h \
     algorithmfactory.h \

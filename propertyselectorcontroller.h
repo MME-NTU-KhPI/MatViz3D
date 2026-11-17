@@ -60,21 +60,28 @@ public:
     void buildIndexNow();
     /**
      * Ranks the indexed cells. `query`: material {e_gpa, nu, aniso}; targets
-     * {Ex, Ey, Ez, Gxy, Gyz, Gxz, Emean, Gmean (MPa), nuXy, nuXz, nuYz, EzEx,
-     * EyEx, EmaxEmin, zener} for the ticked ones only; rho_min, rho_max; family
-     * (key, "" = all); count.
+     * {Ex, Ey, Ez, Gxy, Gyz, Gxz, Emean, Gmean, K (MPa), nuXy, nuXz, nuYz, nuMin,
+     * EzEx, EyEx, EzEy, GxzGxy, GyzGxy, GyzGxz, EmaxEmin, GmaxGmin, AU, zener}
+     * for the ticked ones only; rho_min, rho_max; family (key, "" = all); count.
      */
     Q_INVOKABLE void search(const QVariantMap& query);
     /// Opens result `i` in the browser (3D view + cell panel).
     Q_INVOKABLE void show(int i);
     /**
-     * What the indexed cells span, for the sliders, each as [low, high]: E and G
-     * in MPa from the 0.5th percentile with a material of E = `eLowGpa` to the
-     * 99.5th with E = `eHighGpa`; nu, the density, E z/E x and E y/E x together
-     * ("axisRatio"), E max/E min from 1 ("allDir") and the Zener ratio of the
-     * near-cubic cells ("zener") between the same percentiles.
+     * What the indexed cells span, for the sliders, each as [low, high]: E, G and
+     * K in MPa from the 0.5th percentile with a material of E = `eLowGpa` to the
+     * 99.5th with E = `eHighGpa`; nu, nu min ("nuMin"), the density, the three E
+     * ratios of the axes together ("axisRatio"), the three G ratios together
+     * ("shearRatio"), E max/E min and G max/G min from 1 ("allDir", "allDirG"),
+     * A^U from 0 ("aU") and the Zener ratio of the near-cubic cells ("zener")
+     * between the same percentiles.
      */
     Q_INVOKABLE QVariantMap ranges(double eLowGpa, double eHighGpa) const;
+    /**
+     * --select <spec>: asks the window to show the Selector tab and run this search
+     * (PropertySelectorPanel.applySpec lists the keys). The dataset comes from --browse.
+     */
+    void requestShow(const QVariantMap& spec) { emit showRequested(spec); }
 
     const std::vector<propsearch::Cell>& cells() const { return m_cells; }
     const std::vector<propsearch::Match>& matches() const { return m_matches; }
@@ -84,6 +91,7 @@ signals:
     void progressChanged();
     void resultsChanged();
     void currentChanged();
+    void showRequested(const QVariantMap& spec);
 
 private:
     struct Pending { QString id, group, family, file; double cellMm = 0.0; };

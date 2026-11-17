@@ -14,6 +14,7 @@ private slots:
     void testReadCellConvertsTheShearBasis();
     void testSearchRanksAndFilters();
     void testAnisotropyMeasures();
+    void testMoreMeasures();
     void testSearchByAnisotropy();
     void testControllerOnADatasetFolder();
 };

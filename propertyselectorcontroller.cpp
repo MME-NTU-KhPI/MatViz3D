@@ -41,7 +41,9 @@ QString familyLabel(const QString& key)
 QString targetLabel(int t)
 {
     static const char* labels[propsearch::TargetCount] = { "E x", "E y", "E z", "G xy", "G yz", "G xz", "ν xy", "ν xz", "ν yz",
-                                                           "E mean", "G mean", "E z/E x", "E y/E x", "E max/E min", "Zener" };
+                                                           "E mean", "G mean", "E z/E x", "E y/E x", "E max/E min", "Zener",
+                                                           "E z/E y", "G xz/G xy", "G yz/G xy", "G yz/G xz", "G max/G min",
+                                                           "Aᵁ", "K", "ν min" };
     return QString::fromUtf8(labels[t]);
 }
 
@@ -275,7 +277,9 @@ void PropertySelectorController::search(const QVariantMap& query)
         if (!targets.contains(key)) continue;
         bool ok = false;
         const double v = targets.value(key).toDouble(&ok);
-        if (!ok || !std::isfinite(v) || ((propsearch::isModulus(t) || propsearch::isRatio(t)) && !(v > 0.0))) continue;
+        if (!ok || !std::isfinite(v) || ((propsearch::isModulus(t) || propsearch::isRatio(t)) && !(v > 0.0))
+            || (t == propsearch::AU && !(v >= 0.0)))
+            continue;
         q.use[static_cast<size_t>(t)] = true;
         q.value[static_cast<size_t>(t)] = propsearch::isModulus(t) ? v * 1e6 : v;
         ++used;
@@ -292,7 +296,7 @@ void PropertySelectorController::search(const QVariantMap& query)
 
     m_matches = propsearch::search(m_cells, q, [](const propsearch::Cell& c, std::vector<double>& T) {
         return propsearch::readSensitivity(c.file, T);
-    });
+    }, m_own.size() == m_cells.size() ? &m_own : nullptr);
 
     // A Young's modulus above the Hashin-Shtrikman bound cannot be reached by any
     // isotropic cell of this material at these densities.
@@ -312,22 +316,32 @@ void PropertySelectorController::search(const QVariantMap& query)
             const double y = q.value[static_cast<size_t>(t)], p = m.predicted[static_cast<size_t>(t)];
             const bool mod = propsearch::isModulus(t);
             const bool logScale = mod || propsearch::isRatio(t);
+            // A^U is 0 for an isotropic cell: its difference, judged on the scale of 1 + A^U.
+            const bool good = logScale ? std::abs(std::log(p / y)) < 0.1
+                            : t == propsearch::AU ? std::abs(std::log((1.0 + p) / (1.0 + y))) < 0.1
+                                                  : std::abs(p - y) < 0.05;
             rows << QVariantMap{
                 { QStringLiteral("label"), targetLabel(t) },
                 { QStringLiteral("target"), mod ? fmt(y / 1e6) : fmt(y, 3) },
                 { QStringLiteral("value"), mod ? fmt(p / 1e6) : fmt(p, 3) },
                 { QStringLiteral("deviation"), logScale ? deviationPct(100.0 * (p / y - 1.0))
                                                         : QString::asprintf("%+.2f", p - y) },
-                { QStringLiteral("good"), logScale ? std::abs(std::log(p / y)) < 0.1 : std::abs(p - y) < 0.05 },
+                { QStringLiteral("good"), good },
             };
         }
         const auto& v = m.predicted;
-        const QString summary = QString("E %1 / %2 / %3 · G %4 / %5 / %6 MPa · ν %7")
+        const QString summary = QString("E %1 / %2 / %3 · G %4 / %5 / %6 · K %7 MPa · ν %8 / %9 / %10 · ν min %11")
                                     .arg(fmt(v[0] / 1e6), fmt(v[1] / 1e6), fmt(v[2] / 1e6), fmt(v[3] / 1e6),
-                                         fmt(v[4] / 1e6), fmt(v[5] / 1e6), fmt(v[propsearch::NuXy], 2));
-        // How the cell's stiffness depends on direction; Zener only where it means something.
-        QString anisotropy = QString("E z/E x %1 · E y/E x %2 · E max/E min %3")
-                                 .arg(fmt(v[propsearch::EzEx], 3), fmt(v[propsearch::EyEx], 3), fmt(v[propsearch::EmaxEmin], 3));
+                                         fmt(v[4] / 1e6), fmt(v[5] / 1e6), fmt(v[propsearch::K] / 1e6),
+                                         fmt(v[propsearch::NuXy], 2), fmt(v[propsearch::NuXz], 2))
+                                    .arg(fmt(v[propsearch::NuYz], 2), fmt(v[propsearch::NuMin], 2));
+        // How the cell's stiffness depends on direction: along the axes, then over
+        // all directions; Zener only where it means something.
+        QString anisotropy = QString("E z/E x %1 · E y/E x %2 · E z/E y %3 · G xz/G xy %4 · G yz/G xy %5 · G yz/G xz %6\n"
+                                     "E max/E min %7 · G max/G min %8 · Aᵁ %9")
+                                 .arg(fmt(v[propsearch::EzEx], 3), fmt(v[propsearch::EyEx], 3), fmt(v[propsearch::EzEy], 3),
+                                      fmt(v[propsearch::GxzGxy], 3), fmt(v[propsearch::GyzGxy], 3), fmt(v[propsearch::GyzGxz], 3),
+                                      fmt(v[propsearch::EmaxEmin], 3), fmt(v[propsearch::GmaxGmin], 3), fmt(v[propsearch::AU], 3));
         if (m.cubic <= propsearch::kMaxCubicDeviation) anisotropy += QString(" · Zener %1").arg(fmt(v[propsearch::Zener], 3));
         const QString law = QString("solved with E %1 GPa · ν %2%3")
                                 .arg(fmt(c.law.eGpa), fmt(c.law.nu, 2),
@@ -385,15 +399,20 @@ QVariantMap PropertySelectorController::ranges(double eLowGpa, double eHighGpa) 
 {
     // Moduli divided by the cell's own E: the material E scales them exactly.
     // The anisotropy ratios do not depend on E at all.
-    std::vector<double> E, G, nu, rho, axisRatio, allDir, zener;
+    std::vector<double> E, G, K, nu, nuMin, rho, axisRatio, shearRatio, allDir, allDirG, aU, zener;
     for (size_t i = 0; i < m_cells.size() && i < m_own.size(); ++i) {
         const auto& v = m_own[i];
         const double per = 1.0 / (m_cells[i].law.eGpa * 1e6);   // MPa per GPa of the material
         for (int t = propsearch::Ex; t <= propsearch::Ez; ++t) if (v[t] > 0.0) E.push_back(v[t] * per);
         for (int t = propsearch::Gxy; t <= propsearch::Gxz; ++t) if (v[t] > 0.0) G.push_back(v[t] * per);
         for (int t = propsearch::NuXy; t <= propsearch::NuYz; ++t) if (std::isfinite(v[t])) nu.push_back(v[t]);
-        for (int t : { propsearch::EzEx, propsearch::EyEx }) if (v[t] > 0.0) axisRatio.push_back(v[t]);
+        if (v[propsearch::K] > 0.0) K.push_back(v[propsearch::K] * per);
+        if (std::isfinite(v[propsearch::NuMin])) nuMin.push_back(v[propsearch::NuMin]);
+        for (int t : { propsearch::EzEx, propsearch::EyEx, propsearch::EzEy }) if (v[t] > 0.0) axisRatio.push_back(v[t]);
+        for (int t : { propsearch::GxzGxy, propsearch::GyzGxy, propsearch::GyzGxz }) if (v[t] > 0.0) shearRatio.push_back(v[t]);
         if (v[propsearch::EmaxEmin] > 0.0) allDir.push_back(v[propsearch::EmaxEmin]);
+        if (v[propsearch::GmaxGmin] > 0.0) allDirG.push_back(v[propsearch::GmaxGmin]);
+        if (v[propsearch::AU] >= 0.0) aU.push_back(v[propsearch::AU]);
         if (v[propsearch::Zener] > 0.0 && propsearch::cubicDeviation(m_cells[i].C) <= propsearch::kMaxCubicDeviation)
             zener.push_back(v[propsearch::Zener]);
         rho.push_back(m_cells[i].density);
@@ -410,9 +429,14 @@ QVariantMap PropertySelectorController::ranges(double eLowGpa, double eHighGpa) 
     };
     return { { QStringLiteral("E"), span(E, eLowGpa, eHighGpa, 1.0, 1000.0) },
              { QStringLiteral("G"), span(G, eLowGpa, eHighGpa, 0.5, 400.0) },
+             { QStringLiteral("K"), span(K, eLowGpa, eHighGpa, 1.0, 1000.0) },
              { QStringLiteral("nu"), span(nu, 1.0, 1.0, -0.3, 0.5) },
+             { QStringLiteral("nuMin"), span(nuMin, 1.0, 1.0, -1.0, 0.5) },
              { QStringLiteral("rho"), span(rho, 1.0, 1.0, 0.0, 1.0) },
              { QStringLiteral("axisRatio"), span(axisRatio, 1.0, 1.0, 0.2, 5.0) },
+             { QStringLiteral("shearRatio"), span(shearRatio, 1.0, 1.0, 0.2, 5.0) },
              { QStringLiteral("allDir"), QVariantList{ 1.0, span(allDir, 1.0, 1.0, 1.0, 10.0).at(1) } },
+             { QStringLiteral("allDirG"), QVariantList{ 1.0, span(allDirG, 1.0, 1.0, 1.0, 10.0).at(1) } },
+             { QStringLiteral("aU"), QVariantList{ 0.0, span(aU, 1.0, 1.0, 0.0, 5.0).at(1) } },
              { QStringLiteral("zener"), span(zener, 1.0, 1.0, 0.2, 5.0) } };
 }

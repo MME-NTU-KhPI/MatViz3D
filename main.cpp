@@ -23,6 +23,7 @@
 #include "texturecontroller.h"
 #include "hdf5projectcontroller.h"
 #include "datasetbrowsercontroller.h"
+#include "neuralgeneratorcontroller.h"
 #include "propertyselectorcontroller.h"
 #include "exportcontroller.h"
 #include "tensormath_selftest.hpp"
@@ -235,6 +236,7 @@ int main(int argc, char *argv[])
     Hdf5ProjectController hdf5ProjectController;
     DatasetBrowserController datasetBrowserController;
     PropertySelectorController propertySelectorController(&datasetBrowserController);
+    NeuralGeneratorController neuralGeneratorController;
     StatisticsController statisticsController;
     ExportController exportController;
     StressAnalysisController stressAnalysisController;
@@ -264,6 +266,9 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("hdf5ProjectController", &hdf5ProjectController);
     engine.rootContext()->setContextProperty("datasetBrowserController", &datasetBrowserController);
     engine.rootContext()->setContextProperty("propertySelectorController", &propertySelectorController);
+    engine.rootContext()->setContextProperty("neuralGeneratorController", &neuralGeneratorController);
+    // A decoded cell replaces whatever the HDF5 view had put into the 3D view.
+    neuralGeneratorController.setAfterShow([&hdf5ProjectController]() { hdf5ProjectController.invalidate3DSync(); });
     // The browser opens a cell through the HDF5 project controller, which loads
     // it and puts the voxels into the 3D view.
     datasetBrowserController.setCellOpener([&hdf5ProjectController](const QString& path) {
@@ -300,6 +305,24 @@ int main(int argc, char *argv[])
             datasetBrowserController.requestShow();
         });
     }
+    if (parser.isSet("select")) {
+        QVariantMap spec;
+        for (const QString& item : parser.value("select").split(QLatin1Char(','), Qt::SkipEmptyParts)) {
+            const int eq = item.indexOf(QLatin1Char('='));
+            if (eq > 0) spec.insert(item.left(eq).trimmed(), item.mid(eq + 1).trimmed().toDouble());
+        }
+        QTimer::singleShot(400, &propertySelectorController, [&propertySelectorController, spec]() {
+            propertySelectorController.requestShow(spec);
+        });
+    }
+    if (parser.isSet("neural")) {
+        const quint32 seed = parser.value("neural").toUInt();
+        // --neural_compare: solve that cell as soon as it is made, for the "asked / obtained" table.
+        if (parser.isSet("neural_compare")) neuralGeneratorController.setCompareNext(true);
+        QTimer::singleShot(200, &neuralGeneratorController, [&neuralGeneratorController, seed]() {
+            neuralGeneratorController.requestShow(seed);
+        });
+    }
     // MATVIZ_SNAPSHOT=<prefix>: once the windows have settled, save every visible
     // top-level window as <prefix>_<title>.png and quit (documentation shots and
     // checks of the QML windows without a screen recorder).
@@ -313,7 +336,10 @@ int main(int argc, char *argv[])
                 for (QWindow* w : QGuiApplication::topLevelWindows())
                     if (w->isVisible()) w->resize(w->width(), tall);
             });
-        QTimer::singleShot(4500, &app, [prefix]() {
+        // MATVIZ_SNAPSHOT_DELAY=<ms>: when to take the shot (default 4500), for a
+        // window that first has to read a dataset.
+        const int delay = qEnvironmentVariableIntValue("MATVIZ_SNAPSHOT_DELAY");
+        auto shoot = [prefix]() {
             for (QWindow* w : QGuiApplication::topLevelWindows()) {
                 auto* qw = qobject_cast<QQuickWindow*>(w);
                 if (!qw || !qw->isVisible()) continue;
@@ -322,7 +348,13 @@ int main(int argc, char *argv[])
                 qw->grabWindow().save(prefix + QStringLiteral("_") + name + QStringLiteral(".png"));
             }
             QCoreApplication::quit();
-        });
+        };
+        // --neural --neural_compare without a delay: the solve takes minutes, the shot waits for its table.
+        if (delay <= 0 && parser.isSet("neural") && parser.isSet("neural_compare"))
+            QObject::connect(&neuralGeneratorController, &NeuralGeneratorController::compareFinished, &app,
+                             [&app, shoot]() { QTimer::singleShot(1500, &app, shoot); });
+        else
+            QTimer::singleShot(delay > 0 ? delay : 4500, &app, shoot);
     }
 
     QTimer::singleShot(0, [&mainWindowWrapper, &parser, &schemaController, &stressAnalysisController]() {

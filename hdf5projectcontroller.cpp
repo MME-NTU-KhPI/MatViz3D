@@ -285,6 +285,18 @@ void Hdf5ProjectController::setContinuousYieldOutput(bool continuous)
 
 void Hdf5ProjectController::pushTo3DView()
 {
+    // A generation or a stress solve still works on the grid this would free: the
+    // cell goes to the 3D view as soon as that is done (one wait however many
+    // requests come meanwhile; it pushes the file open by then).
+    if (Parameters::voxelsBusy()) {
+        if (!m_pushWaiting) {
+            m_pushWaiting = true;
+            qInfo().noquote() << "[HDF5] a structure is being generated or solved; the opened cell goes to the 3D view when that is done";
+            Parameters::whenVoxelsFree(this, [this]() { m_pushWaiting = false; pushTo3DView(); });
+        }
+        return;
+    }
+
     LoadStepManager& lsm = LoadStepManager::getInstance();
     if (!lsm.isValid() || m_cubeSize <= 0) return;
 

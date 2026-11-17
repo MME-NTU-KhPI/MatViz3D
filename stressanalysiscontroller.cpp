@@ -108,6 +108,10 @@ void StressAnalysisController::setRunning(bool running)
 {
     if (m_isRunning == running) return;
     m_isRunning = running;
+    // The worker reads Parameters::voxels through the pointer it was given: the grid
+    // stays as it is until the solve is over (a cell opened meanwhile waits for it).
+    if (running) Parameters::acquireVoxels();
+    else         Parameters::releaseVoxels();
     emit isRunningChanged();
 }
 
@@ -315,6 +319,10 @@ void StressAnalysisController::pushResultToView()
 void StressAnalysisController::runSingleShot(const QString& solver, const QVariantList& eps)
 {
     if (m_isRunning) return;   // Run button is disabled while running; this is just a safety net.
+    if (Parameters::voxelsBusy()) {    // a generation is filling the grid (it lets the event loop run meanwhile)
+        setError(tr("A structure is being generated - run the solve when it is done"));
+        return;
+    }
     if (!Parameters::voxels) {
         setError(tr("No structure generated — press START first"));
         return;
@@ -406,6 +414,10 @@ void StressAnalysisController::onSingleShotFinished()
 void StressAnalysisController::runDataset(const QString& solver)
 {
     if (m_isRunning) return;
+    if (Parameters::voxelsBusy()) {    // a generation is filling the grid (it lets the event loop run meanwhile)
+        setError(tr("A structure is being generated - run the solve when it is done"));
+        return;
+    }
     if (!Parameters::voxels) {
         setError(tr("No structure generated — press START first"));
         return;
@@ -469,6 +481,10 @@ void StressAnalysisController::onDatasetFinished()
 void StressAnalysisController::runStiffnessMatrix(const QString& solver)
 {
     if (m_isRunning) return;
+    if (Parameters::voxelsBusy()) {    // a generation is filling the grid (it lets the event loop run meanwhile)
+        setError(tr("A structure is being generated - run the solve when it is done"));
+        return;
+    }
     if (!Parameters::voxels) {
         setError(tr("No structure generated — press START first"));
         return;

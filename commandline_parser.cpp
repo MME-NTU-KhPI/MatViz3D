@@ -133,6 +133,11 @@ QString Commandline_Parser::buildApplicationDescription()
             "                           knobs 0..1 whose meaning depends on the form, e.g. glass_sponge diagonal offset /\n"
             "                           thickness / horizontal bracing (default 0.5 each)\n";
     desc += "  --browse <path>:         GUI: open the Dataset Browser on a dataset folder (manifest.csv + cells/), its manifest or a cell file\n";
+    desc += "  --select <targets>:      GUI: open the Selector tab and search the dataset of --browse, e.g. E=150,nu=0.3,mat_e=2.0 (moduli in MPa)\n";
+    desc += "  --neural <seed>:         GUI: open the Neural tab and generate the cell of this seed (0 = a new seed): the diffusion network\n"
+            "                           when models/cell_diffusion.bin is found, else a random code\n";
+    desc += "  --neural_compare:        GUI: with --neural, solve the generated cell the way the dataset was solved and list the asked\n"
+            "                           properties next to the obtained ones (takes minutes; --np sets the threads)\n";
     desc += "  --material_iso E,nu:     solid material as numbers instead of a database row: Young's modulus in GPa and Poisson's ratio\n";
     desc += "  --material_ti E,nu,r:    the same, transversely isotropic about the build axis Z with E_z = r*E, G_xz = G_yz = r*G\n";
     desc += "  --no_fields:             do not store per-voxel stress/strain fields in HDF5 (matrices and metadata only; dataset runs)\n";
@@ -282,6 +287,16 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
         "[Lattice] Fourier series: amplitude ~ |k|^-decay, 0..4 (default: 1).", "p"));
     parser.addOption(QCommandLineOption("browse",
         "[GUI] Open the Dataset Browser on a dataset folder (manifest.csv + cells/), its manifest or one cell file.", "path"));
+    parser.addOption(QCommandLineOption("select",
+        "[GUI] Open the Selector tab and search the dataset of --browse: comma-separated key=value, keys are the targets "
+        "(E, G, nu, K, nuMin, Ex, ..., EzEx, EmaxEmin, AU, zener; moduli in MPa), mat_e (GPa), mat_nu, mat_r, "
+        "rho_min, rho_max, axes=1 (per-axis targets) and result (row to show, from 0).", "targets"));
+    parser.addOption(QCommandLineOption("neural",
+        "[GUI] Open the Neural tab and generate the cell of this seed (0 = a new seed): the diffusion network when "
+        "models/cell_diffusion.bin is found, else a random code.", "seed"));
+    parser.addOption(QCommandLineOption("neural_compare",
+        "[GUI] With --neural: solve the generated cell the way the dataset was solved and list the asked properties "
+        "next to the obtained ones (takes minutes; --np sets the threads)."));
     parser.addOption(QCommandLineOption("fourier_file",
         "[Lattice] Fourier series: text file with one wave per line (kx ky kz amplitude phase); overrides the random draw.", "path"));
     parser.addOption(QCommandLineOption("material_iso",
@@ -671,6 +686,9 @@ void Commandline_Parser::printJsonHelp()
     addOpt("form_b", "Lattice", "double", "value", "0.5", "Forms: second shape knob, meaning per form (0..1)");
     addOpt("form_c", "Lattice", "double", "value", "0.5", "Forms: third shape knob, meaning per form (0..1)");
     addOpt("browse", "GUI", "string", "path", "", "Open the Dataset Browser on a dataset folder, its manifest.csv or a cell file");
+    addOpt("select", "GUI", "string", "targets", "", "Open the Selector tab and search the dataset of --browse for these targets, e.g. E=150,nu=0.3,mat_e=2.0 (moduli in MPa)");
+    addOpt("neural", "GUI", "int", "seed", "", "Open the Neural tab and generate the cell of this seed (0 = a new seed): the diffusion network when models/cell_diffusion.bin is found, else a random code");
+    addOpt("neural_compare", "GUI", "bool", "", "false", "With --neural: solve the generated cell the way the dataset was solved and list the asked properties next to the obtained ones (takes minutes; --np sets the threads)");
     addOpt("material_iso", "Material", "string", "E,nu", "", "Solid material as numbers: Young's modulus in GPa and Poisson's ratio (isotropic)");
     addOpt("material_ti", "Material", "string", "E,nu,r", "", "Solid material as numbers, transversely isotropic about Z: E_z = r*E, G_xz = G_yz = r*G");
     addOpt("no_fields", "Output", "bool", "", "false", "Do not store per-voxel stress/strain fields in HDF5");

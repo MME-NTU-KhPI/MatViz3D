@@ -125,6 +125,18 @@ public:
     /// Opens a cell file in the 3D view; returns false when it could not.
     void setCellOpener(std::function<bool(const QString&)> opener) { m_opener = std::move(opener); }
 
+    /// The "Stiffness matrix" section of the cell panel from C (Pa) and S (1/Pa), both in the
+    /// pipeline order xx yy zz xy yz xz with engineering shear strains (C44 = G xy):
+    ///   grid / gridFaint / gridLabels  C as 36 strings for a 6 x 6 grid, in one unit (MPa while the
+    ///                                  largest entry is below 10 GPa, else GPa) with the decimals
+    ///                                  that give that entry 4 significant digits; an entry that
+    ///                                  rounds to zero is "0" and faint;
+    ///   unit                           "MPa" or "GPa";
+    ///   voigtC / voigtS                C in that unit and S in 1 / that unit, 6 rows of 6 numbers,
+    ///                                  reordered to the Voigt order of the material matrix window
+    ///                                  (xx yy zz yz xz xy), for its "Open as matrix" view.
+    static QVariantMap matrixSection(const double C[6][6], const double S[6][6]);
+
 signals:
     void showRequested();
     void datasetChanged();

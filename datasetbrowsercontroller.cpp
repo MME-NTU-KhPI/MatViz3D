@@ -409,6 +409,51 @@ void DatasetBrowserController::select(int index)
     emit currentChanged();
 }
 
+QVariantMap DatasetBrowserController::matrixSection(const double C[6][6], const double S[6][6])
+{
+    double big = 0.0;
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 6; ++j)
+            if (std::isfinite(C[i][j])) big = std::max(big, std::abs(C[i][j]));
+    // A lattice cell is hundreds of MPa, a dense polycrystal hundreds of GPa: MPa would
+    // need seven digits there and no longer fit six columns of the panel.
+    const bool gpa = big >= 1e10;
+    const double scale = gpa ? 1e-9 : 1e-6;                     // Pa -> the unit
+    const double top = big * scale;
+    const int decimals = top > 0.0 ? std::clamp(3 - static_cast<int>(std::floor(std::log10(top))), 0, 6) : 1;
+    const double half = 0.5 * std::pow(10.0, -decimals);
+    QVariantList grid, faint;
+    for (int i = 0; i < 6; ++i)
+        for (int j = 0; j < 6; ++j) {
+            const double v = C[i][j] * scale;
+            const bool zero = !std::isfinite(v) || std::abs(v) < half;   // also keeps "-0.0" out
+            grid << (zero ? QStringLiteral("0") : QString::number(v, 'f', decimals));
+            faint << zero;
+        }
+    // Voigt position a (xx yy zz yz xz xy) <- pipeline index: yz, xz, xy are 4, 5, 3 there.
+    static const int kVoigt[6] = { 0, 1, 2, 4, 5, 3 };
+    QVariantList vc, vs;
+    for (int a = 0; a < 6; ++a) {
+        QVariantList rc, rs;
+        for (int b = 0; b < 6; ++b) {
+            rc << C[kVoigt[a]][kVoigt[b]] * scale;
+            rs << S[kVoigt[a]][kVoigt[b]] / scale;
+        }
+        vc.append(QVariant(rc));
+        vs.append(QVariant(rs));
+    }
+    const QString unit = gpa ? QStringLiteral("GPa") : QStringLiteral("MPa");
+    QVariantMap m = section(QStringLiteral("Stiffness matrix C, ") + unit, {});
+    m[QStringLiteral("grid")] = grid;
+    m[QStringLiteral("gridFaint")] = faint;
+    m[QStringLiteral("gridLabels")] = QStringList{ QStringLiteral("xx"), QStringLiteral("yy"), QStringLiteral("zz"),
+                                                   QStringLiteral("xy"), QStringLiteral("yz"), QStringLiteral("xz") };
+    m[QStringLiteral("unit")] = unit;
+    m[QStringLiteral("voigtC")] = vc;
+    m[QStringLiteral("voigtS")] = vs;
+    return m;
+}
+
 void DatasetBrowserController::buildSections(const DatasetRowsModel::Row& row)
 {
     m_sections.clear();
@@ -694,15 +739,7 @@ void DatasetBrowserController::buildSections(const DatasetRowsModel::Row& row)
         if (std::isfinite(shareMin)) it << item(QStringLiteral("Solid energy share"), num(shareMin, 4));
         if (iterations >= 0) it << item(QStringLiteral("FFT iterations"), QString::number(iterations));
         secProps = section(QStringLiteral("Properties"), it);
-
-        QVariantList cm;
-        static const char* rowName[6] = { "xx", "yy", "zz", "xy", "yz", "xz" };
-        for (int i = 0; i < 6; ++i) {
-            QStringList v;
-            for (int j = 0; j < 6; ++j) v << QString::number(C[i][j] / 1e6, 'f', 1);
-            cm << item(QString::fromLatin1(rowName[i]), v.join(QStringLiteral("   ")));
-        }
-        secC = section(QStringLiteral("Stiffness matrix C, MPa (xx, yy, zz, xy, yz, xz)"), cm);
+        secC = matrixSection(C, S);
     }
 
     // Results first: properties, then what produced them, then the run.
