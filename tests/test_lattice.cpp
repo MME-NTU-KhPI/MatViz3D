@@ -322,11 +322,10 @@ void TestLattice::testFourierFileRoundTrip()
     QCOMPARE(static_cast<int>(Parameters::lattice_wave_terms.size()), 2);
 
     // fieldAt() takes voxel units; the formula lives in cube fractions.
-    const double pi = 3.14159265358979323846;
     const double probes[][3] = { { 3.5, 7.5, 11.5 }, { 0.5, 0.5, 0.5 }, { 12.5, 2.5, 9.5 } };
     for (const double* q : probes) {
         const double X = q[0] / N, Y = q[1] / N;
-        const double f = 1.0 * std::cos(2 * pi * X) + 0.5 * std::cos(2 * pi * 2 * Y + 1.0);
+        const double f = 1.0 * std::cos(2 * M_PI * X) + 0.5 * std::cos(2 * M_PI * 2 * Y + 1.0);
         QVERIFY2(std::abs(L.fieldAt(q[0], q[1], q[2]) - std::abs(f)) < 1e-9, "sheet field = |sum of the file's waves|");
     }
 
@@ -334,7 +333,7 @@ void TestLattice::testFourierFileRoundTrip()
     TestableLattice K(N);
     K.Initialization(false);
     const double X = 3.5 / N, Y = 7.5 / N;
-    const double f = std::cos(2 * pi * X) + 0.5 * std::cos(2 * pi * 2 * Y + 1.0);
+    const double f = std::cos(2 * M_PI * X) + 0.5 * std::cos(2 * M_PI * 2 * Y + 1.0);
     QVERIFY(std::abs(K.fieldAt(3.5, 7.5, 11.5) - f) < 1e-9);
 
     // An unreadable file falls back to a random draw rather than an empty cube.
@@ -522,12 +521,11 @@ void TestLattice::testMaterialOverrideAndTpmsWaves()
     // Gyroid published as six waves that reproduce the level set exactly.
     const auto& terms = Parameters::lattice_wave_terms;
     QCOMPARE(static_cast<int>(terms.size()), 6);
-    const double pi = 3.14159265358979323846;
     const double probes[][3] = { { 0.13, 0.71, 0.29 }, { 0.5, 0.05, 0.9 }, { 0.77, 0.33, 0.61 } };
     for (const double* q : probes) {
         double f = 0.0;
-        for (const auto& t : terms) f += t[3] * std::cos(2 * pi * (t[0] * q[0] + t[1] * q[1] + t[2] * q[2]) + t[4]);
-        const double a = 2 * pi * 2;   // two cells per edge
+        for (const auto& t : terms) f += t[3] * std::cos(2 * M_PI * (t[0] * q[0] + t[1] * q[1] + t[2] * q[2]) + t[4]);
+        const double a = 2 * M_PI * 2;   // two cells per edge
         const double g = std::sin(a*q[0]) * std::cos(a*q[1]) + std::sin(a*q[1]) * std::cos(a*q[2]) + std::sin(a*q[2]) * std::cos(a*q[0]);
         QVERIFY2(std::abs(f - g) < 1e-5, qPrintable(QString("gyroid waves: %1 vs %2").arg(f).arg(g)));   // terms are stored as float
     }
@@ -538,8 +536,8 @@ void TestLattice::testMaterialOverrideAndTpmsWaves()
     {
         const double q[3] = { 0.21, 0.64, 0.37 };
         double f = 0.0;
-        for (const auto& t : Parameters::lattice_wave_terms) f += t[3] * std::cos(2 * pi * (t[0] * q[0] + t[1] * q[1] + t[2] * q[2]) + t[4]);
-        const double a = 2 * pi * 2, cx = std::cos(a*q[0]), cy = std::cos(a*q[1]), cz = std::cos(a*q[2]);
+        for (const auto& t : Parameters::lattice_wave_terms) f += t[3] * std::cos(2 * M_PI * (t[0] * q[0] + t[1] * q[1] + t[2] * q[2]) + t[4]);
+        const double a = 2 * M_PI * 2, cx = std::cos(a*q[0]), cy = std::cos(a*q[1]), cz = std::cos(a*q[2]);
         const double g = 2 * (cx*cy + cy*cz + cz*cx) - (std::cos(2*a*q[0]) + std::cos(2*a*q[1]) + std::cos(2*a*q[2]));
         QVERIFY2(std::abs(f - g) < 1e-5, qPrintable(QString("IWP waves: %1 vs %2").arg(f).arg(g)));
     }
@@ -1385,7 +1383,7 @@ void TestLattice::testNewSurfacesAndForms()
 {
     std::mt19937 rng(5);
     std::uniform_real_distribution<double> U(0.0, 1.0);
-    const double tau = 2.0 * 3.14159265358979323846;
+    const double tau = 2.0 * M_PI;
     for (int t = 0; t < 40; ++t) {
         const double X = tau * U(rng), Y = tau * U(rng), Z = tau * U(rng);
         using std::cos; using std::sin;

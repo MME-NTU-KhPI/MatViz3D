@@ -259,7 +259,7 @@ std::vector<float> CellDiffusion::startNoise(uint32_t seed) const
     // Box-Muller on the raw generator: std::normal_distribution differs between standard libraries.
     auto uniform = [&]() { return (double(rng()) + 0.5) / 4294967296.0; };
     for (size_t i = 0; i < total; i += 2) {
-        const double r = std::sqrt(-2.0 * std::log(uniform())), a = 6.283185307179586 * uniform();
+        const double r = std::sqrt(-2.0 * std::log(uniform())), a = 2.0 * M_PI * uniform();
         e[i] = float(r * std::cos(a));
         if (i + 1 < total) e[i + 1] = float(r * std::sin(a));
     }
@@ -268,7 +268,7 @@ std::vector<float> CellDiffusion::startNoise(uint32_t seed) const
         // which holds the density of the cell, as strongly as everything else (cellgen diffusion_noise).
         const float scale = float(1.0 / std::sqrt(1.0 + double(m_offset) * m_offset));
         for (int c = 0; c < m_zc; ++c) {
-            const double r = std::sqrt(-2.0 * std::log(uniform())), a = 6.283185307179586 * uniform();
+            const double r = std::sqrt(-2.0 * std::log(uniform())), a = 2.0 * M_PI * uniform();
             const float shift = m_offset * float(r * std::cos(a));
             float* v = e.data() + size_t(c) * n3;
             for (size_t i = 0; i < n3; ++i) v[i] = (v[i] + shift) * scale;

@@ -195,7 +195,7 @@ int main(int argc, char *argv[])
 #ifdef Q_OS_MACOS
     {
         // macOS: the default is a legacy 2.1 context (GLSL 1.20, no VAO).
-        // The renderers need VAOs and GLSL 1.30+, so ask for 4.1 Core Profile.
+        // The renderers need VAOs and GLSL 1.50 (glshaders.hpp), so ask for 4.1 Core Profile.
         QSurfaceFormat fmt = QSurfaceFormat::defaultFormat();
         fmt.setVersion(4, 1);
         fmt.setProfile(QSurfaceFormat::CoreProfile);

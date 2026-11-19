@@ -10,8 +10,7 @@ namespace cellforms {
 
 namespace {
 
-constexpr double kPi  = 3.14159265358979323846;
-constexpr double kTau = 2.0 * kPi;
+constexpr double kTau = 2.0 * M_PI;
 constexpr double kInf = 1e300;
 constexpr double kMaxPiece = 0.25;   ///< longest piece of a segment form, cell edges
 
@@ -106,7 +105,7 @@ void glassSponge(const Knobs& kn, Pieces& P)
 void chiralTwist(const Knobs& kn, Pieces& P)
 {
     const double R  = 0.18 + 0.14 * kn.a;
-    const double al = (25.0 + 40.0 * kn.b) * kPi / 180.0;
+    const double al = (25.0 + 40.0 * kn.b) * M_PI / 180.0;
     const double wb = 0.6 + 0.5 * kn.c;
     const int    m  = 48;
     for (int ax = 0; ax < 3; ++ax) {                        // a ring in every face plane
@@ -161,7 +160,7 @@ void woven(const Knobs& kn, Pieces& P)
         for (int j = 0; j < 2; ++j)
             for (int k = 0; k < m; ++k) {
                 const double t0 = double(k) / m, t1 = double(k + 1) / m;
-                const double c0 = A * std::cos(kTau * t0 + kPi * j), c1 = A * std::cos(kTau * t1 + kPi * j);
+                const double c0 = A * std::cos(kTau * t0 + M_PI * j), c1 = A * std::cos(kTau * t1 + M_PI * j);
                 P.add({ t0, 0.5 * j, z0 + c0 }, { t1, 0.5 * j, z0 + c1 }, 1.0);   // warp over / under
                 P.add({ 0.5 * j, t0, z0 - c0 }, { 0.5 * j, t1, z0 - c1 }, 1.0);   // weft under / over
             }
@@ -301,7 +300,7 @@ inline double sum2D(const std::vector<std::array<double,4>>& w, double x, double
 // Products of cosine waves for the TPMS expansions.
 using WaveList = std::vector<Wave>;
 WaveList cosWave(int kx, int ky, int kz, double amp, double phase) { return { Wave{ { double(kx), double(ky), double(kz) }, amp, phase } }; }
-WaveList sinWave(int kx, int ky, int kz, double amp) { return cosWave(kx, ky, kz, amp, -kPi / 2.0); }
+WaveList sinWave(int kx, int ky, int kz, double amp) { return cosWave(kx, ky, kz, amp, -M_PI / 2.0); }
 WaveList times(const WaveList& A, const WaveList& B)
 {
     WaveList out;
@@ -533,7 +532,7 @@ double Field::radiolarian(double x, double y, double z) const
         const double r = std::sqrt(qx * qx + qy * qy + qz * qz) + 1e-12;
         const double ax = std::abs(qx) / r, ay = std::abs(qy) / r, az = std::abs(qz) / r;
         const double cosAxis = std::max({ ax, ay, az });
-        const double deg = kPi / 180.0;
+        const double deg = M_PI / 180.0;
         if (rich) {
             if (cosAxis > std::cos(17.0 * m_pore * deg)) return;
             const double c110 = std::max({ ax + ay, ay + az, az + ax }) / std::sqrt(2.0);
@@ -624,7 +623,7 @@ double Field::cuttlebone(double x, double y, double z) const
     double gg[2], gh[2];
     const double G = sum2D(m_g, x, y, gg), Hh = sum2D(m_h, x, y, gh);
     const double zc = frac(z * m_chambers);
-    const double A = m_wavy * std::sin(kPi * zc) * zc;
+    const double A = m_wavy * std::sin(M_PI * zc) * zc;
     const double W = G + A * Hh;
     const double gx = gg[0] + A * gh[0], gy = gg[1] + A * gh[1];
     const double walls = std::abs(W) / std::max(std::hypot(gx, gy), 1e-9);

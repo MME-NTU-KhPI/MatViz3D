@@ -9,7 +9,6 @@ namespace mycelium {
 
 namespace {
 
-constexpr double kPi = 3.14159265358979323846;
 using V3 = std::array<double,3>;
 
 inline V3 operator+(V3 a, const V3& b) { for (int i = 0; i < 3; ++i) a[i] += b[i]; return a; }
@@ -46,7 +45,7 @@ struct Rand {
     double normal()
     {
         const double u1 = std::max(1e-300, u()), u2 = u();
-        return std::sqrt(-2.0 * std::log(u1)) * std::cos(2.0 * kPi * u2);
+        return std::sqrt(-2.0 * std::log(u1)) * std::cos(2.0 * M_PI * u2);
     }
     V3 normal3() { const double x = normal(), y = normal(), z = normal(); return { x, y, z }; }
     V3 dir()     { return unitv(normal3()); }
@@ -245,7 +244,7 @@ public:
             const int k = pos[j];
             if (k <= 0 || k >= static_cast<int>(ch.size()) - 1 || ch[k] != j) continue;
             const V3 axis = unitv(mic(X[ch[k + 1]] - X[ch[k - 1]]));
-            Tip nt = newTip(j, turn(axis, o.angle * kPi / 180.0, rnd), std::min(order[h] + 1, o.maxOrder), kind[h], X[j]);
+            Tip nt = newTip(j, turn(axis, o.angle * M_PI / 180.0, rnd), std::min(order[h] + 1, o.maxOrder), kind[h], X[j]);
             if (kind[h] == Binding) { nt.origin = h; origin[nt.h] = h; }
             if (onBranch) onBranch(nt);
             tips.push_back(nt);
@@ -323,7 +322,7 @@ public:
                 if (t.since >= t.due / std::max(s, 0.05) && static_cast<int>(alive.size()) + 1 < o.maxTips) {
                     const int knd = branchKind ? branchKind(t) : t.kind;
                     const int ord = std::min(t.order + 1, o.maxOrder);
-                    Tip nt = newTip(n, turn(u, o.angle * kPi / 180.0, rnd), ord, knd, p);
+                    Tip nt = newTip(n, turn(u, o.angle * M_PI / 180.0, rnd), ord, knd, p);
                     nt.origin = t.origin;
                     origin[nt.h] = t.origin;
                     nt.sign = t.sign;
@@ -351,7 +350,7 @@ void growSubstrate(Colony& col, const Params& p, bool layered)
     const double poor = std::clamp(p.poor, 0.0, 1.0);
     Substrate sub(32, [&](double z) {
         if (!layered) return 1.0;
-        const double s = std::sin(kPi * z);
+        const double s = std::sin(M_PI * z);
         return poor + (1.0 - poor) * s * s;
     });
     const int n = p.spores > 0 ? p.spores : 4;

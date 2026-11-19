@@ -49,7 +49,7 @@ private:
 };
 
 /**
- * @brief Browser for the cells of a dataset folder (manifest.csv + cells/*.hdf5).
+ * @brief Browser for the cells of a dataset folder (manifest.csv + cells/<id>.hdf5).
  *
  * Opens a dataset folder (or a cell file / the manifest inside one), lists its
  * rows with group / status / id filters, and on selection loads the cell's

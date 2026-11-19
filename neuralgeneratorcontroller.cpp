@@ -170,7 +170,7 @@ std::map<std::string, double> NeuralGeneratorController::formTargets(const QVari
 
 QVariantList NeuralGeneratorController::checkRequest(const QVariantMap& condition) const
 {
-    reqcheck::Material material;
+    reqcheck::Material material{};               // filled by formTargets() from the form
     reqcheck::Form form;
     const std::map<std::string, double> targets = formTargets(condition, &material, &form);
     QVariantList list;

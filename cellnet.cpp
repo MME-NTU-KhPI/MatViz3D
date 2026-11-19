@@ -4,7 +4,10 @@
 #include <cmath>
 #include <cstring>
 
-#ifdef MATVIZ_USE_ACCELERATE
+// Accelerate is Apple's framework: it is used on macOS only, and only when the build asks
+// for it (MATVIZ_USE_ACCELERATE, set in the macos block of the .pro files). On any other
+// system the define has no effect and the OpenMP loop of gemmAdd() is compiled.
+#if defined(__APPLE__) && defined(MATVIZ_USE_ACCELERATE)
 #include <Accelerate/Accelerate.h>
 #endif
 
@@ -23,7 +26,7 @@ float* room(std::vector<float>& v, size_t n)
 
 void gemmAdd(int m, int n, int k, const float* A, const float* B, float* C)
 {
-#ifdef MATVIZ_USE_ACCELERATE
+#if defined(__APPLE__) && defined(MATVIZ_USE_ACCELERATE)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
     cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, 1.0f, A, k, B, n, 1.0f, C, n);

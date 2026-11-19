@@ -715,7 +715,7 @@ std::vector<Issue> check(const std::map<std::string, double>& targets, const Mat
             const double g = E / (2.0 * (1.0 + nu));
             if (differ(G, g, 0.10)) {
                 std::vector<std::string> keys = isoKeys;
-                for (const std::string& k : { "Ex", "Ey", "Ez", "Emean", "Gxy", "Gyz", "Gxz", "Gmean", "nuXy", "nuXz", "nuYz" })
+                for (const char* k : { "Ex", "Ey", "Ez", "Emean", "Gxy", "Gyz", "Gxz", "Gmean", "nuXy", "nuXz", "nuYz" })
                     if (has(k)) keys.push_back(k);
                 add(keys, "A cell that is the same in every direction has G = E / (2 (1 + ν)) = " + fmt(g) + " MPa for the asked E " + fmt(E)
                               + " MPa and ν " + fmt(nu) + "; asked G " + fmt(G) + " MPa.");

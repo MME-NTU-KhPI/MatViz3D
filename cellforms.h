@@ -109,27 +109,67 @@ private:
     double turing(double x, double y, double z) const;
     double hierGyroid(double x, double y, double z) const;
 
+    // The shape parameters of the forms. build() sets every parameter of the form it
+    // builds from the knobs a, b, c in [0, 1]; the formula and the range it gives are
+    // written at each one. The numbers in the initializers are only the state before
+    // build(): placeholders inside those ranges, never read for a built form.
+    // Lengths are in cell edges (the unit cell is 1 x 1 x 1); a thickness weight
+    // scales the wall or bar: it is 2 c w thick, c the level the density is solved for.
     Kind   m_kind = Kind::Radiolarian;
     Knobs  m_kn;
-    double m_wmin = 1.0;
+    double m_wmin = 1.0;                         ///< smallest thickness weight of the built form (minWeight())
     std::uint64_t m_salt = 0;                    ///< seeded hash salt (rod weights, plates, pits)
+
     // radiolarian
-    double m_R[3] = { 0.3, 0.15, 0.17 };         ///< outer, inner, corner shell radius
-    double m_pore = 1.0, m_spineW = 1.0, m_spineEnd = 0.7;
+    /// Radii of the three shells: [0] outer shell about the cell centre, 0.24 + 0.10 a
+    /// (0.24 ... 0.34); [1] inner shell about the centre, 0.5 of the outer;
+    /// [2] shell about the cell corner, 0.55 of the outer.
+    double m_R[3] = { 0.3, 0.15, 0.17 };
+    /// Pore size factor, 0.7 + 0.6 b (0.7 ... 1.3): multiplies the half-angles of the
+    /// pores (17 and 12 degrees on the outer shell, 24 degrees on the other two).
+    double m_pore = 1.0;
+    /// Thickness weight of the spines, 0.8 + 0.8 c (0.8 ... 1.6); the shells have 1.
+    double m_spineW = 1.0;
+    /// Where a spine ends, measured from the cell centre along <111>: half the cube
+    /// diagonal (sqrt(3) / 2) minus 0.9 of the corner shell's radius, so the spine
+    /// ends just inside the corner shell.
+    double m_spineEnd = 0.7;
+
     // bone / wood: sites and their periodic images (scaled coordinates)
     std::vector<std::array<double,3>> m_img;
     std::vector<int> m_imgSite;
-    double m_stretch = 1.0, m_plates = 0.0;
-    double m_late = 0.6, m_pit = 0.05;
-    // cuttlebone: 2D waves kx ky amplitude phase, labyrinth g and corrugation h
+    /// bone: stretch of the Voronoi cells along Z, 1 + b (1 = equiaxed ... 2).
+    double m_stretch = 1.0;
+    /// bone: share of the Voronoi faces filled by a plate, 0.4 c (0 = rods only ... 0.4).
+    double m_plates = 0.0;
+    /// wood: extra thickness weight of the walls in the latewood band, 0.2 + 0.4 b
+    /// (0.2 ... 0.6); the weight runs from 0.75 (earlywood) to 0.75 + this (x = 1/2).
+    double m_late = 0.6;
+    /// wood: radius of a pit, 0.03 + 0.04 c (0.03 ... 0.07).
+    double m_pit = 0.05;
+
+    // cuttlebone
+    /// 2D waves {kx, ky, amplitude, phase} of the labyrinth field g (up to 6 waves about
+    /// |k| = 1.6 + 1.4 c per cell edge) and of the corrugation h (up to 10 about twice that).
     std::vector<std::array<double,4>> m_g, m_h;
+    /// Chambers per cell along Z, 1 + round(2 a) (1, 2 or 3).
     int    m_chambers = 2;
+    /// Weight of the corrugation h against g, 0.4 b (0 = straight walls ... 0.4):
+    /// the walls are the zero set of g + m_wavy sin(pi z) z h, z the height inside
+    /// a chamber (0 at its floor, 1 at its ceiling).
     double m_wavy = 0.3;
+
     // turing
+    /// Points per cell edge of the reaction-diffusion grid, round(32 + 16 b) (32 ... 48).
+    /// The pattern has a fixed wavelength in grid points, so a larger grid is a finer pattern.
     int    m_G = 40;
-    std::vector<float> m_v;
+    std::vector<float> m_v;                      ///< activator on the G^3 grid, zero mean, unit variance
+
     // hierarchical gyroid
+    /// Periods of the fine gyroid per period of the coarse one, 2 + round(2 a) (2, 3 or 4).
     int    m_scale = 3;
+    /// Half thickness of the coarse gyroid sheet, 0.08 + 0.07 b (0.08 ... 0.15);
+    /// outside it the form is cut away.
     double m_outer = 0.11;
 };
 

@@ -326,7 +326,7 @@ PrintabilityReport checkPrintability(int32_t*** voxels, int N, const Printabilit
     }
 
     // 3. Overhangs for the six build directions.
-    const int win = std::max(0, static_cast<int>(std::lround(std::tan(t.max_overhang_deg * 3.14159265358979323846 / 180.0))));
+    const int win = std::max(0, static_cast<int>(std::lround(std::tan(t.max_overhang_deg * M_PI / 180.0))));
     for (int d = 0; d < 6; ++d) {
         const int axis = d / 2;            // 0 = X, 1 = Y, 2 = Z
         const int sign = (d % 2 == 0) ? +1 : -1;   // build direction along +axis or -axis

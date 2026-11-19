@@ -303,45 +303,78 @@ void Parameters::resetDefaults()
     fiber_allow_overlap = false;
     matrix_material = "Epoxy";
     fiber_material = "C-fiber";
+    // ── Lattice defaults ──────────────────────────────────────────────────
+    // Three kinds of value follow:
+    //  - a modifier that is off (0, 1, false, "none", an empty name), so that a
+    //    run with no Lattice option set gives the plain periodic cell of the family;
+    //  - a result of the last generation (achieved density, wall, published
+    //    tables, the printability report), cleared here;
+    //  - a chosen number, with the reason next to it.
+    //
+    // The default cell is a sheet gyroid at density 0.30: the cell the FFT solver
+    // was checked on. With the default cell size of 10 mm its wall is
+    // 0.30 * 10 / 3.09 = 0.97 mm (tpmsAreaPerCell() in lattice.cpp), above the
+    // 0.8 mm printing minimum, so the default run passes the printability check.
+    // Two cells per edge is the smallest count that shows how the cells join; a
+    // periodic cell has the same stiffness for any count.
     lattice_family   = "gyroid_sheet";
     cells_per_edge   = 2;
     relative_density = 0.30;
-    lattice_grading  = 0.0;
-    lattice_jitter   = 0.0;
-    lattice_achieved_density = 0.0;
+    lattice_grading  = 0.0;  // off: the same thickness along Z
+    lattice_jitter   = 0.0;  // off: no random thickness
+    lattice_achieved_density = 0.0;  // results of the last generation, cleared (to lattice_mycelium_stats)
     lattice_wall_voxels      = 0.0;
     lattice_wave_terms.clear();
     lattice_assembly_terms.clear();
     lattice_foam_sites.clear();
     lattice_mycelium_segments.clear();
     lattice_mycelium_stats = mycelium::Stats();
+    // Spinodoid: all three cones open (90 / 90 / 90), the isotropic one.
     spinodoid_theta_x = 90.0;
     spinodoid_theta_y = 90.0;
     spinodoid_theta_z = 90.0;
+    // Random Fourier series. Wave numbers from 1 (one wave per cube edge, the
+    // longest that is periodic) to 4 (the limit of the dataset's wave table);
+    // amplitudes ~ 1 / |k| (decay 1), so the long waves set the shape and the
+    // short ones add detail; 24 of the 128 waves that band holds.
     fourier_terms = 24;
     fourier_kmin  = 1.0;
     fourier_kmax  = 4.0;
     fourier_decay = 1.0;
     fourier_file.clear();
-    fourier_symmetry = QStringLiteral("none");
-    plate_hole = 0.0;
+    fourier_symmetry = QStringLiteral("none");  // off
+    plate_hole = 0.0;  // off: no holes
     lattice_union.clear();
     lattice_subtract.clear();
+    // Read only with lattice_subtract. 0.3 cell edges is below the touching radius
+    // of every sphere lattice (fcc 0.354, bcc 0.433, sc 0.5), so carved spheres
+    // stay separate windows and do not cut the cell apart.
     lattice_subtract_size = 0.3;
-    lattice_smooth = 0.0;
+    lattice_smooth = 0.0;  // off: sharp corners
+    // Honeycomb: the family's own shape; the two numbers are the regular hexagon
+    // (walls at 30 degrees, rib = wall) and are read only when the switch is on.
     honeycomb_custom = false;
     honeycomb_angle = 30.0;
     honeycomb_rib = 1.0;
+    // Cubic assembly: both member kinds in one cell (3 struts, 2 plates), one
+    // window so that the plates do not close it, shells as an option (0);
+    // thickness weights in [0.7, 1.3].
     assembly_struts = 3;
     assembly_plates = 2;
     assembly_shells = 0;
     assembly_holes  = 1;
     assembly_spread = 0.3;
     assembly_file.clear();
+    // Foams: closed cells, the mode that needs no further number. The frame
+    // (0.1 bubble sizes, a narrow rim) is read in the windows mode only. The
+    // random foam has 8 bubbles per cell, as many as the Weaire-Phelan cell.
     foam_mode = QStringLiteral("walls");
     foam_frame = 0.1;
     foam_bubbles = 8;
     foam_file.clear();
+    // Mycelium: the settings of the growth trial in which every mode gave one
+    // body joined in three directions (mycelium.h says what each one does).
+    // spores 0 = the mode's own number; align 0 = off.
     mycelium_mode    = QStringLiteral("substrate");
     mycelium_length  = 22.0;
     mycelium_spores  = 0;
@@ -355,14 +388,31 @@ void Parameters::resetDefaults()
     mycelium_anchors = 0.25;
     mycelium_poor    = 0.25;
     mycelium_file.clear();
+    // Bio-inspired forms: every knob in the middle of its range.
     form_a = form_b = form_c = 0.5;
+    // Smoothed noise: sigma 0.06 of the cube edge, about 4 points of its 64^3
+    // grid. Barely smoothed noise is dust, heavy smoothing leaves a few blobs.
     noise_smooth = 0.06;
+    // Material as numbers: E = 0 means "take the database material" (PETG for a
+    // lattice); 0.38 is Poisson's ratio of PETG; anisotropy 1 = isotropic.
     mat_e_gpa = 0.0;
     mat_nu = 0.38;
     mat_aniso = 1.0;
+    // The field viewer needs the per-voxel fields; dataset runs switch them off.
     hdf5_fields = true;
-    lattice_cell_mm = 10.0;
-    lattice_uniform_wall = false;
+    lattice_cell_mm = 10.0;  // see the default cell above
+    lattice_uniform_wall = false;  // off: a sheet is {|f| <= c}
+    // Printability thresholds (printability.h), for FDM with a 0.4 mm nozzle:
+    //   wall 0.8 mm      two nozzle lines;
+    //   overhang 45 deg  the steepest slope printed without supports;
+    //   thin 2 %         a margin for single voxels at the corners and edges
+    //                    of the voxel grid;
+    //   island 8 voxels  a 2 x 2 x 2 speck of the voxel grid, nothing larger;
+    //   1 body           the cell is one part;
+    //   3 directions     the body joins its periodic neighbours along three
+    //                    independent directions, else the tiled part falls into
+    //                    layers or rods;
+    //   unsupported 5 %  in the best build direction, a margin for short bridges.
     print_min_wall_mm = 0.8;
     print_max_overhang_deg = 45.0;
     print_max_thin_fraction = 0.02;
@@ -370,14 +420,21 @@ void Parameters::resetDefaults()
     print_max_components = 1;
     print_min_directions = 3;
     print_max_unsupported_fraction = 0.05;
-    require_printable = false;
-    lattice_remove_islands = false;
+    require_printable = false;  // off: the check reports, it does not stop the run
+    lattice_remove_islands = false;  // off
+    // Thickness metric 1 / 1: off, distances are plain Euclidean.
     lattice_metric_y = 1.0;
     lattice_metric_z = 1.0;
-    printability = PrintabilityReport();
+    printability = PrintabilityReport();  // results of the last generation, cleared (4 lines)
     lattice_voxel_mm = 0.0;
     lattice_islands_removed = 0;
     lattice_island_voxels_removed = 0;
+    // FFT solver. auto: conjugate gradients for porous or high-contrast cells,
+    // the basic scheme otherwise. Tolerance 1e-5: the moduli of a sheet gyroid
+    // move by 0.1 % between 1e-4 and 1e-5. Void 1e-4 of the solid's C11: within
+    // about 1 % for stretching-dominated cells and fast (bending-dominated ones
+    // need 1e-6). continuous: the discretization every earlier run used. 1000
+    // iterations: above what the converging reference cases need (500 - 800).
     fft_scheme = "auto";
     fft_tol = 1e-5;
     fft_void_eta = 1e-4;

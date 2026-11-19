@@ -333,14 +333,27 @@ void DBManager::insertInitialData(QSqlDatabase& db)
 
         // ── Printed polymers (Lattice base materials) ─────────────────────
         // Isotropic engineering values for the filaments the Lattice cells are
-        // meant to be printed from. From E and nu via lambda = E nu / ((1+nu)(1-2nu)),
-        // mu = E / (2(1+nu)): c11 = lambda + 2mu, c12 = lambda, c44 = mu.
+        // meant to be printed from: PETG and PLA, then the other common FDM
+        // plastics (ABS, ASA, polycarbonate, nylon PA12, TPU). From E and nu via
+        // lambda = E nu / ((1+nu)(1-2nu)), mu = E / (2(1+nu)):
+        // c11 = lambda + 2mu, c12 = lambda, c44 = mu.
         // Representative datasheet ranges, not certified allowables; the
         // dissertation workflow replaces them with the identified law.
         {"PETG",    "iso",   3.744,  2.295,  2.295, 0,0,0,   3.744,  2.295, 0,0,0,   3.744, 0,0,0,   0.725, 0,0,   0.725, 0,   0.725,
          "Representative isotropic constants for FDM-printed PETG (E = 2.0 GPa, nu = 0.38; typical datasheet range, printed parts are softer across layers; not a certified design allowable)."},
         {"PLA",     "iso",   5.882,  3.309,  3.309, 0,0,0,   5.882,  3.309, 0,0,0,   5.882, 0,0,0,   1.287, 0,0,   1.287, 0,   1.287,
          "Representative isotropic constants for FDM-printed PLA (E = 3.5 GPa, nu = 0.36; typical datasheet range; not a certified design allowable)."},
+        // The other common filaments, same recipe (c44 = (c11 - c12) / 2 exactly).
+        {"ABS",     "iso",   3.531,  1.901,  1.901, 0,0,0,   3.531,  1.901, 0,0,0,   3.531, 0,0,0,   0.815, 0,0,   0.815, 0,   0.815,
+         "Representative isotropic constants for FDM-printed ABS (E = 2.2 GPa, nu = 0.35; typical datasheet range 2.0-2.4 GPa; not a certified design allowable)."},
+        {"ASA",     "iso",   3.210,  1.728,  1.728, 0,0,0,   3.210,  1.728, 0,0,0,   3.210, 0,0,0,   0.741, 0,0,   0.741, 0,   0.741,
+         "Representative isotropic constants for FDM-printed ASA (E = 2.0 GPa; nu = 0.35 taken as for ABS, a styrenic of the same family; typical datasheet range; not a certified design allowable)."},
+        {"PC",      "iso",   4.068,  2.389,  2.389, 0,0,0,   4.068,  2.389, 0,0,0,   4.068, 0,0,0,  0.8395, 0,0,  0.8395, 0,  0.8395,
+         "Representative isotropic constants for FDM-printed polycarbonate (E = 2.3 GPa, nu = 0.37; typical datasheet range; not a certified design allowable)."},
+        {"PA12",    "iso",   3.214,  2.143,  2.143, 0,0,0,   3.214,  2.143, 0,0,0,   3.214, 0,0,0,  0.5355, 0,0,  0.5355, 0,  0.5355,
+         "Representative isotropic constants for FDM-printed nylon PA12, dry (E = 1.5 GPa, nu = 0.40; moisture softens it to about 1.0 GPa; typical datasheet range; not a certified design allowable)."},
+        {"TPU-95A", "iso",  0.2284, 0.2108, 0.2108, 0,0,0,  0.2284, 0.2108, 0,0,0,  0.2284, 0,0,0,  0.0088, 0,0,  0.0088, 0,  0.0088,
+         "Representative isotropic constants for FDM-printed TPU of hardness 95A (E = 26 MPa, nu = 0.48; a rubber-like filament, the linear constants hold for small strains only; not a certified design allowable)."},
 
         // Type "ti": transversely isotropic about axis 3, which is the axis
         // Composite aligns a fiber to -- so c33 is the stiff along-fiber

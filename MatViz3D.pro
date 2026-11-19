@@ -29,11 +29,35 @@ QML_LIBEXEC = $$(QT_QML_LIBEXEC)
 gcc_ver = $$system($$QMAKE_CXX -dumpversion)
 greaterThan(gcc_ver, 15): QMAKE_CXXFLAGS += -Wno-sfinae-incomplete
 
+# macOS: the folder (with include/ and lib/) of a package that does not come with the system.
+# $$1 = Homebrew formula, $$2 = a header that proves the package is there, $$3 = the folder
+# given in the environment (used as it is when set). Homebrew's prefix differs between Macs
+# (/opt/homebrew on Apple silicon, /usr/local on Intel, anything for a custom install), so it
+# is asked from brew first; the two standard prefixes are tried after it because a build
+# started from Qt Creator may not have brew on its PATH. Empty when nothing is found.
+defineReplace(macPackageDir) {
+    given = $$3
+    !isEmpty(given): return($$given)
+    candidates = $$system(brew --prefix $$1 2>/dev/null) /opt/homebrew/opt/$$1 /usr/local/opt/$$1
+    for(dir, candidates) {
+        exists($$dir/include/$$2): return($$dir)
+    }
+    return()
+}
+
 macos {
-    # Apple clang: OpenMP via libomp, HDF5 via Homebrew
+    # Apple clang has no OpenMP runtime of its own and macOS has no HDF5: both are installed
+    # separately (brew install libomp hdf5). LIBOMP_DIR and HDF5_DIR in the environment name
+    # another location, as HDF5_DIR does on Windows.
+    LIBOMP_DIR = $$macPackageDir(libomp, omp.h, $$(LIBOMP_DIR))
+    HDF5_DIR   = $$macPackageDir(hdf5, H5Cpp.h, $$(HDF5_DIR))
+    isEmpty(LIBOMP_DIR): error("libomp not found: run 'brew install libomp' or set LIBOMP_DIR to the folder that holds include/omp.h and lib/")
+    isEmpty(HDF5_DIR):   error("HDF5 not found: run 'brew install hdf5' or set HDF5_DIR to the folder that holds include/H5Cpp.h and lib/")
+    message(LIBOMP_DIR = $$LIBOMP_DIR)
+    message(HDF5_DIR = $$HDF5_DIR)
     QMAKE_CXXFLAGS += -Xpreprocessor -fopenmp
-    INCLUDEPATH += /opt/homebrew/opt/libomp/include /opt/homebrew/opt/hdf5/include
-    LIBS += -L/opt/homebrew/opt/libomp/lib -lomp -L/opt/homebrew/opt/hdf5/lib -lhdf5 -lhdf5_cpp
+    INCLUDEPATH += $$LIBOMP_DIR/include $$HDF5_DIR/include
+    LIBS += -L$$LIBOMP_DIR/lib -lomp -L$$HDF5_DIR/lib -lhdf5 -lhdf5_cpp
     # The matrix products of the networks of the Neural tab (cellnet.cpp) go to Accelerate's sgemm
     DEFINES += MATVIZ_USE_ACCELERATE
     LIBS += -framework Accelerate

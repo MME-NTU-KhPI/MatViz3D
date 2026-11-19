@@ -20,8 +20,6 @@
 
 namespace {
 
-constexpr double kPi = 3.14159265358979323846;
-
 // TPMS level-set approximations. Arguments in radians: one cell is 2*pi.
 inline double gyroidF(double X, double Y, double Z)
 {
@@ -154,21 +152,36 @@ inline double triangleDistance(const double p[3], const double a[3], const doubl
     return dist3(p, q);
 }
 
-// Surface area of one unit cell of the level-set surface, for the sheet
-// thickness estimate t ~ rho * a / A. Textbook values for the trigonometric
-// approximations; an estimate only, used to warn about thin walls.
+// Area A of the mid-surface f = 0 in one unit cell of edge 1, for the mean sheet
+// thickness t ~ rho * a / A (volume of the sheet = area x thickness); an estimate
+// only, used to warn about thin walls.
+//
+// Source of the numbers: the area of the level set this file builds (the
+// trigonometric approximations above, and the expansions of cellforms::tpmsWaves()
+// for the last three), computed by triangulating f = 0 with marching cubes on
+// periodic grids of 96, 192 and 320 points per edge and extrapolating to zero
+// spacing. A second method, the volume of the layer |f| / |grad f| < h divided by
+// 2 h, gives the same values within 0.3 %.
+//
+// Reference for the minimal surfaces themselves, same conventional cubic cell:
+// U. S. Schwarz, G. Gompper, Phys. Rev. E 59 (1999) 5528-5541,
+// doi:10.1103/PhysRevE.59.5528, arXiv:cond-mat/9903406 (Table 1: exact, from the
+// Weierstrass representation; Table 3: numerical). The approximations of the
+// gyroid, Schwarz P, Schwarz D and Fischer-Koch S are within 0.4 % of them. Those
+// of I-WP and Neovius are not (+2.6 % and -7.5 %), so the area of the approximation
+// is what counts here. The Lidinoid is used in a cubic cell and has no tabulated value.
 inline double tpmsAreaPerCell(LatticeFamily f)
 {
     switch (f) {
-        case LatticeFamily::GyroidSheet:   return 3.09;
-        case LatticeFamily::SchwarzPSheet: return 2.35;
-        case LatticeFamily::SchwarzDSheet: return 3.84;
-        case LatticeFamily::IWPSheet:      return 3.47;
-        // Numerical (level-set delta on a 160^3 grid, scaled to the gyroid's 3.09).
-        case LatticeFamily::NeoviusSheet:     return 3.88;
-        case LatticeFamily::FischerKochSheet: return 5.63;
-        case LatticeFamily::LidinoidSheet:    return 6.44;
-        default:                           return 0.0;
+        //                                                    computed   minimal surface (reference)
+        case LatticeFamily::GyroidSheet:      return 3.09;   // 3.0916     3.0914  (G)
+        case LatticeFamily::SchwarzPSheet:    return 2.35;   // 2.3526     2.3451  (P)
+        case LatticeFamily::SchwarzDSheet:    return 3.84;   // 3.8380     3.8378  (D)
+        case LatticeFamily::IWPSheet:         return 3.55;   // 3.5536     3.4641  (I-WP)
+        case LatticeFamily::NeoviusSheet:     return 3.52;   // 3.5236     3.8094  (C(P), Table 3)
+        case LatticeFamily::FischerKochSheet: return 5.43;   // 5.4301     5.4145  (S, Table 3)
+        case LatticeFamily::LidinoidSheet:    return 6.24;   // 6.2386     -
+        default:                              return 0.0;
     }
 }
 
@@ -236,7 +249,7 @@ void Lattice::readParameters()
         qInfo() << "[Lattice] no material selected; using PETG";
     }
 
-    const double d2r = kPi / 180.0;
+    const double d2r = M_PI / 180.0;
     m_angles[0] = p.getOrientationAngleA() * d2r;
     m_angles[1] = p.getOrientationAngleB() * d2r;
     m_angles[2] = p.getOrientationAngleC() * d2r;
@@ -259,7 +272,7 @@ void Lattice::readParameters()
     m_hcCustom     = p.getHoneycombCustom();
     m_hcAngle      = std::clamp(p.getHoneycombAngle(), -50.0, 50.0);
     m_hcRib        = std::clamp(p.getHoneycombRib(), 0.2, 5.0);
-    if (m_hcCustom && m_hcRib + std::sin(m_hcAngle * kPi / 180.0) <= 0.1) {
+    if (m_hcCustom && m_hcRib + std::sin(m_hcAngle * M_PI / 180.0) <= 0.1) {
         qWarning().noquote() << QString("[Lattice] honeycomb angle %1 deg with rib %2 folds the cell onto itself; using the family preset")
                                     .arg(m_hcAngle, 0, 'f', 1).arg(m_hcRib, 0, 'f', 2);
         m_hcCustom = false;
@@ -405,7 +418,7 @@ void Lattice::buildSegments()
     // the regular hexagon, theta < 0 folds the walls inward (re-entrant,
     // auxetic). Periodic images supply the rest of the tiling.
     auto honeycomb = [&](double thetaDeg, double h) {
-        const double th = thetaDeg * kPi / 180.0;
+        const double th = thetaDeg * M_PI / 180.0;
         const double W  = 2.0 * std::cos(th);
         const double P  = 2.0 * (h + std::sin(th));
         m_hcW = W;
@@ -469,7 +482,7 @@ void Lattice::buildWaves()
     m_jitterNorm  = 1.0;
     m_directions  = 0;
 
-    std::uniform_real_distribution<double> phase(0.0, 2.0 * kPi);
+    std::uniform_real_distribution<double> phase(0.0, 2.0 * M_PI);
 
     // Integer wave vectors (periodic in the cube by construction) with
     // kmin <= |k| <= kmax, one of each +-k pair, filtered by `admissible`.
@@ -504,9 +517,9 @@ void Lattice::buildWaves()
         // Kumar, Tan, Zheng & Kochmann (2020): wave directions drawn from the
         // union of cones of half-angle theta_i about the axes; a closed cone
         // (theta = 0) contributes nothing, 90 degrees is the whole sphere.
-        const double cx = std::cos(m_theta[0] * kPi / 180.0);
-        const double cy = std::cos(m_theta[1] * kPi / 180.0);
-        const double cz = std::cos(m_theta[2] * kPi / 180.0);
+        const double cx = std::cos(m_theta[0] * M_PI / 180.0);
+        const double cy = std::cos(m_theta[1] * M_PI / 180.0);
+        const double cz = std::cos(m_theta[2] * M_PI / 180.0);
         auto inCones = [&](int kx, int ky, int kz) {
             const double n = std::sqrt(double(kx * kx + ky * ky + kz * kz));
             const double ax = std::abs(kx) / n, ay = std::abs(ky) / n, az = std::abs(kz) / n;
@@ -796,7 +809,7 @@ std::vector<Lattice::Wave> Lattice::tpmsWaves() const
 {
     std::vector<Wave> out;
     const double c = static_cast<double>(m_cells);
-    const double s = -kPi / 2.0;   // sin -> cos phase
+    const double s = -M_PI / 2.0;   // sin -> cos phase
     auto add = [&](double kx, double ky, double kz, double amp, double phase) {
         out.push_back({ kx * c, ky * c, kz * c, phase, amp });
     };
@@ -821,7 +834,7 @@ std::vector<Lattice::Wave> Lattice::tpmsWaves() const
             add( 1, 1, 0, 1.0, 0.0); add( 1,-1, 0, 1.0, 0.0);
             add( 0, 1, 1, 1.0, 0.0); add( 0, 1,-1, 1.0, 0.0);
             add( 1, 0, 1, 1.0, 0.0); add(-1, 0, 1, 1.0, 0.0);
-            add( 2, 0, 0, 1.0, kPi); add( 0, 2, 0, 1.0, kPi); add( 0, 0, 2, 1.0, kPi);
+            add( 2, 0, 0, 1.0, M_PI); add( 0, 2, 0, 1.0, M_PI); add( 0, 0, 2, 1.0, M_PI);
             break;
         case LatticeFamily::NeoviusSheet:
         case LatticeFamily::FischerKochSheet:
@@ -856,7 +869,7 @@ bool Lattice::isSheet(LatticeFamily fam) const
 // the surface f = 0, which makes a sheet of (nearly) uniform thickness.
 bool Lattice::levelSet(LatticeFamily fam, double X, double Y, double Z, double& f, double g[3]) const
 {
-    const double a = 2.0 * kPi * m_cells;
+    const double a = 2.0 * M_PI * m_cells;
     const double x = a * X, y = a * Y, z = a * Z;
     const double sx = std::sin(x), cx = std::cos(x);
     const double sy = std::sin(y), cy = std::cos(y);
@@ -904,9 +917,9 @@ bool Lattice::levelSet(LatticeFamily fam, double X, double Y, double Z, double& 
         case LatticeFamily::FourierSkeletal: {
             f = 0.0; g[0] = g[1] = g[2] = 0.0;
             for (const Wave& w : m_waves) {
-                const double ph = 2.0 * kPi * (w.kx * X + w.ky * Y + w.kz * Z) + w.phase;
+                const double ph = 2.0 * M_PI * (w.kx * X + w.ky * Y + w.kz * Z) + w.phase;
                 f += w.amp * std::cos(ph);
-                const double d = -w.amp * 2.0 * kPi * std::sin(ph);
+                const double d = -w.amp * 2.0 * M_PI * std::sin(ph);
                 g[0] += d * w.kx; g[1] += d * w.ky; g[2] += d * w.kz;
             }
             return true;
@@ -942,25 +955,25 @@ double Lattice::familyField(LatticeFamily fam, double X, double Y, double Z) con
     switch (fam) {
         case LatticeFamily::GyroidSheet:
         case LatticeFamily::GyroidSkeletal: {
-            const double a = 2.0 * kPi * m_cells;
+            const double a = 2.0 * M_PI * m_cells;
             const double f = gyroidF(a * X, a * Y, a * Z);
             return sgn ? f : std::abs(f);
         }
         case LatticeFamily::SchwarzPSheet:
         case LatticeFamily::SchwarzPSkeletal: {
-            const double a = 2.0 * kPi * m_cells;
+            const double a = 2.0 * M_PI * m_cells;
             const double f = schwarzPF(a * X, a * Y, a * Z);
             return sgn ? f : std::abs(f);
         }
         case LatticeFamily::SchwarzDSheet:
         case LatticeFamily::SchwarzDSkeletal: {
-            const double a = 2.0 * kPi * m_cells;
+            const double a = 2.0 * M_PI * m_cells;
             const double f = schwarzDF(a * X, a * Y, a * Z);
             return sgn ? f : std::abs(f);
         }
         case LatticeFamily::IWPSheet:
         case LatticeFamily::IWPSkeletal: {
-            const double a = 2.0 * kPi * m_cells;
+            const double a = 2.0 * M_PI * m_cells;
             const double f = iwpF(a * X, a * Y, a * Z);
             return sgn ? f : std::abs(f);
         }
@@ -1017,14 +1030,14 @@ double Lattice::familyField(LatticeFamily fam, double X, double Y, double Z) con
             const double amp = std::sqrt(2.0 / static_cast<double>(m_waves.size()));
             double g = 0.0;
             for (const Wave& w : m_waves)
-                g += std::cos(2.0 * kPi * (w.kx * X + w.ky * Y + w.kz * Z) + w.phase);
+                g += std::cos(2.0 * M_PI * (w.kx * X + w.ky * Y + w.kz * Z) + w.phase);
             return amp * g;
         }
         case LatticeFamily::FourierSheet:
         case LatticeFamily::FourierSkeletal: {
             double f = 0.0;
             for (const Wave& w : m_waves)
-                f += w.amp * std::cos(2.0 * kPi * (w.kx * X + w.ky * Y + w.kz * Z) + w.phase);
+                f += w.amp * std::cos(2.0 * M_PI * (w.kx * X + w.ky * Y + w.kz * Z) + w.phase);
             return sgn ? f : std::abs(f);
         }
         case LatticeFamily::NoiseSheet:
@@ -1517,7 +1530,7 @@ void Lattice::buildMycelium()
     // Cut-off: 2.5 x the radius the pieces' own volume would need for the
     // density (their overlaps make the real one larger); Initialization()
     // widens it if the solved level gets close.
-    const double cEst = sumW2L > 0.0 ? std::sqrt(m_target / (kPi * sumW2L)) : 0.1;
+    const double cEst = sumW2L > 0.0 ? std::sqrt(m_target / (M_PI * sumW2L)) : 0.1;
     m_mycCut = std::clamp(2.5 * cEst, 0.03, 0.5);
     buildMyceliumGrid();
 }
@@ -2301,7 +2314,7 @@ double Lattice::jitterField(double X, double Y, double Z) const
     if (m_jitterWaves.empty()) return 0.0;
     double n = 0.0;
     for (const Wave& w : m_jitterWaves)
-        n += std::cos(2.0 * kPi * (w.kx * X + w.ky * Y + w.kz * Z) + w.phase);
+        n += std::cos(2.0 * M_PI * (w.kx * X + w.ky * Y + w.kz * Z) + w.phase);
     return n / std::sqrt(static_cast<double>(m_jitterWaves.size()));
 }
 
@@ -2829,9 +2842,9 @@ void Lattice::report() const
         qInfo().noquote()
             << QString("[Lattice] lattice rotated by (%1, %2, %3) deg about the cube centre; "
                        "the cut is no longer periodic across the cube faces")
-                   .arg(m_angles[0] * 180.0 / kPi, 0, 'f', 1)
-                   .arg(m_angles[1] * 180.0 / kPi, 0, 'f', 1)
-                   .arg(m_angles[2] * 180.0 / kPi, 0, 'f', 1);
+                   .arg(m_angles[0] * 180.0 / M_PI, 0, 'f', 1)
+                   .arg(m_angles[1] * 180.0 / M_PI, 0, 'f', 1)
+                   .arg(m_angles[2] * 180.0 / M_PI, 0, 'f', 1);
 
     if (m_grading > 0.0 || m_jitter > 0.0)
         qInfo().noquote()

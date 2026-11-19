@@ -46,11 +46,20 @@
  */
 namespace reqcheck {
 
-/// The printing material: E along the layers in GPa, Poisson's ratio, E across the layers / E along them.
+/// The printing material as the form of the Neural tab gives it: E along the printed layers in GPa,
+/// Poisson's ratio, and E across the layers / E along them (1 = isotropic). These are the three
+/// numbers of the print law the networks were trained with (`--material_ti`,
+/// Parameters::lawStiffnessPa()).
+///
+/// Numbers and not a name of the material database, for two reasons. A database row is the fixed
+/// stiffness of a named material, while the law of a printed part depends on how it was printed
+/// (above all the ratio across the layers), so the form lets the user set it. And this file is
+/// plain C++ without Qt, so the check and its tests run without a database. The struct holds no
+/// material values of its own: the caller fills all three (NeuralGeneratorController::formTargets()).
 struct Material {
-    double eGpa = 2.0;
-    double nu = 0.38;
-    double aniso = 1.0;
+    double eGpa;
+    double nu;
+    double aniso;
 };
 
 struct Issue {

@@ -55,7 +55,7 @@ int main(int argc, char** argv)
     // The reference input of export_cell_diffusion.py --reference.
     const int n = net.codeSize(), zc = net.codeChannels();
     std::vector<float> x(net.codeLength());
-    const double w = 6.283185307179586 / n;
+    const double w = 2.0 * M_PI / n;
     for (int c = 0; c < zc; ++c)
         for (int i = 0; i < n; ++i)
             for (int j = 0; j < n; ++j)

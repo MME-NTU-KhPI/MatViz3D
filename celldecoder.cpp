@@ -255,7 +255,7 @@ std::vector<float> CellDecoder::randomCode(uint32_t seed, double smooth) const
     // Box-Muller on the raw generator: std::normal_distribution differs between standard libraries.
     auto uniform = [&]() { return (double(rng()) + 0.5) / 4294967296.0; };
     for (size_t i = 0; i < code.size(); i += 2) {
-        const double r = std::sqrt(-2.0 * std::log(uniform())), a = 6.283185307179586 * uniform();
+        const double r = std::sqrt(-2.0 * std::log(uniform())), a = 2.0 * M_PI * uniform();
         code[i] = float(r * std::cos(a));
         if (i + 1 < code.size()) code[i + 1] = float(r * std::sin(a));
     }

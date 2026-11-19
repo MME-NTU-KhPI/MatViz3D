@@ -275,14 +275,14 @@ void RenderOpenGL::initializeGL()
     qDebug() << "RenderOpenGL::initializeGL() - creating shader program object";
     shaderProgram = new QOpenGLShaderProgram();
     qDebug() << "RenderOpenGL::initializeGL() - adding vertex shader";
-    if (!shaderProgram->addShaderFromSourceCode(QOpenGLShader::Vertex, matviz_gl::portable(vertexShaderSource, false))) {
+    if (!shaderProgram->addShaderFromSourceCode(QOpenGLShader::Vertex, vertexShaderSource)) {
         qDebug() << "Vertex shader compilation failed:" << shaderProgram->log();
         delete shaderProgram;
         shaderProgram = nullptr;
         return;
     }
     qDebug() << "RenderOpenGL::initializeGL() - adding fragment shader";
-    if (!shaderProgram->addShaderFromSourceCode(QOpenGLShader::Fragment, matviz_gl::portable(fragmentShaderSource, true))) {
+    if (!shaderProgram->addShaderFromSourceCode(QOpenGLShader::Fragment, fragmentShaderSource)) {
         qDebug() << "Fragment shader compilation failed:" << shaderProgram->log();
         delete shaderProgram;
         shaderProgram = nullptr;
@@ -302,11 +302,11 @@ void RenderOpenGL::initializeGL()
 
     qDebug() << "RenderOpenGL::initializeGL() - creating axis shader program";
     axisShaderProgram = new QOpenGLShaderProgram();
-    if (!axisShaderProgram->addShaderFromSourceCode(QOpenGLShader::Vertex, matviz_gl::portable(axisVertexShaderSource, false))) {
+    if (!axisShaderProgram->addShaderFromSourceCode(QOpenGLShader::Vertex, axisVertexShaderSource)) {
         qDebug() << "Axis vertex shader compilation failed:" << axisShaderProgram->log();
         delete axisShaderProgram;
         axisShaderProgram = nullptr;
-    } else if (!axisShaderProgram->addShaderFromSourceCode(QOpenGLShader::Fragment, matviz_gl::portable(axisFragmentShaderSource, true))) {
+    } else if (!axisShaderProgram->addShaderFromSourceCode(QOpenGLShader::Fragment, axisFragmentShaderSource)) {
         qDebug() << "Axis fragment shader compilation failed:" << axisShaderProgram->log();
         delete axisShaderProgram;
         axisShaderProgram = nullptr;
