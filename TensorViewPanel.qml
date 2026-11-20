@@ -32,6 +32,15 @@ Item {
 
     implicitHeight: card.implicitHeight
 
+    // The overlays belong to the stress result on the Generator tab: while the
+    // panel is hidden (another tab shows another cell) they are not drawn, and
+    // they come back as the switches stand when it is shown again.
+    onVisibleChanged: {
+        if (!target) return;
+        target.setShowGlyphs(visible && glyphSwitch.checked);
+        target.setShowStreamlines(visible && streamSwitch.checked);
+    }
+
     Material.theme: Material.Dark
     Material.accent: Material.Teal
 

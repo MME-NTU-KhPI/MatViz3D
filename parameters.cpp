@@ -1,13 +1,58 @@
 #include "parameters.h"
+#include "latticefamily.h"
+#include "fft_solver_session.hpp"
 #include "openglwidgetqml.h"
 #include "dbmanager.h"
 #include "algorithmfactory.h"
 #include <QDebug>
 #include <QDir>
+#include <QPointer>
+#include <QTimer>
+#include <utility>
 
 Parameters* Parameters::m_instance = nullptr;
 
 int32_t*** Parameters::voxels;
+int Parameters::voxelUsers = 0;
+
+namespace {
+// What waits for the grid to be free: the receiver it belongs to and what to run.
+std::vector<std::pair<QPointer<QObject>, std::function<void()>>>& voxelWaiters()
+{
+    static std::vector<std::pair<QPointer<QObject>, std::function<void()>>> w;
+    return w;
+}
+} // namespace
+
+void Parameters::acquireVoxels()
+{
+    ++voxelUsers;
+}
+
+void Parameters::releaseVoxels()
+{
+    if (voxelUsers > 0) --voxelUsers;
+    if (voxelUsers > 0 || voxelWaiters().empty()) return;
+    auto waiting = std::move(voxelWaiters());
+    voxelWaiters().clear();
+    // Later in the event loop, not from here: the last user may be deep in a call
+    // (executeAlgorithm) that the caller continues with, and the autostart path takes
+    // the grid again at once for its stress solve - so each one asks again then.
+    for (auto& [ctx, fn] : waiting) {
+        if (!ctx) continue;
+        QObject* receiver = ctx.data();
+        QTimer::singleShot(0, receiver, [receiver, fn = std::move(fn)]() { whenVoxelsFree(receiver, fn); });
+    }
+}
+
+void Parameters::whenVoxelsFree(QObject* ctx, std::function<void()> fn)
+{
+    if (voxelUsers == 0) {
+        fn();
+        return;
+    }
+    voxelWaiters().emplace_back(ctx, std::move(fn));
+}
 int Parameters::size = 10;
 int Parameters::points = 10;
 QString Parameters::algorithm = "";
@@ -95,6 +140,88 @@ double  Parameters::fiber_center_jitter   = 0.0;
 bool    Parameters::fiber_allow_overlap   = false;
 QString Parameters::matrix_material       = "Epoxy";
 QString Parameters::fiber_material        = "C-fiber";
+QString Parameters::lattice_family         = "gyroid_sheet";
+int     Parameters::cells_per_edge         = 2;
+double  Parameters::relative_density       = 0.30;
+double  Parameters::lattice_grading        = 0.0;
+double  Parameters::lattice_jitter         = 0.0;
+double  Parameters::lattice_achieved_density = 0.0;
+double  Parameters::lattice_wall_voxels    = 0.0;
+std::vector<std::array<float,5>> Parameters::lattice_wave_terms;
+double  Parameters::spinodoid_theta_x      = 90.0;
+double  Parameters::spinodoid_theta_y      = 90.0;
+double  Parameters::spinodoid_theta_z      = 90.0;
+int     Parameters::fourier_terms          = 24;
+double  Parameters::fourier_kmin           = 1.0;
+double  Parameters::fourier_kmax           = 4.0;
+double  Parameters::fourier_decay          = 1.0;
+QString Parameters::fourier_file;
+QString Parameters::fourier_symmetry = QStringLiteral("none");
+double  Parameters::plate_hole = 0.0;
+QString Parameters::lattice_union;
+QString Parameters::lattice_subtract;
+double  Parameters::lattice_subtract_size = 0.3;
+double  Parameters::lattice_smooth = 0.0;
+bool    Parameters::honeycomb_custom = false;
+double  Parameters::honeycomb_angle = 30.0;
+double  Parameters::honeycomb_rib = 1.0;
+int     Parameters::assembly_struts = 3;
+int     Parameters::assembly_plates = 2;
+int     Parameters::assembly_shells = 0;
+int     Parameters::assembly_holes  = 1;
+double  Parameters::assembly_spread = 0.3;
+QString Parameters::assembly_file;
+std::vector<std::array<float,12>> Parameters::lattice_assembly_terms;
+QString Parameters::foam_mode = QStringLiteral("walls");
+double  Parameters::foam_frame = 0.1;
+int     Parameters::foam_bubbles = 8;
+QString Parameters::foam_file;
+std::vector<std::array<float,3>> Parameters::lattice_foam_sites;
+QString Parameters::mycelium_mode    = QStringLiteral("substrate");
+double  Parameters::mycelium_length  = 22.0;
+int     Parameters::mycelium_spores  = 0;
+double  Parameters::mycelium_unit    = 0.25;
+double  Parameters::mycelium_angle   = 60.0;
+double  Parameters::mycelium_wiggle  = 0.25;
+double  Parameters::mycelium_fuse    = 0.05;
+double  Parameters::mycelium_taper   = 0.75;
+double  Parameters::mycelium_binding = 0.36;
+double  Parameters::mycelium_align   = 0.0;
+double  Parameters::mycelium_anchors = 0.25;
+double  Parameters::mycelium_poor    = 0.25;
+QString Parameters::mycelium_file;
+double  Parameters::form_a = 0.5;
+double  Parameters::form_b = 0.5;
+double  Parameters::form_c = 0.5;
+std::vector<std::array<float,7>> Parameters::lattice_mycelium_segments;
+mycelium::Stats Parameters::lattice_mycelium_stats;
+double  Parameters::noise_smooth           = 0.06;
+double  Parameters::mat_e_gpa              = 0.0;
+double  Parameters::mat_nu                 = 0.38;
+double  Parameters::mat_aniso              = 1.0;
+bool    Parameters::hdf5_fields            = true;
+double  Parameters::lattice_cell_mm        = 10.0;
+bool    Parameters::lattice_uniform_wall   = false;
+double  Parameters::print_min_wall_mm      = 0.8;
+double  Parameters::print_max_overhang_deg = 45.0;
+double  Parameters::print_max_thin_fraction        = 0.02;
+int     Parameters::print_max_island_vox           = 8;
+int     Parameters::print_max_components           = 1;
+int     Parameters::print_min_directions           = 3;
+double  Parameters::print_max_unsupported_fraction = 0.05;
+bool    Parameters::require_printable      = false;
+bool    Parameters::lattice_remove_islands = false;
+double  Parameters::lattice_metric_y = 1.0;
+double  Parameters::lattice_metric_z = 1.0;
+PrintabilityReport Parameters::printability;
+double  Parameters::lattice_voxel_mm       = 0.0;
+int     Parameters::lattice_islands_removed       = 0;
+long long Parameters::lattice_island_voxels_removed = 0;
+QString Parameters::fft_scheme             = "auto";
+double  Parameters::fft_tol                = 1e-5;
+double  Parameters::fft_void_eta           = 1e-4;
+QString Parameters::fft_discretization     = "continuous";
+int     Parameters::fft_max_iter           = 1000;
 
 QString Parameters::stressSolver = "ansys";
 QString Parameters::stressMode   = "dataset";
@@ -176,6 +303,143 @@ void Parameters::resetDefaults()
     fiber_allow_overlap = false;
     matrix_material = "Epoxy";
     fiber_material = "C-fiber";
+    // ── Lattice defaults ──────────────────────────────────────────────────
+    // Three kinds of value follow:
+    //  - a modifier that is off (0, 1, false, "none", an empty name), so that a
+    //    run with no Lattice option set gives the plain periodic cell of the family;
+    //  - a result of the last generation (achieved density, wall, published
+    //    tables, the printability report), cleared here;
+    //  - a chosen number, with the reason next to it.
+    //
+    // The default cell is a sheet gyroid at density 0.30: the cell the FFT solver
+    // was checked on. With the default cell size of 10 mm its wall is
+    // 0.30 * 10 / 3.09 = 0.97 mm (tpmsAreaPerCell() in lattice.cpp), above the
+    // 0.8 mm printing minimum, so the default run passes the printability check.
+    // Two cells per edge is the smallest count that shows how the cells join; a
+    // periodic cell has the same stiffness for any count.
+    lattice_family   = "gyroid_sheet";
+    cells_per_edge   = 2;
+    relative_density = 0.30;
+    lattice_grading  = 0.0;  // off: the same thickness along Z
+    lattice_jitter   = 0.0;  // off: no random thickness
+    lattice_achieved_density = 0.0;  // results of the last generation, cleared (to lattice_mycelium_stats)
+    lattice_wall_voxels      = 0.0;
+    lattice_wave_terms.clear();
+    lattice_assembly_terms.clear();
+    lattice_foam_sites.clear();
+    lattice_mycelium_segments.clear();
+    lattice_mycelium_stats = mycelium::Stats();
+    // Spinodoid: all three cones open (90 / 90 / 90), the isotropic one.
+    spinodoid_theta_x = 90.0;
+    spinodoid_theta_y = 90.0;
+    spinodoid_theta_z = 90.0;
+    // Random Fourier series. Wave numbers from 1 (one wave per cube edge, the
+    // longest that is periodic) to 4 (the limit of the dataset's wave table);
+    // amplitudes ~ 1 / |k| (decay 1), so the long waves set the shape and the
+    // short ones add detail; 24 of the 128 waves that band holds.
+    fourier_terms = 24;
+    fourier_kmin  = 1.0;
+    fourier_kmax  = 4.0;
+    fourier_decay = 1.0;
+    fourier_file.clear();
+    fourier_symmetry = QStringLiteral("none");  // off
+    plate_hole = 0.0;  // off: no holes
+    lattice_union.clear();
+    lattice_subtract.clear();
+    // Read only with lattice_subtract. 0.3 cell edges is below the touching radius
+    // of every sphere lattice (fcc 0.354, bcc 0.433, sc 0.5), so carved spheres
+    // stay separate windows and do not cut the cell apart.
+    lattice_subtract_size = 0.3;
+    lattice_smooth = 0.0;  // off: sharp corners
+    // Honeycomb: the family's own shape; the two numbers are the regular hexagon
+    // (walls at 30 degrees, rib = wall) and are read only when the switch is on.
+    honeycomb_custom = false;
+    honeycomb_angle = 30.0;
+    honeycomb_rib = 1.0;
+    // Cubic assembly: both member kinds in one cell (3 struts, 2 plates), one
+    // window so that the plates do not close it, shells as an option (0);
+    // thickness weights in [0.7, 1.3].
+    assembly_struts = 3;
+    assembly_plates = 2;
+    assembly_shells = 0;
+    assembly_holes  = 1;
+    assembly_spread = 0.3;
+    assembly_file.clear();
+    // Foams: closed cells, the mode that needs no further number. The frame
+    // (0.1 bubble sizes, a narrow rim) is read in the windows mode only. The
+    // random foam has 8 bubbles per cell, as many as the Weaire-Phelan cell.
+    foam_mode = QStringLiteral("walls");
+    foam_frame = 0.1;
+    foam_bubbles = 8;
+    foam_file.clear();
+    // Mycelium: the settings of the growth trial in which every mode gave one
+    // body joined in three directions (mycelium.h says what each one does).
+    // spores 0 = the mode's own number; align 0 = off.
+    mycelium_mode    = QStringLiteral("substrate");
+    mycelium_length  = 22.0;
+    mycelium_spores  = 0;
+    mycelium_unit    = 0.25;
+    mycelium_angle   = 60.0;
+    mycelium_wiggle  = 0.25;
+    mycelium_fuse    = 0.05;
+    mycelium_taper   = 0.75;
+    mycelium_binding = 0.36;
+    mycelium_align   = 0.0;
+    mycelium_anchors = 0.25;
+    mycelium_poor    = 0.25;
+    mycelium_file.clear();
+    // Bio-inspired forms: every knob in the middle of its range.
+    form_a = form_b = form_c = 0.5;
+    // Smoothed noise: sigma 0.06 of the cube edge, about 4 points of its 64^3
+    // grid. Barely smoothed noise is dust, heavy smoothing leaves a few blobs.
+    noise_smooth = 0.06;
+    // Material as numbers: E = 0 means "take the database material" (PETG for a
+    // lattice); 0.38 is Poisson's ratio of PETG; anisotropy 1 = isotropic.
+    mat_e_gpa = 0.0;
+    mat_nu = 0.38;
+    mat_aniso = 1.0;
+    // The field viewer needs the per-voxel fields; dataset runs switch them off.
+    hdf5_fields = true;
+    lattice_cell_mm = 10.0;  // see the default cell above
+    lattice_uniform_wall = false;  // off: a sheet is {|f| <= c}
+    // Printability thresholds (printability.h), for FDM with a 0.4 mm nozzle:
+    //   wall 0.8 mm      two nozzle lines;
+    //   overhang 45 deg  the steepest slope printed without supports;
+    //   thin 2 %         a margin for single voxels at the corners and edges
+    //                    of the voxel grid;
+    //   island 8 voxels  a 2 x 2 x 2 speck of the voxel grid, nothing larger;
+    //   1 body           the cell is one part;
+    //   3 directions     the body joins its periodic neighbours along three
+    //                    independent directions, else the tiled part falls into
+    //                    layers or rods;
+    //   unsupported 5 %  in the best build direction, a margin for short bridges.
+    print_min_wall_mm = 0.8;
+    print_max_overhang_deg = 45.0;
+    print_max_thin_fraction = 0.02;
+    print_max_island_vox = 8;
+    print_max_components = 1;
+    print_min_directions = 3;
+    print_max_unsupported_fraction = 0.05;
+    require_printable = false;  // off: the check reports, it does not stop the run
+    lattice_remove_islands = false;  // off
+    // Thickness metric 1 / 1: off, distances are plain Euclidean.
+    lattice_metric_y = 1.0;
+    lattice_metric_z = 1.0;
+    printability = PrintabilityReport();  // results of the last generation, cleared (4 lines)
+    lattice_voxel_mm = 0.0;
+    lattice_islands_removed = 0;
+    lattice_island_voxels_removed = 0;
+    // FFT solver. auto: conjugate gradients for porous or high-contrast cells,
+    // the basic scheme otherwise. Tolerance 1e-5: the moduli of a sheet gyroid
+    // move by 0.1 % between 1e-4 and 1e-5. Void 1e-4 of the solid's C11: within
+    // about 1 % for stretching-dominated cells and fast (bending-dominated ones
+    // need 1e-6). continuous: the discretization every earlier run used. 1000
+    // iterations: above what the converging reference cases need (500 - 800).
+    fft_scheme = "auto";
+    fft_tol = 1e-5;
+    fft_void_eta = 1e-4;
+    fft_discretization = "continuous";
+    fft_max_iter = 1000;
     stressSolver = "ansys";
     stressMode = "dataset";
     local_criterion = "auto";
@@ -1001,6 +1265,45 @@ bool Parameters::materialStiffnessPa(const QString& name, double C[6][6])
     return true;
 }
 
+// A Lattice cell records the solid it was solved with: mat_e_gpa / mat_nu /
+// mat_aniso (the print law, E_z = aniso * E) or a database row (mat_source
+// "db:<name>"). Publishing it as the single solid phase, as
+// Lattice::publishPhases() does after generation, makes a stress run on the
+// opened cell solve the same problem as the run that wrote the file. Without it
+// the solvers fall back to the panel's material -- isotropic for the printing
+// polymers -- and a cubic cell printed weaker along Z comes out Ex = Ey = Ez.
+bool Parameters::publishCellMaterial(const QVariantMap& parameters, const QString& algorithm, const QString& logLine)
+{
+    const QString algo = algorithm.isEmpty() ? parameters.value(QStringLiteral("algorithm")).toString() : algorithm;
+    if (algo.compare(QStringLiteral("Lattice"), Qt::CaseInsensitive) != 0) return false;
+    const double E  = parameters.value(QStringLiteral("mat_e_gpa")).toDouble();
+    const double nu = parameters.value(QStringLiteral("mat_nu")).toDouble();
+    const double r  = parameters.contains(QStringLiteral("mat_aniso")) ? parameters.value(QStringLiteral("mat_aniso")).toDouble() : 1.0;
+    const QString src = parameters.value(QStringLiteral("mat_source")).toString();
+
+    PhaseMaterial solid;
+    bool ok = false;
+    if (src.startsWith(QStringLiteral("db:"))) {
+        solid.name = src.mid(3);
+        ok = materialStiffnessPa(solid.name, solid.C);
+    }
+    if (!ok && E > 0.0) {
+        solid.name = QString("E=%1GPa nu=%2 aniso=%3").arg(E).arg(nu).arg(r);
+        ok = lawStiffnessPa(E, nu, r, solid.C);
+    }
+    if (!ok) return false;
+
+    PhaseAssignment& pa = phaseAssignment;
+    pa.clear();
+    pa.materials = { solid };
+    pa.grainPhase.assign(2, 0);
+    pa.grainOrientation.assign(2, std::array<double,3>{ 0.0, 0.0, 0.0 });
+    // logLine: for a cell that was not read from a file (the Neural tab); %1 = the solid.
+    qInfo().noquote() << (logLine.isEmpty() ? QStringLiteral("[HDF5] solid of the opened cell = %1 (the material it was solved with)")
+                                            : logLine).arg(solid.name);
+    return true;
+}
+
 void Parameters::resolveYieldSettings(const QString& algorithm, QString& criterion, QString& space,
                                       bool* criterionAuto, bool* spaceAuto)
 {
@@ -1168,4 +1471,685 @@ void Parameters::setStressEps(const double value[6]) {
         if (stressEps[i] != value[i]) { stressEps[i] = value[i]; changed = true; }
     if (changed)
         emit stressEpsChanged();
+}
+
+// ── Lattice ──────────────────────────────────────────────────────────────────
+
+void Parameters::setLatticeFamily(const QString& value)
+{
+    LatticeFamily f;
+    if (!parseLatticeFamily(value, f)) {
+        qWarning() << "lattice_family expects one of" << latticeFamilyKeys().join(", ")
+                   << "; got" << value << "-- keeping" << lattice_family;
+        return;
+    }
+    const QString stored = latticeFamilyKey(f);
+    if (lattice_family == stored)
+        return;
+    lattice_family = stored;
+    emit latticeSettingsChanged();
+}
+
+// Must match latticeSchema()'s option list exactly, or the combo box falls
+// back to its first entry and silently disagrees with what will run.
+QString Parameters::latticeFamilyLabelOf(const QString& key)
+{
+    LatticeFamily f;
+    if (parseLatticeFamily(key, f))
+        return latticeFamilyLabel(f);
+    return latticeFamilyLabel(LatticeFamily::GyroidSheet);
+}
+
+void Parameters::setCellsPerEdge(int value)
+{
+    if (cells_per_edge == value) return;
+    cells_per_edge = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setRelativeDensity(double value)
+{
+    if (relative_density == value) return;
+    relative_density = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setLatticeGrading(double value)
+{
+    if (lattice_grading == value) return;
+    lattice_grading = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setLatticeJitter(double value)
+{
+    if (lattice_jitter == value) return;
+    lattice_jitter = value;
+    emit latticeSettingsChanged();
+}
+
+// ── FFT scheme ───────────────────────────────────────────────────────────────
+
+void Parameters::setFftScheme(const QString& value)
+{
+    const QString norm = value.trimmed().toLower();
+    if (norm != "auto" && norm != "basic" && norm != "cg") {
+        qWarning() << "fft_scheme expects auto, basic or cg; got" << value
+                   << "-- keeping" << fft_scheme;
+        return;
+    }
+    if (fft_scheme == norm)
+        return;
+    fft_scheme = norm;
+    emit fftSchemeChanged();
+}
+
+void Parameters::setFftTol(double value)
+{
+    if (!(value > 0.0) || value >= 1.0) {
+        qWarning() << "fft_tol expects a value in (0, 1); got" << value << "-- keeping" << fft_tol;
+        return;
+    }
+    if (fft_tol == value) return;
+    fft_tol = value;
+    emit fftSchemeChanged();
+}
+
+void Parameters::setFftDiscretization(const QString& value)
+{
+    QString norm = value.trimmed().toLower();
+    if (norm == "ms" || norm == "moulinec-suquet") norm = "continuous";
+    if (norm == "willot") norm = "rotated";
+    if (norm != "continuous" && norm != "rotated") {
+        qWarning() << "fft_discretization expects continuous (ms) or rotated (willot); got" << value
+                   << "-- keeping" << fft_discretization;
+        return;
+    }
+    if (fft_discretization == norm) return;
+    fft_discretization = norm;
+    emit fftSchemeChanged();
+}
+
+void Parameters::setFftVoidEta(double value)
+{
+    if (!(value > 0.0) || value >= 1.0) {
+        qWarning() << "fft_void_eta expects a value in (0, 1); got" << value << "-- keeping" << fft_void_eta;
+        return;
+    }
+    if (fft_void_eta == value) return;
+    fft_void_eta = value;
+    emit fftSchemeChanged();
+}
+
+void Parameters::setFftMaxIter(int value)
+{
+    if (value < 1) {
+        qWarning() << "fft_max_iter expects a positive integer; got" << value << "-- keeping" << fft_max_iter;
+        return;
+    }
+    if (fft_max_iter == value) return;
+    fft_max_iter = value;
+    emit fftSchemeChanged();
+}
+
+// ── Spinodoid cones and Fourier series ──────────────────────────────────────
+
+static bool validTheta(double v) { return v == 0.0 || (v >= 5.0 && v <= 90.0); }
+
+void Parameters::setSpinodoidThetaX(double value)
+{
+    if (!validTheta(value)) { qWarning() << "spinodoid_theta_x expects 0 or 5..90 degrees; got" << value; return; }
+    if (spinodoid_theta_x == value) return;
+    spinodoid_theta_x = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setSpinodoidThetaY(double value)
+{
+    if (!validTheta(value)) { qWarning() << "spinodoid_theta_y expects 0 or 5..90 degrees; got" << value; return; }
+    if (spinodoid_theta_y == value) return;
+    spinodoid_theta_y = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setSpinodoidThetaZ(double value)
+{
+    if (!validTheta(value)) { qWarning() << "spinodoid_theta_z expects 0 or 5..90 degrees; got" << value; return; }
+    if (spinodoid_theta_z == value) return;
+    spinodoid_theta_z = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setFourierTerms(int value)
+{
+    if (value < 2 || value > 256) { qWarning() << "fourier_terms expects 2..256; got" << value; return; }
+    if (fourier_terms == value) return;
+    fourier_terms = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setFourierKmin(double value)
+{
+    if (!(value >= 1.0)) { qWarning() << "fourier_kmin expects a value >= 1; got" << value; return; }
+    if (fourier_kmin == value) return;
+    fourier_kmin = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setFourierKmax(double value)
+{
+    if (!(value >= 1.0)) { qWarning() << "fourier_kmax expects a value >= 1; got" << value; return; }
+    if (fourier_kmax == value) return;
+    fourier_kmax = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setFourierDecay(double value)
+{
+    if (value < 0.0 || value > 4.0) { qWarning() << "fourier_decay expects 0..4; got" << value; return; }
+    if (fourier_decay == value) return;
+    fourier_decay = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setFourierFile(const QString& value)
+{
+    const QString v = value.trimmed();
+    if (fourier_file == v) return;
+    fourier_file = v;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setFourierSymmetry(const QString& value)
+{
+    const QString v = value.trimmed().toLower();
+    if (v != QLatin1String("none") && v != QLatin1String("cubic")) {
+        qWarning() << "fourier_symmetry expects none or cubic; got" << value;
+        return;
+    }
+    if (fourier_symmetry == v) return;
+    fourier_symmetry = v;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setPlateHole(double value)
+{
+    if (value < 0.0 || value > 0.9) { qWarning() << "plate_hole expects 0..0.9 cell edges; got" << value; return; }
+    if (plate_hole == value) return;
+    plate_hole = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setLatticeUnion(const QString& value)
+{
+    const QString v = value.trimmed();
+    QString stored;
+    if (!v.isEmpty() && v.compare(QLatin1String("none"), Qt::CaseInsensitive) != 0) {
+        LatticeFamily f;
+        if (!parseLatticeFamily(v, f)) {
+            qWarning() << "lattice_union expects none or one of" << latticeFamilyKeys().join(", ")
+                       << "; got" << value << "-- keeping" << lattice_union;
+            return;
+        }
+        stored = latticeFamilyKey(f);
+    }
+    if (lattice_union == stored) return;
+    lattice_union = stored;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setLatticeSubtract(const QString& value)
+{
+    const QString v = value.trimmed();
+    QString stored;
+    if (!v.isEmpty() && v.compare(QLatin1String("none"), Qt::CaseInsensitive) != 0) {
+        LatticeFamily f;
+        if (!parseLatticeFamily(v, f)) {
+            qWarning() << "lattice_subtract expects none or one of" << latticeFamilyKeys().join(", ")
+                       << "; got" << value << "-- keeping" << lattice_subtract;
+            return;
+        }
+        stored = latticeFamilyKey(f);
+    }
+    if (lattice_subtract == stored) return;
+    lattice_subtract = stored;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setLatticeSubtractSize(double value)
+{
+    if (value < 0.01 || value > 1.0) { qWarning() << "lattice_subtract_size expects 0.01..1 cell edges; got" << value; return; }
+    if (lattice_subtract_size == value) return;
+    lattice_subtract_size = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setHoneycombCustom(bool value)
+{
+    if (honeycomb_custom == value) return;
+    honeycomb_custom = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setHoneycombAngle(double value)
+{
+    if (value < -50.0 || value > 50.0) { qWarning() << "honeycomb_angle expects -50..50 degrees; got" << value; return; }
+    if (honeycomb_angle == value) return;
+    honeycomb_angle = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setHoneycombRib(double value)
+{
+    if (value < 0.2 || value > 5.0) { qWarning() << "honeycomb_rib expects 0.2..5; got" << value; return; }
+    if (honeycomb_rib == value) return;
+    honeycomb_rib = value;
+    emit latticeSettingsChanged();
+}
+
+namespace {
+bool setCount(int& field, int value, int hi, const char* name)
+{
+    if (value < 0 || value > hi) { qWarning() << name << "expects 0.." << hi << "; got" << value; return false; }
+    if (field == value) return false;
+    field = value;
+    return true;
+}
+} // namespace
+
+void Parameters::setAssemblyStruts(int value) { if (setCount(assembly_struts, value, 12, "assembly_struts")) emit latticeSettingsChanged(); }
+void Parameters::setAssemblyPlates(int value) { if (setCount(assembly_plates, value, 12, "assembly_plates")) emit latticeSettingsChanged(); }
+void Parameters::setAssemblyShells(int value) { if (setCount(assembly_shells, value, 4,  "assembly_shells")) emit latticeSettingsChanged(); }
+void Parameters::setAssemblyHoles(int value)  { if (setCount(assembly_holes,  value, 8,  "assembly_holes"))  emit latticeSettingsChanged(); }
+
+void Parameters::setAssemblySpread(double value)
+{
+    if (value < 0.0 || value > 0.8) { qWarning() << "assembly_spread expects 0..0.8; got" << value; return; }
+    if (assembly_spread == value) return;
+    assembly_spread = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setAssemblyFile(const QString& value)
+{
+    const QString v = value.trimmed();
+    if (assembly_file == v) return;
+    assembly_file = v;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setFoamMode(const QString& value)
+{
+    const QString v = value.trimmed().toLower();
+    if (v != QLatin1String("walls") && v != QLatin1String("windows") && v != QLatin1String("edges")) {
+        qWarning() << "foam_mode expects walls, windows or edges; got" << value;
+        return;
+    }
+    if (foam_mode == v) return;
+    foam_mode = v;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setFoamFrame(double value)
+{
+    if (value < 0.01 || value > 0.5) { qWarning() << "foam_frame expects 0.01..0.5 of the bubble size; got" << value; return; }
+    if (foam_frame == value) return;
+    foam_frame = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setFoamBubbles(int value)
+{
+    if (value < 1 || value > 64) { qWarning() << "foam_bubbles expects 1..64; got" << value; return; }
+    if (foam_bubbles == value) return;
+    foam_bubbles = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setFoamFile(const QString& value)
+{
+    const QString v = value.trimmed();
+    if (foam_file == v) return;
+    foam_file = v;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setMyceliumMode(const QString& value)
+{
+    const QString v = value.trimmed().toLower();
+    mycelium::Mode m;
+    if (!mycelium::parseMode(v.toLatin1().constData(), m)) {
+        qWarning() << "mycelium_mode expects substrate, polypore, mat or layered; got" << value;
+        return;
+    }
+    if (mycelium_mode == v) return;
+    mycelium_mode = v;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setMyceliumSpores(int value)
+{
+    if (value < 0 || value > 40) { qWarning() << "mycelium_spores expects 0..40 (0 = the mode's default); got" << value; return; }
+    if (mycelium_spores == value) return;
+    mycelium_spores = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setMyceliumLength(double value)
+{
+    if (value < 2.0 || value > 80.0) { qWarning() << "mycelium_length (cell edges) expects 2.0..80.0; got" << value; return; }
+    if (mycelium_length == value) return;
+    mycelium_length = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setMyceliumUnit(double value)
+{
+    if (value < 0.05 || value > 2.0) { qWarning() << "mycelium_unit (cell edges) expects 0.05..2.0; got" << value; return; }
+    if (mycelium_unit == value) return;
+    mycelium_unit = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setMyceliumAngle(double value)
+{
+    if (value < 10.0 || value > 90.0) { qWarning() << "mycelium_angle (degrees) expects 10.0..90.0; got" << value; return; }
+    if (mycelium_angle == value) return;
+    mycelium_angle = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setMyceliumWiggle(double value)
+{
+    if (value < 0.0 || value > 1.0) { qWarning() << "mycelium_wiggle expects 0.0..1.0; got" << value; return; }
+    if (mycelium_wiggle == value) return;
+    mycelium_wiggle = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setMyceliumFuse(double value)
+{
+    if (value < 0.0 || value > 0.2) { qWarning() << "mycelium_fuse (cell edges) expects 0.0..0.2; got" << value; return; }
+    if (mycelium_fuse == value) return;
+    mycelium_fuse = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setMyceliumTaper(double value)
+{
+    if (value < 0.3 || value > 1.0) { qWarning() << "mycelium_taper expects 0.3..1.0; got" << value; return; }
+    if (mycelium_taper == value) return;
+    mycelium_taper = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setMyceliumBinding(double value)
+{
+    if (value < 0.0 || value > 0.8) { qWarning() << "mycelium_binding expects 0.0..0.8; got" << value; return; }
+    if (mycelium_binding == value) return;
+    mycelium_binding = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setMyceliumAlign(double value)
+{
+    if (value < 0.0 || value > 1.0) { qWarning() << "mycelium_align expects 0.0..1.0; got" << value; return; }
+    if (mycelium_align == value) return;
+    mycelium_align = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setMyceliumAnchors(double value)
+{
+    if (value < 0.0 || value > 1.0) { qWarning() << "mycelium_anchors expects 0.0..1.0; got" << value; return; }
+    if (mycelium_anchors == value) return;
+    mycelium_anchors = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setMyceliumPoor(double value)
+{
+    if (value < 0.05 || value > 1.0) { qWarning() << "mycelium_poor expects 0.05..1.0; got" << value; return; }
+    if (mycelium_poor == value) return;
+    mycelium_poor = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setMyceliumFile(const QString& value)
+{
+    const QString v = value.trimmed();
+    if (mycelium_file == v) return;
+    mycelium_file = v;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setFormA(double value)
+{
+    if (value < 0.0 || value > 1.0) { qWarning() << "form_a expects 0..1; got" << value; return; }
+    if (form_a == value) return;
+    form_a = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setFormB(double value)
+{
+    if (value < 0.0 || value > 1.0) { qWarning() << "form_b expects 0..1; got" << value; return; }
+    if (form_b == value) return;
+    form_b = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setFormC(double value)
+{
+    if (value < 0.0 || value > 1.0) { qWarning() << "form_c expects 0..1; got" << value; return; }
+    if (form_c == value) return;
+    form_c = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setLatticeSmooth(double value)
+{
+    if (value < 0.0 || value > 0.3) { qWarning() << "lattice_smooth expects 0..0.3 cell edges; got" << value; return; }
+    if (lattice_smooth == value) return;
+    lattice_smooth = value;
+    emit latticeSettingsChanged();
+}
+
+// ── Cell size and printability thresholds ───────────────────────────────────
+
+void Parameters::setLatticeCellMm(double value)
+{
+    if (!(value > 0.0)) { qWarning() << "lattice_cell_mm expects a positive size in mm; got" << value; return; }
+    if (lattice_cell_mm == value) return;
+    lattice_cell_mm = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setPrintMinWallMm(double value)
+{
+    if (!(value > 0.0)) { qWarning() << "print_min_wall_mm expects a positive thickness in mm; got" << value; return; }
+    if (print_min_wall_mm == value) return;
+    print_min_wall_mm = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setPrintMaxOverhangDeg(double value)
+{
+    if (value < 0.0 || value > 89.0) { qWarning() << "print_max_overhang_deg expects 0..89 degrees; got" << value; return; }
+    if (print_max_overhang_deg == value) return;
+    print_max_overhang_deg = value;
+    emit latticeSettingsChanged();
+}
+
+static bool validFraction(double v) { return v >= 0.0 && v <= 1.0; }
+
+void Parameters::setPrintMaxThinFraction(double value)
+{
+    if (!validFraction(value)) { qWarning() << "print_max_thin_fraction expects 0..1; got" << value; return; }
+    if (print_max_thin_fraction == value) return;
+    print_max_thin_fraction = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setPrintMaxIslandVox(int value)
+{
+    if (value < 0) { qWarning() << "print_max_island_vox expects a non-negative voxel count; got" << value; return; }
+    if (print_max_island_vox == value) return;
+    print_max_island_vox = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setPrintMaxComponents(int value)
+{
+    if (value < 0) { qWarning() << "print_max_components expects a non-negative count (0 = no limit); got" << value; return; }
+    if (print_max_components == value) return;
+    print_max_components = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setPrintMinDirections(int value)
+{
+    if (value < 0 || value > 3) { qWarning() << "print_min_directions expects 0..3 (0 = no check); got" << value; return; }
+    if (print_min_directions == value) return;
+    print_min_directions = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setPrintMaxUnsupportedFraction(double value)
+{
+    if (!validFraction(value)) { qWarning() << "print_max_unsupported_fraction expects 0..1; got" << value; return; }
+    if (print_max_unsupported_fraction == value) return;
+    print_max_unsupported_fraction = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setRequirePrintable(bool value)
+{
+    if (require_printable == value) return;
+    require_printable = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setLatticeRemoveIslands(bool value)
+{
+    if (lattice_remove_islands == value) return;
+    lattice_remove_islands = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setLatticeMetricY(double value)
+{
+    if (!(value >= 0.25 && value <= 4.0)) { qWarning() << "lattice_metric_y expects 0.25..4; got" << value; return; }
+    if (lattice_metric_y == value) return;
+    lattice_metric_y = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setLatticeMetricZ(double value)
+{
+    if (!(value >= 0.25 && value <= 4.0)) { qWarning() << "lattice_metric_z expects 0.25..4; got" << value; return; }
+    if (lattice_metric_z == value) return;
+    lattice_metric_z = value;
+    emit latticeSettingsChanged();
+}
+
+PrintabilityThresholds Parameters::printThresholds(double voxel_mm)
+{
+    PrintabilityThresholds t;
+    t.voxel_mm                 = voxel_mm;
+    t.min_wall_mm              = print_min_wall_mm;
+    t.max_overhang_deg         = print_max_overhang_deg;
+    t.max_thin_fraction        = print_max_thin_fraction;
+    t.max_island_vox           = print_max_island_vox;
+    t.max_components           = print_max_components;
+    t.min_directions           = print_min_directions;
+    t.max_unsupported_fraction = print_max_unsupported_fraction;
+    t.periodic                 = true;
+    return t;
+}
+
+void Parameters::setLatticeUniformWall(bool value)
+{
+    if (lattice_uniform_wall == value) return;
+    lattice_uniform_wall = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setNoiseSmooth(double value)
+{
+    if (!(value >= 0.005 && value <= 0.5)) { qWarning() << "noise_smooth expects 0.005..0.5 of the cube edge; got" << value; return; }
+    if (noise_smooth == value) return;
+    noise_smooth = value;
+    emit latticeSettingsChanged();
+}
+
+// ── Material as numbers ──────────────────────────────────────────────────────
+
+void Parameters::setMatEGpa(double value)
+{
+    if (value < 0.0) { qWarning() << "mat_e_gpa expects 0 (use the database) or a positive modulus in GPa; got" << value; return; }
+    if (mat_e_gpa == value) return;
+    mat_e_gpa = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setMatNu(double value)
+{
+    if (!(value > -1.0 && value < 0.5)) { qWarning() << "mat_nu expects a Poisson's ratio in (-1, 0.5); got" << value; return; }
+    if (mat_nu == value) return;
+    mat_nu = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setMatAniso(double value)
+{
+    if (!(value >= 0.1 && value <= 3.0)) { qWarning() << "mat_aniso expects E_across / E_in-plane in [0.1, 3]; got" << value; return; }
+    if (mat_aniso == value) return;
+    mat_aniso = value;
+    emit latticeSettingsChanged();
+}
+
+void Parameters::setHdf5Fields(bool value)
+{
+    if (hdf5_fields == value) return;
+    hdf5_fields = value;
+    emit latticeSettingsChanged();
+}
+
+QString Parameters::overrideMaterialName()
+{
+    return QString("E=%1GPa nu=%2 aniso=%3").arg(mat_e_gpa).arg(mat_nu).arg(mat_aniso);
+}
+
+bool Parameters::overrideStiffnessPa(double C[6][6])
+{
+    if (!materialOverrideActive()) return false;
+    return lawStiffnessPa(mat_e_gpa, mat_nu, mat_aniso, C);
+}
+
+bool Parameters::lawStiffnessPa(double eGpa, double nu, double aniso, double C[6][6])
+{
+    if (!(eGpa > 0.0)) return false;
+    const double E  = eGpa * 1e9;
+    const double r  = aniso;
+    for (int i = 0; i < 6; ++i) for (int j = 0; j < 6; ++j) C[i][j] = 0.0;
+    if (std::abs(r - 1.0) < 1e-12) {
+        isotropicVoigt(E, nu, C);
+        return true;
+    }
+    // Transversely isotropic about axis 3: compliance in Voigt order
+    // 11, 22, 33, 23, 13, 12, then inverted.
+    const double Ep = E, Et = r * E;
+    const double Gp = E / (2.0 * (1.0 + nu)), Gt = r * Gp;
+    fftsa::Mat6 S{}; for (auto& row : S) row.fill(0.0);
+    S[0][0] = S[1][1] = 1.0 / Ep;
+    S[2][2] = 1.0 / Et;
+    S[0][1] = S[1][0] = -nu / Ep;
+    S[0][2] = S[2][0] = S[1][2] = S[2][1] = -nu / Ep;   // nu_13/E_1 = nu_31/E_3
+    S[3][3] = S[4][4] = 1.0 / Gt;
+    S[5][5] = 1.0 / Gp;
+    fftsa::Mat6 Cm{};
+    if (!fftsa::invert6x6(S, Cm)) return false;
+    for (int i = 0; i < 6; ++i) for (int j = 0; j < 6; ++j) C[i][j] = Cm[i][j];
+    return Cm[0][0] > 0.0 && Cm[2][2] > 0.0 && Cm[3][3] > 0.0;
 }

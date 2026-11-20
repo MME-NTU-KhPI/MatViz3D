@@ -1,4 +1,8 @@
+#include <QSurfaceFormat>
 #include <QGuiApplication>
+#include <QQuickWindow>
+#include <QRegularExpression>
+#include <QWindow>
 #include <QApplication>
 #include <QQmlApplicationEngine>
 #include <QtQuickControls2>
@@ -18,6 +22,9 @@
 #include "stressanalysiscontroller.h"
 #include "texturecontroller.h"
 #include "hdf5projectcontroller.h"
+#include "datasetbrowsercontroller.h"
+#include "neuralgeneratorcontroller.h"
+#include "propertyselectorcontroller.h"
 #include "exportcontroller.h"
 #include "tensormath_selftest.hpp"
 #include <hdf5.h>
@@ -52,6 +59,14 @@ int main(int argc, char *argv[])
 
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+#ifdef Q_OS_MACOS
+    // Qt >= 6.8 turns Qt Quick Controls menus into native macOS menus: the
+    // in-window File / Window menu bars (custom-drawn in MainWindow.qml)
+    // vanish and their blank-titled menus land in the system menu bar.
+    // Keep the menus inside the window, as on Windows and Linux.
+    QCoreApplication::setAttribute(Qt::AA_DontUseNativeMenuBar);
+    QCoreApplication::setAttribute(Qt::AA_DontUseNativeMenuWindows);
+#endif
 #endif
 #ifdef QT_DEBUG
     qputenv("QML_DISABLE_DISK_CACHE", "1");
@@ -138,8 +153,32 @@ int main(int argc, char *argv[])
             qDebug().noquote() << "CSV saved:" << Parameters::csv_output;
         }
 
-        if (parser.isSet("run_stress_calc"))
+        // A structure that cannot be printed is not worth a stress solve: keep
+        // the geometry and its report, say why, and signal the caller.
+        if (Parameters::instance()->getRequirePrintable() && Parameters::printability.computed && !Parameters::printability.ok) {
+            qWarning().noquote() << "Structure rejected by the printability check:"
+                                 << QString::fromStdString(Parameters::printability.verdict);
+            if (parser.isSet("output")) {
+                QString err;
+                if (!ExportController::writeGeometryHDF5(Parameters::filename, Parameters::voxels,
+                                                         Parameters::instance()->getSize(), &err))
+                    qCritical().noquote() << "HDF5 export failed:" << err;
+            }
+            return 3;
+        }
+
+        if (parser.isSet("run_stress_calc")) {
             handler.runStressCalculation();
+        } else if (parser.isSet("output")) {
+            // No solve requested: still persist the structure, so a
+            // generation-only dataset run leaves a file behind.
+            QString err;
+            if (!ExportController::writeGeometryHDF5(Parameters::filename, Parameters::voxels,
+                                                     Parameters::instance()->getSize(), &err)) {
+                qCritical().noquote() << "HDF5 export failed:" << err;
+                return 1;
+            }
+        }
 
         return 0;
     }
@@ -153,6 +192,18 @@ int main(int argc, char *argv[])
     qInstallMessageHandler(ConsoleLogger::messageHandler);
      // ── UI setup ──────────────────────────────────────────────────────────
     QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
+#ifdef Q_OS_MACOS
+    {
+        // macOS: the default is a legacy 2.1 context (GLSL 1.20, no VAO).
+        // The renderers need VAOs and GLSL 1.50 (glshaders.hpp), so ask for 4.1 Core Profile.
+        QSurfaceFormat fmt = QSurfaceFormat::defaultFormat();
+        fmt.setVersion(4, 1);
+        fmt.setProfile(QSurfaceFormat::CoreProfile);
+        fmt.setDepthBufferSize(24);
+        fmt.setStencilBufferSize(8);
+        QSurfaceFormat::setDefaultFormat(fmt);
+    }
+#endif
 
     QIcon icon(":/img/Plugin icon - 1icon.ico");
     app.setWindowIcon(icon);
@@ -183,6 +234,9 @@ int main(int argc, char *argv[])
     MaterialDatabaseViewWrapper materialDatabaseViewWrapper;
     SchemaController schemaController;
     Hdf5ProjectController hdf5ProjectController;
+    DatasetBrowserController datasetBrowserController;
+    PropertySelectorController propertySelectorController(&datasetBrowserController);
+    NeuralGeneratorController neuralGeneratorController;
     StatisticsController statisticsController;
     ExportController exportController;
     StressAnalysisController stressAnalysisController;
@@ -210,6 +264,18 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("stressAnalysisController", &stressAnalysisController);
     engine.rootContext()->setContextProperty("textureController", &textureController);
     engine.rootContext()->setContextProperty("hdf5ProjectController", &hdf5ProjectController);
+    engine.rootContext()->setContextProperty("datasetBrowserController", &datasetBrowserController);
+    engine.rootContext()->setContextProperty("propertySelectorController", &propertySelectorController);
+    engine.rootContext()->setContextProperty("neuralGeneratorController", &neuralGeneratorController);
+    // A decoded cell replaces whatever the HDF5 view had put into the 3D view.
+    neuralGeneratorController.setAfterShow([&hdf5ProjectController]() { hdf5ProjectController.invalidate3DSync(); });
+    // The browser opens a cell through the HDF5 project controller, which loads
+    // it and puts the voxels into the 3D view.
+    datasetBrowserController.setCellOpener([&hdf5ProjectController](const QString& path) {
+        if (!hdf5ProjectController.openFile(path)) return false;
+        if (!hdf5ProjectController.autoSync3D()) hdf5ProjectController.pushTo3DView();
+        return true;
+    });
 
     const QUrl url(QStringLiteral("qrc:/main.qml"));
     QObject::connect(
@@ -231,6 +297,65 @@ int main(int argc, char *argv[])
                          // from rebuilding over the user's components.
                          Parameters::instance()->markTextureCustom();
                      });
+
+    if (parser.isSet("browse")) {
+        const QString target = parser.value("browse");
+        QTimer::singleShot(200, &datasetBrowserController, [&datasetBrowserController, target]() {
+            datasetBrowserController.openPath(target);
+            datasetBrowserController.requestShow();
+        });
+    }
+    if (parser.isSet("select")) {
+        QVariantMap spec;
+        for (const QString& item : parser.value("select").split(QLatin1Char(','), Qt::SkipEmptyParts)) {
+            const int eq = item.indexOf(QLatin1Char('='));
+            if (eq > 0) spec.insert(item.left(eq).trimmed(), item.mid(eq + 1).trimmed().toDouble());
+        }
+        QTimer::singleShot(400, &propertySelectorController, [&propertySelectorController, spec]() {
+            propertySelectorController.requestShow(spec);
+        });
+    }
+    if (parser.isSet("neural")) {
+        const quint32 seed = parser.value("neural").toUInt();
+        // --neural_compare: solve that cell as soon as it is made, for the "asked / obtained" table.
+        if (parser.isSet("neural_compare")) neuralGeneratorController.setCompareNext(true);
+        QTimer::singleShot(200, &neuralGeneratorController, [&neuralGeneratorController, seed]() {
+            neuralGeneratorController.requestShow(seed);
+        });
+    }
+    // MATVIZ_SNAPSHOT=<prefix>: once the windows have settled, save every visible
+    // top-level window as <prefix>_<title>.png and quit (documentation shots and
+    // checks of the QML windows without a screen recorder).
+    if (qEnvironmentVariableIsSet("MATVIZ_SNAPSHOT")) {
+        const QString prefix = qEnvironmentVariable("MATVIZ_SNAPSHOT");
+        // MATVIZ_SNAPSHOT_HEIGHT=<px>: make every window that tall first, so a
+        // long panel fits in one shot.
+        const int tall = qEnvironmentVariableIntValue("MATVIZ_SNAPSHOT_HEIGHT");
+        if (tall > 0)
+            QTimer::singleShot(3000, &app, [tall]() {
+                for (QWindow* w : QGuiApplication::topLevelWindows())
+                    if (w->isVisible()) w->resize(w->width(), tall);
+            });
+        // MATVIZ_SNAPSHOT_DELAY=<ms>: when to take the shot (default 4500), for a
+        // window that first has to read a dataset.
+        const int delay = qEnvironmentVariableIntValue("MATVIZ_SNAPSHOT_DELAY");
+        auto shoot = [prefix]() {
+            for (QWindow* w : QGuiApplication::topLevelWindows()) {
+                auto* qw = qobject_cast<QQuickWindow*>(w);
+                if (!qw || !qw->isVisible()) continue;
+                QString name = qw->title().isEmpty() ? QStringLiteral("window") : qw->title();
+                name.replace(QRegularExpression(QStringLiteral("[^A-Za-z0-9]+")), QStringLiteral("_"));
+                qw->grabWindow().save(prefix + QStringLiteral("_") + name + QStringLiteral(".png"));
+            }
+            QCoreApplication::quit();
+        };
+        // --neural --neural_compare without a delay: the solve takes minutes, the shot waits for its table.
+        if (delay <= 0 && parser.isSet("neural") && parser.isSet("neural_compare"))
+            QObject::connect(&neuralGeneratorController, &NeuralGeneratorController::compareFinished, &app,
+                             [&app, shoot]() { QTimer::singleShot(1500, &app, shoot); });
+        else
+            QTimer::singleShot(delay > 0 ? delay : 4500, &app, shoot);
+    }
 
     QTimer::singleShot(0, [&mainWindowWrapper, &parser, &schemaController, &stressAnalysisController]() {
         QString algo = Parameters::instance()->getAlgorithm();

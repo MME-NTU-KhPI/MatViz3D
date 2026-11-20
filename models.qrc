@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/">
+        <file>models/cell_decoder.bin</file>
+    </qresource>
+</RCC>

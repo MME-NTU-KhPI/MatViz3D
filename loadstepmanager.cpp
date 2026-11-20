@@ -147,7 +147,7 @@ void LoadStepManager::clearData()
 bool LoadStepManager::LoadFromHDF5(const QString& filePath)
 {
     this->m_filePath = filePath;
-    HDF5Wrapper hdf5(filePath.toStdString());
+    HDF5Wrapper hdf5(filePath.toStdString(), /*readOnly=*/true);
 
     this->clearData();
 
@@ -204,7 +204,7 @@ bool LoadStepManager::LoadFromHDF5(const QString& filePath)
 
 bool LoadStepManager::LoadGeomSet(int geom_set_num)
 {
-    HDF5Wrapper hdf5(m_filePath.toStdString());
+    HDF5Wrapper hdf5(m_filePath.toStdString(), /*readOnly=*/true);
     return LoadGeomSet(geom_set_num, hdf5);
 }
 
@@ -297,13 +297,13 @@ bool LoadStepManager::LoadGeomSet(int geom_set_num, HDF5Wrapper& hdf5)
 
 bool LoadStepManager::LoadGeomSubStep(int sub_set_num)
 {
-    HDF5Wrapper hdf5(m_filePath.toStdString());
+    HDF5Wrapper hdf5(m_filePath.toStdString(), /*readOnly=*/true);
     return this->LoadGeomSubStep(current_geom_set_num, sub_set_num, hdf5);
 }
 
 bool LoadStepManager::LoadGeomSubStep(int geom_set_num, int sub_set_num)
 {
-    HDF5Wrapper hdf5(m_filePath.toStdString());
+    HDF5Wrapper hdf5(m_filePath.toStdString(), /*readOnly=*/true);
     return this->LoadGeomSubStep(geom_set_num, sub_set_num, hdf5);
 }
 

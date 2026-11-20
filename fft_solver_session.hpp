@@ -239,7 +239,42 @@ public:
     void set_tolerance(double t)  { tol_ = t; }
     void set_max_iters(int it)    { maxit_ = it; }
 
+    // Which iterative scheme the homogenizer runs (see FFTHomogenizer::Scheme).
+    // Auto picks CG whenever the cell has a void phase or a stiffness contrast
+    // above 100 -- where the basic scheme needs thousands of iterations -- and
+    // keeps the historical basic scheme for dense, moderate-contrast cells.
+    enum class Scheme { Auto, Basic, CG };
+    void set_scheme(Scheme s) { scheme_ = s; if (H_) H_->set_scheme(resolved_scheme()); }
+    // Green-operator discretization (see FFTHomogenizer::Discretization).
+    void set_discretization(ffth::FFTHomogenizer::Discretization d) { disc_ = d; if (H_) H_->set_discretization(d); }
+    const char* discretization_name() const {
+        return disc_ == ffth::FFTHomogenizer::Discretization::Rotated ? "rotated (Willot)" : "continuous (Moulinec-Suquet)";
+    }
+    ffth::FFTHomogenizer::Scheme resolved_scheme() const {
+        if (scheme_ == Scheme::Basic) return ffth::FFTHomogenizer::Scheme::Basic;
+        if (scheme_ == Scheme::CG)    return ffth::FFTHomogenizer::Scheme::CG;
+        return (solid_fraction_ < 1.0 || phase_contrast() > 100.0)
+                   ? ffth::FFTHomogenizer::Scheme::CG
+                   : ffth::FFTHomogenizer::Scheme::Basic;
+    }
+    const char* scheme_name() const {
+        return resolved_scheme() == ffth::FFTHomogenizer::Scheme::CG ? "cg" : "basic";
+    }
+    // Largest over smallest C11 among the grains (the void slot excluded).
+    double phase_contrast() const {
+        double lo = 1e300, hi = 0.0;
+        for (std::size_t g = 1; g < lib_.size(); ++g) {
+            const double c = lib_[g][0][0];
+            if (!(c > 0.0)) continue;
+            if (c < lo) lo = c;
+            if (c > hi) hi = c;
+        }
+        return (lo > 0.0 && hi > 0.0 && lo < 1e300) ? hi / lo : 1.0;
+    }
+
     double solid_fraction() const { return solid_fraction_; }
+    // Mandel stiffness of grain g in the homogenizer's component order (yz, xz, xy shear).
+    const Mat6& grain_stiffness_mandel(int g) const { return lib_[static_cast<std::size_t>(g)]; }
     const std::vector<std::vector<float>>& local_cs() const { return local_cs_; }
     int nx() const { return nx_; } int ny() const { return ny_; } int nz() const { return nz_; }
 
@@ -283,6 +318,117 @@ public:
             r.voxel_idx.push_back(static_cast<int>(p));
         }
         return r;
+    }
+
+    // Frobenius norm squared of a strain given as engineering components
+    // [exx, eyy, ezz, gxy, gyz, gxz]: the shear entries enter as gamma^2/2.
+    static double eng_strain_norm2(const Vec6& g) {
+        return g[0] * g[0] + g[1] * g[1] + g[2] * g[2]
+             + 0.5 * (g[3] * g[3] + g[4] * g[4] + g[5] * g[5]);
+    }
+
+    // Strain-concentration (sensitivity) index of one load case:
+    //     <|eps|^2>_solid / |<eps>_solid|^2
+    // the mean square of the local strain over the SOLID voxels divided by the
+    // square of the mean strain of that same material. It is exactly 1 when
+    // the material deforms uniformly (stretching-dominated plates, a solid
+    // block) and grows when the strain localises in joints and bending walls,
+    // where an error in the material law is amplified most (theorem T7 of the
+    // lattice work). Pure bending drives the mean strain towards zero, so the
+    // value is capped at 1e6. Normalising by the material's own mean strain,
+    // not by the macroscopic strain, keeps the measure independent of how much
+    // of the cell's deformation the voids absorb (see solid_strain_ratio).
+    static double strain_concentration_index(const std::vector<Vec6>& voxel_strain_eng) {
+        if (voxel_strain_eng.empty()) return 0.0;
+        const double n = static_cast<double>(voxel_strain_eng.size());
+        double acc = 0.0; Vec6 mean{}; mean.fill(0.0);
+        for (const Vec6& g : voxel_strain_eng) {
+            acc += eng_strain_norm2(g);
+            for (int c = 0; c < 6; ++c) mean[c] += g[c];
+        }
+        for (int c = 0; c < 6; ++c) mean[c] /= n;
+        const double num = acc / n, den = eng_strain_norm2(mean);
+        if (!(num > 0.0)) return 0.0;
+        return den > num * 1e-6 ? num / den : 1e6;
+    }
+
+    // Sensitivity tensor of the cell: the second moments of the six strain
+    // fields, in Mandel components, averaged over the WHOLE cell (voids carry no
+    // law change, so they drop out of the sum but stay in the volume):
+    //     T[i][j][a][b] = (1/N) sum_{x in solid} eM_a^(i)(x) eM_b^(j)(x)
+    // with eM = (exx, eyy, ezz, gxy/sqrt2, gyz/sqrt2, gxz/sqrt2). The six fields
+    // must come from the unit ENGINEERING strain loads computeStiffnessMatrix()
+    // applies (gamma_j = 1, i.e. e[j] = 0.5 for shear): then C[i][j] is the
+    // energy pairing e^(i) : C : e^(j), and by Hill's lemma the first-order
+    // change of the engineering-basis stiffness under a change dC of the
+    // material law (given in Mandel form, Pa) is exactly
+    //     dC[i][j] = sum_{a,b} T[i][j][a][b] * dC_Mandel[a][b],
+    // and with dC = eta * C_s it reproduces eta * C to solver precision.
+    // (Unit TENSOR shear loads would need T divided by 2 in the shear rows.)
+    // Layout of the returned vector: ((i*6 + j)*6 + a)*6 + b, 1296 numbers.
+    static std::vector<double> sensitivity_tensor(const std::vector<std::vector<Vec6>>& voxel_strain_eng_per_load,
+                                                  std::size_t n_total_voxels) {
+        std::vector<double> T(1296, 0.0);
+        if (voxel_strain_eng_per_load.size() != 6 || n_total_voxels == 0) return T;
+        const double r2 = std::sqrt(2.0);
+        auto mandel = [&](const Vec6& g) {
+            return Vec6{g[0], g[1], g[2], g[3] / r2, g[4] / r2, g[5] / r2};
+        };
+        const double invN = 1.0 / static_cast<double>(n_total_voxels);
+        for (int i = 0; i < 6; ++i) {
+            const auto& fi = voxel_strain_eng_per_load[static_cast<std::size_t>(i)];
+            for (int j = i; j < 6; ++j) {
+                const auto& fj = voxel_strain_eng_per_load[static_cast<std::size_t>(j)];
+                if (fi.size() != fj.size()) continue;
+                double acc[36] = {0.0};
+                for (std::size_t v = 0; v < fi.size(); ++v) {
+                    const Vec6 a = mandel(fi[v]), b = mandel(fj[v]);
+                    for (int p = 0; p < 6; ++p)
+                        for (int q = 0; q < 6; ++q) acc[p * 6 + q] += a[p] * b[q];
+                }
+                for (int p = 0; p < 6; ++p)
+                    for (int q = 0; q < 6; ++q) {
+                        const double m = acc[p * 6 + q] * invN;
+                        T[static_cast<std::size_t>(((i * 6 + j) * 6 + p) * 6 + q)] = m;
+                        if (j != i)     // T[j][i][q][p] is the same moment
+                            T[static_cast<std::size_t>(((j * 6 + i) * 6 + q) * 6 + p)] = m;
+                    }
+            }
+        }
+        return T;
+    }
+
+    // Predicted first-order change of the engineering-basis stiffness for a
+    // Mandel law change dC (6x6, Pa): dC_eff[i][j] = sum_ab T[i][j][a][b] dC[a][b].
+    static Mat6 predict_stiffness_change(const std::vector<double>& T, const Mat6& dC_mandel) {
+        Mat6 d{}; for (auto& r : d) r.fill(0.0);
+        if (T.size() != 1296) return d;
+        for (int i = 0; i < 6; ++i)
+            for (int j = 0; j < 6; ++j) {
+                double s = 0.0;
+                for (int a = 0; a < 6; ++a)
+                    for (int b = 0; b < 6; ++b)
+                        s += T[static_cast<std::size_t>(((i * 6 + j) * 6 + a) * 6 + b)] * dC_mandel[a][b];
+                d[i][j] = s;
+            }
+        return d;
+    }
+
+    // Share of the macroscopic strain actually carried by the material:
+    //     <|eps|^2>_solid / |E|^2
+    // 1 for a homogeneous solid; below 1 when the voids take up most of the
+    // cell's deformation (a strut lattice loaded across its struts, a laminate
+    // loaded across its void layers); above 1 when the material is strained
+    // more than the cell as a whole. Tensor macro shear enters as 2 e^2.
+    static double solid_strain_ratio(const std::vector<Vec6>& voxel_strain_eng,
+                                     const Vec6& macro_strain_pipeline) {
+        if (voxel_strain_eng.empty()) return 0.0;
+        double acc = 0.0;
+        for (const Vec6& g : voxel_strain_eng) acc += eng_strain_norm2(g);
+        const Vec6& E = macro_strain_pipeline;
+        const double En = E[0] * E[0] + E[1] * E[1] + E[2] * E[2]
+                        + 2.0 * (E[3] * E[3] + E[4] * E[4] + E[5] * E[5]);
+        return En > 0.0 ? (acc / static_cast<double>(voxel_strain_eng.size())) / En : 0.0;
     }
 
     // Same as solveLoadCase but also returns per-voxel strain (engineering) so
@@ -367,6 +513,8 @@ private:
         H_->set_phase_field(grain_);      // phase id == grain id (indexes lib_)
         H_->set_tolerance(tol_);
         H_->set_max_iterations(maxit_);
+        H_->set_scheme(resolved_scheme());
+        H_->set_discretization(disc_);
     }
 
     int nx_, ny_, nz_;
@@ -379,6 +527,8 @@ private:
 
     double tol_ = 1e-5;
     int    maxit_ = 500;
+    Scheme scheme_ = Scheme::Auto;
+    ffth::FFTHomogenizer::Discretization disc_ = ffth::FFTHomogenizer::Discretization::Continuous;
     std::unique_ptr<ffth::FFTHomogenizer> H_;
 };
 

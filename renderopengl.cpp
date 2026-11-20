@@ -11,6 +11,34 @@
 
 #include <algorithm>
 
+#ifdef __APPLE__
+// macOS ships OpenGL 4.1 without GL_KHR_debug; define the enums so the
+// debug callback compiles. The callback itself is never installed on macOS.
+#ifndef GL_DEBUG_OUTPUT
+#define GL_DEBUG_OUTPUT                   0x92E0
+#define GL_DEBUG_OUTPUT_SYNCHRONOUS       0x8242
+#define GL_DEBUG_SOURCE_API               0x8246
+#define GL_DEBUG_SOURCE_WINDOW_SYSTEM     0x8247
+#define GL_DEBUG_SOURCE_SHADER_COMPILER   0x8248
+#define GL_DEBUG_SOURCE_THIRD_PARTY       0x8249
+#define GL_DEBUG_SOURCE_APPLICATION       0x824A
+#define GL_DEBUG_SOURCE_OTHER             0x824B
+#define GL_DEBUG_TYPE_ERROR               0x824C
+#define GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR 0x824D
+#define GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR  0x824E
+#define GL_DEBUG_TYPE_PORTABILITY         0x824F
+#define GL_DEBUG_TYPE_PERFORMANCE         0x8250
+#define GL_DEBUG_TYPE_OTHER               0x8251
+#define GL_DEBUG_TYPE_MARKER              0x8268
+#define GL_DEBUG_TYPE_PUSH_GROUP          0x8269
+#define GL_DEBUG_TYPE_POP_GROUP           0x826A
+#define GL_DEBUG_SEVERITY_NOTIFICATION    0x826B
+#define GL_DEBUG_SEVERITY_HIGH            0x9146
+#define GL_DEBUG_SEVERITY_MEDIUM          0x9147
+#define GL_DEBUG_SEVERITY_LOW             0x9148
+#endif
+#endif
+
 
 RenderOpenGL::RenderOpenGL()
 {
@@ -219,9 +247,13 @@ void RenderOpenGL::initializeGL()
     }
     qDebug() << "RenderOpenGL::initializeGL() - functions available, setting up GL state";
 
+#ifndef Q_OS_MACOS
     f->glEnable(GL_DEBUG_OUTPUT);
     f->glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
     ef->glDebugMessageCallback(debugCallback, this);
+#else
+    Q_UNUSED(ef);
+#endif
 
     f->glClearColor(bgColor.redF(), bgColor.greenF(), bgColor.blueF(), bgColor.alphaF());
     ef->glClearDepthf(1.0f);
@@ -828,7 +860,9 @@ void RenderOpenGL::paintGL()
 
     f->glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     f->glDepthMask(GL_TRUE);
-    f->glEnable(GL_NORMALIZE);
+#ifndef Q_OS_MACOS
+    f->glEnable(GL_NORMALIZE);   // removed in Core Profile
+#endif
 
     QMatrix4x4 view;
     view.setToIdentity();

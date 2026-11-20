@@ -9,8 +9,11 @@
 #include <cmath>
 #include <ctime>
 #include "algorithmfactory.h"
+#include "latticefamily.h"
+#include <QRegularExpression>
 #include "cpuinfo.hpp"
 #include "commandline_parser.h"
+#include "mycelium.h"
 #include "config_source.h"
 #include "dbmanager.h"
 #include "parameters.h"
@@ -50,6 +53,10 @@ QString Commandline_Parser::buildApplicationDescription()
     desc += "       MatViz3D --nogui --autostart --algorithm Voronoi --size 20 --points 30 --material Al --run_stress_calc --solver fft --stress_mode stiffness --output stiffness.hdf5\n\n";
     desc += "  4. Prescribed Strain Single-Load Analysis:\n";
     desc += "       MatViz3D --nogui --autostart --algorithm Voronoi --size 20 --points 20 --run_stress_calc --solver fft --stress_mode single --eps 0.001,0,0,0,0,0 --output single.hdf5\n\n";
+    desc += "  5. Lattice Metamaterial Cell (periodic sheet gyroid, effective stiffness):\n";
+    desc += "       MatViz3D --nogui --autostart --algorithm Lattice --lattice_family gyroid_sheet --size 48 --cells_per_edge 2 --relative_density 0.3 --material PETG --run_stress_calc --solver fft --stress_mode stiffness --output gyroid.hdf5\n\n";
+    desc += "  6. Lattice Dataset Cell (one unit cell, material as numbers, printability gate, Willot scheme, no per-voxel fields):\n";
+    desc += "       MatViz3D --nogui --autostart --algorithm Lattice --lattice_family gyroid_sheet --size 64 --cells_per_edge 1 --relative_density 0.3 --lattice_cell_mm 12 --material_iso 2.0,0.38 --require_printable --no_fields --run_stress_calc --solver fft --stress_mode stiffness --fft_discretization rotated --fft_tol 1e-5 --output cell.hdf5\n\n";
 
     desc += "AVAILABLE GENERATION ALGORITHMS (--algorithm <name>):\n";
     const QStringList algos = AlgorithmFactory::instance().algorithmNames();
@@ -67,12 +74,83 @@ QString Commandline_Parser::buildApplicationDescription()
     desc += "\n";
 
     desc += "KEY PRESETS & ENUM VALUES:\n";
-    desc += "  --algorithm:             Voronoi | Composite | Probability | Polycrystall | DLCA\n";
+    desc += "  --algorithm:             Voronoi | Composite | Probability | Polycrystall | DLCA | Lattice\n";
     desc += "  --neighborhood:          'Moore (26)' | 'von Neumann (6)' | 'Radial (18)'\n";
     desc += "  --solver:                fft (in-memory Moulinec-Suquet) | ansys (external APDL FEM)\n";
     desc += "  --stress_mode:           stiffness (fast 6 solves -> S, C, moduli) | single (--eps required) | dataset (full 300 loads)\n";
+    desc += "  --fft_scheme:            auto | basic | cg  (FFT iterative scheme; auto = CG for porous or high-contrast cells)\n";
+    desc += "  --fft_tol:               FFT convergence tolerance (default: 1e-5); --fft_max_iter: iteration cap per load (default: 1000)\n";
+    desc += "  --fft_discretization:    continuous (Moulinec-Suquet, default) | rotated (Willot 2015: converges for true pores, cleaner fields at walls)\n";
+    desc += "  --fft_void_eta:          stiffness of the void phase as a fraction of the solid C11 (default: 1e-4). Very soft cells need 1e-6..1e-8:\n"
+            "                           the fictitious void stiffness otherwise carries part of the result (see solid_energy_share in the output)\n";
     desc += "  --composite_dim:         1d (fibers along Z) | 2d (along X, Y) | 3d (along X, Y, Z)\n";
     desc += "  --composite_packing:     square | hexagonal\n";
+    {
+        // Generated from the family table so the list can never fall behind it;
+        // wrapped under the option column.
+        const QString indent(27, QLatin1Char(' '));
+        QString line = QStringLiteral("  --lattice_family:        ");
+        const QStringList keys = latticeFamilyKeys();
+        for (int i = 0; i < keys.size(); ++i) {
+            const QString item = keys[i] + (i + 1 < keys.size() ? QStringLiteral(" |") : QString());
+            if (line.size() + 1 + item.size() > 110 && line.size() > indent.size()) {
+                desc += line + QLatin1Char('\n');
+                line = indent + item;
+            } else {
+                line += (line.endsWith(QLatin1Char(' ')) ? QString() : QStringLiteral(" ")) + item;
+            }
+        }
+        desc += line + QLatin1Char('\n');
+    }
+    desc += "  --cells_per_edge:        unit cells along each cube edge (default: 2)\n";
+    desc += "  --relative_density:      target solid fraction of the lattice in (0, 1) (default: 0.3)\n";
+    desc += "  --lattice_grading:       linear wall-thickness gradient along Z, 0..0.9 (default: 0)\n";
+    desc += "  --lattice_jitter:        random wall-thickness modulation, 0..1 (default: 0)\n";
+    desc += "  --spinodoid_theta_x/y/z: spinodoid cone half-angles about the axes, 0 (off) or 5..90 deg (default: 90)\n";
+    desc += "  --fourier_terms/kmin/kmax/decay: random Fourier-series draw (default: 24 waves, |k| in [1, 4] per edge, decay 1)\n";
+    desc += "  --fourier_file:          text file with one wave per line (kx ky kz amplitude phase); overrides the random draw\n";
+    desc += "  --noise_smooth:          smoothed-noise families: Gaussian sigma as a fraction of the cube edge, 0.005..0.5 (default: 0.06)\n";
+    desc += "  --fourier_symmetry:      none | cubic -- expand every Fourier wave to its orbit under the cubic group (default: none)\n";
+    desc += "  --plate_hole:            plate lattices: hole diameter through every panel centre, in cell edges, 0..0.9 (default: 0)\n";
+    desc += "  --lattice_union:         second cell family united with the first (plates + struts, ...); none = off\n";
+    desc += "  --lattice_subtract / --lattice_subtract_size: family carved out of the solid up to that level in cell edges (default: none / 0.3)\n";
+    desc += "  --lattice_smooth:        Gaussian blur of the field before the level is solved, sigma in cell edges, 0..0.3 (default: 0 = off)\n";
+    desc += "  --honeycomb_angle / --honeycomb_rib: honeycomb shape, wall angle in degrees (-50..50, < 0 auxetic) and rib / wall length (0.2..5); setting either overrides the family preset\n";
+    desc += "  --assembly_struts/plates/shells/holes: cubic_assembly members drawn in the asymmetric unit (0..12 / 0..12 / 0..4 / 0..8;\n"
+            "                           default 3 / 2 / 0 / 1), repeated by the 48 cube symmetries; --assembly_spread: thickness\n"
+            "                           spread between members 0..0.8 (default 0.3); --assembly_file: one member per line\n"
+            "                           (kind x0 y0 z0 x1 y1 z1 x2 y2 z2 radius weight), overrides the draw\n";
+    desc += "  --foam_mode:             foam families (3D honeycombs): walls | windows | edges -- closed cells, a window in every\n"
+            "                           face, or the edges only (open cells) (default: walls); --foam_frame: frame around a window\n"
+            "                           beyond half the wall thickness, bubble sizes 0.01..0.5 (default 0.1); --foam_bubbles: foam_random sites per cell 1..64\n"
+            "                           (default 8); --foam_file: foam_random sites, one x y z per line in cell units\n";
+    desc += "  --mycelium_mode:         mycelium: substrate | polypore | mat | layered -- foraging hyphae, skeletal + binding hyphae\n"
+            "                           of a bracket fungus, two layers joined by anchors, or growth on a substrate rich in the\n"
+            "                           mid plane (default: substrate); --mycelium_length, _spores, _unit, _angle, _wiggle, _fuse,\n"
+            "                           _taper, _binding, _align, _anchors, _poor: growth settings; --mycelium_file: one piece per line\n"
+            "                           (ax ay az bx by bz weight, cell units), overrides the growth\n";
+    desc += "  --form_a/b/c:            bio-inspired / architected forms (neovius_sheet ... hierarchical_gyroid): three shape\n"
+            "                           knobs 0..1 whose meaning depends on the form, e.g. glass_sponge diagonal offset /\n"
+            "                           thickness / horizontal bracing (default 0.5 each)\n";
+    desc += "  --browse <path>:         GUI: open the Dataset Browser on a dataset folder (manifest.csv + cells/), its manifest or a cell file\n";
+    desc += "  --select <targets>:      GUI: open the Selector tab and search the dataset of --browse, e.g. E=150,nu=0.3,mat_e=2.0 (moduli in MPa)\n";
+    desc += "  --neural <seed>:         GUI: open the Neural tab and generate the cell of this seed (0 = a new seed): the diffusion network\n"
+            "                           when models/cell_diffusion.bin is found, else a random code\n";
+    desc += "  --neural_compare:        GUI: with --neural, solve the generated cell the way the dataset was solved and list the asked\n"
+            "                           properties next to the obtained ones (takes minutes; --np sets the threads)\n";
+    desc += "  --material_iso E,nu:     solid material as numbers instead of a database row: Young's modulus in GPa and Poisson's ratio\n";
+    desc += "  --material_ti E,nu,r:    the same, transversely isotropic about the build axis Z with E_z = r*E, G_xz = G_yz = r*G\n";
+    desc += "  --no_fields:             do not store per-voxel stress/strain fields in HDF5 (matrices and metadata only; dataset runs)\n";
+    desc += "  --lattice_cell_mm:       physical size of one cell in mm (default: 10); sets the voxel size for the printability check\n";
+    desc += "  --lattice_uniform_wall:  sheet families: thicken by |f|/|grad f| so the wall thickness is uniform (printable random sheets)\n";
+    desc += "  --print_min_wall_mm / --print_max_overhang_deg: printability thresholds (default: 0.8 mm, 45 deg)\n";
+    desc += "  --print_max_thin_fraction / --print_max_island_vox / --print_max_unsupported_fraction: tolerated thin fraction, largest floating island in voxels, unsupported fraction (default: 0.02 / 8 / 0.05)\n";
+    desc += "  --print_max_components:  separate solid bodies tolerated, 0 = no limit (default: 1 — a stack of slabs is not one part)\n";
+    desc += "  --print_min_directions:  independent directions the solid must join its periodic neighbours in, 0 = no check (default: 3 — a slab joins in 2, a rod in 1)\n";
+    desc += "  --require_printable:     headless: stop before the stress solve and exit with code 3 if the structure fails the check\n";
+    desc += "  --remove_islands:        Lattice: remove every floating island (any size) from the cell before the printability check and the solve\n";
+    desc += "  --lattice_metric_y/z:    Lattice thickness metric, 0.25..4 (default 1): a distance along Y / Z counts this many times, so members\n"
+            "                           measured along that axis come out thinner (struts, plates, cubic assembly, uniform-wall sheets)\n";
     desc += "  --prob_matrix_mode:      volume ('Volume Sampling') | surface ('Surface Flux')\n";
     desc += "  --texture:               random | extrusion | rolling | recrystallization | shear | scattered_cube\n";
     desc += "  --lattice:               fcc | bcc\n";
@@ -183,6 +261,160 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
     parser.addOption(QCommandLineOption("fiber_material",
         "[Composite] Fiber constituent from material_properties.db (e.g. C-fiber, E-glass, SiC, W). Default: C-fiber", "name"));
 
+    // ── Lattice (cellular metamaterial RVE) ───────────────────────────────
+    parser.addOption(QCommandLineOption("lattice_family",
+        "[Lattice] Unit-cell family: gyroid_sheet | gyroid_skeletal | schwarz_p_sheet | schwarz_p_skeletal | "
+        "schwarz_d_sheet | schwarz_d_skeletal | iwp_sheet | iwp_skeletal | simple_cubic | bcc | fcc | octet | "
+        "honeycomb | reentrant | spinodoid | fourier_sheet | fourier_skeletal | noise_sheet | noise_skeletal. Default: gyroid_sheet", "family"));
+    parser.addOption(QCommandLineOption("cells_per_edge",
+        "[Lattice] Unit cells along each cube edge, 1..64 (default: 2).", "n"));
+    parser.addOption(QCommandLineOption("relative_density",
+        "[Lattice] Target solid fraction in (0, 1); the level that produces it is solved. Default: 0.3", "frac"));
+    parser.addOption(QCommandLineOption("lattice_grading",
+        "[Lattice] Linear wall-thickness gradient along Z in [0, 0.9): (1-g) at the bottom, (1+g) at the top. Default: 0", "g"));
+    parser.addOption(QCommandLineOption("lattice_jitter",
+        "[Lattice] Smooth random wall-thickness modulation of relative amplitude [0, 1], seeded. Default: 0", "j"));
+    parser.addOption(QCommandLineOption("spinodoid_theta_x",
+        "[Lattice] Spinodoid: half-angle of the cone of wave directions about X, 0 (closed) or 5..90 deg. Default: 90", "deg"));
+    parser.addOption(QCommandLineOption("spinodoid_theta_y",
+        "[Lattice] Spinodoid: half-angle of the cone of wave directions about Y, 0 (closed) or 5..90 deg. Default: 90", "deg"));
+    parser.addOption(QCommandLineOption("spinodoid_theta_z",
+        "[Lattice] Spinodoid: half-angle of the cone of wave directions about Z, 0 (closed) or 5..90 deg. Default: 90", "deg"));
+    parser.addOption(QCommandLineOption("fourier_terms",
+        "[Lattice] Fourier series: number of random waves, 2..256 (default: 24).", "n"));
+    parser.addOption(QCommandLineOption("fourier_kmin",
+        "[Lattice] Fourier series: smallest wave number in waves per cube edge (default: 1).", "k"));
+    parser.addOption(QCommandLineOption("fourier_kmax",
+        "[Lattice] Fourier series: largest wave number in waves per cube edge (default: 4).", "k"));
+    parser.addOption(QCommandLineOption("fourier_decay",
+        "[Lattice] Fourier series: amplitude ~ |k|^-decay, 0..4 (default: 1).", "p"));
+    parser.addOption(QCommandLineOption("browse",
+        "[GUI] Open the Dataset Browser on a dataset folder (manifest.csv + cells/), its manifest or one cell file.", "path"));
+    parser.addOption(QCommandLineOption("select",
+        "[GUI] Open the Selector tab and search the dataset of --browse: comma-separated key=value, keys are the targets "
+        "(E, G, nu, K, nuMin, Ex, ..., EzEx, EmaxEmin, AU, zener; moduli in MPa), mat_e (GPa), mat_nu, mat_r, "
+        "rho_min, rho_max, axes=1 (per-axis targets) and result (row to show, from 0).", "targets"));
+    parser.addOption(QCommandLineOption("neural",
+        "[GUI] Open the Neural tab and generate the cell of this seed (0 = a new seed): the diffusion network when "
+        "models/cell_diffusion.bin is found, else a random code.", "seed"));
+    parser.addOption(QCommandLineOption("neural_compare",
+        "[GUI] With --neural: solve the generated cell the way the dataset was solved and list the asked properties "
+        "next to the obtained ones (takes minutes; --np sets the threads)."));
+    parser.addOption(QCommandLineOption("fourier_file",
+        "[Lattice] Fourier series: text file with one wave per line (kx ky kz amplitude phase); overrides the random draw.", "path"));
+    parser.addOption(QCommandLineOption("material_iso",
+        "[Material] Solid material as numbers instead of a database row: 'E_GPa,nu' (isotropic).", "E,nu"));
+    parser.addOption(QCommandLineOption("material_ti",
+        "[Material] Solid material as numbers, transversely isotropic about the build axis Z: 'E_GPa,nu,r' with E_z = r*E, G_xz = G_yz = r*G.", "E,nu,r"));
+    parser.addOption(QCommandLineOption("no_fields",
+        "[Output] Do not store per-voxel stress/strain fields in HDF5; keep matrices, voxels and metadata (dataset runs)."));
+    parser.addOption(QCommandLineOption("noise_smooth",
+        "[Lattice] Smoothed noise: Gaussian sigma of the blur as a fraction of the cube edge, 0.005..0.5 (default: 0.06).", "frac"));
+    parser.addOption(QCommandLineOption("lattice_uniform_wall",
+        "[Lattice] Sheet families: thicken the surface by the first-order distance |f|/|grad f| instead of |f|, "
+        "so the wall thickness is nearly uniform. Recommended for random Fourier sheets."));
+    parser.addOption(QCommandLineOption("fourier_symmetry",
+        "[Lattice] Fourier families: none | cubic. cubic replaces every wave by its orbit under the 48 symmetries "
+        "of the cube, so the random cell has cubic symmetry (default: none).", "mode"));
+    parser.addOption(QCommandLineOption("plate_hole",
+        "[Lattice] Plate lattices: diameter of the circular hole through every panel centre, in cell edges, 0..0.9 (default: 0).", "frac"));
+    parser.addOption(QCommandLineOption("lattice_union",
+        "[Lattice] Second cell family united with the first, one shared level (e.g. plate_sc_fcc + octet); "
+        "not a random family, not two strut/honeycomb families (default: none).", "family"));
+    parser.addOption(QCommandLineOption("lattice_subtract",
+        "[Lattice] Family carved out of the solid (e.g. spheres_bcc for spherical windows, cylinders_axes for channels); "
+        "not a random family (default: none).", "family"));
+    parser.addOption(QCommandLineOption("lattice_subtract_size",
+        "[Lattice] Level of the carved-out family in cell edges: sphere / cylinder radius, plate half-thickness (default: 0.3).", "frac"));
+    parser.addOption(QCommandLineOption("lattice_smooth",
+        "[Lattice] Gaussian blur of the field before the level is solved, sigma in cell edges, 0..0.3: rounded corners and "
+        "blended junctions (default: 0 = off).", "frac"));
+    parser.addOption(QCommandLineOption("honeycomb_angle",
+        "[Lattice] Honeycombs: inclined wall angle to the horizontal in degrees, -50..50; 30 = regular hexagon, 0 = rectangles, "
+        "negative = re-entrant (auxetic). Overrides the family preset.", "deg"));
+    parser.addOption(QCommandLineOption("assembly_struts",
+        "[Lattice] Cubic assembly: random struts drawn in the asymmetric unit of the cell, 0..12 (default: 3).", "n"));
+    parser.addOption(QCommandLineOption("assembly_plates",
+        "[Lattice] Cubic assembly: random triangular plates, 0..12 (default: 2).", "n"));
+    parser.addOption(QCommandLineOption("assembly_shells",
+        "[Lattice] Cubic assembly: spherical shells about special positions, 0..4 (default: 0).", "n"));
+    parser.addOption(QCommandLineOption("assembly_holes",
+        "[Lattice] Cubic assembly: spherical windows carved out of the plates and shells, 0..8 (default: 1).", "n"));
+    parser.addOption(QCommandLineOption("assembly_spread",
+        "[Lattice] Cubic assembly: thickness weights of the members drawn in [1 - s, 1 + s], 0..0.8 (default: 0.3).", "s"));
+    parser.addOption(QCommandLineOption("assembly_file",
+        "[Lattice] Cubic assembly: text file with one member per line, kind (strut|plate|shell|hole) x0 y0 z0 x1 y1 z1 "
+        "x2 y2 z2 radius weight, points in the asymmetric unit 0 <= z <= y <= x <= 1/2; overrides the draw.", "path"));
+    parser.addOption(QCommandLineOption("foam_mode",
+        "[Lattice] Foam families: walls (closed cells), windows (a window in every face) or edges (open cells) (default: walls).", "mode"));
+    parser.addOption(QCommandLineOption("foam_frame",
+        "[Lattice] Foam windows: frame left around every window beyond half the wall thickness, in bubble sizes, 0.01..0.5 (default: 0.1).", "frac"));
+    parser.addOption(QCommandLineOption("foam_bubbles",
+        "[Lattice] foam_random: Voronoi sites (bubbles) per cell, drawn from the seed with a hard core, 1..64 (default: 8).", "n"));
+    parser.addOption(QCommandLineOption("foam_file",
+        "[Lattice] foam_random: text file with one site per line, x y z in cell units; overrides the draw.", "path"));
+    parser.addOption(QCommandLineOption("mycelium_mode",
+        "[Lattice] Mycelium: substrate (foraging hyphae), polypore (skeletal + binding hyphae), mat (layers + anchors) or "
+        "layered (substrate rich in the mid plane) (default: substrate).", "mode"));
+    parser.addOption(QCommandLineOption("mycelium_length",
+        "[Lattice] Mycelium: total hypha length per cell, cell edges, 2..80 (default: 22).", "value"));
+    parser.addOption(QCommandLineOption("mycelium_spores",
+        "[Lattice] Mycelium: spores (polypore: skeletal hyphae, mat: spores per layer), 0..40; 0 = the mode's default 4 / 10 / 3 / 4.", "n"));
+    parser.addOption(QCommandLineOption("mycelium_unit",
+        "[Lattice] Mycelium: hyphal growth unit, hypha length per branch on rich substrate, cell edges, 0.05..2 (default: 0.25).", "value"));
+    parser.addOption(QCommandLineOption("mycelium_angle",
+        "[Lattice] Mycelium: branch angle to the parent hypha, degrees, 10..90 (default: 60).", "value"));
+    parser.addOption(QCommandLineOption("mycelium_wiggle",
+        "[Lattice] Mycelium: random turning of the tips, 0 (straight) .. 1 (default: 0.25).", "value"));
+    parser.addOption(QCommandLineOption("mycelium_fuse",
+        "[Lattice] Mycelium: a tip this close to another hypha fuses with it, cell edges, 0..0.2; 0 grows a tree (default: 0.05).", "value"));
+    parser.addOption(QCommandLineOption("mycelium_taper",
+        "[Lattice] Mycelium: thickness of a branch over its parent's, 0.3..1 (default: 0.75).", "value"));
+    parser.addOption(QCommandLineOption("mycelium_binding",
+        "[Lattice] Mycelium polypore: share of the length in binding hyphae, 0..0.8 (default: 0.36).", "value"));
+    parser.addOption(QCommandLineOption("mycelium_align",
+        "[Lattice] Mycelium polypore: lean of the skeletal hyphae to Z, 0 (random) .. 1 (all along Z) (default: 0).", "value"));
+    parser.addOption(QCommandLineOption("mycelium_anchors",
+        "[Lattice] Mycelium mat: share of the branches that grow into vertical anchors, 0..1 (default: 0.25).", "value"));
+    parser.addOption(QCommandLineOption("mycelium_poor",
+        "[Lattice] Mycelium layered: substrate level at z = 0 (1 in the mid plane), 0.05..1 (default: 0.25).", "value"));
+    parser.addOption(QCommandLineOption("mycelium_file",
+        "[Lattice] Mycelium: text file with one piece of hypha per line, ax ay az bx by bz [weight] in cell units; overrides the growth.", "path"));
+    for (const char* k : { "form_a", "form_b", "form_c" })
+        parser.addOption(QCommandLineOption(QString::fromLatin1(k),
+            "[Lattice] Bio-inspired / architected forms: shape knob 0..1, its meaning depends on the form (default: 0.5).", "value"));
+    parser.addOption(QCommandLineOption("honeycomb_rib",
+        "[Lattice] Honeycombs: vertical rib length over inclined wall length, 0.2..5 (1 regular, 2 the re-entrant preset). "
+        "Overrides the family preset.", "ratio"));
+    parser.addOption(QCommandLineOption("honeycomb_custom",
+        "[Lattice] Honeycombs: use honeycomb_angle / honeycomb_rib instead of the family preset (true|false).", "bool"));
+    parser.addOption(QCommandLineOption("lattice_cell_mm",
+        "[Lattice] Physical size of one unit cell in mm (default: 10). Voxel size = cells_per_edge * cell_mm / size.", "mm"));
+    parser.addOption(QCommandLineOption("print_min_wall_mm",
+        "[Printability] Thinnest printable wall in mm, typically two nozzle diameters (default: 0.8).", "mm"));
+    parser.addOption(QCommandLineOption("print_max_overhang_deg",
+        "[Printability] Steepest overhang the printer handles without support, degrees from vertical (default: 45).", "deg"));
+    parser.addOption(QCommandLineOption("print_max_thin_fraction",
+        "[Printability] Tolerated fraction of solid thinner than the minimum wall (default: 0.02).", "frac"));
+    parser.addOption(QCommandLineOption("print_max_island_vox",
+        "[Printability] Largest floating island tolerated, in voxels; anything bigger fails (default: 8, a 2x2x2 speck).", "n"));
+    parser.addOption(QCommandLineOption("print_max_components",
+        "[Printability] Separate solid bodies tolerated; 0 = no limit (default: 1, one connected part).", "n"));
+    parser.addOption(QCommandLineOption("print_min_directions",
+        "[Printability] Independent directions in which the solid must join its periodic neighbours, 0..3; 0 = no check (default: 3; a slab joins in 2, a rod in 1).", "n"));
+    parser.addOption(QCommandLineOption("print_max_unsupported_fraction",
+        "[Printability] Tolerated fraction of unsupported solid along the best build direction (default: 0.05).", "frac"));
+    parser.addOption(QCommandLineOption("require_printable",
+        "[Printability] Headless: skip the stress solve and exit with code 3 when the structure fails the check."));
+    parser.addOption(QCommandLineOption("remove_islands",
+        "[Lattice] Remove every floating island (a solid piece that does not join the body, any size) from the rasterized cell "
+        "before the printability check and the stress solve; the achieved density is that of the cleaned cell."));
+    parser.addOption(QCommandLineOption("lattice_metric_y",
+        "[Lattice] Thickness metric along Y, 0.25..4 (default 1): a distance along Y counts this many times (struts, plates, cubic assembly, "
+        "uniform-wall sheets), so members measured along Y come out thinner and the cell stiffer along Y.", "factor"));
+    parser.addOption(QCommandLineOption("lattice_metric_z",
+        "[Lattice] Thickness metric along Z, 0.25..4 (default 1): as lattice_metric_y for Z (a cubic cell becomes tetragonal about Z).", "factor"));
+
     // ── Probability Cellular Automaton ────────────────────────────────────
     parser.addOption(QCommandLineOption("prob_preset",
         "[Probability] Shape preset: 'Sphere (Circle)', 'Prolate (Needle)', 'Oblate (Disc)', 'Triaxial Ellipsoid', 'Superellipsoid (Cube)', 'Custom'.", "preset"));
@@ -232,6 +464,18 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
         "[Stress] Homogenization solver: fft (in-memory Moulinec-Suquet) | ansys (external FEM). Default: ansys", "solver"));
     parser.addOption(QCommandLineOption("stress_mode",
         "[Stress] Calculation mode: stiffness (fast 6 solves -> S, C, moduli) | single (prescribed --eps) | dataset (full 300 loads). Default: dataset", "mode"));
+    parser.addOption(QCommandLineOption("fft_scheme",
+        "[Stress] FFT iterative scheme: auto (CG when the cell has void or a stiffness contrast above 100, "
+        "basic otherwise) | basic (Moulinec-Suquet fixed point) | cg (conjugate gradients, Galerkin FFT). Default: auto", "scheme"));
+    parser.addOption(QCommandLineOption("fft_tol",
+        "[Stress] FFT convergence tolerance: equilibrium error (basic) or relative residual (cg). Default: 1e-5", "tol"));
+    parser.addOption(QCommandLineOption("fft_max_iter",
+        "[Stress] FFT iteration cap per load case (default: 1000).", "n"));
+    parser.addOption(QCommandLineOption("fft_discretization",
+        "[Stress] Green operator discretization: continuous (Moulinec-Suquet, default) | rotated (Willot 2015, robust for pores). "
+        "Aliases: ms, willot.", "disc"));
+    parser.addOption(QCommandLineOption("fft_void_eta",
+        "[Stress] Void phase stiffness as a fraction of the solid C11 (default: 1e-4; 1e-6..1e-8 for very soft cells).", "eta"));
     parser.addOption(QCommandLineOption("eps",
         "[Stress] Prescribed macroscopic strain tensor for '--stress_mode single': exx,eyy,ezz,exy,eyz,exz", "strains"));
     parser.addOption(QCommandLineOption("num_rnd_loads",
@@ -266,6 +510,7 @@ void Commandline_Parser::printJsonHelp()
     QJsonObject modes;
     modes["gui"] = "Launch without --nogui for interactive Qt/QML desktop UI";
     modes["headless_generation"] = "MatViz3D --nogui --autostart --algorithm <algo> --size <n> --points <n>";
+    modes["lattice_homogenization"] = "MatViz3D --nogui --autostart --algorithm Lattice --lattice_family gyroid_sheet --size 48 --cells_per_edge 2 --relative_density 0.3 --material PETG --run_stress_calc --solver fft --stress_mode stiffness --output gyroid.hdf5";
     modes["headless_stress_analysis"] = "MatViz3D --nogui --autostart --run_stress_calc --solver <fft|ansys> --stress_mode <mode>";
     root["modes"] = modes;
 
@@ -289,6 +534,12 @@ void Commandline_Parser::printJsonHelp()
     addRecipe("Single Load Case Prescribed Strain",
               "Single-shot stress solve under prescribed macroscopic strain tensor",
               "MatViz3D --nogui --autostart --algorithm Voronoi --size 20 --points 20 --run_stress_calc --solver fft --stress_mode single --eps 0.001,0,0,0,0,0 --output single.hdf5");
+    addRecipe("Lattice Metamaterial Cell",
+              "Periodic sheet gyroid at 30 % density in PETG, effective stiffness by FFT",
+              "MatViz3D --nogui --autostart --algorithm Lattice --lattice_family gyroid_sheet --size 48 --cells_per_edge 2 --relative_density 0.3 --material PETG --run_stress_calc --solver fft --stress_mode stiffness --output gyroid.hdf5");
+    addRecipe("Lattice Dataset Cell",
+              "One 12 mm unit cell (sheet gyroid, wall 6 voxels at 64^3), material as numbers, exit code 3 when not printable, Willot discretization, no per-voxel fields",
+              "MatViz3D --nogui --autostart --algorithm Lattice --lattice_family gyroid_sheet --size 64 --cells_per_edge 1 --relative_density 0.3 --lattice_cell_mm 12 --material_iso 2.0,0.38 --require_printable --no_fields --run_stress_calc --solver fft --stress_mode stiffness --fft_discretization rotated --fft_tol 1e-5 --output cell.hdf5");
     root["recipes"] = recipes;
 
     QJsonArray algos;
@@ -357,7 +608,7 @@ void Commandline_Parser::printJsonHelp()
     addOpt("size", "Grid", "int", "n", "", "Voxel grid dimension N for N x N x N cell (integer > 0)");
     addOpt("points", "Grid", "int", "count", "", "Number of initial nucleation seeds / grains (integer > 0)");
     addOpt("concentration", "Grid", "float", "pct", "", "Nucleation seed density as volume percentage in (0, 100]; overrides --points");
-    addOpt("algorithm", "Grid", "string", "name", "Voronoi", "Generation algorithm name", QStringList() << "Voronoi" << "Composite" << "Probability" << "Polycrystall" << "DLCA" << "Moore" << "Neumann" << "Radial" << "Thin Layer");
+    addOpt("algorithm", "Grid", "string", "name", "Voronoi", "Generation algorithm name", QStringList() << "Voronoi" << "Composite" << "Probability" << "Polycrystall" << "DLCA" << "Lattice" << "Moore" << "Neumann" << "Radial" << "Thin Layer");
     addOpt("periodic", "Grid", "bool", "", "false", "Periodic boundary conditions (grains/fibers wrap across opposite cell faces)");
 
     // Polycrystall
@@ -394,6 +645,78 @@ void Commandline_Parser::printJsonHelp()
     addOpt("matrix_material", "Composite", "string", "name", "Epoxy", "Matrix constituent from material database");
     addOpt("fiber_material", "Composite", "string", "name", "C-fiber", "Fiber constituent from material database");
 
+    // Lattice
+    addOpt("lattice_family", "Lattice", "string", "family", "gyroid_sheet", "Unit-cell family of the cellular metamaterial RVE",
+           latticeFamilyKeys());
+    addOpt("cells_per_edge", "Lattice", "int", "n", "2", "Unit cells along each cube edge (1..64)");
+    addOpt("relative_density", "Lattice", "double", "frac", "0.3", "Target solid fraction in (0, 1)");
+    addOpt("lattice_grading", "Lattice", "double", "g", "0.0", "Linear wall-thickness gradient along Z in [0, 0.9)");
+    addOpt("lattice_jitter", "Lattice", "double", "j", "0.0", "Random wall-thickness modulation, relative amplitude in [0, 1]");
+    addOpt("spinodoid_theta_x", "Lattice", "double", "deg", "90", "Spinodoid: cone half-angle about X, 0 (closed) or 5..90 deg");
+    addOpt("spinodoid_theta_y", "Lattice", "double", "deg", "90", "Spinodoid: cone half-angle about Y, 0 (closed) or 5..90 deg");
+    addOpt("spinodoid_theta_z", "Lattice", "double", "deg", "90", "Spinodoid: cone half-angle about Z, 0 (closed) or 5..90 deg");
+    addOpt("fourier_terms", "Lattice", "int", "n", "24", "Fourier series: number of random waves (2..256)");
+    addOpt("fourier_kmin", "Lattice", "double", "k", "1", "Fourier series: smallest wave number, waves per cube edge");
+    addOpt("fourier_kmax", "Lattice", "double", "k", "4", "Fourier series: largest wave number, waves per cube edge");
+    addOpt("fourier_decay", "Lattice", "double", "p", "1", "Fourier series: amplitude ~ |k|^-decay (0..4)");
+    addOpt("fourier_file", "Lattice", "string", "path", "", "Fourier series: text file with one wave per line (kx ky kz amplitude phase)");
+    addOpt("noise_smooth", "Lattice", "double", "frac", "0.06", "Smoothed noise: Gaussian sigma as a fraction of the cube edge (0.005..0.5)");
+    addOpt("fourier_symmetry", "Lattice", "string", "mode", "none", "Fourier families: none | cubic (waves expanded to their cubic orbits)");
+    addOpt("plate_hole", "Lattice", "double", "frac", "0", "Plate lattices: hole diameter through every panel centre, cell edges (0..0.9)");
+    addOpt("lattice_union", "Lattice", "string", "family", "none", "Second cell family united with the first (none = off)");
+    addOpt("lattice_subtract", "Lattice", "string", "family", "none", "Family carved out of the solid (none = off)");
+    addOpt("lattice_subtract_size", "Lattice", "double", "frac", "0.3", "Level of the carved-out family, cell edges (0.01..1)");
+    addOpt("lattice_smooth", "Lattice", "double", "frac", "0", "Gaussian blur of the field, sigma in cell edges (0..0.3)");
+    addOpt("honeycomb_custom", "Lattice", "bool", "", "false", "Honeycombs: use honeycomb_angle / honeycomb_rib instead of the preset");
+    addOpt("honeycomb_angle", "Lattice", "double", "deg", "30", "Honeycombs: inclined wall angle, degrees (-50..50, < 0 auxetic)");
+    addOpt("honeycomb_rib", "Lattice", "double", "ratio", "1", "Honeycombs: rib length / wall length (0.2..5)");
+    addOpt("assembly_struts", "Lattice", "int", "n", "3", "Cubic assembly: random struts in the asymmetric unit (0..12)");
+    addOpt("assembly_plates", "Lattice", "int", "n", "2", "Cubic assembly: random triangular plates (0..12)");
+    addOpt("assembly_shells", "Lattice", "int", "n", "0", "Cubic assembly: spherical shells about special positions (0..4)");
+    addOpt("assembly_holes", "Lattice", "int", "n", "1", "Cubic assembly: spherical windows carved out of plates and shells (0..8)");
+    addOpt("assembly_spread", "Lattice", "double", "s", "0.3", "Cubic assembly: member thickness weights in [1 - s, 1 + s] (0..0.8)");
+    addOpt("assembly_file", "Lattice", "string", "path", "", "Cubic assembly: one member per line (kind x0 y0 z0 x1 y1 z1 x2 y2 z2 radius weight)");
+    addOpt("foam_mode", "Lattice", "string", "mode", "walls", "Foam families: walls | windows | edges (closed, windowed or open cells)");
+    addOpt("foam_frame", "Lattice", "double", "frac", "0.1", "Foam windows: frame around every window beyond half the wall, bubble sizes (0.01..0.5)");
+    addOpt("foam_bubbles", "Lattice", "int", "n", "8", "foam_random: Voronoi sites per cell (1..64)");
+    addOpt("foam_file", "Lattice", "string", "path", "", "foam_random: one site per line, x y z in cell units");
+    addOpt("mycelium_mode", "Lattice", "string", "mode", "substrate", "Mycelium: substrate | polypore | mat | layered");
+    addOpt("mycelium_length", "Lattice", "double", "value", "22", "Mycelium: total hypha length per cell, cell edges (2..80)");
+    addOpt("mycelium_spores", "Lattice", "int", "n", "0", "Mycelium: spores / skeletal hyphae / spores per layer, 0 = mode default (0..40)");
+    addOpt("mycelium_unit", "Lattice", "double", "value", "0.25", "Mycelium: hypha length per branch on rich substrate, cell edges (0.05..2)");
+    addOpt("mycelium_angle", "Lattice", "double", "value", "60", "Mycelium: branch angle, degrees (10..90)");
+    addOpt("mycelium_wiggle", "Lattice", "double", "value", "0.25", "Mycelium: random turning of the tips (0..1)");
+    addOpt("mycelium_fuse", "Lattice", "double", "value", "0.05", "Mycelium: fusion distance, cell edges, 0 = a tree (0..0.2)");
+    addOpt("mycelium_taper", "Lattice", "double", "value", "0.75", "Mycelium: branch / parent thickness (0.3..1)");
+    addOpt("mycelium_binding", "Lattice", "double", "value", "0.36", "Mycelium polypore: share of the length in binding hyphae (0..0.8)");
+    addOpt("mycelium_align", "Lattice", "double", "value", "0", "Mycelium polypore: lean of the skeletal hyphae to Z, 1 = all along Z (0..1)");
+    addOpt("mycelium_anchors", "Lattice", "double", "value", "0.25", "Mycelium mat: share of the branches that become anchors (0..1)");
+    addOpt("mycelium_poor", "Lattice", "double", "value", "0.25", "Mycelium layered: substrate at z = 0, 1 in the mid plane (0.05..1)");
+    addOpt("mycelium_file", "Lattice", "string", "path", "", "Mycelium: one piece per line (ax ay az bx by bz weight, cell units)");
+    addOpt("form_a", "Lattice", "double", "value", "0.5", "Forms (glass_sponge, radiolarian, ...): first shape knob, meaning per form (0..1)");
+    addOpt("form_b", "Lattice", "double", "value", "0.5", "Forms: second shape knob, meaning per form (0..1)");
+    addOpt("form_c", "Lattice", "double", "value", "0.5", "Forms: third shape knob, meaning per form (0..1)");
+    addOpt("browse", "GUI", "string", "path", "", "Open the Dataset Browser on a dataset folder, its manifest.csv or a cell file");
+    addOpt("select", "GUI", "string", "targets", "", "Open the Selector tab and search the dataset of --browse for these targets, e.g. E=150,nu=0.3,mat_e=2.0 (moduli in MPa)");
+    addOpt("neural", "GUI", "int", "seed", "", "Open the Neural tab and generate the cell of this seed (0 = a new seed): the diffusion network when models/cell_diffusion.bin is found, else a random code");
+    addOpt("neural_compare", "GUI", "bool", "", "false", "With --neural: solve the generated cell the way the dataset was solved and list the asked properties next to the obtained ones (takes minutes; --np sets the threads)");
+    addOpt("material_iso", "Material", "string", "E,nu", "", "Solid material as numbers: Young's modulus in GPa and Poisson's ratio (isotropic)");
+    addOpt("material_ti", "Material", "string", "E,nu,r", "", "Solid material as numbers, transversely isotropic about Z: E_z = r*E, G_xz = G_yz = r*G");
+    addOpt("no_fields", "Output", "bool", "", "false", "Do not store per-voxel stress/strain fields in HDF5");
+    addOpt("lattice_cell_mm", "Lattice", "double", "mm", "10", "Physical size of one unit cell in mm");
+    addOpt("lattice_uniform_wall", "Lattice", "bool", "", "false", "Sheet families: uniform wall thickness via |f|/|grad f|");
+    addOpt("print_min_wall_mm", "Printability", "double", "mm", "0.8", "Thinnest printable wall in mm");
+    addOpt("print_max_overhang_deg", "Printability", "double", "deg", "45", "Steepest unsupported overhang in degrees");
+    addOpt("print_max_thin_fraction", "Printability", "double", "frac", "0.02", "Tolerated fraction of solid thinner than the minimum wall");
+    addOpt("print_max_island_vox", "Printability", "int", "n", "8", "Largest floating island tolerated, voxels");
+    addOpt("print_max_components", "Printability", "int", "n", "1", "Separate solid bodies tolerated, 0 = no limit");
+    addOpt("print_min_directions", "Printability", "int", "n", "3", "Independent directions the solid must join its periodic neighbours in (slab 2, rod 1), 0 = no check");
+    addOpt("print_max_unsupported_fraction", "Printability", "double", "frac", "0.05", "Tolerated unsupported fraction along the best build direction");
+    addOpt("require_printable", "Printability", "bool", "", "false", "Headless: skip the stress solve and exit 3 when the structure is not printable");
+    addOpt("remove_islands", "Lattice", "bool", "", "false", "Remove every floating island (any size) before the printability check and the solve");
+    addOpt("lattice_metric_y", "Lattice", "double", "factor", "1", "Thickness metric along Y (0.25..4): a distance along Y counts this many times; struts, plates, cubic assembly, uniform-wall sheets");
+    addOpt("lattice_metric_z", "Lattice", "double", "factor", "1", "Thickness metric along Z (0.25..4): a distance along Z counts this many times; struts, plates, cubic assembly, uniform-wall sheets");
+
     // Probability
     addOpt("prob_preset", "Probability", "string", "preset", "", "Kernel shape preset",
            QStringList() << "Sphere (Circle)" << "Prolate (Needle)" << "Oblate (Disc)" << "Triaxial Ellipsoid" << "Superellipsoid (Cube)" << "Custom");
@@ -423,6 +746,11 @@ void Commandline_Parser::printJsonHelp()
     addOpt("run_stress_calc", "Stress", "bool", "", "false", "Run stress/strain homogenization after structure generation");
     addOpt("solver", "Stress", "string", "solver", "ansys", "Homogenization solver: fft | ansys", QStringList() << "ansys" << "fft");
     addOpt("stress_mode", "Stress", "string", "mode", "dataset", "Calculation mode: stiffness (fast 6 solves) | single | dataset (full 300 loads)", QStringList() << "dataset" << "stiffness" << "single");
+    addOpt("fft_scheme", "Stress", "string", "scheme", "auto", "FFT iterative scheme: auto (CG for porous / high-contrast cells) | basic (Moulinec-Suquet fixed point) | cg (conjugate gradients)", QStringList() << "auto" << "basic" << "cg");
+    addOpt("fft_tol", "Stress", "double", "tol", "1e-5", "FFT convergence tolerance (equilibrium error for basic, relative residual for cg)");
+    addOpt("fft_void_eta", "Stress", "double", "eta", "1e-4", "Void phase stiffness as a fraction of the solid C11");
+    addOpt("fft_discretization", "Stress", "string", "disc", "continuous", "Green operator discretization: continuous (Moulinec-Suquet) | rotated (Willot 2015, robust for pores)", QStringList() << "continuous" << "rotated");
+    addOpt("fft_max_iter", "Stress", "int", "n", "1000", "FFT iteration cap per load case");
     addOpt("eps", "Stress", "string", "strains", "", "Applied strain tensor for --stress_mode single: exx,eyy,ezz,exy,eyz,exz");
     addOpt("num_rnd_loads", "Stress", "uint", "count", "150", "Number of random loads for Hill yield criterion fit in dataset mode");
     addOpt("local_criterion", "Stress", "string", "criterion", "auto", "Local yield criterion for dataset yield points (auto: per algorithm)", QStringList() << "auto" << "schmid" << "vonmises");
@@ -484,6 +812,18 @@ bool Commandline_Parser::isValidSolver(const QString& v)
 {
     const QString s = v.trimmed().toLower();
     return s == "ansys" || s == "fft";
+}
+
+bool Commandline_Parser::isValidLatticeFamily(const QString& v)
+{
+    LatticeFamily f;
+    return parseLatticeFamily(v, f);
+}
+
+bool Commandline_Parser::isValidFftScheme(const QString& v)
+{
+    const QString m = v.trimmed().toLower();
+    return m == "auto" || m == "basic" || m == "cg";
 }
 
 bool Commandline_Parser::isValidStressMode(const QString& v)
@@ -1083,6 +1423,545 @@ bool Commandline_Parser::applyParameter(const QString& key, const QString& value
         return true;
     }
 
+    if (normKey == "fft_scheme") {
+        if (!isValidFftScheme(value)) {
+            return setErr(QString("Option fft_scheme expects auto, basic or cg; got \"%1\"").arg(value));
+        }
+        params->setFftScheme(value);
+        return true;
+    }
+
+    if (normKey == "fft_tol") {
+        double v = 0.0;
+        if (!parseDouble(v, true)) return false;
+        if (v >= 1.0) {
+            return setErr(QString("Option fft_tol expects a value in (0, 1); got %1").arg(value));
+        }
+        params->setFftTol(v);
+        return true;
+    }
+    if (normKey == "fft_discretization") {
+        const QString v = value.trimmed().toLower();
+        if (v != "continuous" && v != "rotated" && v != "ms" && v != "willot" && v != "moulinec-suquet") {
+            return setErr(QString("Option fft_discretization expects continuous (ms) or rotated (willot); got \"%1\"").arg(value));
+        }
+        params->setFftDiscretization(v);
+        return true;
+    }
+    if (normKey == "fft_void_eta") {
+        double v = 0.0;
+        if (!parseDouble(v, true)) return false;
+        if (v >= 1.0) {
+            return setErr(QString("Option fft_void_eta expects a value in (0, 1); got %1").arg(value));
+        }
+        params->setFftVoidEta(v);
+        return true;
+    }
+
+    if (normKey == "fft_max_iter") {
+        int v = 0;
+        if (!parseInt(v, true)) return false;
+        params->setFftMaxIter(v);
+        return true;
+    }
+
+    if (normKey == "lattice_family") {
+        if (!isValidLatticeFamily(value)) {
+            return setErr(QString("Option lattice_family expects one of %1; got \"%2\"")
+                              .arg(latticeFamilyKeys().join(", "), value));
+        }
+        params->setLatticeFamily(value);
+        return true;
+    }
+
+    if (normKey == "cells_per_edge") {
+        int v = 0;
+        if (!parseInt(v, true)) return false;
+        if (v > 64) {
+            return setErr(QString("Option cells_per_edge expects 1..64; got %1").arg(v));
+        }
+        params->setCellsPerEdge(v);
+        return true;
+    }
+
+    if (normKey == "relative_density") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v <= 0.0 || v >= 1.0) {
+            return setErr(QString("Option relative_density expects a value in (0, 1); got %1").arg(value));
+        }
+        params->setRelativeDensity(v);
+        return true;
+    }
+
+    if (normKey == "lattice_grading") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0.0 || v >= 0.9) {
+            return setErr(QString("Option lattice_grading expects a value in [0, 0.9); got %1").arg(value));
+        }
+        params->setLatticeGrading(v);
+        return true;
+    }
+
+    if (normKey == "lattice_jitter") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0.0 || v > 1.0) {
+            return setErr(QString("Option lattice_jitter expects a value in [0, 1]; got %1").arg(value));
+        }
+        params->setLatticeJitter(v);
+        return true;
+    }
+
+    if (normKey == "spinodoid_theta_x" || normKey == "spinodoid_theta_y" || normKey == "spinodoid_theta_z") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (!(v == 0.0 || (v >= 5.0 && v <= 90.0))) {
+            return setErr(QString("Option %1 expects 0 or a value in [5, 90] degrees; got %2").arg(normKey, value));
+        }
+        if (normKey.endsWith('x'))      params->setSpinodoidThetaX(v);
+        else if (normKey.endsWith('y')) params->setSpinodoidThetaY(v);
+        else                            params->setSpinodoidThetaZ(v);
+        return true;
+    }
+
+    if (normKey == "fourier_terms") {
+        int v = 0;
+        if (!parseInt(v, true)) return false;
+        if (v < 2 || v > 256) {
+            return setErr(QString("Option fourier_terms expects 2..256; got %1").arg(v));
+        }
+        params->setFourierTerms(v);
+        return true;
+    }
+
+    if (normKey == "fourier_kmin" || normKey == "fourier_kmax") {
+        double v = 0.0;
+        if (!parseDouble(v, true)) return false;
+        if (v < 1.0) {
+            return setErr(QString("Option %1 expects a value >= 1; got %2").arg(normKey, value));
+        }
+        if (normKey == "fourier_kmin") params->setFourierKmin(v); else params->setFourierKmax(v);
+        return true;
+    }
+
+    if (normKey == "fourier_decay") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0.0 || v > 4.0) {
+            return setErr(QString("Option fourier_decay expects a value in [0, 4]; got %1").arg(value));
+        }
+        params->setFourierDecay(v);
+        return true;
+    }
+
+    if (normKey == "fourier_file") {
+        if (value.trimmed().isEmpty()) {
+            return setErr(QStringLiteral("Option fourier_file expects a path"));
+        }
+        params->setFourierFile(value);
+        return true;
+    }
+
+    if (normKey == "lattice_cell_mm" || normKey == "print_min_wall_mm") {
+        double v = 0.0;
+        if (!parseDouble(v, true)) return false;
+        if (normKey == "lattice_cell_mm") params->setLatticeCellMm(v); else params->setPrintMinWallMm(v);
+        return true;
+    }
+
+    if (normKey == "print_max_overhang_deg") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0.0 || v > 89.0) {
+            return setErr(QString("Option print_max_overhang_deg expects 0..89; got %1").arg(value));
+        }
+        params->setPrintMaxOverhangDeg(v);
+        return true;
+    }
+
+    if (normKey == "print_max_thin_fraction" || normKey == "print_max_unsupported_fraction") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0.0 || v > 1.0) {
+            return setErr(QString("Option %1 expects a value in [0, 1]; got %2").arg(normKey, value));
+        }
+        if (normKey == "print_max_thin_fraction") params->setPrintMaxThinFraction(v);
+        else                                       params->setPrintMaxUnsupportedFraction(v);
+        return true;
+    }
+
+    if (normKey == "print_max_island_vox") {
+        int v = 0;
+        if (!parseInt(v)) return false;
+        if (v < 0) {
+            return setErr(QString("Option print_max_island_vox expects a non-negative voxel count; got %1").arg(v));
+        }
+        params->setPrintMaxIslandVox(v);
+        return true;
+    }
+
+    if (normKey == "print_max_components") {
+        int v = 0;
+        if (!parseInt(v)) return false;
+        if (v < 0) {
+            return setErr(QString("Option print_max_components expects a non-negative count; got %1").arg(v));
+        }
+        params->setPrintMaxComponents(v);
+        return true;
+    }
+
+    if (normKey == "print_min_directions") {
+        int v = 0;
+        if (!parseInt(v)) return false;
+        if (v < 0 || v > 3) {
+            return setErr(QString("Option print_min_directions expects 0..3; got %1").arg(v));
+        }
+        params->setPrintMinDirections(v);
+        return true;
+    }
+
+    if (normKey == "material_iso" || normKey == "material_ti") {
+        const QStringList parts = value.split(QRegularExpression("[,;\\s]+"), Qt::SkipEmptyParts);
+        const int need = normKey == "material_iso" ? 2 : 3;
+        if (parts.size() != need) {
+            return setErr(QString("Option %1 expects %2 comma-separated numbers; got \"%3\"").arg(normKey).arg(need).arg(value));
+        }
+        bool okE = false, okN = false, okR = true;
+        const double E  = parts[0].toDouble(&okE);
+        const double nu = parts[1].toDouble(&okN);
+        const double r  = need == 3 ? parts[2].toDouble(&okR) : 1.0;
+        if (!okE || !okN || !okR || !(E > 0.0) || !(nu > -1.0 && nu < 0.5) || !(r >= 0.1 && r <= 3.0)) {
+            return setErr(QString("Option %1: E must be > 0 GPa, nu in (-1, 0.5), r in [0.1, 3]; got \"%2\"").arg(normKey, value));
+        }
+        params->setMatEGpa(E);
+        params->setMatNu(nu);
+        params->setMatAniso(r);
+        return true;
+    }
+
+    if (normKey == "mat_e_gpa" || normKey == "mat_nu" || normKey == "mat_aniso") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (normKey == "mat_e_gpa")      params->setMatEGpa(v);
+        else if (normKey == "mat_nu")    params->setMatNu(v);
+        else                              params->setMatAniso(v);
+        return true;
+    }
+
+    if (normKey == "no_fields" || normKey == "hdf5_fields") {
+        bool b = false;
+        if (!parseBool(b)) return false;
+        params->setHdf5Fields(normKey == "no_fields" ? !b : b);
+        return true;
+    }
+
+    if (normKey == "fourier_symmetry") {
+        const QString v = value.trimmed().toLower();
+        if (v != "none" && v != "cubic") {
+            return setErr(QString("Option fourier_symmetry expects none or cubic; got \"%1\"").arg(value));
+        }
+        params->setFourierSymmetry(v);
+        return true;
+    }
+    if (normKey == "plate_hole") {
+        double v = 0.0;
+        if (!parseDouble(v, true)) return false;
+        if (v < 0.0 || v > 0.9) {
+            return setErr(QString("Option plate_hole expects a value in [0, 0.9]; got %1").arg(value));
+        }
+        params->setPlateHole(v);
+        return true;
+    }
+    if (normKey == "lattice_union") {
+        const QString v = value.trimmed();
+        if (!v.isEmpty() && v.compare("none", Qt::CaseInsensitive) != 0 && !isValidLatticeFamily(v)) {
+            return setErr(QString("Option lattice_union expects none or one of %1; got \"%2\"")
+                              .arg(latticeFamilyKeys().join(", "), value));
+        }
+        params->setLatticeUnion(v);
+        return true;
+    }
+    if (normKey == "lattice_subtract") {
+        const QString v = value.trimmed();
+        if (!v.isEmpty() && v.compare("none", Qt::CaseInsensitive) != 0 && !isValidLatticeFamily(v)) {
+            return setErr(QString("Option lattice_subtract expects none or one of %1; got \"%2\"")
+                              .arg(latticeFamilyKeys().join(", "), value));
+        }
+        params->setLatticeSubtract(v);
+        return true;
+    }
+    if (normKey == "lattice_subtract_size") {
+        double v = 0.0;
+        if (!parseDouble(v, true)) return false;
+        if (v < 0.01 || v > 1.0) {
+            return setErr(QString("Option lattice_subtract_size expects a value in [0.01, 1]; got %1").arg(value));
+        }
+        params->setLatticeSubtractSize(v);
+        return true;
+    }
+    if (normKey == "honeycomb_custom") {
+        bool v = false;
+        if (!parseBool(v)) return false;
+        params->setHoneycombCustom(v);
+        return true;
+    }
+    if (normKey == "honeycomb_angle") {
+        double v = 0.0;
+        if (!parseDouble(v, false)) return false;          // zero and negative angles are valid
+        if (v < -50.0 || v > 50.0) {
+            return setErr(QString("Option honeycomb_angle expects a value in [-50, 50] degrees; got %1").arg(value));
+        }
+        params->setHoneycombAngle(v);
+        params->setHoneycombCustom(true);
+        return true;
+    }
+    if (normKey == "assembly_struts" || normKey == "assembly_plates" || normKey == "assembly_shells" || normKey == "assembly_holes") {
+        int v = 0;
+        if (!parseInt(v)) return false;
+        const int hi = normKey == "assembly_shells" ? 4 : (normKey == "assembly_holes" ? 8 : 12);
+        if (v < 0 || v > hi) {
+            return setErr(QString("Option %1 expects 0..%2; got %3").arg(normKey).arg(hi).arg(v));
+        }
+        if (normKey == "assembly_struts")      params->setAssemblyStruts(v);
+        else if (normKey == "assembly_plates") params->setAssemblyPlates(v);
+        else if (normKey == "assembly_shells") params->setAssemblyShells(v);
+        else                                   params->setAssemblyHoles(v);
+        return true;
+    }
+    if (normKey == "assembly_spread") {
+        double v = 0.0;
+        if (!parseDouble(v, true)) return false;
+        if (v < 0.0 || v > 0.8) {
+            return setErr(QString("Option assembly_spread expects a value in [0, 0.8]; got %1").arg(value));
+        }
+        params->setAssemblySpread(v);
+        return true;
+    }
+    if (normKey == "assembly_file") {
+        if (value.trimmed().isEmpty()) {
+            return setErr(QStringLiteral("Option assembly_file expects a path"));
+        }
+        params->setAssemblyFile(value);
+        return true;
+    }
+    if (normKey == "foam_mode") {
+        const QString v = value.trimmed().toLower();
+        if (v != QLatin1String("walls") && v != QLatin1String("windows") && v != QLatin1String("edges")) {
+            return setErr(QString("Option foam_mode expects walls, windows or edges; got \"%1\"").arg(value));
+        }
+        params->setFoamMode(v);
+        return true;
+    }
+    if (normKey == "foam_frame") {
+        double v = 0.0;
+        if (!parseDouble(v, true)) return false;
+        if (v < 0.01 || v > 0.5) {
+            return setErr(QString("Option foam_frame expects a value in [0.01, 0.5]; got %1").arg(value));
+        }
+        params->setFoamFrame(v);
+        return true;
+    }
+    if (normKey == "foam_bubbles") {
+        int v = 0;
+        if (!parseInt(v)) return false;
+        if (v < 1 || v > 64) {
+            return setErr(QString("Option foam_bubbles expects 1..64; got %1").arg(v));
+        }
+        params->setFoamBubbles(v);
+        return true;
+    }
+    if (normKey == "foam_file") {
+        if (value.trimmed().isEmpty()) {
+            return setErr(QStringLiteral("Option foam_file expects a path"));
+        }
+        params->setFoamFile(value);
+        return true;
+    }
+    if (normKey == "mycelium_mode") {
+        const QString v = value.trimmed().toLower();
+        mycelium::Mode m;
+        if (!mycelium::parseMode(v.toLatin1().constData(), m)) {
+            return setErr(QString("Option mycelium_mode expects substrate, polypore, mat or layered; got \"%1\"").arg(value));
+        }
+        params->setMyceliumMode(v);
+        return true;
+    }
+    if (normKey == "mycelium_length") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 2 || v > 80) {
+            return setErr(QString("Option mycelium_length expects a value in [2, 80]; got %1").arg(value));
+        }
+        params->setMyceliumLength(v);
+        return true;
+    }
+    if (normKey == "mycelium_spores") {
+        int v = 0;
+        if (!parseInt(v)) return false;
+        if (v < 0 || v > 40) {
+            return setErr(QString("Option mycelium_spores expects 0..40; got %1").arg(v));
+        }
+        params->setMyceliumSpores(v);
+        return true;
+    }
+    if (normKey == "mycelium_unit") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0.05 || v > 2) {
+            return setErr(QString("Option mycelium_unit expects a value in [0.05, 2]; got %1").arg(value));
+        }
+        params->setMyceliumUnit(v);
+        return true;
+    }
+    if (normKey == "mycelium_angle") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 10 || v > 90) {
+            return setErr(QString("Option mycelium_angle expects a value in [10, 90]; got %1").arg(value));
+        }
+        params->setMyceliumAngle(v);
+        return true;
+    }
+    if (normKey == "mycelium_wiggle") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0 || v > 1) {
+            return setErr(QString("Option mycelium_wiggle expects a value in [0, 1]; got %1").arg(value));
+        }
+        params->setMyceliumWiggle(v);
+        return true;
+    }
+    if (normKey == "mycelium_fuse") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0 || v > 0.2) {
+            return setErr(QString("Option mycelium_fuse expects a value in [0, 0.2]; got %1").arg(value));
+        }
+        params->setMyceliumFuse(v);
+        return true;
+    }
+    if (normKey == "mycelium_taper") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0.3 || v > 1) {
+            return setErr(QString("Option mycelium_taper expects a value in [0.3, 1]; got %1").arg(value));
+        }
+        params->setMyceliumTaper(v);
+        return true;
+    }
+    if (normKey == "mycelium_binding") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0 || v > 0.8) {
+            return setErr(QString("Option mycelium_binding expects a value in [0, 0.8]; got %1").arg(value));
+        }
+        params->setMyceliumBinding(v);
+        return true;
+    }
+    if (normKey == "mycelium_align") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0 || v > 1) {
+            return setErr(QString("Option mycelium_align expects a value in [0, 1]; got %1").arg(value));
+        }
+        params->setMyceliumAlign(v);
+        return true;
+    }
+    if (normKey == "mycelium_anchors") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0 || v > 1) {
+            return setErr(QString("Option mycelium_anchors expects a value in [0, 1]; got %1").arg(value));
+        }
+        params->setMyceliumAnchors(v);
+        return true;
+    }
+    if (normKey == "mycelium_poor") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0.05 || v > 1) {
+            return setErr(QString("Option mycelium_poor expects a value in [0.05, 1]; got %1").arg(value));
+        }
+        params->setMyceliumPoor(v);
+        return true;
+    }
+    if (normKey == "mycelium_file") {
+        if (value.trimmed().isEmpty()) {
+            return setErr(QStringLiteral("Option mycelium_file expects a path"));
+        }
+        params->setMyceliumFile(value);
+        return true;
+    }
+    if (normKey == "form_a" || normKey == "form_b" || normKey == "form_c") {
+        double v = 0.0;
+        if (!parseDouble(v)) return false;
+        if (v < 0 || v > 1) {
+            return setErr(QString("Option %1 expects a value in [0, 1]; got %2").arg(normKey, value));
+        }
+        if (normKey == "form_a") params->setFormA(v);
+        else if (normKey == "form_b") params->setFormB(v);
+        else params->setFormC(v);
+        return true;
+    }
+    if (normKey == "honeycomb_rib") {
+        double v = 0.0;
+        if (!parseDouble(v, true)) return false;
+        if (v < 0.2 || v > 5.0) {
+            return setErr(QString("Option honeycomb_rib expects a value in [0.2, 5]; got %1").arg(value));
+        }
+        params->setHoneycombRib(v);
+        params->setHoneycombCustom(true);
+        return true;
+    }
+    if (normKey == "lattice_smooth") {
+        double v = 0.0;
+        if (!parseDouble(v, true)) return false;
+        if (v < 0.0 || v > 0.3) {
+            return setErr(QString("Option lattice_smooth expects a value in [0, 0.3]; got %1").arg(value));
+        }
+        params->setLatticeSmooth(v);
+        return true;
+    }
+    if (normKey == "noise_smooth") {
+        double v = 0.0;
+        if (!parseDouble(v, true)) return false;
+        if (v < 0.005 || v > 0.5) {
+            return setErr(QString("Option noise_smooth expects a value in [0.005, 0.5]; got %1").arg(value));
+        }
+        params->setNoiseSmooth(v);
+        return true;
+    }
+
+    if (normKey == "lattice_uniform_wall") {
+        bool b = false;
+        if (!parseBool(b)) return false;
+        params->setLatticeUniformWall(b);
+        return true;
+    }
+
+    if (normKey == "require_printable") {
+        bool b = false;
+        if (!parseBool(b)) return false;
+        params->setRequirePrintable(b);
+        return true;
+    }
+
+    if (normKey == "remove_islands") {
+        bool b = false;
+        if (!parseBool(b)) return false;
+        params->setLatticeRemoveIslands(b);
+        return true;
+    }
+    if (normKey == "lattice_metric_y" || normKey == "lattice_metric_z") {
+        double v = 0.0;
+        if (!parseDouble(v, true)) return false;
+        if (v < 0.25 || v > 4.0) return setErr(QString("Option %1 expects a value in [0.25, 4]; got %2").arg(normKey, value));
+        if (normKey == "lattice_metric_y") params->setLatticeMetricY(v); else params->setLatticeMetricZ(v);
+        return true;
+    }
+
     return setErr(QString("Unknown parameter key: '%1'").arg(key));
 }
 
@@ -1177,6 +2056,51 @@ bool Commandline_Parser::processOptions(const QCommandLineParser& parser, QStrin
     if (parser.isSet("matrix_material"))         if (!applyCliOption("matrix_material", parser.value("matrix_material"))) return false;
     if (parser.isSet("fiber_material"))          if (!applyCliOption("fiber_material", parser.value("fiber_material"))) return false;
 
+    if (parser.isSet("lattice_family"))          if (!applyCliOption("lattice_family", parser.value("lattice_family"))) return false;
+    if (parser.isSet("cells_per_edge"))          if (!applyCliOption("cells_per_edge", parser.value("cells_per_edge"))) return false;
+    if (parser.isSet("relative_density"))        if (!applyCliOption("relative_density", parser.value("relative_density"))) return false;
+    if (parser.isSet("lattice_grading"))         if (!applyCliOption("lattice_grading", parser.value("lattice_grading"))) return false;
+    if (parser.isSet("lattice_jitter"))          if (!applyCliOption("lattice_jitter", parser.value("lattice_jitter"))) return false;
+    if (parser.isSet("spinodoid_theta_x"))       if (!applyCliOption("spinodoid_theta_x", parser.value("spinodoid_theta_x"))) return false;
+    if (parser.isSet("spinodoid_theta_y"))       if (!applyCliOption("spinodoid_theta_y", parser.value("spinodoid_theta_y"))) return false;
+    if (parser.isSet("spinodoid_theta_z"))       if (!applyCliOption("spinodoid_theta_z", parser.value("spinodoid_theta_z"))) return false;
+    if (parser.isSet("fourier_terms"))           if (!applyCliOption("fourier_terms", parser.value("fourier_terms"))) return false;
+    if (parser.isSet("fourier_kmin"))            if (!applyCliOption("fourier_kmin", parser.value("fourier_kmin"))) return false;
+    if (parser.isSet("fourier_kmax"))            if (!applyCliOption("fourier_kmax", parser.value("fourier_kmax"))) return false;
+    if (parser.isSet("fourier_decay"))           if (!applyCliOption("fourier_decay", parser.value("fourier_decay"))) return false;
+    if (parser.isSet("fourier_file"))            if (!applyCliOption("fourier_file", parser.value("fourier_file"))) return false;
+    if (parser.isSet("lattice_cell_mm"))         if (!applyCliOption("lattice_cell_mm", parser.value("lattice_cell_mm"))) return false;
+    if (parser.isSet("noise_smooth"))            if (!applyCliOption("noise_smooth", parser.value("noise_smooth"))) return false;
+    if (parser.isSet("fourier_symmetry"))        if (!applyCliOption("fourier_symmetry", parser.value("fourier_symmetry"))) return false;
+    if (parser.isSet("plate_hole"))              if (!applyCliOption("plate_hole", parser.value("plate_hole"))) return false;
+    if (parser.isSet("lattice_union"))           if (!applyCliOption("lattice_union", parser.value("lattice_union"))) return false;
+    if (parser.isSet("lattice_subtract"))        if (!applyCliOption("lattice_subtract", parser.value("lattice_subtract"))) return false;
+    if (parser.isSet("lattice_subtract_size"))   if (!applyCliOption("lattice_subtract_size", parser.value("lattice_subtract_size"))) return false;
+    if (parser.isSet("lattice_smooth"))          if (!applyCliOption("lattice_smooth", parser.value("lattice_smooth"))) return false;
+    if (parser.isSet("honeycomb_angle"))         if (!applyCliOption("honeycomb_angle", parser.value("honeycomb_angle"))) return false;
+    if (parser.isSet("honeycomb_rib"))           if (!applyCliOption("honeycomb_rib", parser.value("honeycomb_rib"))) return false;
+    if (parser.isSet("honeycomb_custom"))        if (!applyCliOption("honeycomb_custom", parser.value("honeycomb_custom"))) return false;
+    for (const char* k : { "assembly_struts", "assembly_plates", "assembly_shells", "assembly_holes", "assembly_spread", "assembly_file",
+                           "foam_mode", "foam_frame", "foam_bubbles", "foam_file",
+                           "mycelium_mode", "mycelium_length", "mycelium_spores", "mycelium_unit", "mycelium_angle", "mycelium_wiggle", "mycelium_fuse", "mycelium_taper", "mycelium_binding", "mycelium_align", "mycelium_anchors", "mycelium_poor", "mycelium_file",
+                           "form_a", "form_b", "form_c" })
+        if (parser.isSet(QString::fromLatin1(k)) && !applyCliOption(QString::fromLatin1(k), parser.value(QString::fromLatin1(k)))) return false;
+    if (parser.isSet("material_iso"))            if (!applyCliOption("material_iso", parser.value("material_iso"))) return false;
+    if (parser.isSet("material_ti"))             if (!applyCliOption("material_ti", parser.value("material_ti"))) return false;
+    if (parser.isSet("no_fields"))               if (!applyCliOption("no_fields", "true")) return false;
+    if (parser.isSet("lattice_uniform_wall"))    if (!applyCliOption("lattice_uniform_wall", "true")) return false;
+    if (parser.isSet("print_min_wall_mm"))       if (!applyCliOption("print_min_wall_mm", parser.value("print_min_wall_mm"))) return false;
+    if (parser.isSet("print_max_overhang_deg"))  if (!applyCliOption("print_max_overhang_deg", parser.value("print_max_overhang_deg"))) return false;
+    if (parser.isSet("print_max_thin_fraction")) if (!applyCliOption("print_max_thin_fraction", parser.value("print_max_thin_fraction"))) return false;
+    if (parser.isSet("print_max_island_vox"))    if (!applyCliOption("print_max_island_vox", parser.value("print_max_island_vox"))) return false;
+    if (parser.isSet("print_max_components"))    if (!applyCliOption("print_max_components", parser.value("print_max_components"))) return false;
+    if (parser.isSet("print_min_directions"))    if (!applyCliOption("print_min_directions", parser.value("print_min_directions"))) return false;
+    if (parser.isSet("print_max_unsupported_fraction")) if (!applyCliOption("print_max_unsupported_fraction", parser.value("print_max_unsupported_fraction"))) return false;
+    if (parser.isSet("require_printable"))       if (!applyCliOption("require_printable", "true")) return false;
+    if (parser.isSet("remove_islands"))          if (!applyCliOption("remove_islands", "true")) return false;
+    if (parser.isSet("lattice_metric_y"))        if (!applyCliOption("lattice_metric_y", parser.value("lattice_metric_y"))) return false;
+    if (parser.isSet("lattice_metric_z"))        if (!applyCliOption("lattice_metric_z", parser.value("lattice_metric_z"))) return false;
+
     if (parser.isSet("prob_preset"))             if (!applyCliOption("prob_preset", parser.value("prob_preset"))) return false;
     if (parser.isSet("prob_matrix_mode"))        if (!applyCliOption("prob_matrix_mode", parser.value("prob_matrix_mode"))) return false;
     if (parser.isSet("halfaxis_a"))              if (!applyCliOption("halfaxis_a", parser.value("halfaxis_a"))) return false;
@@ -1226,6 +2150,11 @@ bool Commandline_Parser::processOptions(const QCommandLineParser& parser, QStrin
     if (parser.isSet("num_rnd_loads"))           if (!applyCliOption("num_rnd_loads", parser.value("num_rnd_loads"))) return false;
     if (parser.isSet("solver"))                  if (!applyCliOption("solver", parser.value("solver"))) return false;
     if (parser.isSet("stress_mode"))             if (!applyCliOption("stress_mode", parser.value("stress_mode"))) return false;
+    if (parser.isSet("fft_scheme"))              if (!applyCliOption("fft_scheme", parser.value("fft_scheme"))) return false;
+    if (parser.isSet("fft_tol"))                 if (!applyCliOption("fft_tol", parser.value("fft_tol"))) return false;
+    if (parser.isSet("fft_void_eta"))            if (!applyCliOption("fft_void_eta", parser.value("fft_void_eta"))) return false;
+    if (parser.isSet("fft_discretization"))      if (!applyCliOption("fft_discretization", parser.value("fft_discretization"))) return false;
+    if (parser.isSet("fft_max_iter"))            if (!applyCliOption("fft_max_iter", parser.value("fft_max_iter"))) return false;
     if (parser.isSet("local_criterion"))         if (!applyCliOption("local_criterion", parser.value("local_criterion"))) return false;
     if (parser.isSet("hill_space"))              if (!applyCliOption("hill_space", parser.value("hill_space"))) return false;
     if (parser.isSet("yield_stress"))            if (!applyCliOption("yield_stress", parser.value("yield_stress"))) return false;

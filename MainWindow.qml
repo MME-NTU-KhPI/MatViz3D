@@ -15,6 +15,13 @@ Window {
     minimumWidth: 1024
     title: qsTr("MatViz3D")
 
+    // The Data panel shows the generator (algorithm + parameters), the dataset
+    // browser (rows of a dataset folder), the property selector (target
+    // properties -> closest cells; these two share the cell panel on the right)
+    // or the neural generator (target properties -> a cell decoded by the network).
+    property int dataTab: 0
+    readonly property bool datasetMode: dataTab > 0
+
     Material.theme: Material.Dark
     Material.accent: Material.Teal
 
@@ -58,6 +65,43 @@ Window {
         source: "TextureView.qml"
         active: false
         onLoaded: item.visible = true
+    }
+
+    Connections {
+        target: datasetBrowserController
+        function onShowRequested() { openDatasetBrowser() }
+    }
+
+    function openDatasetBrowser() {
+        mainWindow.dataTab = 1
+        _itemData.visible = true
+        checkData.checked = true
+    }
+
+    // --select <targets>: show the Selector tab and run that search once the dataset is read.
+    Connections {
+        target: propertySelectorController
+        function onShowRequested(spec) {
+            mainWindow.dataTab = 2
+            _itemData.visible = true
+            checkData.checked = true
+            if (spec.console === 0) {          // more room for the panels (documentation shots)
+                _itemConsole.visible = false
+                checkConsole.checked = false
+            }
+            selectorPanel.applySpec(spec)
+        }
+    }
+
+    // --neural <seed>: show the Neural tab and decode that code with the form as it stands.
+    Connections {
+        target: neuralGeneratorController
+        function onShowRequested(seed) {
+            mainWindow.dataTab = 3
+            _itemData.visible = true
+            checkData.checked = true
+            neuralPanel.generate(seed)
+        }
     }
 
     function openTextureEditor() {
@@ -118,6 +162,19 @@ Window {
                     Layout.preferredHeight: 49
                     Layout.alignment: Qt.AlignVCenter
 
+                    // The label lives outside the MenuBar: Qt 6.8+ no longer draws a
+                    // Text given as a MenuBar's contentItem on macOS.
+                    Text {
+                        id: menuFileText
+                        text: qsTr("File")
+                        font.pixelSize: 24
+                        font.family: montserrat.name
+                        color: "#CFCECE"
+                        horizontalAlignment: Text.AlignLeft
+                        verticalAlignment: Text.AlignVCenter
+                        anchors.centerIn: parent
+                    }
+
                     MenuBar {
                         id: fileMenuBar
                         width: 43
@@ -130,16 +187,8 @@ Window {
                             height: 49
                         }
 
-                        contentItem: Text {
-                            id: menuFileText
-                            text: qsTr("File")
-                            font.pixelSize: 24
-                            font.family: montserrat.name
-                            color: "#CFCECE"
-                            horizontalAlignment: Text.AlignLeft
-                            verticalAlignment: Text.AlignVCenter
-                            anchors.centerIn: parent
-                        }
+                        padding: 0
+                        contentItem: Item { }
 
                         Menu {
                             id: fileMenu
@@ -190,6 +239,12 @@ Window {
                                 text: qsTr("Open project");
                                 icon.source: "qrc:/img/fileMenu/open_project.svg"
                                 onTriggered: hdf5ProjectController.openFileDialog()
+                            }
+                            Action
+                            {
+                                text: qsTr("Dataset browser");
+                                icon.source: "qrc:/img/fileMenu/open_project.svg"
+                                onTriggered: openDatasetBrowser()
                             }
                             MenuSeparator { }
                             Action {
@@ -242,6 +297,19 @@ Window {
                     Layout.preferredHeight: 49
                     Layout.alignment: Qt.AlignVCenter
 
+                    // The label lives outside the MenuBar: Qt 6.8+ no longer draws a
+                    // Text given as a MenuBar's contentItem on macOS.
+                    Text {
+                        id: menuWindowText
+                        text: qsTr("Window")
+                        font.pixelSize: 24
+                        font.family: montserrat.name
+                        color: "#CFCECE"
+                        horizontalAlignment: Text.AlignLeft
+                        verticalAlignment: Text.AlignVCenter
+                        anchors.centerIn: parent
+                    }
+
                     MenuBar {
                         id: windowMenuBar
                         width: 88
@@ -254,16 +322,8 @@ Window {
                             height: 49
                         }
 
-                        contentItem: Text {
-                            id: menuWindowText
-                            text: qsTr("Window")
-                            font.pixelSize: 24
-                            font.family: montserrat.name
-                            color: "#CFCECE"
-                            horizontalAlignment: Text.AlignLeft
-                            verticalAlignment: Text.AlignVCenter
-                            anchors.centerIn: parent
-                        }
+                        padding: 0
+                        contentItem: Item { }
 
                         Menu {
                             id: windowMenu
@@ -517,11 +577,13 @@ Window {
                 anchors.bottom: parent.bottom
                 anchors.left: parent.left
                 anchors.margins: 20
-                width: mainWindow.width < 1250 ? 310 : 350
+                width: mainWindow.datasetMode ? (mainWindow.width < 1440 ? 340 : 400)
+                                              : (mainWindow.width < 1250 ? 310 : 350)
                 visible: true
 
                 Rectangle {
-                    color: "#80282828"
+                    // Nearly opaque on the Dataset tab: the 3D axes would show through the list.
+                    color: mainWindow.datasetMode ? "#F2282828" : "#80282828"
                     radius: 13
                     anchors.fill: parent
 
@@ -530,19 +592,38 @@ Window {
                         spacing: 0
 
                         RowLayout {
+                            id: tabRow
+                            // The four names have to fit the narrowest panel (310 px): a row wider
+                            // than the panel widens every page under it past the panel's background.
+                            readonly property bool narrow: _itemData.width < 330
                             Layout.fillWidth: true
                             Layout.preferredHeight: 32
                             Layout.leftMargin: 29
-                            Layout.rightMargin: 29
+                            Layout.rightMargin: 16
                             Layout.topMargin: 10
+                            spacing: 0
 
-                            Text {
-                                Layout.fillWidth: true
-                                color: "#d9d9d9"
-                                text: qsTr("Data")
-                                font.pixelSize: 14
-                                font.family: montserrat.name
+                            // Four pages: the generator, the dataset browser, the property selector and the neural generator.
+                            Repeater {
+                                model: [qsTr("Generator"), qsTr("Dataset"), qsTr("Selector"), qsTr("Neural")]
+                                delegate: Text {
+                                    required property int index
+                                    required property string modelData
+                                    readonly property bool active: index === mainWindow.dataTab
+                                    Layout.rightMargin: tabRow.narrow ? 8 : 12
+                                    text: modelData
+                                    color: active ? "#d9d9d9" : "#7a7a7a"
+                                    font.pixelSize: tabRow.narrow ? 13 : 14
+                                    font.family: montserrat.name
+                                    font.underline: active
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: mainWindow.dataTab = parent.index
+                                    }
+                                }
                             }
+                            Item { Layout.fillWidth: true }
 
                             Image {
                                 source: "qrc:/img/closeData.png"
@@ -561,6 +642,13 @@ Window {
                                 }
                             }
                         }
+
+                        ColumnLayout {
+                            id: generatorPage
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            spacing: 0
+                            visible: !mainWindow.datasetMode
 
                         Item {
                             Layout.fillWidth: true
@@ -765,6 +853,75 @@ Window {
                                 }
                             }
                         }
+                        }
+
+                        DatasetBrowserPanel {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            Layout.leftMargin: 16
+                            Layout.rightMargin: 16
+                            Layout.topMargin: 6
+                            Layout.bottomMargin: 14
+                            visible: mainWindow.dataTab === 1
+                            fontSans: inter.name
+                            fontTitle: montserrat.name
+                        }
+
+                        PropertySelectorPanel {
+                            id: selectorPanel
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            Layout.leftMargin: 16
+                            Layout.rightMargin: 16
+                            Layout.topMargin: 6
+                            Layout.bottomMargin: 14
+                            visible: mainWindow.dataTab === 2
+                            fontSans: inter.name
+                            fontTitle: montserrat.name
+                            // Same as "Reproduce Geometry" in the HDF5 view, then show the generator.
+                            onGeneratorRequested: if (hdf5ProjectController.reproduceGeometry()) mainWindow.dataTab = 0
+                        }
+
+                        NeuralGeneratorPanel {
+                            id: neuralPanel
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            Layout.leftMargin: 16
+                            Layout.rightMargin: 16
+                            Layout.topMargin: 6
+                            Layout.bottomMargin: 14
+                            visible: mainWindow.dataTab === 3
+                            fontSans: inter.name
+                            fontTitle: montserrat.name
+                        }
+                    }
+                }
+            }
+
+            // Dataset and Selector tabs: the selected cell's parameters, full height on the
+            // right, where the field panel sits otherwise (hidden for dataset cells).
+            Item {
+                id: _itemCellDetails
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                anchors.right: parent.right
+                anchors.margins: 20
+                width: mainWindow.width < 1440 ? 330 : 420
+                visible: (mainWindow.dataTab === 1 || mainWindow.dataTab === 2) && _itemData.visible
+
+                Rectangle {
+                    color: "#F2282828"
+                    radius: 13
+                    anchors.fill: parent
+
+                    DatasetCellPanel {
+                        anchors.fill: parent
+                        anchors.leftMargin: 18
+                        anchors.rightMargin: 14
+                        anchors.topMargin: 14
+                        anchors.bottomMargin: 14
+                        fontSans: inter.name
+                        fontTitle: montserrat.name
                     }
                 }
             }
@@ -773,12 +930,19 @@ Window {
                 id: _itemToolBar
                 anchors.top: parent.top
                 anchors.horizontalCenter: parent.horizontalCenter
+                // Centred in the free strip between the Data panel and, on the Dataset
+                // tab, the cell panel on the right; never closer than 12 px to the left one.
+                readonly property real freeLeft: _itemData.visible ? _itemData.x + _itemData.width + 12 : 0
+                readonly property real freeRight: _itemCellDetails.visible ? _itemCellDetails.x - 12 : parent.width
+                anchors.horizontalCenterOffset: Math.max(freeLeft + width / 2, (freeLeft + freeRight) / 2) - parent.width / 2
                 anchors.margins: 20
-                width: 450
+                // As wide as its icons really are (they overflowed a fixed 450 px).
+                width: Math.max(450, toolBarRow.implicitWidth)
                 height: 26
                 visible: true
 
                 RowLayout {
+                    id: toolBarRow
                     anchors.fill: parent
                     spacing: 15
 
@@ -1471,7 +1635,9 @@ Window {
         y: menuBar_rec.height + 20
         width: mainWindow.width < 1250 ? 320 : 360
         height: fieldViewCol.implicitHeight + 30
-        visible: stressAnalysisController.hasResult || (hdf5ProjectController.isOpen && hdf5ProjectController.loadSteps.length > 0)
+        // Dataset cells carry no per-voxel fields: no field panel while browsing them.
+        visible: !mainWindow.datasetMode
+                 && (stressAnalysisController.hasResult || (hdf5ProjectController.isOpen && hdf5ProjectController.loadSteps.length > 0))
 
         property bool legendVertical: false
         onLegendVerticalChanged: exportController.legendVertical = legendVertical
@@ -1903,13 +2069,16 @@ Window {
     }
 
     // Tensor overlays, stacked directly under the field-view card and shown
-    // under the same condition, so the two read as one panel.
+    // only while that card is, so the two read as one panel. On the Dataset /
+    // Selector / Neural tabs the card is hidden and the cell panel takes the
+    // right side; a stress result left over from the Generator tab showed this
+    // panel on top of the cell panel there.
     TensorViewPanel {
         id: _itemTensorView
         x: _itemFieldView.x
         y: _itemFieldView.y + _itemFieldView.height + 12
         width: _itemFieldView.width
-        visible: stressAnalysisController.hasResult
+        visible: _itemFieldView.visible && stressAnalysisController.hasResult
 
         target: glWidget
         titleFont: montserrat.name
@@ -1922,7 +2091,8 @@ Window {
     // ═══════════════════════════════════════════════════════════════════
     Rectangle {
         id: _itemLoadStepTimeline
-        visible: checkLoadStep.checked && hdf5ProjectController.isOpen && (hdf5ProjectController.loadSteps.length > 1 || hdf5ProjectController.geomSets.length > 1)
+        visible: !mainWindow.datasetMode && checkLoadStep.checked && hdf5ProjectController.isOpen
+                 && (hdf5ProjectController.loadSteps.length > 1 || hdf5ProjectController.geomSets.length > 1)
         anchors {
             bottom: parent.bottom
             bottomMargin: (_itemConsole.visible ? _itemConsole.height : 0) + 14

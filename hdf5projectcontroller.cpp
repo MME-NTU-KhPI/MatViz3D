@@ -135,7 +135,7 @@ void Hdf5ProjectController::reloadGeometryMetadata(int geomSetNum)
     }
 
     // Probe HDF5 for seed and stiffness matrices
-    HDF5Wrapper hdf5(m_filePath.toStdString());
+    HDF5Wrapper hdf5(m_filePath.toStdString(), /*readOnly=*/true);
     std::string prefix = "/" + std::to_string(geomSetNum);
 
     m_seed = hdf5.readInt(prefix, "seed");
@@ -285,6 +285,18 @@ void Hdf5ProjectController::setContinuousYieldOutput(bool continuous)
 
 void Hdf5ProjectController::pushTo3DView()
 {
+    // A generation or a stress solve still works on the grid this would free: the
+    // cell goes to the 3D view as soon as that is done (one wait however many
+    // requests come meanwhile; it pushes the file open by then).
+    if (Parameters::voxelsBusy()) {
+        if (!m_pushWaiting) {
+            m_pushWaiting = true;
+            qInfo().noquote() << "[HDF5] a structure is being generated or solved; the opened cell goes to the 3D view when that is done";
+            Parameters::whenVoxelsFree(this, [this]() { m_pushWaiting = false; pushTo3DView(); });
+        }
+        return;
+    }
+
     LoadStepManager& lsm = LoadStepManager::getInstance();
     if (!lsm.isValid() || m_cubeSize <= 0) return;
 
@@ -307,6 +319,7 @@ void Hdf5ProjectController::pushTo3DView()
         p->setPoints(m_numPoints);
         Parameters::filename = m_filePath;
         Parameters::phaseAssignment.clear();
+        Parameters::publishCellMaterial(m_geomParams, m_geomMeta.algorithm);
         Parameters::percolation_rank6 = -1;
 
         if (Parameters::voxels) {

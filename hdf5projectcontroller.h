@@ -81,6 +81,8 @@ public:
     Q_INVOKABLE void setBinCount(int count);
     Q_INVOKABLE void setAutoSync3D(bool autoSync);
     Q_INVOKABLE void pushTo3DView();
+    /// Something else put its own structure into the 3D view: the next push uploads this file's geometry again.
+    void invalidate3DSync() { m_syncedGeomIndex = -1; }
     Q_INVOKABLE void setYieldCriterionMode(int mode);
     Q_INVOKABLE void setSchmidThreshold(double threshold);
     Q_INVOKABLE void setCrssLimit(double crssPa);
@@ -161,6 +163,7 @@ private:
     QStringList m_geomSets;
     int         m_currentGeomIndex = -1;
     int         m_syncedGeomIndex = -1;
+    bool        m_pushWaiting = false;   ///< a push waits for the grid (Parameters::whenVoxelsFree)
     QStringList m_loadSteps;
     int         m_currentLoadStepIndex = -1;
 

@@ -54,6 +54,14 @@ void MainWindowAlgorithmHandler::runAlgorithm(const QString& algorithmName)
 {
     clock_t start_time = clock();
 
+    // A stress solve reads the grid on a worker thread, or a generation is filling it and
+    // let this START through its event loop (an animation): a new structure now would
+    // pull the grid from under it.
+    if (Parameters::voxelsBusy()) {
+        qWarning().noquote() << "[Generator] a structure is being generated or solved; START again when that is done";
+        return;
+    }
+
     if (!validateParameters()) return;
 
     registerAlgorithms();
@@ -87,6 +95,9 @@ void MainWindowAlgorithmHandler::executeAlgorithm(Parent_Algorithm& algorithm, c
 {
     Parameters& params = *Parameters::instance();
     OpenGLWidgetQML *ogl = OpenGLWidgetQML::getInstance();
+    // The algorithm's own array becomes the grid, and updateScene() below lets the event
+    // loop run while it is filled: nothing may free or replace the grid until it is done.
+    Parameters::VoxelUse gridInUse;
     Parameters::voxels = algorithm.Allocate_Memory();
 
     // Drop any phase table a previous run published. Only a multi-phase

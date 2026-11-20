@@ -3,9 +3,14 @@
 
 #include <QObject>
 #include <QString>
+#include <QVariantMap>
+#include <array>
+#include <functional>
 #include <vector>
 #include "texturelibrary.h"
 #include "phasematerial.h"
+#include "printability.h"
+#include "mycelium.h"
 
 class Parameters : public QObject
 {
@@ -99,6 +104,112 @@ class Parameters : public QObject
     // isotropic row like C-fiber ends up stiff along the fiber.
     Q_PROPERTY(QString matrix_material READ getMatrixMaterial WRITE setMatrixMaterial NOTIFY compositeSettingsChanged)
     Q_PROPERTY(QString fiber_material  READ getFiberMaterial  WRITE setFiberMaterial  NOTIFY compositeSettingsChanged)
+
+    // ── Lattice (cellular metamaterial RVE) ───────────────────────────────
+    // Cell family: stored as the CLI key (see latticefamily.h), read back as
+    // the combo-box label so the panel can match its own option list.
+    Q_PROPERTY(QString lattice_family   READ getLatticeFamily   WRITE setLatticeFamily   NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(int     cells_per_edge   READ getCellsPerEdge    WRITE setCellsPerEdge    NOTIFY latticeSettingsChanged)
+    // Target relative density (solid fraction) of the cell. This is the input;
+    // the level/threshold that produces it is solved by the algorithm.
+    Q_PROPERTY(double  relative_density READ getRelativeDensity WRITE setRelativeDensity NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  lattice_grading  READ getLatticeGrading  WRITE setLatticeGrading  NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  lattice_jitter   READ getLatticeJitter   WRITE setLatticeJitter   NOTIFY latticeSettingsChanged)
+    // Spinodoid: half-angles of the cones of admissible wave directions about
+    // X, Y, Z in degrees (0 = that cone closed, 90 = whole sphere).
+    Q_PROPERTY(double  spinodoid_theta_x READ getSpinodoidThetaX WRITE setSpinodoidThetaX NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  spinodoid_theta_y READ getSpinodoidThetaY WRITE setSpinodoidThetaY NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  spinodoid_theta_z READ getSpinodoidThetaZ WRITE setSpinodoidThetaZ NOTIFY latticeSettingsChanged)
+    // Fourier-series families: random draw controls, or a coefficient file
+    // (kx ky kz amplitude phase per line) that overrides the draw.
+    Q_PROPERTY(int     fourier_terms READ getFourierTerms WRITE setFourierTerms NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  fourier_kmin  READ getFourierKmin  WRITE setFourierKmin  NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  fourier_kmax  READ getFourierKmax  WRITE setFourierKmax  NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  fourier_decay READ getFourierDecay WRITE setFourierDecay NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(QString fourier_file  READ getFourierFile  WRITE setFourierFile  NOTIFY latticeSettingsChanged)
+    // Smoothed-noise families: Gaussian sigma as a fraction of the cube edge.
+    Q_PROPERTY(double  noise_smooth  READ getNoiseSmooth  WRITE setNoiseSmooth  NOTIFY latticeSettingsChanged)
+    // Fourier families: "none" or "cubic" (waves expanded to their orbits under the cubic group).
+    Q_PROPERTY(QString fourier_symmetry READ getFourierSymmetry WRITE setFourierSymmetry NOTIFY latticeSettingsChanged)
+    // Plate lattices: hole diameter through every panel centre, in cell edges (0 = none).
+    Q_PROPERTY(double  plate_hole    READ getPlateHole    WRITE setPlateHole    NOTIFY latticeSettingsChanged)
+    // Second cell family united with the first; stored as the key, read back as the label ("none" = off).
+    Q_PROPERTY(QString lattice_union READ getLatticeUnion WRITE setLatticeUnion NOTIFY latticeSettingsChanged)
+    // Third family carved out of the solid up to its own level (cell edges), and a Gaussian blur of the field (cell edges).
+    Q_PROPERTY(QString lattice_subtract      READ getLatticeSubtract     WRITE setLatticeSubtract     NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  lattice_subtract_size READ getLatticeSubtractSize WRITE setLatticeSubtractSize NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  lattice_smooth        READ getLatticeSmooth       WRITE setLatticeSmooth       NOTIFY latticeSettingsChanged)
+    // Honeycomb shape: custom on/off, inclined wall angle (deg, negative = re-entrant), rib / wall length.
+    Q_PROPERTY(bool    honeycomb_custom READ getHoneycombCustom WRITE setHoneycombCustom NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  honeycomb_angle  READ getHoneycombAngle  WRITE setHoneycombAngle  NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  honeycomb_rib    READ getHoneycombRib    WRITE setHoneycombRib    NOTIFY latticeSettingsChanged)
+    // Cubic assembly: members drawn in the asymmetric unit, thickness spread, optional member file.
+    Q_PROPERTY(int     assembly_struts  READ getAssemblyStruts  WRITE setAssemblyStruts  NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(int     assembly_plates  READ getAssemblyPlates  WRITE setAssemblyPlates  NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(int     assembly_shells  READ getAssemblyShells  WRITE setAssemblyShells  NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(int     assembly_holes   READ getAssemblyHoles   WRITE setAssemblyHoles   NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  assembly_spread  READ getAssemblySpread  WRITE setAssemblySpread  NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(QString assembly_file    READ getAssemblyFile    WRITE setAssemblyFile    NOTIFY latticeSettingsChanged)
+    // 3D honeycombs (foam families): walls | windows | edges, window frame width
+    // (fraction of the bubble size), bubbles per cell of the random foam, site file.
+    Q_PROPERTY(QString foam_mode        READ getFoamMode        WRITE setFoamMode        NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  foam_frame       READ getFoamFrame       WRITE setFoamFrame       NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(int     foam_bubbles     READ getFoamBubbles     WRITE setFoamBubbles     NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(QString foam_file        READ getFoamFile        WRITE setFoamFile        NOTIFY latticeSettingsChanged)
+    // Grown mycelium (mycelium.h): mode, total hypha length per cell, spores, hyphal
+    // growth unit, branch angle, tip wiggle, fusion distance, branch taper, and the
+    // mode-specific shares (polypore binding hyphae, mat anchors, layered substrate).
+    Q_PROPERTY(QString mycelium_mode    READ getMyceliumMode    WRITE setMyceliumMode    NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  mycelium_length  READ getMyceliumLength  WRITE setMyceliumLength  NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(int     mycelium_spores  READ getMyceliumSpores  WRITE setMyceliumSpores  NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  mycelium_unit    READ getMyceliumUnit    WRITE setMyceliumUnit    NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  mycelium_angle   READ getMyceliumAngle   WRITE setMyceliumAngle   NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  mycelium_wiggle  READ getMyceliumWiggle  WRITE setMyceliumWiggle  NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  mycelium_fuse    READ getMyceliumFuse    WRITE setMyceliumFuse    NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  mycelium_taper   READ getMyceliumTaper   WRITE setMyceliumTaper   NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  mycelium_binding READ getMyceliumBinding WRITE setMyceliumBinding NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  mycelium_align   READ getMyceliumAlign   WRITE setMyceliumAlign   NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  mycelium_anchors READ getMyceliumAnchors WRITE setMyceliumAnchors NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  mycelium_poor    READ getMyceliumPoor    WRITE setMyceliumPoor    NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(QString mycelium_file    READ getMyceliumFile    WRITE setMyceliumFile    NOTIFY latticeSettingsChanged)
+    // Bio-inspired / architected forms (cellforms.h): three shape knobs in [0, 1]
+    // whose meaning depends on the form (cellforms::knobLabel()).
+    Q_PROPERTY(double  form_a           READ getFormA           WRITE setFormA           NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  form_b           READ getFormB           WRITE setFormB           NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  form_c           READ getFormC           WRITE setFormC           NOTIFY latticeSettingsChanged)
+    // Material given as numbers instead of a database row (dataset runs): E in
+    // GPa (0 = use db_material), Poisson's ratio, and the ratio of the modulus
+    // across the print layers (Z) to the in-plane one (1 = isotropic).
+    Q_PROPERTY(double  mat_e_gpa  READ getMatEGpa  WRITE setMatEGpa  NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  mat_nu     READ getMatNu    WRITE setMatNu    NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  mat_aniso  READ getMatAniso WRITE setMatAniso NOTIFY latticeSettingsChanged)
+    // Write per-voxel stress/strain fields to HDF5 (off for dataset runs: the
+    // six load cases of a 64^3 cell are ~40 MB of fields next to <1 MB of
+    // matrices and metadata).
+    Q_PROPERTY(bool    hdf5_fields READ getHdf5Fields WRITE setHdf5Fields NOTIFY latticeSettingsChanged)
+    // Physical size of one lattice cell, mm: converts voxels into millimetres
+    // for the printability check and the wall-thickness report.
+    Q_PROPERTY(double  lattice_cell_mm READ getLatticeCellMm WRITE setLatticeCellMm NOTIFY latticeSettingsChanged)
+    // Sheet families: thicken by the first-order distance |f|/|grad f| instead
+    // of |f|, so the wall thickness is (nearly) uniform and printable.
+    Q_PROPERTY(bool    lattice_uniform_wall READ getLatticeUniformWall WRITE setLatticeUniformWall NOTIFY latticeSettingsChanged)
+    // Printability thresholds (see printability.h) and whether a headless run
+    // must stop before the stress solve when the structure fails them.
+    Q_PROPERTY(double  print_min_wall_mm              READ getPrintMinWallMm            WRITE setPrintMinWallMm            NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  print_max_overhang_deg         READ getPrintMaxOverhangDeg       WRITE setPrintMaxOverhangDeg       NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  print_max_thin_fraction        READ getPrintMaxThinFraction      WRITE setPrintMaxThinFraction      NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(int     print_max_island_vox           READ getPrintMaxIslandVox         WRITE setPrintMaxIslandVox         NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(int     print_max_components           READ getPrintMaxComponents        WRITE setPrintMaxComponents        NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(int     print_min_directions           READ getPrintMinDirections        WRITE setPrintMinDirections        NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(double  print_max_unsupported_fraction READ getPrintMaxUnsupportedFraction WRITE setPrintMaxUnsupportedFraction NOTIFY latticeSettingsChanged)
+    Q_PROPERTY(bool    require_printable              READ getRequirePrintable          WRITE setRequirePrintable          NOTIFY latticeSettingsChanged)
+
+    // FFT solver scheme: "auto" (CG for porous or high-contrast cells, basic
+    // otherwise), "basic" (Moulinec-Suquet fixed point) or "cg" (conjugate
+    // gradients on the Galerkin form). See FFTSolverSession::Scheme.
+    Q_PROPERTY(QString fft_scheme READ getFftScheme WRITE setFftScheme NOTIFY fftSchemeChanged)
+    Q_PROPERTY(double  fft_tol      READ getFftTol     WRITE setFftTol     NOTIFY fftSchemeChanged)
+    Q_PROPERTY(int     fft_max_iter READ getFftMaxIter WRITE setFftMaxIter NOTIFY fftSchemeChanged)
 
     Q_PROPERTY(QString texture_preset  READ getTexturePreset  WRITE setTexturePreset  NOTIFY textureSettingsChanged)
     Q_PROPERTY(double  texture_scatter READ getTextureScatter WRITE setTextureScatter NOTIFY textureSettingsChanged)
@@ -310,6 +421,183 @@ public:
     Q_INVOKABLE void setMatrixMaterial(const QString& value);
     Q_INVOKABLE void setFiberMaterial(const QString& value);
 
+    // ── Lattice ───────────────────────────────────────────────────────────
+    QString getLatticeFamily()   const { return latticeFamilyLabelOf(lattice_family); }
+    int     getCellsPerEdge()    const { return cells_per_edge; }
+    double  getRelativeDensity() const { return relative_density; }
+    double  getLatticeGrading()  const { return lattice_grading; }
+    double  getLatticeJitter()   const { return lattice_jitter; }
+
+    /// Accepts the CLI key, the panel label or a loose spelling of either.
+    Q_INVOKABLE void setLatticeFamily(const QString& value);
+    Q_INVOKABLE void setCellsPerEdge(int value);
+    Q_INVOKABLE void setRelativeDensity(double value);
+    Q_INVOKABLE void setLatticeGrading(double value);
+    Q_INVOKABLE void setLatticeJitter(double value);
+
+    double  getSpinodoidThetaX() const { return spinodoid_theta_x; }
+    double  getSpinodoidThetaY() const { return spinodoid_theta_y; }
+    double  getSpinodoidThetaZ() const { return spinodoid_theta_z; }
+    int     getFourierTerms()    const { return fourier_terms; }
+    double  getFourierKmin()     const { return fourier_kmin; }
+    double  getFourierKmax()     const { return fourier_kmax; }
+    double  getFourierDecay()    const { return fourier_decay; }
+    QString getFourierFile()     const { return fourier_file; }
+    Q_INVOKABLE void setSpinodoidThetaX(double value);
+    Q_INVOKABLE void setSpinodoidThetaY(double value);
+    Q_INVOKABLE void setSpinodoidThetaZ(double value);
+    Q_INVOKABLE void setFourierTerms(int value);
+    Q_INVOKABLE void setFourierKmin(double value);
+    Q_INVOKABLE void setFourierKmax(double value);
+    Q_INVOKABLE void setFourierDecay(double value);
+    Q_INVOKABLE void setFourierFile(const QString& value);
+    double  getNoiseSmooth()     const { return noise_smooth; }
+    Q_INVOKABLE void setNoiseSmooth(double value);
+    QString getFourierSymmetry() const { return fourier_symmetry; }
+    Q_INVOKABLE void setFourierSymmetry(const QString& value);
+    double  getPlateHole()       const { return plate_hole; }
+    Q_INVOKABLE void setPlateHole(double value);
+    QString getLatticeUnion()    const { return lattice_union.isEmpty() ? QStringLiteral("none") : latticeFamilyLabelOf(lattice_union); }
+    Q_INVOKABLE void setLatticeUnion(const QString& value);
+    static QString latticeUnionKeyStored() { return lattice_union; }
+    QString getLatticeSubtract() const { return lattice_subtract.isEmpty() ? QStringLiteral("none") : latticeFamilyLabelOf(lattice_subtract); }
+    Q_INVOKABLE void setLatticeSubtract(const QString& value);
+    static QString latticeSubtractKeyStored() { return lattice_subtract; }
+    double  getLatticeSubtractSize() const { return lattice_subtract_size; }
+    Q_INVOKABLE void setLatticeSubtractSize(double value);
+    double  getLatticeSmooth()       const { return lattice_smooth; }
+    Q_INVOKABLE void setLatticeSmooth(double value);
+    bool    getHoneycombCustom()     const { return honeycomb_custom; }
+    Q_INVOKABLE void setHoneycombCustom(bool value);
+    double  getHoneycombAngle()      const { return honeycomb_angle; }
+    Q_INVOKABLE void setHoneycombAngle(double value);
+    double  getHoneycombRib()        const { return honeycomb_rib; }
+    Q_INVOKABLE void setHoneycombRib(double value);
+    int     getAssemblyStruts()      const { return assembly_struts; }
+    Q_INVOKABLE void setAssemblyStruts(int value);
+    int     getAssemblyPlates()      const { return assembly_plates; }
+    Q_INVOKABLE void setAssemblyPlates(int value);
+    int     getAssemblyShells()      const { return assembly_shells; }
+    Q_INVOKABLE void setAssemblyShells(int value);
+    int     getAssemblyHoles()       const { return assembly_holes; }
+    Q_INVOKABLE void setAssemblyHoles(int value);
+    double  getAssemblySpread()      const { return assembly_spread; }
+    Q_INVOKABLE void setAssemblySpread(double value);
+    QString getAssemblyFile()        const { return assembly_file; }
+    Q_INVOKABLE void setAssemblyFile(const QString& value);
+    QString getFoamMode()            const { return foam_mode; }
+    Q_INVOKABLE void setFoamMode(const QString& value);
+    double  getFoamFrame()           const { return foam_frame; }
+    Q_INVOKABLE void setFoamFrame(double value);
+    int     getFoamBubbles()         const { return foam_bubbles; }
+    Q_INVOKABLE void setFoamBubbles(int value);
+    QString getFoamFile()            const { return foam_file; }
+    Q_INVOKABLE void setFoamFile(const QString& value);
+    QString getMyceliumMode()        const { return mycelium_mode; }
+    Q_INVOKABLE void setMyceliumMode(const QString& value);
+    double  getMyceliumLength()      const { return mycelium_length; }
+    Q_INVOKABLE void setMyceliumLength(double value);
+    int     getMyceliumSpores()      const { return mycelium_spores; }
+    Q_INVOKABLE void setMyceliumSpores(int value);
+    double  getMyceliumUnit()        const { return mycelium_unit; }
+    Q_INVOKABLE void setMyceliumUnit(double value);
+    double  getMyceliumAngle()       const { return mycelium_angle; }
+    Q_INVOKABLE void setMyceliumAngle(double value);
+    double  getMyceliumWiggle()      const { return mycelium_wiggle; }
+    Q_INVOKABLE void setMyceliumWiggle(double value);
+    double  getMyceliumFuse()        const { return mycelium_fuse; }
+    Q_INVOKABLE void setMyceliumFuse(double value);
+    double  getMyceliumTaper()       const { return mycelium_taper; }
+    Q_INVOKABLE void setMyceliumTaper(double value);
+    double  getMyceliumBinding()     const { return mycelium_binding; }
+    Q_INVOKABLE void setMyceliumBinding(double value);
+    double  getMyceliumAlign()       const { return mycelium_align; }
+    Q_INVOKABLE void setMyceliumAlign(double value);
+    double  getMyceliumAnchors()     const { return mycelium_anchors; }
+    Q_INVOKABLE void setMyceliumAnchors(double value);
+    double  getMyceliumPoor()        const { return mycelium_poor; }
+    Q_INVOKABLE void setMyceliumPoor(double value);
+    QString getMyceliumFile()        const { return mycelium_file; }
+    Q_INVOKABLE void setMyceliumFile(const QString& value);
+    double  getFormA()               const { return form_a; }
+    double  getFormB()               const { return form_b; }
+    double  getFormC()               const { return form_c; }
+    Q_INVOKABLE void setFormA(double value);
+    Q_INVOKABLE void setFormB(double value);
+    Q_INVOKABLE void setFormC(double value);
+    double getMatEGpa()    const { return mat_e_gpa; }
+    double getMatNu()      const { return mat_nu; }
+    double getMatAniso()   const { return mat_aniso; }
+    bool   getHdf5Fields() const { return hdf5_fields; }
+    Q_INVOKABLE void setMatEGpa(double value);
+    Q_INVOKABLE void setMatNu(double value);
+    Q_INVOKABLE void setMatAniso(double value);
+    Q_INVOKABLE void setHdf5Fields(bool value);
+    /// True when the material comes from mat_e_gpa / mat_nu / mat_aniso rather than the database.
+    static bool materialOverrideActive() { return mat_e_gpa > 0.0; }
+    /// Voigt 6x6 stiffness in Pa of the override material: isotropic when
+    /// mat_aniso == 1, otherwise transversely isotropic about axis 3 (the build
+    /// direction) with E3 = aniso*E, G13 = G23 = aniso*G and the in-plane
+    /// Poisson's ratio carried over. Returns false if the constants are not
+    /// positive definite.
+    static bool overrideStiffnessPa(double C[6][6]);
+    /// The same law from explicit numbers (E in GPa): what overrideStiffnessPa
+    /// builds from mat_e_gpa / mat_nu / mat_aniso.
+    static bool lawStiffnessPa(double eGpa, double nu, double aniso, double C[6][6]);
+    /// Publish the solid a Lattice cell file was solved with (`parameters` =
+    /// its geometry parameters: mat_e_gpa / mat_nu / mat_aniso / mat_source)
+    /// as phaseAssignment, so a stress run on an opened cell uses it; false
+    /// when the file carries none (other algorithms, old files).
+    static bool publishCellMaterial(const QVariantMap& parameters, const QString& algorithm, const QString& logLine = QString());
+    static QString overrideMaterialName();
+
+    double getLatticeCellMm()               const { return lattice_cell_mm; }
+    bool   getLatticeUniformWall()          const { return lattice_uniform_wall; }
+    Q_INVOKABLE void setLatticeUniformWall(bool value);
+    double getPrintMinWallMm()              const { return print_min_wall_mm; }
+    double getPrintMaxOverhangDeg()         const { return print_max_overhang_deg; }
+    double getPrintMaxThinFraction()        const { return print_max_thin_fraction; }
+    int    getPrintMaxIslandVox()           const { return print_max_island_vox; }
+    int    getPrintMaxComponents()          const { return print_max_components; }
+    int    getPrintMinDirections()          const { return print_min_directions; }
+    double getPrintMaxUnsupportedFraction() const { return print_max_unsupported_fraction; }
+    bool   getRequirePrintable()            const { return require_printable; }
+    bool   getLatticeRemoveIslands()        const { return lattice_remove_islands; }
+    double getLatticeMetricY()              const { return lattice_metric_y; }
+    double getLatticeMetricZ()              const { return lattice_metric_z; }
+    Q_INVOKABLE void setLatticeCellMm(double value);
+    Q_INVOKABLE void setPrintMinWallMm(double value);
+    Q_INVOKABLE void setPrintMaxOverhangDeg(double value);
+    Q_INVOKABLE void setPrintMaxThinFraction(double value);
+    Q_INVOKABLE void setPrintMaxIslandVox(int value);
+    Q_INVOKABLE void setPrintMaxComponents(int value);
+    Q_INVOKABLE void setPrintMinDirections(int value);
+    Q_INVOKABLE void setPrintMaxUnsupportedFraction(double value);
+    Q_INVOKABLE void setRequirePrintable(bool value);
+    /// Lattice: remove every floating island (any size) from the rasterized cell before the printability check.
+    Q_INVOKABLE void setLatticeRemoveIslands(bool value);
+    /// Lattice thickness metric (1 = off): a distance along Y / Z counts this many times (lattice.h). 0.25..4.
+    Q_INVOKABLE void setLatticeMetricY(double value);
+    Q_INVOKABLE void setLatticeMetricZ(double value);
+    /// Thresholds for checkPrintability(), built from the fields above.
+    static PrintabilityThresholds printThresholds(double voxel_mm);
+
+    /// The stored CLI key of the current family ("gyroid_sheet", ...).
+    static QString latticeFamilyKeyStored() { return lattice_family; }
+    static QString latticeFamilyLabelOf(const QString& key);
+
+    QString getFftScheme() const { return fft_scheme; }
+    /// Accepts auto | basic | cg (case-insensitive); anything else is ignored with a warning.
+    Q_INVOKABLE void setFftScheme(const QString& value);
+    double getFftTol()     const { return fft_tol; }
+    int    getFftMaxIter() const { return fft_max_iter; }
+    Q_INVOKABLE void setFftTol(double value);
+    double getFftVoidEta() const { return fft_void_eta; }
+    Q_INVOKABLE void setFftVoidEta(double value);
+    QString getFftDiscretization() const { return fft_discretization; }
+    Q_INVOKABLE void setFftDiscretization(const QString& value);
+    Q_INVOKABLE void setFftMaxIter(int value);
+
     /**
      * @brief Cubic single-crystal constants of the selected material, in Pa.
      *
@@ -364,6 +652,29 @@ public:
 
     static int32_t*** voxels;
 
+    /// The grid above is in use by something that keeps its pointer while the
+    /// event loop runs: a structure generation (its own array is the grid, and it
+    /// lets queued events run to redraw the 3D view - once before filling, after
+    /// every step of an animation) and a stress solve (a worker thread reads it).
+    /// Meanwhile nothing may free or replace the grid: a cell opened from a file
+    /// or shown by the Neural tab did, and the generator or solver went on in
+    /// freed memory (SIGSEGV in Lattice::rasterize / OpenGLWidgetQML::setVoxels).
+    /// Main thread only. acquireVoxels() / releaseVoxels() count the users;
+    /// whenVoxelsFree() runs fn at once when there is none, else when the last one
+    /// is done (later in the event loop, and only while ctx still exists).
+    static void acquireVoxels();
+    static void releaseVoxels();
+    static bool voxelsBusy() { return voxelUsers > 0; }
+    static void whenVoxelsFree(QObject* ctx, std::function<void()> fn);
+    /// acquireVoxels() for the lifetime of a scope.
+    struct VoxelUse {
+        VoxelUse() { acquireVoxels(); }
+        ~VoxelUse() { releaseVoxels(); }
+        VoxelUse(const VoxelUse&) = delete;
+        VoxelUse& operator=(const VoxelUse&) = delete;
+    };
+    static int voxelUsers;
+
     static unsigned int seed;
     static SeedMethod seed_method;
     static double seed_sigma;
@@ -404,6 +715,42 @@ public:
      * "one material from db_material + texture-sampled orientations" path.
      */
     static PhaseAssignment phaseAssignment;
+
+    // Published by the Lattice algorithm after rasterization, for the HDF5
+    // geometry metadata: the solid fraction actually reached and the
+    // estimated wall / strut thickness in voxels (0 = no estimate).
+    static double lattice_achieved_density;
+    static double lattice_wall_voxels;
+    // The waves a spinodoid or Fourier-series cell was built from, one row
+    // per wave: kx, ky, kz, amplitude, phase. Empty for the other families.
+    static std::vector<std::array<float,5>> lattice_wave_terms;
+    // The members of a cubic-assembly cell, one row per member: kind
+    // (0 strut, 1 plate, 2 shell, 3 window), three points (x y z each, in the
+    // asymmetric unit 0 <= z <= y <= x <= 1/2), radius, thickness weight.
+    static std::vector<std::array<float,12>> lattice_assembly_terms;
+    // The sites of a foam cell (x y z in cell units, one row per bubble):
+    // its Voronoi partition is the cell. Empty for the other families.
+    static std::vector<std::array<float,3>> lattice_foam_sites;
+    // The hyphae of a mycelium cell, one row per straight piece: a (x y z in
+    // [0, 1) cell units), b = a + the piece's vector, thickness weight. Its
+    // growth statistics alongside. Empty for the other families.
+    static std::vector<std::array<float,7>> lattice_mycelium_segments;
+    static mycelium::Stats lattice_mycelium_stats;
+    // Result of the last printability check (Lattice runs it after rasterization).
+    static PrintabilityReport printability;
+    // Voxel edge in mm of the last Lattice run (cells * cell_mm / size).
+    static double lattice_voxel_mm;
+    // Floating islands removed from the last Lattice cell (lattice_remove_islands) and their voxels.
+    static int lattice_islands_removed;
+    static long long lattice_island_voxels_removed;
+
+    // "auto" | "basic" | "cg"; both FFT entry points read it at construction.
+    static QString fft_scheme;
+    // Convergence tolerance and iteration cap of the FFT solver (both schemes).
+    static double  fft_tol;
+    static int     fft_max_iter;
+    static double  fft_void_eta;      // stiffness of the void phase as a fraction of the solid's C11
+    static QString fft_discretization; // "continuous" (Moulinec-Suquet) | "rotated" (Willot)
 
     /**
      * @brief Periodic wrap rank (0..3) of the current structure under 6-connectivity,
@@ -496,6 +843,8 @@ signals:
     void dbMaterialChanged();
     void textureSettingsChanged();
     void compositeSettingsChanged();
+    void latticeSettingsChanged();
+    void fftSchemeChanged();
 
     void numRndLoadsChanged();
     void stressSolverChanged();
@@ -569,6 +918,73 @@ private:
     static bool    fiber_allow_overlap;
     static QString matrix_material;
     static QString fiber_material;
+
+    static QString lattice_family;       // CLI key, see latticefamily.h
+    static int     cells_per_edge;
+    static double  relative_density;
+    static double  lattice_grading;
+    static double  lattice_jitter;
+    static double  spinodoid_theta_x;
+    static double  spinodoid_theta_y;
+    static double  spinodoid_theta_z;
+    static int     fourier_terms;
+    static double  fourier_kmin;
+    static double  fourier_kmax;
+    static double  fourier_decay;
+    static QString fourier_file;
+    static double  noise_smooth;
+    static QString fourier_symmetry;     // "none" | "cubic"
+    static double  plate_hole;
+    static QString lattice_union;        // CLI key of the second family, empty = none
+    static QString lattice_subtract;     // CLI key of the carved-out family, empty = none
+    static double  lattice_subtract_size;
+    static double  lattice_smooth;
+    static bool    honeycomb_custom;
+    static double  honeycomb_angle;
+    static double  honeycomb_rib;
+    static int     assembly_struts;
+    static int     assembly_plates;
+    static int     assembly_shells;
+    static int     assembly_holes;
+    static double  assembly_spread;
+    static QString assembly_file;
+    static QString foam_mode;            // "walls" | "windows" | "edges"
+    static double  foam_frame;
+    static int     foam_bubbles;
+    static QString foam_file;
+    static QString mycelium_mode;        // "substrate" | "polypore" | "mat" | "layered"
+    static double  mycelium_length;
+    static int     mycelium_spores;
+    static double  mycelium_unit;
+    static double  mycelium_angle;
+    static double  mycelium_wiggle;
+    static double  mycelium_fuse;
+    static double  mycelium_taper;
+    static double  mycelium_binding;
+    static double  mycelium_align;
+    static double  mycelium_anchors;
+    static double  mycelium_poor;
+    static QString mycelium_file;
+    static double  form_a;
+    static double  form_b;
+    static double  form_c;
+    static double  mat_e_gpa;
+    static double  mat_nu;
+    static double  mat_aniso;
+    static bool    hdf5_fields;
+    static double  lattice_cell_mm;
+    static bool    lattice_uniform_wall;
+    static double  print_min_wall_mm;
+    static double  print_max_overhang_deg;
+    static double  print_max_thin_fraction;
+    static int     print_max_island_vox;
+    static int     print_max_components;
+    static int     print_min_directions;
+    static double  print_max_unsupported_fraction;
+    static bool    require_printable;
+    static bool    lattice_remove_islands;
+    static double  lattice_metric_y;
+    static double  lattice_metric_z;
 };
 
 #endif // PARAMETERS_H

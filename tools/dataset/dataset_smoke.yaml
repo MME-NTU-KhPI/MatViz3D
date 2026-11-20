@@ -1,0 +1,28 @@
+# Tiny end-to-end check of the pipeline: 32^3 cells, a few rows per family.
+output_dir: ../../data/smoke
+matviz: ../../build/MatViz3D.app/Contents/MacOS/MatViz3D
+size: 32
+fft_tol: 1e-4
+fft_max_iter: 2000
+timeout_s: 600
+oversample: 1.0
+grid:                 # exercise the adaptive grid with small sizes
+  sizes: [32, 48, 64]
+  min_wall_vox: 6
+  probe: 32
+  single_cell_families: [gyroid_sheet, gyroid_skeletal, schwarz_p_sheet, schwarz_d_sheet, iwp_sheet, bcc, fcc, octet, honeycomb, reentrant, plate_sc, plate_sc_fcc]
+seed0: 500
+
+common:
+  lattice_cell_mm: [8.0, 12.0]
+  relative_density: [0.30, 0.45]
+
+laws:
+  - {id: petg_ref,  E_GPa: 2.0, nu: 0.38, aniso: 1.0}
+  - {id: petg_soft, E_GPa: 1.6, nu: 0.40, aniso: 0.8}
+
+families:
+  fourier_sheet:   {quota: 3, params: {fourier_terms: [8, 24], fourier_kmin: 1.0, fourier_kmax: [2.0, 3.0], fourier_decay: [0.5, 2.0], cells_per_edge: 1}, flags: [lattice_uniform_wall]}
+  spinodoid:       {quota: 2, params: {spinodoid_theta_x: {choices: [0, 30, 90]}, spinodoid_theta_y: {choices: [0, 30, 90]}, spinodoid_theta_z: {choices: [0, 30, 90]}, cells_per_edge: [2, 4]}}
+  noise_skeletal:  {quota: 2, params: {noise_smooth: [0.06, 0.12], cells_per_edge: 1}}
+  anchors:         {quota: 3, params: {lattice_family: {choices: [gyroid_sheet, bcc, octet]}, cells_per_edge: [1, 2]}, flags: [lattice_uniform_wall]}

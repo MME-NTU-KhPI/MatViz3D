@@ -17,6 +17,8 @@ public:
     static bool parseLattice(const QString& name, TextureLibrary::Lattice& out);
     static bool isValidCompositeDim(const QString& v);
     static bool isValidCompositePacking(const QString& v);
+    static bool isValidLatticeFamily(const QString& v);
+    static bool isValidFftScheme(const QString& v);
     static bool isValidSolver(const QString& v);
     static bool isValidStressMode(const QString& v);
 

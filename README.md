@@ -32,7 +32,7 @@ The generated RVEs and datasets are used as input for data-driven yield surfaces
 
 #### Microstructure generation
 
-Five generation algorithms on a voxel grid, all with an optional periodic cell, material and texture assignment, and step-by-step animation of growth:
+Six generation algorithms on a voxel grid, all with an optional periodic cell, material and texture assignment, and step-by-step animation of growth:
 
 <details>
 <summary><b>Polycrystall</b> — cellular-automaton grain growth (Moore / von Neumann / Radial neighbourhood)</summary>
@@ -80,6 +80,12 @@ Particles perform random walks and stick together on contact, growing fractal, d
 <img src="img/README/preview_dlca.png" width="180">
 
 </details>
+<details>
+<summary><b>Lattice</b> — periodic cellular metamaterial RVE (TPMS, struts, plates, honeycombs, spinodoids, Fourier series, smoothed noise, random cubic assemblies, foams, grown mycelium, bio-inspired and architected forms)</summary>
+
+One solid phase plus void, tiled from unit cells of a chosen family: TPMS level sets (gyroid, Schwarz P, Schwarz D, IWP) as **sheet** or **skeletal** solids, **strut** lattices (simple cubic, BCC, FCC, octet), **hexagonal** and **re-entrant (auxetic) honeycombs** extruded along Z (wall angle and rib ratio adjustable), **spinodoid** Gaussian random fields that stay periodic in the cube (isotropic, or confined to cones about the axes for columnar and lamellar structures), an open **Fourier-series** family whose geometry is a vector of wave amplitudes and phases, drawn from the seed or read from a file (optionally with full **cubic symmetry**), **smoothed noise** (Gaussian-blurred white noise) as the most random printable option, **cubic assemblies** — random struts, plates and spherical shells with windows, repeated by all 48 symmetries of the cube, the free-form kind of cell topology optimization produces — and **plate lattices** on the {100}, {110} and {111} plane families, alone or united, with optional circular holes through the panel centres. Any two families can be **united** (`lattice_union`, e.g. plates + octet struts), a third one **carved out** (`lattice_subtract` with its own size: spheres at the SC/BCC/FCC sites or cylinders along the axes give windows and channels), and the field **smoothed** before the level is solved (`lattice_smooth`), which rounds corners and blends junctions like fillets. The **relative density is the input**: the level that produces it is read off the sorted field, and the achieved density plus an estimated wall/strut thickness (in voxels) are reported and stored in the HDF5 metadata. Every cell is then run through a **printability check** (floating islands, more than one separate solid body, walls thinner than a minimum, unsupported overhangs for the best of the six build directions, closed pores) whose verdict and measures go into the same metadata; `--require_printable` stops a headless run before the stress solve when the cell fails. Optional thickness grading along Z, seeded thickness jitter (print scatter) and rotation of the lattice. The base material comes from the database (`PETG`, `PLA`, or any other row) or, for datasets, as numbers: `--material_iso E,nu` (isotropic) or `--material_ti E,nu,r` (transversely isotropic about the build axis Z, E<sub>z</sub> = r·E); void is grain id 0, which the FFT solver treats as a soft phase. `lattice_cell_mm` sets the physical cell size the printability check works in. The waves that define the spinodoid, Fourier and TPMS cells are written to `geometry/lattice_wave_terms` (kx ky kz amplitude phase per wave) — the geometry vector of a property-to-geometry network. A grown fungal **mycelium** (`mycelium`) is the bio-inspired family: hyphae forage on a nutrient substrate, branch, fuse with hyphae they come close to and taper with every branch order (`--mycelium_mode substrate`), or form the skeletal + binding tissue of a bracket fungus (`polypore`), two layers joined by vertical anchors (`mat`) or a colony graded along Z by its substrate (`layered`); its hyphae go to `geometry/lattice_mycelium_segments` and `--mycelium_file` reads them back. Three more minimal surfaces come as sheets (**Neovius**, **Fischer–Koch S**, **Lidinoid**, from their exact Fourier expansions), and twelve **bio-inspired and architected forms**, each shaped by three knobs `--form_a/b/c` in 0..1 whose meaning depends on the form: the braced square grid of the **glass sponge** *Euplectella*, a **chiral twist** cell (rings on the faces and bars between them; compression twists it), **woven** yarns, the helicoidal **Bouligand** plywood of the mantis-shrimp club, a **diamond** ball-and-stick lattice, a **3D re-entrant** (auxetic) truss, a **radiolarian** skeleton (perforated nested shells and spines), **trabecular bone** (Voronoi rods and plates stretched along Z), **softwood** tracheids with pits and a growth ring, **cuttlebone** (septa joined by walls that grow wavy towards the ceiling), a **Turing pattern** grown by Gray–Scott reaction–diffusion, and a **hierarchical gyroid** whose walls are a finer gyroid. Fifty-one families in all; `MatViz3D --help` lists their keys. `--remove_islands` turns every floating island into void before the printability check and the solve, and `--lattice_metric_y/z` thins or thickens the members along Y and Z: a continuous anisotropy knob for the strut, plate, cubic-assembly and uniform-wall sheet families (metric 1 keeps every cell bit for bit).
+
+</details>
 
 Legacy names (`Moore`, `Neumann`, `Radial`, `Probability Circle`, `Probability Ellipse`) are still accepted as aliases on the command line.
 
@@ -88,12 +94,15 @@ Legacy names (`Moore`, `Neumann`, `Radial`, `Probability Circle`, `Probability E
 - **3D viewport** (OpenGL): rotation, zoom, isometric/dimetric presets, exploded view, orientation triad, grain legend, animation of growth with adjustable speed; deformed-shape rendering of the solved fields with a colormap legend.
 - **Grain statistics**: histograms and descriptive statistics of 3D grain properties (volume, surface area, equivalent sphere radius, moments of inertia…) and of 2D sections; after a stress solve — distributions of the deformed state (full-volume voxel fields or per-grain means, kernel density estimation). Export to PNG / SVG / CSV.
 - **Crystallographic texture editor**: presets `random`, `extrusion`, `rolling`, `recrystallization`, `shear`, `scattered_cube` for FCC and BCC lattices with adjustable scatter; standard components Cube {001}<100>, Goss {110}<001>, Copper {112}<11-1>, Brass {110}<112>, S {123}<634> and fibre textures; conversion between Miller indices, Bunge Euler angles and ANSYS rotation angles; ODF sections.
-- **Material database** (SQLite, editable in the app): ~40 materials with the full 21-constant elasticity matrix (c11…c66) and lattice type — cubic metals (Cu, Fe, Al, W, Ni…), hcp metals, semiconductors, ceramics, and composite constituents (Epoxy, E-glass, Al2O3, SiC, C-fiber).
+- **Material database** (SQLite, editable in the app): ~40 materials with the full 21-constant elasticity matrix (c11…c66) and lattice type — cubic metals (Cu, Fe, Al, W, Ni…), hcp metals, semiconductors, ceramics, composite constituents (Epoxy, E-glass, Al2O3, SiC, C-fiber) and printing plastics (PETG, PLA).
 - **Stress analysis of the RVE** with two interchangeable solvers writing the same HDF5 schema:
-  - **FFT** — built-in spectral (Moulinec–Suquet) homogenization, no external software, live convergence plot;
+  - **FFT** — built-in spectral homogenization, no external software, live convergence plot. Two schemes: the Moulinec–Suquet basic fixed point and a conjugate-gradient (Galerkin) scheme whose iteration count grows with the square root of the phase contrast instead of linearly; `auto` picks CG for porous or high-contrast cells (lattices, void) and the basic scheme otherwise (`--fft_scheme`, `--fft_tol`, `--fft_max_iter`). Willot's rotated discretization (`--fft_discretization rotated`) converges for true pores and underestimates thin walls less; the void stiffness is adjustable (`--fft_void_eta`). Every stiffness run also reports the share of the strain energy carried by the solid (a soft void that props the cell up shows here), a strain-concentration (sensitivity) index and a 36×36 sensitivity tensor that gives the first-order change of the cell stiffness for any change of the material law;
   - **ANSYS** — automatic export of the voxel geometry to SOLID185 elements, APDL generation and result parsing.
 
   Modes: `stiffness` (6 unit-strain solves → effective compliance **S**, stiffness **C**, Poisson matrix and engineering moduli), `single` (one prescribed macroscopic strain tensor) and `dataset` (Hill yield-criterion calibration on random loads, then hundreds of load cases on the Hill ellipsoid with full per-voxel stress/strain fields). Results: **elastic anisotropy surface** (directional Young's modulus, Zener ratio, bulk modulus), **tensor glyphs and hyperstreamlines** of the stress/strain fields on slices, von Mises fields on the deformed shape.
+- **Dataset browser** (the **Dataset** tab of the Data panel, **File → Dataset browser**, or `MatViz3D --browse <folder>`): open a dataset folder written by the orchestrator (`manifest.csv` + `cells/*.hdf5`), filter its rows by group, status or id, step through them, and read every parameter of the selected cell — geometry for its family, material law, printability report, effective moduli, sensitivity index — while the cell itself appears in the 3D viewport; the stiffness matrix is shown as a 6×6 grid in one unit, and **Open as matrix…** opens it (C or S) in the matrix editor.
+- **Property-based cell selection** (the **Selector** tab): target E / G / ν (one value for all directions or per axis), anisotropy ratios (E z/E x, E max/E min, Zener ratio, A<sup>U</sup>…), the printing material, a density range and a family in, the closest accepted cells of the open dataset out; each cell is moved to the user's material (E scales C exactly, the step in ν and anisotropy goes through the cell's sensitivity tensor).
+- **Generation by a neural network** (the **Neural** tab): a latent diffusion model (an autoencoder 64³ ↔ code 16³ × 4 and a 3D U-Net) trained on the Lattice dataset builds a cell from pure noise for the given target properties and printing material, run by the program's own C++ code without any ML library; then the printability check and removal of loose pieces. **Solve and compare** solves the generated cell with the dataset's settings (on the GPU through PyTorch when it is installed, else on the CPU) and lists the obtained properties next to the asked ones, and a property predictor gives an estimate before the solve. A **request check** flags targets that physics rules out (Voigt and Hashin–Shtrikman bounds, the joint bound of E and G, consistency of the numbers) before anything is generated. The model weights are not in git: see [`tools/neural/README.md`](tools/neural/README.md).
 - **HDF5 project viewer**: open previously saved datasets, browse load steps on a timeline scrubber, inspect generator parameters, effective stiffness, applied loading and deformed statistics without re-computing anything.
 - **Export**: PNG (with automatic cropping, 300 DPI, legend cards), true-vector SVG, clipboard, CSV (voxels, statistics, load steps), VRML, HDF5.
 
@@ -101,6 +110,7 @@ Legacy names (`Moore`, `Neumann`, `Radial`, `Probability Circle`, `Probability E
 
 - **Command-line / headless mode** (`--nogui --autostart`) for batch generation and dataset building on a cluster; `--help-json` dumps the complete option schema, algorithms, materials and ready-made recipes as JSON for scripts and AI agents.
 - **Python package [`pymv3d`](https://github.com/MME-NTU-KhPI/matviz3d-py)** — a thin launcher + HDF5-to-NumPy reader (voxels, orientations, S/C/P tensors, per-voxel stress and strain fields, macro response).
+- **Dataset orchestrator** [`tools/dataset/make_dataset.py`](tools/dataset/README.md) — builds Lattice datasets: Sobol sampling of the families and of the material law, a printability gate, an adaptive grid (64³ or 128³ by wall thickness), adaptive void stiffness, Parquet tables and a dataset card.
 - **OpenMP** parallelism with the thread count auto-detected from the physical cores.
 
 ### Examples
@@ -221,6 +231,37 @@ MatViz3D --nogui --autostart --algorithm Voronoi --size 32 --points 60 --materia
 # Full dataset: Hill calibration + 300 load cases with per-voxel fields
 MatViz3D --nogui --autostart --algorithm Polycrystall --size 32 --points 60 --material Cu \
          --run_stress_calc --solver fft --stress_mode dataset --num_rnd_loads 150 --output dataset.hdf5
+
+# Lattice cell as a dataset row: one 12 mm sheet-gyroid cell, material as numbers, exit code 3
+# when not printable, Willot discretization, stiffness only, no per-voxel fields
+MatViz3D --nogui --autostart --algorithm Lattice --lattice_family gyroid_sheet --size 64 \
+         --cells_per_edge 1 --relative_density 0.3 --lattice_cell_mm 12 --material_iso 2.0,0.38 \
+         --require_printable --no_fields --run_stress_calc --solver fft --stress_mode stiffness \
+         --fft_discretization rotated --fft_tol 1e-5 --output cell.hdf5
+
+# {100} plate lattice with holes united with octet struts: geometry and printability report only
+MatViz3D --nogui --autostart --algorithm Lattice --lattice_family plate_sc --plate_hole 0.45 \
+         --lattice_union octet --size 64 --cells_per_edge 1 --relative_density 0.3 \
+         --lattice_cell_mm 15 --output plates.hdf5
+
+# 3D honeycomb: Kelvin foam (truncated octahedra) with a window in every face
+MatViz3D --nogui --autostart --algorithm Lattice --lattice_family foam_kelvin --foam_mode windows \
+         --foam_frame 0.25 --size 64 --cells_per_edge 1 --relative_density 0.3 --lattice_cell_mm 15 \
+         --output kelvin.hdf5
+
+# Grown mycelium: bracket-fungus tissue, straight skeletal hyphae tied by binding hyphae
+MatViz3D --nogui --autostart --algorithm Lattice --lattice_family mycelium --mycelium_mode polypore \
+         --seed 3 --size 128 --cells_per_edge 1 --relative_density 0.2 --lattice_cell_mm 12 \
+         --output polypore.hdf5
+
+# {100} plates made tetragonal: plates normal to Z thinner, the others thicker (E_z / E_x about 1.17)
+MatViz3D --nogui --autostart --algorithm Lattice --lattice_family plate_sc --lattice_metric_z 1.5 \
+         --remove_islands --size 64 --cells_per_edge 1 --relative_density 0.35 --lattice_cell_mm 14 \
+         --material_iso 2.0,0.38 --run_stress_calc --solver fft --stress_mode stiffness \
+         --fft_discretization rotated --no_fields --output plate_tetragonal.hdf5
+
+# GUI: Neural tab, generate the cell of seed 12345 for the form's targets and solve it
+MatViz3D --neural 12345 --neural_compare
 ```
 
 > **Note:** in headless mode the structure is written to `--output` together with the stress results; use `--stress_mode stiffness` for the cheapest run that still stores the voxel grid.
@@ -239,11 +280,15 @@ MatViz3D --nogui --autostart --algorithm Polycrystall --size 32 --points 60 --ma
 | `--seed <n>` | RNG seed (default: current time) |
 | `--output <file>` | Output HDF5 file (default `current_ls.hdf5`) |
 | `--help`, `--version`, `--help-json` | Help, version, JSON schema of the CLI |
+| `--browse <path>` | GUI: open the Dataset tab on a dataset folder, its `manifest.csv` or one cell file |
+| `--select <targets>` | GUI, with `--browse`: open the Selector tab and search for these targets, e.g. `E=150,nu=0.3,mat_e=2.0` (moduli in MPa) |
+| `--neural <seed>` | GUI: open the Neural tab and generate the cell of this seed (0 = a new seed) |
+| `--neural_compare` | GUI, with `--neural`: solve the generated cell and list the obtained properties next to the asked ones |
 | **Grid & nucleation** | |
 | `--size <n>` | Cube edge in voxels |
 | `--points <n>` | Number of nuclei / grains |
 | `--concentration <%>` | Nuclei density in % of the volume (overrides `--points`) |
-| `--algorithm <name>` | `Voronoi`, `Polycrystall`, `Probability`, `Composite`, `DLCA` (aliases: `Moore`, `Neumann`, `Radial`, `Probability Circle`, `Probability Ellipse`) |
+| `--algorithm <name>` | `Voronoi`, `Polycrystall`, `Probability`, `Composite`, `DLCA`, `Lattice` (aliases: `Moore`, `Neumann`, `Radial`, `Probability Circle`, `Probability Ellipse`) |
 | `--periodic` | Periodic boundary conditions |
 | `--neighborhood <stencil>` | Polycrystall stencil: `Moore`, `Neumann`, `Radial` |
 | `--thin-layer`, `--layer-direction <±X\|±Y\|±Z>` | Thin-film mode: all nuclei on one face |
@@ -264,8 +309,31 @@ MatViz3D --nogui --autostart --algorithm Polycrystall --size 32 --points 60 --ma
 | `--fiber_volume_fraction <0..1>`, `--fibers_per_row <n>` | Target V<sub>f</sub> and lattice density |
 | `--fiber_aspect_ratio <a/b>`, `--fiber_angle_scatter <deg>`, `--fiber_center_jitter <0..1>`, `--fiber_allow_overlap` | Imperfections |
 | `--matrix_material <name>`, `--fiber_material <name>` | The two constituents |
+| **Lattice** | |
+| `--lattice_family <name>` | Cell family (51): TPMS `gyroid_sheet` … `iwp_skeletal`; struts `simple_cubic`, `bcc`, `fcc`, `octet`; plates `plate_sc`, `plate_bcc`, `plate_fcc` and their unions up to `plate_sc_bcc_fcc`; primitives `spheres_sc/bcc/fcc`, `cylinders_axes`; honeycombs `honeycomb`, `reentrant`; random `spinodoid`, `fourier_sheet/skeletal`, `noise_sheet/skeletal`, `cubic_assembly`; foams (3D honeycombs) `foam_kelvin`, `foam_rhombic`, `foam_weaire_phelan`, `foam_random`; grown fungal `mycelium`; surfaces `neovius_sheet`, `fischer_koch_sheet`, `lidinoid_sheet`; forms `glass_sponge`, `chiral_twist`, `woven`, `bouligand`, `diamond_ball_stick`, `reentrant_3d`, `radiolarian`, `trabecular_bone`, `wood`, `cuttlebone`, `turing`, `hierarchical_gyroid` |
+| `--cells_per_edge <n>`, `--relative_density <0..1>`, `--lattice_cell_mm <mm>` | Cells per cube edge, target solid fraction, physical cell size |
+| `--lattice_grading <g>`, `--lattice_jitter <j>`, `--orientation_angle_a/b/c <deg>` | Thickness gradient along Z, seeded thickness jitter, lattice rotation (breaks periodicity) |
+| `--lattice_uniform_wall` | Sheets of uniform thickness (\|f\| / \|∇f\|) |
+| `--spinodoid_theta_x/y/z <deg>` | Spinodoid cone half-angles (0 = closed, 5..90) |
+| `--fourier_terms <n>`, `--fourier_kmin/kmax <k>`, `--fourier_decay <p>`, `--fourier_symmetry <none\|cubic>`, `--fourier_file <path>` | Fourier-series draw, full cubic symmetry, waves read from a file |
+| `--noise_smooth <frac>` | Smoothed noise: blur width as a fraction of the cube edge |
+| `--plate_hole <d>` | Plate lattices: hole diameter through the panel centres, cell edges |
+| `--lattice_union <family>`, `--lattice_subtract <family>`, `--lattice_subtract_size <s>`, `--lattice_smooth <sigma>` | Union with a second family, carve-out of a third, smoothing of the field (fillets) |
+| `--honeycomb_angle <deg>`, `--honeycomb_rib <ratio>` | Honeycomb wall angle (< 0 auxetic) and rib / wall length |
+| `--assembly_struts/plates/shells/holes <n>`, `--assembly_spread <s>`, `--assembly_file <path>` | Cubic assembly: members drawn in 1/48 of the cell, thickness spread, or members read from a file |
+| `--foam_mode <walls\|windows\|edges>`, `--foam_frame <f>`, `--foam_bubbles <n>`, `--foam_file <path>` | Foams: closed cells, a window in every face (frame beyond the half wall, bubble sizes) or open cells; random-foam bubbles per cell, or sites read from a file |
+| `--mycelium_mode <substrate\|polypore\|mat\|layered>`, `--mycelium_length`, `--mycelium_spores`, `--mycelium_unit`, `--mycelium_angle`, `--mycelium_wiggle`, `--mycelium_fuse`, `--mycelium_taper`, `--mycelium_binding`, `--mycelium_align`, `--mycelium_anchors`, `--mycelium_poor`, `--mycelium_file <path>` | Mycelium: growth mode; hypha length per cell, spores, length per branch, branch angle, tip wiggle, fusion distance (0 = a tree), branch/parent thickness (cell edges where lengths); polypore binding share and lean of the skeletal hyphae to Z, mat anchor share, layered substrate at the faces; or the hyphae read from a file |
+| `--form_a`, `--form_b`, `--form_c` | Bio-inspired / architected forms: three shape knobs 0..1 (default 0.5), e.g. glass sponge diagonal offset / thickness / horizontal bracing, radiolarian shell radius / pore size / spine thickness, bone cells / stretch along Z / plate share; the log and the Dataset Browser name them per form |
+| `--lattice_metric_y <f>`, `--lattice_metric_z <f>` | Thickness metric along Y / Z (0.25..4, default 1): anisotropic struts, plates, cubic assemblies and uniform-wall sheets |
+| **Printability** | |
+| `--print_min_wall_mm <mm>`, `--print_max_overhang_deg <deg>` | Thinnest wall and steepest overhang (0.8 mm, 45°) |
+| `--print_max_thin_fraction`, `--print_max_island_vox`, `--print_max_components`, `--print_max_unsupported_fraction` | Tolerances (0.02, 8 voxels, 1 body, 0.05) |
+| `--print_min_directions <0..3>` | Independent directions in which the solid must join its periodic neighbours (default 3; a slab joins in 2, a rod in 1; 0 = no check) |
+| `--require_printable` | Headless: exit with code 3 before the stress solve when the cell fails |
+| `--remove_islands` | Turn every floating island (any size) into void before the check and the solve |
 | **Material & texture** | |
-| `--material <name>` | Material from the database (Cu, Fe, Al, W, …) |
+| `--material <name>` | Material from the database (Cu, Fe, Al, W, PETG, PLA, …) |
+| `--material_iso <E,nu>`, `--material_ti <E,nu,r>` | Solid as numbers (GPa): isotropic, or transversely isotropic about Z with E<sub>z</sub> = r·E |
 | `--texture <preset>` | `random`, `extrusion`, `rolling`, `recrystallization`, `shear`, `scattered_cube` |
 | `--lattice <fcc\|bcc>`, `--scatter <deg>` | Lattice override and texture scatter |
 | **Stress analysis** | |
@@ -274,6 +342,10 @@ MatViz3D --nogui --autostart --algorithm Polycrystall --size 32 --points 60 --ma
 | `--stress_mode <stiffness\|single\|dataset>` | Mode (default `dataset`) |
 | `--eps <exx,eyy,ezz,exy,eyz,exz>` | Prescribed strain for `single` |
 | `--num_rnd_loads <n>` | Random loads for the Hill fit in `dataset` |
+| `--fft_scheme <auto\|basic\|cg>`, `--fft_tol <tol>`, `--fft_max_iter <n>` | FFT scheme, tolerance (1e-5) and iteration cap (1000) |
+| `--fft_discretization <continuous\|rotated>` | Green operator: Moulinec–Suquet, or Willot's rotated scheme (robust for pores) |
+| `--fft_void_eta <eta>` | Void stiffness as a fraction of the solid C11 (default 1e-4) |
+| `--no_fields` | Do not store per-voxel fields (≈ 40 MB → 1 MB at 64³) |
 | `--working_directory <dir>` | ANSYS working directory |
 
 </details>
@@ -342,7 +414,7 @@ ___
 
 #### Генерація мікроструктур
 
-П'ять алгоритмів генерації на вокселній сітці; для всіх доступні періодична комірка, призначення матеріалу й текстури та покрокова анімація росту:
+Шість алгоритмів генерації на вокселній сітці; для всіх доступні періодична комірка, призначення матеріалу й текстури та покрокова анімація росту:
 
 <details>
 <summary><b>Polycrystall</b> — ріст зерен клітинним автоматом (околиця Мура / фон Неймана / радіальна)</summary>
@@ -390,6 +462,12 @@ ___
 <img src="img/README/preview_dlca.png" width="180">
 
 </details>
+<details>
+<summary><b>Lattice</b> — періодичний RVE комірчастого метаматеріалу (TPMS, стрижні, пластини, стільники, спінодоїди, ряди Фур'є, згладжений шум, випадкові кубічні збірки, піни, вирощений міцелій)</summary>
+
+Одна тверда фаза плюс пустота, викладена з елементарних комірок обраного сімейства: поверхні рівня TPMS (гіроїд, Schwarz P, Schwarz D, IWP) як **листові** або **каркасні** тіла, **стрижневі** ґратки (проста кубічна, BCC, FCC, октет), **шестикутні** та **увігнуті (ауксетичні) стільники**, витягнуті вздовж Z (кут стінки й відношення ребра до стінки регулюються), **спінодоїдні** випадкові поля, періодичні в кубі (ізотропні або обмежені конусами навколо осей для стовпчастих і шаруватих структур), відкрите сімейство **рядів Фур'є**, геометрія якого — вектор амплітуд і фаз хвиль, випадковий за seed або зчитаний з файлу (за бажанням із повною **кубічною симетрією**), **згладжений шум** (розмитий гауссом білий шум) як найвипадковіший друкований варіант, **кубічні збірки** — випадкові стрижні, пластини й сферичні оболонки з вікнами, повторені всіма 48 симетріями куба, тобто вільні форми на кшталт результатів топологічної оптимізації, — і **пластинчасті ґратки** на площинах {100}, {110} і {111}, окремо або разом, з круглими отворами в центрах стінок. Будь-які два сімейства можна **об'єднати** (`lattice_union`, наприклад пластини + стрижні октету), третє — **вирізати** (`lattice_subtract` зі своїм розміром: сфери у вузлах SC/BCC/FCC або циліндри вздовж осей дають вікна й канали), а поле — **згладити** перед пошуком рівня (`lattice_smooth`), що скруглює кути й стики, як галтелі. **Відносна густина є входом**: рівень, що її дає, зчитується з відсортованого поля, а досягнута густина та оцінена товщина стінки/стрижня (у вокселях) повідомляються й записуються в метадані HDF5. Кожна комірка проходить **перевірку друкованості** (плаваючі острівці, більше одного окремого тіла, стінки тонші за мінімум, нависання для найкращого з шести напрямів друку, закриті пори); вердикт і показники пишуться в ті самі метадані, а `--require_printable` зупиняє безвіконний запуск до розрахунку напружень, якщо комірка не проходить. Опційно — градієнт товщини вздовж Z, випадкове збурення товщини (розкид друку) та поворот ґратки. Базовий матеріал береться з бази (`PETG`, `PLA` або будь-який інший рядок) або, для наборів даних, задається числами: `--material_iso E,nu` (ізотропний) чи `--material_ti E,nu,r` (трансверсально-ізотропний відносно осі друку Z, E<sub>z</sub> = r·E); пустота — зерно з id 0, яке FFT-розв'язувач трактує як м'яку фазу. `lattice_cell_mm` задає фізичний розмір комірки, у якому працює перевірка друкованості. Хвилі, що задають спінодоїд, ряди Фур'є й TPMS, записуються в `geometry/lattice_wave_terms` (kx ky kz амплітуда фаза для кожної хвилі) — це вектор геометрії для мережі «властивості → геометрія». Вирощений **міцелій** грибів (`mycelium`) — біоінспіроване сімейство: гіфи живляться субстратом, галузяться, зростаються з гіфами, до яких підходять близько, і тоншають з кожним порядком гілки (`--mycelium_mode substrate`), або утворюють тканину трутовика зі скелетних і зв'язувальних гіф (`polypore`), два шари, з'єднані вертикальними якорями (`mat`), чи колонію, градієнтну вздовж Z через субстрат (`layered`); гіфи записуються в `geometry/lattice_mycelium_segments`, а `--mycelium_file` зчитує їх назад. Ще три мінімальні поверхні є як листові (**Неовіуса**, **Фішера–Коха S**, **лідиноїд**, з точних розкладів у ряд Фур'є), а також дванадцять **біоінспірованих та архітектурних форм**, кожну з яких задають три параметри `--form_a/b/c` від 0 до 1 зі своїм змістом для кожної форми: в'язана квадратна сітка **скляної губки** *Euplectella*, **хіральна** комірка (кільця на гранях і стрижні між ними; під стисканням вона закручується), **тканина** з ниток, гелікоїдна фанера **Булиганда** з клешні рака-богомола, **алмаз** «кулька-стрижень», **увігнута 3D** (ауксетична) ферма, скелет **радіолярії** (перфоровані вкладені оболонки й голки), **губчаста кістка** (стрижні й пластини Вороного, витягнуті вздовж Z), **деревина** хвойних (трахеїди з порами й річне кільце), **кістка каракатиці** (перегородки, з'єднані стінками, що до стелі стають хвилястими), **візерунок Тюрінга**, вирощений реакцією–дифузією Грея–Скотта, та **ієрархічний гіроїд**, стінки якого — дрібніший гіроїд. Усього п'ятдесят одне сімейство; `MatViz3D --help` перелічує їхні ключі. `--remove_islands` перетворює кожен плаваючий острівець на пустоту ще до перевірки друкованості й розрахунку, а `--lattice_metric_y/z` потоншує або потовщує елементи вздовж Y і Z: неперервне керування анізотропією для стрижневих і пластинчастих ґраток, кубічних збірок і листів рівної товщини (метрика 1 залишає кожну комірку незмінною біт у біт).
+
+</details>
 
 Старі назви (`Moore`, `Neumann`, `Radial`, `Probability Circle`, `Probability Ellipse`) і далі приймаються в командному рядку як синоніми.
 
@@ -398,12 +476,15 @@ ___
 - **3D-в'юпорт** (OpenGL): обертання, масштабування, ізометричні/диметричні ракурси, «розібраний» куб, тріада осей, легенда зерен, анімація росту з регульованою швидкістю; відображення розрахованих полів на деформованій формі з кольоровою легендою.
 - **Статистика зерен**: гістограми та описові статистики 3D-властивостей зерен (об'єм, площа поверхні, радіус еквівалентної сфери, моменти інерції…) і 2D-перерізів; після розрахунку напружень — розподіли деформованого стану (повні вокселні поля або середні по зернах, оцінка густини ядром). Експорт у PNG / SVG / CSV.
 - **Редактор кристалографічної текстури**: пресети `random`, `extrusion`, `rolling`, `recrystallization`, `shear`, `scattered_cube` для ґраток FCC і BCC з регульованим розсіюванням; стандартні компоненти Cube {001}<100>, Goss {110}<001>, Copper {112}<11-1>, Brass {110}<112>, S {123}<634> та аксіальні текстури; перетворення між індексами Міллера, кутами Бунге та кутами повороту ANSYS; перерізи ODF.
-- **База даних матеріалів** (SQLite, редагується в застосунку): ~40 матеріалів з повною матрицею пружності з 21 константи (c11…c66) і типом ґратки — кубічні метали (Cu, Fe, Al, W, Ni…), ГЩП-метали, напівпровідники, кераміка та складники композитів (Epoxy, E-glass, Al2O3, SiC, C-fiber).
+- **База даних матеріалів** (SQLite, редагується в застосунку): ~40 матеріалів з повною матрицею пружності з 21 константи (c11…c66) і типом ґратки — кубічні метали (Cu, Fe, Al, W, Ni…), ГЩП-метали, напівпровідники, кераміка складники композитів (Epoxy, E-glass, Al2O3, SiC, C-fiber) і пластики для друку (PETG, PLA).
 - **Аналіз напружень RVE** двома взаємозамінними розв'язувачами, що пишуть однакову схему HDF5:
-  - **FFT** — вбудована спектральна гомогенізація (Мулінек–Сюке), без стороннього ПЗ, з живим графіком збіжності;
+  - **FFT** — вбудована спектральна гомогенізація без стороннього ПЗ, з живим графіком збіжності. Дві схеми: базова нерухома точка Мулінека–Сюке та схема спряжених градієнтів (Гальоркіна), кількість ітерацій якої росте як корінь із контрасту фаз, а не лінійно; `auto` обирає CG для пористих або висококонтрастних комірок (ґратки, пустота) і базову схему в інших випадках (`--fft_scheme`, `--fft_tol`, `--fft_max_iter`). Повернута дискретизація Віллота (`--fft_discretization rotated`) збігається для справжніх пор і менше занижує жорсткість тонких стінок; жорсткість пустоти регулюється (`--fft_void_eta`). Кожен розрахунок жорсткості також повідомляє частку енергії деформації, яку несе матеріал (тут видно, коли комірку «підпирає» м'яка пустота), індекс концентрації деформацій (чутливості) і тензор чутливості 36×36, що дає зміну жорсткості комірки в першому наближенні для будь-якої зміни закону матеріалу;
   - **ANSYS** — автоматичний експорт вокселної геометрії в елементи SOLID185, генерація APDL та зчитування результатів.
 
   Режими: `stiffness` (6 розв'язків для одиничних деформацій → ефективні матриці податливості **S**, жорсткості **C**, матриця Пуассона й технічні модулі), `single` (один заданий макроскопічний тензор деформацій) та `dataset` (калібрування критерію Хілла на випадкових навантаженнях, далі сотні випадків навантаження на еліпсоїді Хілла з повними повоксельними полями напружень і деформацій). Результати: **поверхня пружної анізотропії** (напрямний модуль Юнга, коефіцієнт Зенера, об'ємний модуль), **тензорні гліфи та гіперлінії струму** полів на перерізах, поля Мізеса на деформованій формі.
+- **Браузер набору даних** (вкладка **Dataset** панелі Data, **File → Dataset browser** або `MatViz3D --browse <тека>`): відкриває теку набору даних, записану оркестратором (`manifest.csv` + `cells/*.hdf5`), фільтрує рядки за групою, статусом чи номером, гортає їх і показує всі параметри вибраної комірки — геометрію для її сімейства, закон матеріалу, звіт друкованості, ефективні модулі, індекс чутливості, — а саму комірку виводить у 3D-в'юпорт; матриця жорсткості показується сіткою 6×6 в одних одиницях, а кнопка **Open as matrix…** відкриває її (C або S) у редакторі матриць.
+- **Підбір комірок за властивостями** (вкладка **Selector**): на вході цільові E / G / ν (одне значення для всіх напрямків або по осях), відношення анізотропії (E z/E x, E max/E min, коефіцієнт Зенера, A<sup>U</sup>…), матеріал друку, діапазон густини та сімейство, на виході найближчі прийняті комірки відкритого набору даних; кожна комірка переводиться на матеріал користувача (E масштабує C точно, крок за ν і анізотропією йде через тензор чутливості комірки).
+- **Генерація нейромережею** (вкладка **Neural**): латентна дифузійна модель (автоенкодер 64³ ↔ код 16³ × 4 і 3D U-Net), навчена на наборі даних Lattice, будує комірку з чистого шуму під задані властивості й матеріал друку; її виконує власний C++ код програми без ML-бібліотек, далі йдуть перевірка друкованості й видалення відірваних шматків. **Solve and compare** розраховує згенеровану комірку з налаштуваннями набору даних (на GPU через PyTorch, якщо його встановлено, інакше на CPU) і показує отримані властивості поруч із запитаними, а предиктор властивостей дає оцінку ще до розрахунку. **Перевірка запиту** заздалегідь позначає цілі, які виключає фізика (межі Фойгта та Хашина–Штрікмана, спільна межа для E і G, узгодженість чисел). Ваги моделі не зберігаються в git: див. [`tools/neural/README.md`](tools/neural/README.md).
 - **Переглядач HDF5-проєктів**: відкриття збережених наборів даних, перегляд кроків навантаження на часовій шкалі, параметри генератора, ефективна жорсткість, прикладене навантаження і статистика деформованого стану — без повторного розрахунку.
 - **Експорт**: PNG (з автообрізанням, 300 DPI, картками легенди), справжній векторний SVG, буфер обміну, CSV (воксели, статистики, кроки навантаження), VRML, HDF5.
 
@@ -411,6 +492,7 @@ ___
 
 - **Командний рядок / headless-режим** (`--nogui --autostart`) для пакетної генерації та побудови наборів даних на кластері; `--help-json` виводить повну схему опцій, алгоритми, матеріали та готові рецепти у JSON для скриптів і AI-агентів.
 - **Python-пакет [`pymv3d`](https://github.com/MME-NTU-KhPI/matviz3d-py)** — тонкий запускач + читач HDF5 у NumPy (воксели, орієнтації, тензори S/C/P, повоксельні поля напружень і деформацій, макровідгук).
+- **Оркестратор набору даних** [`tools/dataset/make_dataset.py`](tools/dataset/README.md) — будує набори даних із комірок Lattice: вибірка Соболя за сімействами й законом матеріалу, фільтр друкованості, адаптивна сітка (64³ або 128³ за товщиною стінки), адаптивна жорсткість пустоти, таблиці Parquet і картка набору.
 - **Паралельні обчислення** з OpenMP, кількість потоків визначається автоматично за числом фізичних ядер.
 
 ### Приклади
@@ -531,6 +613,37 @@ MatViz3D --nogui --autostart --algorithm Voronoi --size 32 --points 60 --materia
 # Повний набір даних: калібрування Хілла + 300 навантажень з повоксельними полями
 MatViz3D --nogui --autostart --algorithm Polycrystall --size 32 --points 60 --material Cu \
          --run_stress_calc --solver fft --stress_mode dataset --num_rnd_loads 150 --output dataset.hdf5
+
+# Комірка Lattice як рядок набору даних: одна листова комірка гіроїда 12 мм, матеріал числами,
+# код виходу 3, якщо не друкується, дискретизація Віллота, лише жорсткість, без повоксельних полів
+MatViz3D --nogui --autostart --algorithm Lattice --lattice_family gyroid_sheet --size 64 \
+         --cells_per_edge 1 --relative_density 0.3 --lattice_cell_mm 12 --material_iso 2.0,0.38 \
+         --require_printable --no_fields --run_stress_calc --solver fft --stress_mode stiffness \
+         --fft_discretization rotated --fft_tol 1e-5 --output cell.hdf5
+
+# Пластини {100} з отворами, об'єднані зі стрижнями октету: лише геометрія і звіт друкованості
+MatViz3D --nogui --autostart --algorithm Lattice --lattice_family plate_sc --plate_hole 0.45 \
+         --lattice_union octet --size 64 --cells_per_edge 1 --relative_density 0.3 \
+         --lattice_cell_mm 15 --output plates.hdf5
+
+# Об'ємні стільники: піна Кельвіна (зрізані октаедри) з вікном у кожній грані
+MatViz3D --nogui --autostart --algorithm Lattice --lattice_family foam_kelvin --foam_mode windows \
+         --foam_frame 0.25 --size 64 --cells_per_edge 1 --relative_density 0.3 --lattice_cell_mm 15 \
+         --output kelvin.hdf5
+
+# Вирощений міцелій: тканина трутовика, прямі скелетні гіфи, зв'язані зв'язувальними
+MatViz3D --nogui --autostart --algorithm Lattice --lattice_family mycelium --mycelium_mode polypore \
+         --seed 3 --size 128 --cells_per_edge 1 --relative_density 0.2 --lattice_cell_mm 12 \
+         --output polypore.hdf5
+
+# Пластини {100}, зроблені тетрагональними: пластини, перпендикулярні до Z, тонші, решта товща (E_z / E_x близько 1,17)
+MatViz3D --nogui --autostart --algorithm Lattice --lattice_family plate_sc --lattice_metric_z 1.5 \
+         --remove_islands --size 64 --cells_per_edge 1 --relative_density 0.35 --lattice_cell_mm 14 \
+         --material_iso 2.0,0.38 --run_stress_calc --solver fft --stress_mode stiffness \
+         --fft_discretization rotated --no_fields --output plate_tetragonal.hdf5
+
+# GUI: вкладка Neural, згенерувати комірку з seed 12345 під цілі форми й розрахувати її
+MatViz3D --neural 12345 --neural_compare
 ```
 
 > **Примітка:** у headless-режимі структура записується у `--output` разом із результатами розрахунку напружень; найдешевший запуск, який зберігає вокселну сітку, — `--stress_mode stiffness`.
@@ -549,11 +662,15 @@ MatViz3D --nogui --autostart --algorithm Polycrystall --size 32 --points 60 --ma
 | `--seed <n>` | Зерно генератора випадкових чисел (за замовчуванням — поточний час) |
 | `--output <file>` | Вихідний HDF5-файл (за замовчуванням `current_ls.hdf5`) |
 | `--help`, `--version`, `--help-json` | Довідка, версія, JSON-схема CLI |
+| `--browse <path>` | GUI: відкрити вкладку Dataset на теці набору, її `manifest.csv` або одному файлі комірки |
+| `--select <targets>` | GUI, разом із `--browse`: відкрити вкладку Selector і знайти комірки під ці цілі, наприклад `E=150,nu=0.3,mat_e=2.0` (модулі в МПа) |
+| `--neural <seed>` | GUI: відкрити вкладку Neural і згенерувати комірку з цим seed (0 — новий seed) |
+| `--neural_compare` | GUI, разом із `--neural`: розрахувати згенеровану комірку й показати отримані властивості поруч із запитаними |
 | **Сітка та зародки** | |
 | `--size <n>` | Розмір ребра куба у вокселях |
 | `--points <n>` | Кількість зародків / зерен |
 | `--concentration <%>` | Концентрація зародків у % об'єму (має пріоритет над `--points`) |
-| `--algorithm <name>` | `Voronoi`, `Polycrystall`, `Probability`, `Composite`, `DLCA` (синоніми: `Moore`, `Neumann`, `Radial`, `Probability Circle`, `Probability Ellipse`) |
+| `--algorithm <name>` | `Voronoi`, `Polycrystall`, `Probability`, `Composite`, `DLCA`, `Lattice` (синоніми: `Moore`, `Neumann`, `Radial`, `Probability Circle`, `Probability Ellipse`) |
 | `--periodic` | Періодичні граничні умови |
 | `--neighborhood <stencil>` | Околиця Polycrystall: `Moore`, `Neumann`, `Radial` |
 | `--thin-layer`, `--layer-direction <±X\|±Y\|±Z>` | Режим тонкої плівки: усі зародки на одній грані |
@@ -574,8 +691,31 @@ MatViz3D --nogui --autostart --algorithm Polycrystall --size 32 --points 60 --ma
 | `--fiber_volume_fraction <0..1>`, `--fibers_per_row <n>` | Цільова V<sub>f</sub> і густота ґратки |
 | `--fiber_aspect_ratio <a/b>`, `--fiber_angle_scatter <deg>`, `--fiber_center_jitter <0..1>`, `--fiber_allow_overlap` | Недосконалості |
 | `--matrix_material <name>`, `--fiber_material <name>` | Два складники |
+| **Lattice** | |
+| `--lattice_family <name>` | Сімейство комірки (51): TPMS `gyroid_sheet` … `iwp_skeletal`; стрижні `simple_cubic`, `bcc`, `fcc`, `octet`; пластини `plate_sc`, `plate_bcc`, `plate_fcc` та їх поєднання до `plate_sc_bcc_fcc`; примітиви `spheres_sc/bcc/fcc`, `cylinders_axes`; стільники `honeycomb`, `reentrant`; випадкові `spinodoid`, `fourier_sheet/skeletal`, `noise_sheet/skeletal`, `cubic_assembly`; піни (об'ємні стільники) `foam_kelvin`, `foam_rhombic`, `foam_weaire_phelan`, `foam_random`; вирощений міцелій `mycelium`; поверхні `neovius_sheet`, `fischer_koch_sheet`, `lidinoid_sheet`; форми `glass_sponge`, `chiral_twist`, `woven`, `bouligand`, `diamond_ball_stick`, `reentrant_3d`, `radiolarian`, `trabecular_bone`, `wood`, `cuttlebone`, `turing`, `hierarchical_gyroid` |
+| `--cells_per_edge <n>`, `--relative_density <0..1>`, `--lattice_cell_mm <mm>` | Комірок на ребро куба, цільова частка твердого, фізичний розмір комірки |
+| `--lattice_grading <g>`, `--lattice_jitter <j>`, `--orientation_angle_a/b/c <deg>` | Градієнт товщини вздовж Z, випадкове збурення товщини, поворот ґратки (ламає періодичність) |
+| `--lattice_uniform_wall` | Листи рівної товщини (\|f\| / \|∇f\|) |
+| `--spinodoid_theta_x/y/z <deg>` | Півкути конусів спінодоїда (0 — закрито, 5..90) |
+| `--fourier_terms <n>`, `--fourier_kmin/kmax <k>`, `--fourier_decay <p>`, `--fourier_symmetry <none\|cubic>`, `--fourier_file <path>` | Випадковий ряд Фур'є, повна кубічна симетрія, хвилі з файлу |
+| `--noise_smooth <frac>` | Згладжений шум: ширина розмиття в частках ребра куба |
+| `--plate_hole <d>` | Пластинчасті ґратки: діаметр отворів у центрах стінок, у частках комірки |
+| `--lattice_union <family>`, `--lattice_subtract <family>`, `--lattice_subtract_size <s>`, `--lattice_smooth <sigma>` | Об'єднання з другим сімейством, вирізання третього, згладжування поля (галтелі) |
+| `--honeycomb_angle <deg>`, `--honeycomb_rib <ratio>` | Кут стінки стільника (< 0 — ауксетичні) і відношення ребра до стінки |
+| `--assembly_struts/plates/shells/holes <n>`, `--assembly_spread <s>`, `--assembly_file <path>` | Кубічна збірка: елементи в 1/48 комірки, розкид товщини або елементи з файлу |
+| `--foam_mode <walls\|windows\|edges>`, `--foam_frame <f>`, `--foam_bubbles <n>`, `--foam_file <path>` | Піни: закриті комірки, вікно в кожній грані (рамка понад половину стінки, у розмірах комірки) або відкриті комірки; кількість комірок випадкової піни або точки з файлу |
+| `--mycelium_mode <substrate\|polypore\|mat\|layered>`, `--mycelium_length`, `--mycelium_spores`, `--mycelium_unit`, `--mycelium_angle`, `--mycelium_wiggle`, `--mycelium_fuse`, `--mycelium_taper`, `--mycelium_binding`, `--mycelium_align`, `--mycelium_anchors`, `--mycelium_poor`, `--mycelium_file <path>` | Міцелій: режим росту; довжина гіф на комірку, спори, довжина на одну гілку, кут гілки, звивистість кінчиків, відстань зростання (0 — дерево), товщина гілки щодо батьківської (довжини в ребрах комірки); частка зв'язувальних гіф трутовика і нахил його скелетних гіф до Z, частка якорів мату, субстрат біля граней для градієнтного режиму; або гіфи з файлу |
+| `--form_a`, `--form_b`, `--form_c` | Біоінспіровані / архітектурні форми: три параметри форми від 0 до 1 (типово 0,5), наприклад для скляної губки зсув діагоналей / їхня товщина / в'язі в горизонтальних площинах, для радіолярії радіус оболонки / розмір пор / товщина голок, для кістки число комірок / витягнення вздовж Z / частка пластин; журнал і Dataset Browser називають їх для кожної форми |
+| `--lattice_metric_y <f>`, `--lattice_metric_z <f>` | Метрика товщини вздовж Y / Z (0,25..4, типово 1): анізотропні стрижні, пластини, кубічні збірки й листи рівної товщини |
+| **Друкованість** | |
+| `--print_min_wall_mm <mm>`, `--print_max_overhang_deg <deg>` | Найтонша стінка і найкрутіше нависання (0,8 мм, 45°) |
+| `--print_max_thin_fraction`, `--print_max_island_vox`, `--print_max_components`, `--print_max_unsupported_fraction` | Допуски (0,02; 8 вокселів; 1 тіло; 0,05) |
+| `--print_min_directions <0..3>` | У скількох незалежних напрямках тверда фаза має з'єднуватися з сусідніми комірками (типово 3; шар з'єднується у 2, стрижень в 1; 0 = без перевірки) |
+| `--require_printable` | Headless: вийти з кодом 3 до розрахунку напружень, якщо комірка не проходить |
+| `--remove_islands` | Перетворити кожен плаваючий острівець (будь-якого розміру) на пустоту до перевірки й розрахунку |
 | **Матеріал і текстура** | |
-| `--material <name>` | Матеріал із бази (Cu, Fe, Al, W, …) |
+| `--material <name>` | Матеріал із бази (Cu, Fe, Al, W, PETG, PLA, …) |
+| `--material_iso <E,nu>`, `--material_ti <E,nu,r>` | Матеріал числами (ГПа): ізотропний або трансверсально-ізотропний відносно Z з E<sub>z</sub> = r·E |
 | `--texture <preset>` | `random`, `extrusion`, `rolling`, `recrystallization`, `shear`, `scattered_cube` |
 | `--lattice <fcc\|bcc>`, `--scatter <deg>` | Перевизначення ґратки та розсіювання текстури |
 | **Аналіз напружень** | |
@@ -584,6 +724,10 @@ MatViz3D --nogui --autostart --algorithm Polycrystall --size 32 --points 60 --ma
 | `--stress_mode <stiffness\|single\|dataset>` | Режим (за замовчуванням `dataset`) |
 | `--eps <exx,eyy,ezz,exy,eyz,exz>` | Заданий тензор деформацій для `single` |
 | `--num_rnd_loads <n>` | Кількість випадкових навантажень для калібрування Хілла в `dataset` |
+| `--fft_scheme <auto\|basic\|cg>`, `--fft_tol <tol>`, `--fft_max_iter <n>` | Схема FFT, допуск (1e-5) і стеля ітерацій (1000) |
+| `--fft_discretization <continuous\|rotated>` | Оператор Гріна: Мулінека–Сюке або повернута схема Віллота (стійка для пор) |
+| `--fft_void_eta <eta>` | Жорсткість пустоти як частка C11 матеріалу (типово 1e-4) |
+| `--no_fields` | Не зберігати повоксельні поля (≈ 40 МБ → 1 МБ при 64³) |
 | `--working_directory <dir>` | Робоча директорія ANSYS |
 
 </details>

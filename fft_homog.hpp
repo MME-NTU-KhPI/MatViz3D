@@ -255,6 +255,7 @@ public:
           dx_(dx), dy_(dy), dz_(dz) {
         if (nx < 1 || ny < 1 || nz < 1) throw std::invalid_argument("bad grid size");
         phase_.assign(N_, 0);
+        build_wave_tables();
     }
 
     // Register the material library: one 6x6 Mandel stiffness per phase id.
@@ -274,6 +275,39 @@ public:
     // from the phase-averaged stiffness.
     void set_reference(double lambda0, double mu0) { lam0_ = lambda0; mu0_ = mu0; }
 
+    // Iterative scheme.
+    //   Basic : the Moulinec-Suquet fixed point. Needs a reference medium and
+    //           its iteration count grows linearly with the phase contrast.
+    //   CG    : conjugate gradients on the Galerkin / projection form of the
+    //           same equations (Zeman et al. 2010; Vondrejc, Zeman & Marek
+    //           2014; de Geus et al. 2017). No reference medium, iteration
+    //           count ~ sqrt(contrast), same fixed point. This is what makes
+    //           a solid/void cell (contrast 1e4) tractable: the basic scheme
+    //           stalls at an equilibrium error of ~5e-2 after 1000 iterations
+    //           on a 32^3 gyroid where CG converges in a few hundred.
+    enum class Scheme { Basic, CG };
+    void   set_scheme(Scheme s) { scheme_ = s; }
+    Scheme scheme() const       { return scheme_; }
+
+    // Discretization of the Green operator.
+    //   Continuous : Moulinec-Suquet, the exact continuous Gamma evaluated at
+    //                the FFT frequencies. Gibbs ringing at the voxel faces;
+    //                with pores the solution depends on the soft-phase
+    //                stiffness and CG stalls as it goes to zero.
+    //   Rotated    : Willot's (2015) finite differences on the rotated grid:
+    //                displacements at the voxel corners, strain at the centres
+    //                as the average of the corner differences. Its discrete
+    //                gradient is k_j = (i/2) e^{i(x1+x2+x3)/2} sin(x_j/2)
+    //                prod_{m!=j} 2 cos(x_m/2) (x_j = 2 pi q_j / n_j); the
+    //                common complex factor cancels in Gamma, which is therefore
+    //                the continuous operator at the real modified frequency
+    //                sin(pi q_j/n_j)/(pi d_j) prod_{m!=j} cos(pi q_m/n_m). Robust
+    //                for porous cells: converges as the void stiffness -> 0.
+    //                (F. Willot, C. R. Mecanique 343 (2015) 232-245.)
+    enum class Discretization { Continuous, Rotated };
+    void set_discretization(Discretization d) { disc_ = d; }
+    Discretization discretization() const     { return disc_; }
+
     // Solve for one macroscopic strain E (Mandel 6-vector).
     // Fills eps_ / sig_ (per-voxel, Mandel) and returns the volume-average
     // stress <sigma> (Mandel).  Number of iterations returned via *iters.
@@ -283,6 +317,7 @@ public:
     Vec6 solve(const Vec6& E, int* iters = nullptr,
                const std::function<void(int, double)>& onIter = nullptr) {
         if (C_.empty()) throw std::runtime_error("no materials set");
+        if (scheme_ == Scheme::CG) return solve_cg(E, iters, onIter);
         pick_reference();
 
         // strain/stress fields as 6 complex components each
@@ -384,6 +419,151 @@ public:
         return avg;
     }
 
+
+    // Conjugate-gradient ("Galerkin FFT") solve. Unknown: the zero-mean
+    // compatible strain fluctuation e, with eps = E + e. Equilibrium reads
+    //     G : (C : (E + e)) = 0
+    // on the subspace of compatible fields, where G is the compatibility
+    // projection -- the Green operator of a reference medium with lambda0 = 0,
+    // mu0 = 1/2, so nothing material-dependent has to be chosen. The operator
+    // A e = G : C : e is symmetric positive definite on that subspace (G is an
+    // orthogonal projection and C is positive definite voxel by voxel), so plain
+    // CG applies with b = -A E. Converges when ||r|| / ||b|| < tol_; the
+    // equilibrium error of the result is reported alongside for comparison
+    // with the basic scheme.
+    Vec6 solve_cg(const Vec6& E, int* iters = nullptr,
+                  const std::function<void(int, double)>& onIter = nullptr) {
+        if (C_.empty()) throw std::runtime_error("no materials set");
+        const auto t_start = std::chrono::steady_clock::now();
+        auto seconds_since = [](const std::chrono::steady_clock::time_point& t) {
+            return std::chrono::duration<double>(std::chrono::steady_clock::now() - t).count();
+        };
+        const double invN = 1.0 / static_cast<double>(N_);
+        const std::size_t M = 6 * N_;
+        for (int c = 0; c < 6; ++c) { eps_[c].assign(N_, cd(0,0)); sig_[c].assign(N_, cd(0,0)); }
+
+        // out = A x = G : (C : x). Fields are 6 real Mandel components,
+        // component-major: x[c*N + p].
+        auto apply_A = [&](const std::vector<double>& x, std::vector<double>& out) {
+            #pragma omp parallel for schedule(static)
+            for (std::size_t p = 0; p < N_; ++p) {
+                const Mat6& C = C_[static_cast<std::size_t>(phase_[p])];
+                Vec6 xe;
+                for (int c = 0; c < 6; ++c) xe[c] = x[c * N_ + p];
+                const Vec6 sv = mat6_vec6(C, xe);
+                for (int c = 0; c < 6; ++c) sig_[c][p] = cd(sv[c], 0.0);
+            }
+            for (int c = 0; c < 6; ++c) fft3d(sig_[c], nx_, ny_, nz_, true);
+            apply_projection();
+            for (int c = 0; c < 6; ++c) fft3d(eps_[c], nx_, ny_, nz_, false);
+            #pragma omp parallel for schedule(static)
+            for (std::size_t p = 0; p < N_; ++p)
+                for (int c = 0; c < 6; ++c) out[c * N_ + p] = eps_[c][p].real() * invN;
+        };
+        auto dot = [&](const std::vector<double>& a, const std::vector<double>& b) {
+            double acc = 0.0;
+            #pragma omp parallel for reduction(+:acc) schedule(static)
+            for (std::size_t i = 0; i < M; ++i) acc += a[i] * b[i];
+            return acc;
+        };
+
+        std::vector<double> r(M), p(M), Ap(M), e(M, 0.0);
+        {   // b = -A E, E as a uniform field; r0 = b - A 0 = b
+            std::vector<double> Ef(M);
+            for (int c = 0; c < 6; ++c)
+                std::fill(Ef.begin() + static_cast<std::ptrdiff_t>(c * N_),
+                          Ef.begin() + static_cast<std::ptrdiff_t>((c + 1) * N_), E[c]);
+            apply_A(Ef, r);
+            for (std::size_t i = 0; i < M; ++i) r[i] = -r[i];
+        }
+        const double bnorm = std::sqrt(dot(r, r));
+        p = r;
+        double rr = bnorm * bnorm;
+
+        // Flop model: one A-application is the constitutive update, 6 forward
+        // and 6 inverse transforms and the projection (same budget as the
+        // basic scheme's Green step); the vector updates are ~10 flops/entry.
+        const FlopModel fm = flop_model();
+        const double per_iter = fm.per_iter_tail + 72.0 * static_cast<double>(N_)
+                              + 10.0 * static_cast<double>(M);
+        double flops = 0.0;
+
+        int    it  = 0;
+        double rel = bnorm > 0.0 ? 1.0 : 0.0;
+        bool converged = !(bnorm > 0.0);        // homogeneous cell: E is the solution
+        for (; !converged && it < maxit_; ++it) {
+            apply_A(p, Ap);
+            const double pAp = dot(p, Ap);
+            if (!(pAp > 0.0)) {
+                std::fprintf(stderr, "[FFTHomogenizer::solve_cg] breakdown at iteration %d (p.Ap = %.3e)\n", it, pAp);
+                std::fflush(stderr);
+                break;
+            }
+            const double alpha = rr / pAp;
+            #pragma omp parallel for schedule(static)
+            for (std::size_t i = 0; i < M; ++i) { e[i] += alpha * p[i]; r[i] -= alpha * Ap[i]; }
+            const double rr_new = dot(r, r);
+            rel = std::sqrt(rr_new) / bnorm;
+            flops += per_iter;
+            if (onIter) onIter(it, rel);
+            if (rel >= tol_ && (it == 0 || it % 20 == 0)) {
+                const double secs = seconds_since(t_start);
+                std::fprintf(stdout,
+                             "[FFTHomogenizer::solve_cg] iter %4d  rel. residual = %.3e  (tol = %.1e)  "
+                             "%.2f s  %.2f GFLOP  %.2f GFLOP/s\n",
+                             it, rel, tol_, secs, flops * 1e-9,
+                             secs > 0.0 ? flops * 1e-9 / secs : 0.0);
+                std::fflush(stdout);
+            }
+            if (rel < tol_) { converged = true; ++it; break; }
+            const double beta = rr_new / rr;
+            rr = rr_new;
+            #pragma omp parallel for schedule(static)
+            for (std::size_t i = 0; i < M; ++i) p[i] = r[i] + beta * p[i];
+        }
+
+        // Final fields: eps = E + e, sigma = C : eps. The equilibrium error is
+        // evaluated in Fourier space, so transform the stress once for it and
+        // then rebuild the real-space stress the accessors hand out.
+        #pragma omp parallel for schedule(static)
+        for (std::size_t q = 0; q < N_; ++q)
+            for (int c = 0; c < 6; ++c) eps_[c][q] = cd(E[c] + e[c * N_ + q], 0.0);
+        local_stress();
+        for (int c = 0; c < 6; ++c) fft3d(sig_[c], nx_, ny_, nz_, true);
+        const double eq_err = equilibrium_error();
+        local_stress();
+        flops += fm.per_iter_head + fm.finalize;
+
+        Vec6 avg{};
+        for (int c = 0; c < 6; ++c) {
+            double acc = 0.0;
+            #pragma omp parallel for reduction(+:acc) schedule(static)
+            for (std::size_t q = 0; q < N_; ++q) acc += sig_[c][q].real();
+            avg[c] = acc * invN;
+        }
+
+        const double secs = seconds_since(t_start);
+        const double gflops_rate = secs > 0.0 ? flops * 1e-9 / secs : 0.0;
+        if (converged) {
+            std::fprintf(stdout,
+                         "[FFTHomogenizer::solve_cg] converged in %d iterations: rel. residual = %.3e < tol = %.1e, "
+                         "equilibrium error = %.3e  (%.2f s, %.2f GFLOP, %.2f GFLOP/s)\n",
+                         it, rel, tol_, eq_err, secs, flops * 1e-9, gflops_rate);
+            std::fflush(stdout);
+        } else {
+            std::fprintf(stderr,
+                         "[FFTHomogenizer::solve_cg] did not converge in %d iterations (rel. residual = %.3e, tol = %.1e, "
+                         "equilibrium error = %.3e)  (%.2f s, %.2f GFLOP, %.2f GFLOP/s)\n",
+                         it, rel, tol_, eq_err, secs, flops * 1e-9, gflops_rate);
+            std::fflush(stderr);
+        }
+
+        last_err_   = rel;     // the measure the convergence test used
+        last_secs_  = secs;
+        last_flops_ = flops;
+        if (iters) *iters = it;
+        return avg;
+    }
     // Full effective 6x6 stiffness: six unit-strain solves.  Column j is the
     // average stress produced by unit macro strain e_j.
     Mat6 effective_stiffness(int* total_iters = nullptr) {
@@ -542,6 +722,43 @@ private:
         return static_cast<double>(kk) / (static_cast<double>(n) * d);
     }
 
+    // Per-axis tables for the wave vector: continuous frequency, and for the
+    // rotated scheme sin(pi q/n)/(pi d) and cos(pi q/n) (exactly 0 at Nyquist).
+    void build_wave_tables() {
+        const int n_[3] = {nx_, ny_, nz_};
+        const double d_[3] = {dx_, dy_, dz_};
+        for (int a = 0; a < 3; ++a) {
+            const int n = n_[a];
+            fr_[a].assign(static_cast<std::size_t>(n), 0.0);
+            rs_[a].assign(static_cast<std::size_t>(n), 0.0);
+            rc_[a].assign(static_cast<std::size_t>(n), 1.0);
+            for (int k = 0; k < n; ++k) {
+                const int kk = (k <= n / 2) ? k : k - n;
+                const double ang = M_PI * static_cast<double>(kk) / static_cast<double>(n);
+                fr_[a][static_cast<std::size_t>(k)] = freq(k, n, d_[a]);
+                const bool nyq = (n % 2 == 0) && (2 * std::abs(kk) == n);
+                rs_[a][static_cast<std::size_t>(k)] = (nyq ? (kk > 0 ? 1.0 : -1.0) : std::sin(ang)) / (M_PI * d_[a]);
+                rc_[a][static_cast<std::size_t>(k)] = nyq ? 0.0 : std::cos(ang);
+            }
+        }
+    }
+
+    // Wave vector of mode (kx,ky,kz) for the active discretization. Returns
+    // false when it vanishes (rotated scheme, two or more Nyquist components):
+    // Gamma is zero there, the mode carries no compatible strain.
+    bool wave_vector(int kx, int ky, int kz, double v[3]) const {
+        const std::size_t ix = static_cast<std::size_t>(kx), iy = static_cast<std::size_t>(ky), iz = static_cast<std::size_t>(kz);
+        if (disc_ == Discretization::Continuous) {
+            v[0] = fr_[0][ix]; v[1] = fr_[1][iy]; v[2] = fr_[2][iz];
+        } else {
+            const double cx = rc_[0][ix], cy = rc_[1][iy], cz = rc_[2][iz];
+            v[0] = rs_[0][ix] * cy * cz;
+            v[1] = rs_[1][iy] * cx * cz;
+            v[2] = rs_[2][iz] * cx * cy;
+        }
+        return (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]) > 0.0;
+    }
+
     // Mandel 6-vector -> symmetric 3x3 tensor and back.
     static inline void mandel_to_tensor(const std::array<cd,6>& v, cd t[3][3]) {
         const double s = 1.0 / std::sqrt(2.0);
@@ -577,7 +794,8 @@ private:
                 continue;
             }
 
-            double xi[3] = { freq(kx, nx_, dx_), freq(ky, ny_, dy_), freq(kz, nz_, dz_) };
+            double xi[3];
+            if (!wave_vector(kx, ky, kz, xi)) continue;          // Gamma0 = 0 at this mode
             const double xi2 = xi[0]*xi[0] + xi[1]*xi[1] + xi[2]*xi[2];
             // unit direction (Gamma0 is homogeneous of degree 0 in xi)
             const double inv = 1.0 / std::sqrt(xi2);
@@ -604,6 +822,48 @@ private:
         }
     }
 
+
+    // eps_hat(xi) <- G(xi) : sig_hat(xi) for xi != 0 and 0 at xi = 0, where G
+    // is the compatibility projection: Gamma0 of a reference medium with
+    // lambda0 = 0, mu0 = 1/2, i.e.  G : tau = n (tau n) + (tau n) n - (n.tau.n) n n.
+    // It is the identity on zero-mean compatible strains and annihilates
+    // divergence-free fields, which is what the CG scheme needs.
+    void apply_projection() {
+        #pragma omp parallel for collapse(3) schedule(static)
+        for (int kz = 0; kz < nz_; ++kz)
+        for (int ky = 0; ky < ny_; ++ky)
+        for (int kx = 0; kx < nx_; ++kx) {
+            const std::size_t p = (static_cast<std::size_t>(kz) * ny_ + ky) * nx_ + kx;
+            if (kx == 0 && ky == 0 && kz == 0) {
+                for (int c = 0; c < 6; ++c) eps_[c][p] = cd(0.0, 0.0);
+                continue;
+            }
+            double xi[3];
+            if (!wave_vector(kx, ky, kz, xi)) {                 // G = 0 at this mode
+                for (int c = 0; c < 6; ++c) eps_[c][p] = cd(0.0, 0.0);
+                continue;
+            }
+            const double inv = 1.0 / std::sqrt(xi[0]*xi[0] + xi[1]*xi[1] + xi[2]*xi[2]);
+            const double n[3] = { xi[0]*inv, xi[1]*inv, xi[2]*inv };
+
+            std::array<cd,6> sv;
+            for (int c = 0; c < 6; ++c) sv[c] = sig_[c][p];
+            cd tau[3][3]; mandel_to_tensor(sv, tau);
+
+            cd m[3];
+            for (int i = 0; i < 3; ++i)
+                m[i] = tau[i][0]*n[0] + tau[i][1]*n[1] + tau[i][2]*n[2];
+            const cd q = m[0]*n[0] + m[1]*n[1] + m[2]*n[2];
+
+            cd g[3][3];
+            for (int i = 0; i < 3; ++i)
+                for (int j = 0; j < 3; ++j)
+                    g[i][j] = (n[i]*m[j] + n[j]*m[i]) - q * n[i]*n[j];
+
+            std::array<cd,6> gv; tensor_to_mandel(g, gv);
+            for (int c = 0; c < 6; ++c) eps_[c][p] = gv[c];
+        }
+    }
     // Equilibrium error:  ||div sigma|| / ||<sigma>||  (evaluated in Fourier).
     double equilibrium_error() {
         double num = 0.0;
@@ -613,7 +873,8 @@ private:
         for (int kx = 0; kx < nx_; ++kx) {
             if (kx == 0 && ky == 0 && kz == 0) continue;
             const std::size_t p = (static_cast<std::size_t>(kz) * ny_ + ky) * nx_ + kx;
-            const double xi[3] = { freq(kx, nx_, dx_), freq(ky, ny_, dy_), freq(kz, nz_, dz_) };
+            double xi[3];
+            if (!wave_vector(kx, ky, kz, xi)) continue;          // discrete divergence is zero here
             cd tau[3][3];
             std::array<cd,6> sv; for (int c = 0; c < 6; ++c) sv[c] = sig_[c][p];
             mandel_to_tensor(sv, tau);
@@ -641,6 +902,9 @@ private:
     double tol_   = 1e-6;
     int    maxit_ = 1000;
     double lam0_  = -1.0, mu0_ = -1.0;   // <=0 => auto
+    Scheme scheme_ = Scheme::Basic;
+    Discretization disc_ = Discretization::Continuous;
+    std::array<std::vector<double>, 3> fr_, rs_, rc_;   // per-axis wave tables
     double last_err_ = 0.0;
     double last_flops_ = 0.0;
     double last_secs_  = 0.0;

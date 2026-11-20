@@ -5,11 +5,26 @@ CONFIG -= app_bundle
 gcc_ver = $$system($$QMAKE_CXX -dumpversion)
 greaterThan(gcc_ver, 15): QMAKE_CXXFLAGS += -Wno-sfinae-incomplete
 
-QMAKE_CXXFLAGS += -fopenmp
-LIBS += -fopenmp
+macos {
+    # Apple clang has no -fopenmp driver flag; use the preprocessor form and
+    # link Homebrew's libomp and HDF5 explicitly.
+    QMAKE_CXXFLAGS += -Xpreprocessor -fopenmp
+    INCLUDEPATH += /opt/homebrew/opt/libomp/include /opt/homebrew/opt/hdf5/include
+    LIBS += -L/opt/homebrew/opt/libomp/lib -lomp -L/opt/homebrew/opt/hdf5/lib -lhdf5 -lhdf5_cpp
+    # cellnet.cpp (the layers of celldiffusion.cpp and cellpredictor.cpp): the matrix products go to Accelerate's sgemm, as in the program
+    DEFINES += MATVIZ_USE_ACCELERATE
+    LIBS += -framework Accelerate
+} else {
+    QMAKE_CXXFLAGS += -fopenmp
+    LIBS += -fopenmp
+}
 
 INCLUDEPATH += ..
 DEPENDPATH += ..
+
+# TestCellDiffusion and TestCellPredictor read models/cell_diffusion.bin and models/cell_predictor.bin of the source tree
+# (not in git; skipped when absent)
+DEFINES += "MATVIZ_SOURCE_DIR=\\\"$$clean_path($$PWD/..)\\\""
 
 # HDF5
 unix:!macos {
@@ -56,7 +71,11 @@ SOURCES += \
     ../consolelogger.cpp \
     ../voronoi.cpp \
     ../composite.cpp \
-    ../dlca.cpp
+    ../dlca.cpp \
+    ../lattice.cpp \
+    ../mycelium.cpp \
+    ../cellforms.cpp \
+    ../printability.cpp
 
 HEADERS += \
     ../parameters.h \
@@ -78,6 +97,13 @@ HEADERS += \
     ../voronoi.h \
     ../composite.h \
     ../dlca.h \
+    ../lattice.h \
+    ../latticefamily.h \
+    ../mycelium.h \
+    ../cellforms.h \
+    ../printability.h \
+    ../fft_homog.hpp \
+    ../fft_solver_session.hpp \
     ../texturemath.hpp \
     ../svgexporter.hpp \
     ../cpuinfo.hpp \
@@ -95,7 +121,27 @@ SOURCES += \
     test_hillcriterion.cpp \
     test_svgexporter.cpp \
     test_commandline_parser.cpp \
+    test_lattice.cpp \
+    test_ffthomog.cpp \
+    test_printability.cpp \
+    test_datasetbrowser.cpp \
+    ../datasetbrowsercontroller.cpp \
     test_seed_distribution.cpp \
+    test_propertysearch.cpp \
+    ../propertysearch.cpp \
+    ../propertyselectorcontroller.cpp \
+    test_celldecoder.cpp \
+    ../celldecoder.cpp \
+    test_celldiffusion.cpp \
+    ../celldiffusion.cpp \
+    ../cellnet.cpp \
+    test_cellpredictor.cpp \
+    ../cellpredictor.cpp \
+    test_cellstiffness.cpp \
+    ../cellstiffness.cpp \
+    test_requestcheck.cpp \
+    ../requestcheck.cpp \
+    ../cellstiffness_gpu.cpp \
     test_dlca.cpp
 
 HEADERS += \
@@ -106,7 +152,30 @@ HEADERS += \
     test_hillcriterion.h \
     test_svgexporter.h \
     test_commandline_parser.h \
+    test_lattice.h \
+    test_ffthomog.h \
+    test_printability.h \
+    test_datasetbrowser.h \
+    ../datasetbrowsercontroller.h \
     test_seed_distribution.h \
+    test_propertysearch.h \
+    ../propertysearch.h \
+    ../propertyselectorcontroller.h \
+    test_celldecoder.h \
+    ../celldecoder.h \
+    test_celldiffusion.h \
+    ../celldiffusion.h \
+    ../cellnet.h \
+    test_cellpredictor.h \
+    ../cellpredictor.h \
+    test_cellstiffness.h \
+    ../cellstiffness.h \
+    test_requestcheck.h \
+    ../requestcheck.h \
+    ../cellstiffness_gpu.h \
     test_dlca.h
+
+# The decoder weights the program ships (:/models/cell_decoder.bin)
+RESOURCES += ../models.qrc
 
 TARGET = tests

@@ -102,3 +102,15 @@ output.dat
 
 # Linux
 *.nix
+
+# generated datasets (tools/dataset)
+data/
+
+# weights of the diffusion network of the Neural tab (94 MB; tools/neural/export_cell_diffusion.py writes them)
+models/cell_diffusion.bin
+models/cell_diffusion_*.bin
+models/cell_predictor.bin
+
+# Python byte code and macOS folder files
+__pycache__/
+.DS_Store
