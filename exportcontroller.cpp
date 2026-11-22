@@ -1349,6 +1349,58 @@ void ExportController::savePdfTo(QQuickItem* item, const QString& fileName, bool
         });
 }
 
+bool ExportController::headlessScreenshot(const HeadlessShot& shot, QString* error)
+{
+    auto fail = [error](const QString& m) { if (error) *error = m; return false; };
+    if (!Parameters::voxels) return fail(QStringLiteral("no structure to render"));
+    const int n = Parameters::instance()->getSize();
+
+    // A 3D view without a window: the item computes the mesh and the camera
+    // exactly as on screen, and renders through renderHeadless().
+    OpenGLWidgetQML view;
+    view.setSize(QSizeF(shot.viewSize));
+    view.setShowCornerAxes(false);
+    if (shot.outlines > 0) {
+        view.setOutlineKind(shot.outlines);
+        view.setPlotWireFrame(true);
+    }
+    view.setVoxels(Parameters::voxels, static_cast<short>(n));
+
+    ExportController ec;
+    ec.setDpi(shot.dpi > 0 ? shot.dpi : 300);
+    ec.setHighDpi(true);
+    ec.setWidthCm(shot.widthCm);
+    ec.setBackground(shot.background);
+    ScreenshotOptions o = ec.currentOptions(&view, false, false, false);
+    const QImage raw = view.renderHeadless(ec.exportPixelSize(&view),
+                                           o.background == Background::White       ? RenderOpenGL::CaptureBackground::White
+                                         : o.background == Background::Transparent ? RenderOpenGL::CaptureBackground::Transparent
+                                                                                   : RenderOpenGL::CaptureBackground::Theme);
+    if (raw.isNull()) return fail(QStringLiteral("no OpenGL context for a headless render"));
+
+    if (shot.file.endsWith(QLatin1String(".pdf"), Qt::CaseInsensitive)) {
+        const Composition c = layoutScreenshot(raw, o, &view);
+        std::vector<PdfFace> faces;
+        if (shot.pdfVector)
+            for (const svgx::ShadedFace& f : view.vectorFaces(c.sceneSize))
+                faces.push_back({ { f.pts[0], f.pts[1], f.pts[2], f.pts[3] },
+                                  f.color, f.edgeColor, f.edgeMask, f.kind, f.width });
+        if (!writePdf(c, shot.file, shot.pdfVector ? &faces : nullptr))
+            return fail(QStringLiteral("cannot write ") + shot.file);
+        qInfo().noquote() << QStringLiteral("Screenshot: %1 (%2 x %3 mm at %4 DPI, model %5)")
+                                 .arg(shot.file).arg(c.size.width() * 25.4 / c.dpi, 0, 'f', 1)
+                                 .arg(c.size.height() * 25.4 / c.dpi, 0, 'f', 1).arg(c.dpi)
+                                 .arg(shot.pdfVector ? QStringLiteral("%1 polygons").arg(faces.size())
+                                                     : QStringLiteral("image"));
+        return true;
+    }
+    const QImage img = processScreenshot(raw, o, &view);
+    if (!img.save(shot.file)) return fail(QStringLiteral("cannot write ") + shot.file);
+    qInfo().noquote() << QStringLiteral("Screenshot: %1 (%2 x %3 px at %4 DPI)")
+                             .arg(shot.file).arg(img.width()).arg(img.height()).arg(o.dpi);
+    return true;
+}
+
 void ExportController::saveItemImage(QQuickItem* item, const QString& fileName)
 {
     if (!item || !item->window()) { emit exportFailed(tr("Item is not available")); return; }

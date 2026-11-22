@@ -167,6 +167,40 @@ int main(int argc, char *argv[])
             return 3;
         }
 
+        // --screenshot: a picture of the structure, rendered without a window.
+        if (parser.isSet("screenshot")) {
+            ExportController::registerFonts();
+            ExportController::HeadlessShot shot;
+            shot.file = parser.value("screenshot");
+            if (!shot.file.endsWith(".png", Qt::CaseInsensitive) && !shot.file.endsWith(".pdf", Qt::CaseInsensitive)) {
+                qCritical().noquote() << "--screenshot expects a .png or .pdf file; got" << shot.file;
+                return 1;
+            }
+            if (parser.isSet("dpi")) shot.dpi = std::clamp(parser.value("dpi").toInt(), 50, 2400);
+            if (parser.isSet("width_cm")) shot.widthCm = std::max(0.0, parser.value("width_cm").toDouble());
+            const QString bg = parser.value("background").toLower();
+            if (bg == "theme") shot.background = int(ExportController::Background::Theme);
+            else if (bg == "transparent" || bg == "none") shot.background = int(ExportController::Background::Transparent);
+            else if (bg.isEmpty() || bg == "white") shot.background = int(ExportController::Background::White);
+            else { qCritical().noquote() << "--background expects theme, white or transparent; got" << bg; return 1; }
+            const QString ol = parser.value("outlines").toLower();
+            if (ol == "boundaries") shot.outlines = 2;
+            else if (ol == "voxels") shot.outlines = 1;
+            else if (!ol.isEmpty() && ol != "off") { qCritical().noquote() << "--outlines expects off, boundaries or voxels; got" << ol; return 1; }
+            if (parser.isSet("view_size")) {
+                const QStringList wh = parser.value("view_size").toLower().split('x');
+                const int w = wh.value(0).toInt(), h = wh.value(1).toInt();
+                if (wh.size() != 2 || w < 64 || h < 64) { qCritical().noquote() << "--view_size expects WxH, e.g. 1200x900"; return 1; }
+                shot.viewSize = QSize(w, h);
+            }
+            shot.pdfVector = parser.isSet("pdf_vector");
+            QString err;
+            if (!ExportController::headlessScreenshot(shot, &err)) {
+                qCritical().noquote() << "Screenshot failed:" << err;
+                return 4;
+            }
+        }
+
         if (parser.isSet("run_stress_calc")) {
             handler.runStressCalculation();
         } else if (parser.isSet("output")) {

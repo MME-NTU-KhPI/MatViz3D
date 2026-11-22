@@ -161,6 +161,22 @@ public:
     static void putImageOnClipboard(const QImage& img);
 
 
+    /// What --nogui --screenshot asks for.
+    struct HeadlessShot
+    {
+        QString file;                  ///< .png or .pdf
+        int     dpi = 300;
+        int     background = int(Background::White);
+        double  widthCm = 0.0;
+        QSize   viewSize = QSize(1200, 900);
+        int     outlines = 0;          ///< 0 off, 1 voxel edges, 2 boundaries
+        bool    pdfVector = false;
+    };
+    /// Render the current structure (Parameters::voxels) without a window
+    /// and write it through the same pipeline as Save. False with `error`
+    /// set when no GL context can be made or the file cannot be written.
+    static bool headlessScreenshot(const HeadlessShot& shot, QString* error = nullptr);
+
     static bool writeVoxelsCSV(const QString& path, int32_t*** voxels,
                                int numCubes, QString* error = nullptr);
 
