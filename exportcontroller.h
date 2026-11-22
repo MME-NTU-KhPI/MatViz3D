@@ -3,15 +3,20 @@
 
 #include <QObject>
 #include <QString>
+#include <QImage>
+#include <functional>
 
 class QQuickItem;
 
 /**
  * @brief Scene export: PNG, clipboard, SVG, CSV, VRML.
  *
- * Raster capture is performed via QQuickItem::grabToImage()—the only
- * correct method in Qt Quick: the renderer runs on a separate thread,
- * and directly reading the FBO from the GUI thread yields an empty frame.
+ * Raster capture of the main 3D view is a real off-screen render on the
+ * render thread (OpenGLWidgetQML::requestCapture(): multisampled FBO of the
+ * target size, so 300/600 DPI means more pixels, not an upscaled frame).
+ * Any other item (the anisotropy surface, or the 3D view before its renderer
+ * exists) falls back to QQuickItem::grabToImage(), which reads the item's
+ * on-screen texture and only rescales it.
  *
  * Data export (CSV, VRML) takes voxels directly from the renderer.
  *
@@ -34,6 +39,14 @@ public:
     Q_INVOKABLE void saveAsImage(QQuickItem* item, bool verticalLegend, bool fieldActive = false);
     Q_INVOKABLE void copyToClipboard(QQuickItem* item);
     Q_INVOKABLE void copyToClipboard(QQuickItem* item, bool verticalLegend, bool fieldActive = false);
+    /// Save without a dialog (scripts, the MATVIZ_EXPORT check).
+    Q_INVOKABLE void saveImageTo(QQuickItem* item, const QString& fileName,
+                                 bool verticalLegend, bool fieldActive = false);
+    /// MATVIZ_EXPORT=<prefix>: write <prefix>_theme.png (what Save writes),
+    /// <prefix>_clipboard.png (what Copy puts on the clipboard) and
+    /// <prefix>_raw_transparent.png (the bare capture on a transparent
+    /// background), then call `finished`.
+    void debugExport(QQuickItem* item, const QString& prefix, std::function<void()> finished);
     Q_INVOKABLE void saveAsSVG(QQuickItem* item);
     Q_INVOKABLE void saveAsVectorSVG(QQuickItem* item);  // true-vector, not raster
 
@@ -66,7 +79,7 @@ public:
     static void overlayColorBar(QImage& img, bool vertical = false, QQuickItem* item = nullptr);
     static QImage processScreenshot(const QImage& rawImg, bool replaceWhiteBg, bool autoCrop,
                                     bool verticalLegend, int targetDpi = 300, QQuickItem* item = nullptr,
-                                    bool fieldActive = false);
+                                    bool fieldActive = false, bool sceneHasCornerAxes = true);
 
     Q_INVOKABLE void exportToCSV();
     Q_INVOKABLE void exportToVRML();
@@ -83,6 +96,15 @@ signals:
     void dpiChanged();
 
 private:
+    enum class SceneBackground { Theme, White, Transparent };
+    /// Raw scene image at the export resolution. `offscreen` says whether it
+    /// came from the off-screen render (no corner triad in it, background as
+    /// asked) or from grabToImage() (on-screen look, rescaled).
+    using SceneCallback = std::function<void(QImage img, bool offscreen)>;
+    void captureScene(QQuickItem* item, SceneBackground background, SceneCallback done);
+    void grabScene(QQuickItem* item, SceneCallback done);
+    QSize exportPixelSize(QQuickItem* item) const;
+
     bool fetchVoxels(int32_t***& voxelsOut, int& numCubesOut);
     bool m_legendVertical = false;
     bool m_autoCrop       = true;

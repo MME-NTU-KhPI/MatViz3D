@@ -367,40 +367,18 @@ bool OpenGLWidgetQML::showCornerAxes() const
     return m_showCornerAxes;
 }
 
-/**
- * Capture a screenshot of the OpenGL widget and store it in a buffer.
- * @param includeGizmo If false (default), captures the 3D scene without corner orientation arrows.
- * @return A QImage containing the screenshot.
- */
-QImage OpenGLWidgetQML::captureScreenshot(bool includeGizmo)
+bool OpenGLWidgetQML::requestCapture(QSize pixelSize, RenderOpenGL::CaptureBackground background,
+                                     QObject* receiver, std::function<void(QImage)> done)
 {
-    QImage screenshot;
-    if (m_render)
-    {
-        screenshot = m_render->captureScreenshot(includeGizmo);
-    }
-
-    return screenshot;
-}
-
-/**
- * Capture a screenshot and copy it to the system clipboard.
- */
-void OpenGLWidgetQML::captureScreenshotToClipboard(bool includeGizmo)
-{
-    QImage screenshot = captureScreenshotWithWhiteBackground(includeGizmo);
-    QClipboard *clipboard = QGuiApplication::clipboard();
-    clipboard->setImage(screenshot);
-}
-
-/**
- * Capture a screenshot of the OpenGL widget, replace the background with white, and store it in a buffer.
- * @return A QImage containing the modified screenshot.
- */
-QImage OpenGLWidgetQML::captureScreenshotWithWhiteBackground(bool includeGizmo)
-{
-    QImage screenshot = captureScreenshot(includeGizmo);
-    return ExportController::processScreenshot(screenshot, true, true, false, 300, this);
+    if (!m_render || pixelSize.isEmpty()) return false;
+    RenderOpenGL::CaptureRequest req;
+    req.size       = pixelSize;
+    req.background = background;
+    req.receiver   = receiver;
+    req.done       = std::move(done);
+    m_render->requestCapture(std::move(req));
+    update();   // make sure a frame comes to serve it
+    return true;
 }
 
 void OpenGLWidgetQML::wheelEvent(QWheelEvent *event)
@@ -1018,7 +996,10 @@ std::vector<std::array<GLubyte, 4>> OpenGLWidgetQML::generateDistinctColors()
         float hue = i * hueIncrement;
         float saturation = 1.0f;
         float value = 1.0f;
-        float alpha = 0.85f;
+        // Opaque: a voxel face has nothing behind it but the background, so
+        // 0.85 only mixed the backdrop into every grain and made a model
+        // exported on a transparent background see-through.
+        float alpha = 1.0f;
 
         float chroma = saturation * value;
         float huePrime = hue / 60.0f;

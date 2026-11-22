@@ -10,6 +10,14 @@
 #include <QOpenGLExtraFunctions>
 
 #include <algorithm>
+#include <memory>
+
+#ifndef GL_MAX_SAMPLES
+#define GL_MAX_SAMPLES 0x8D57
+#endif
+#ifndef GL_RGBA8
+#define GL_RGBA8 0x8058
+#endif
 
 #ifdef __APPLE__
 // macOS ships OpenGL 4.1 without GL_KHR_debug; define the enums so the
@@ -53,6 +61,7 @@ RenderOpenGL::RenderOpenGL()
     width = 300;
     height = 300;
     bgColor.setRgbF(0.21f, 0.21f, 0.21f);
+    m_clearColor = bgColor;
     shaderProgram = nullptr;
     axisShaderProgram = nullptr;
     vaoId = 0;
@@ -89,8 +98,139 @@ void RenderOpenGL::render()
         qDebug() << "RenderOpenGL::render() - No current context!";
         return;
     }
+    serveCaptureRequest();
     this->paintGL();
     update();
+}
+
+std::atomic<int> RenderOpenGL::s_maxCaptureDim{0};
+
+void RenderOpenGL::requestCapture(CaptureRequest request)
+{
+    {
+        QMutexLocker lock(&m_captureMutex);
+        if (m_captureRequest && m_captureRequest->receiver && m_captureRequest->done) {
+            // A newer request replaces one that was never served; tell the
+            // older caller so it does not wait forever.
+            auto done = m_captureRequest->done;
+            QMetaObject::invokeMethod(m_captureRequest->receiver.data(),
+                                      [done]() { done(QImage()); }, Qt::QueuedConnection);
+        }
+        m_captureRequest = std::move(request);
+    }
+    update();
+}
+
+void RenderOpenGL::serveCaptureRequest()
+{
+    std::optional<CaptureRequest> req;
+    {
+        QMutexLocker lock(&m_captureMutex);
+        req.swap(m_captureRequest);
+    }
+    if (!req) return;
+
+    const QImage img = renderOffscreen(req->size, req->background);
+    if (req->receiver && req->done) {
+        auto done = req->done;
+        QMetaObject::invokeMethod(req->receiver.data(), [done, img]() { done(img); },
+                                  Qt::QueuedConnection);
+    }
+}
+
+QImage RenderOpenGL::renderOffscreen(QSize size, CaptureBackground background)
+{
+    QOpenGLContext* ctx = QOpenGLContext::currentContext();
+    if (!ctx || size.isEmpty()) return QImage();
+    QOpenGLFunctions* f = ctx->functions();
+
+    // -- Size and sample count the driver can actually give --------------
+    GLint maxRb = 0, maxTex = 0, maxSamples = 0;
+    GLint maxVp[2] = {0, 0};
+    f->glGetIntegerv(GL_MAX_RENDERBUFFER_SIZE, &maxRb);
+    f->glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTex);
+    f->glGetIntegerv(GL_MAX_VIEWPORT_DIMS, maxVp);
+    f->glGetIntegerv(GL_MAX_SAMPLES, &maxSamples);
+    int maxDim = 16384;
+    for (GLint v : {maxRb, maxTex, maxVp[0], maxVp[1]})
+        if (v > 0) maxDim = std::min<int>(maxDim, v);
+    s_maxCaptureDim.store(maxDim);
+    if (size.width() > maxDim || size.height() > maxDim)
+        size.scale(maxDim, maxDim, Qt::KeepAspectRatio);
+
+    // Colour (RGBA8) + depth/stencil (D24S8) = 8 bytes per sample. Keep the
+    // multisampled buffer under ~1.5 GB: at 600 DPI the pixels are so small
+    // that 2x is plenty, and 8x of a 7500 x 5000 frame would be 2.4 GB.
+    int samples = std::min(8, std::max(0, int(maxSamples)));
+    const qint64 budget = qint64(1536) << 20;
+    while (samples > 1 && qint64(size.width()) * size.height() * samples * 8 > budget)
+        samples /= 2;
+    if (samples < 2) samples = 0;
+
+    std::unique_ptr<QOpenGLFramebufferObject> ms;
+    for (;;) {
+        QOpenGLFramebufferObjectFormat fmt;
+        fmt.setAttachment(QOpenGLFramebufferObject::CombinedDepthStencil);
+        fmt.setInternalTextureFormat(GL_RGBA8);
+        fmt.setSamples(samples);
+        ms = std::make_unique<QOpenGLFramebufferObject>(size, fmt);
+        if (ms->isValid() || samples == 0) break;
+        samples = (samples > 2) ? samples / 2 : 0;
+    }
+    QOpenGLFramebufferObjectFormat resolvedFmt;
+    resolvedFmt.setInternalTextureFormat(GL_RGBA8);
+    QOpenGLFramebufferObject resolved(size, resolvedFmt);
+    if (!ms->isValid() || !resolved.isValid()) {
+        qWarning() << "[capture] cannot create a" << size << "framebuffer";
+        if (QOpenGLFramebufferObject* screen = framebufferObject()) screen->bind();
+        return QImage();
+    }
+
+    // -- Render the same camera at the new size ---------------------------
+    const int        savedW = width, savedH = height;
+    const float      savedDpr = m_dpr;
+    const QMatrix4x4 savedProj = m_projection;
+    const bool       savedAxes = m_showCornerAxes;
+    const QColor     savedClear = m_clearColor;
+
+    width = size.width();
+    height = size.height();
+    m_dpr = 1.0f;
+    updateProjection();               // same 45 degree vertical field of view
+    m_showCornerAxes = false;         // the exporter draws its own gizmo
+    switch (background) {
+    case CaptureBackground::Theme:       m_clearColor = bgColor; break;
+    case CaptureBackground::White:       m_clearColor = QColor(255, 255, 255, 255); break;
+    case CaptureBackground::Transparent: m_clearColor = QColor(0, 0, 0, 0); break;
+    }
+
+    ms->bind();
+    f->glViewport(0, 0, width, height);
+    paintGL();
+    QOpenGLFramebufferObject::blitFramebuffer(&resolved, ms.get(),
+                                              GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    // Not flipped: Qt Quick shows this FBO's texture with GL's bottom row at
+    // the top (the corner triad's labels follow that, kGizmoYFlip), and the
+    // export has to show what the screen shows -- toImage(true) turned the
+    // model upside down.
+    // The blending writes premultiplied colour (see paintGL), so the read-back
+    // is RGBA8888_Premultiplied; downstream works in ARGB32_Premultiplied.
+    QImage img = resolved.toImage(false).convertToFormat(QImage::Format_ARGB32_Premultiplied);
+
+    width = savedW;
+    height = savedH;
+    m_dpr = savedDpr;
+    m_projection = savedProj;
+    m_showCornerAxes = savedAxes;
+    m_clearColor = savedClear;
+
+    if (QOpenGLFramebufferObject* screen = framebufferObject()) screen->bind();
+    f->glViewport(0, 0, static_cast<int>(width * m_dpr), static_cast<int>(height * m_dpr));
+
+    qDebug().noquote() << QStringLiteral("[capture] %1 x %2, %3x MSAA, format %4")
+                              .arg(img.width()).arg(img.height()).arg(samples)
+                              .arg(int(img.format()));
+    return img;
 }
 
 
@@ -858,6 +998,8 @@ void RenderOpenGL::paintGL()
         return;
     }
 
+    f->glClearColor(m_clearColor.redF(), m_clearColor.greenF(),
+                    m_clearColor.blueF(), m_clearColor.alphaF());
     f->glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     f->glDepthMask(GL_TRUE);
 #ifndef Q_OS_MACOS
@@ -947,7 +1089,11 @@ void RenderOpenGL::paintGL()
     ef->glBindVertexArray(vaoId);
 
     f->glEnable(GL_BLEND);
-    f->glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    // Colour: ordinary "over". Alpha: src + dst*(1 - src_a), so that over a
+    // transparent clear (0,0,0,0) the frame holds premultiplied colour and a
+    // correct coverage alpha -- an opaque face ends at alpha 1, not at a^2.
+    ef->glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA,
+                            GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
     if (enableFaceCulling) {
         f->glEnable(GL_CULL_FACE);
@@ -1106,51 +1252,6 @@ void RenderOpenGL::toggleDepthTest()
     enableDepthTest = !enableDepthTest;
     qDebug() << "RenderOpenGL::toggleDepthTest() - Depth test:" << (enableDepthTest ? "enabled" : "disabled");
     update();
-}
-
-QImage RenderOpenGL::captureScreenshot(bool includeGizmo)
-{
-    QOpenGLContext *ctx = QOpenGLContext::currentContext();
-    if (!ctx) {
-        return QImage();
-    }
-
-    QOpenGLFunctions *f = ctx->functions();
-
-    // If caller wants a screenshot without the gizmo, temporarily suppress it
-    // and render a clean pass of the 3D scene.
-    const bool needCleanPass = (!includeGizmo && m_showCornerAxes);
-    if (needCleanPass) {
-        m_showCornerAxes = false;
-        paintGL();
-        m_showCornerAxes = true;
-    }
-
-    int readW = this->width;
-    int readH = this->height;
-    if (m_dpr > 1.0f) {
-        readW = static_cast<int>(this->width * m_dpr);
-        readH = static_cast<int>(this->height * m_dpr);
-    }
-
-    QImage screenshot(readW, readH, QImage::Format_RGBA8888);
-
-    f->glReadPixels(0, 0, readW, readH, GL_RGBA, GL_UNSIGNED_BYTE, screenshot.bits());
-
-#if QT_VERSION >= QT_VERSION_CHECK(6, 9, 0)
-    screenshot = screenshot.flipped(Qt::Vertical);   // mirrored() deprecated in 6.9+
-#else
-    screenshot = screenshot.mirrored(false, true);   // vertical flip, pre-6.9
-#endif
-
-    // If we suppressed the gizmo for the capture, restore it on the current FBO
-    // so the on-screen display remains completely intact and seamless.
-    if (needCleanPass) {
-        drawCornerAxes();
-        f->glViewport(0, 0, readW, readH);
-    }
-
-    return screenshot;
 }
 
 void RenderOpenGL::createTestScene()
@@ -1357,7 +1458,8 @@ void RenderOpenGL::drawOrientationGlyphs()
     // Disable depth test — lines inside grain volume must still be visible.
     f->glDisable(GL_DEPTH_TEST);
     f->glEnable(GL_BLEND);
-    f->glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    ef->glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA,
+                            GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
     const GLsizei vertexCount =
         static_cast<GLsizei>(orientationVerts.size() / 3);

@@ -12,6 +12,11 @@
 #include <vector>
 #include <cstdint>
 #include <QOpenGLContext>
+#include <QMutex>
+#include <QPointer>
+#include <atomic>
+#include <functional>
+#include <optional>
 #include "cornergizmo.hpp"
 #include "glvertex.hpp"
 #include "svgexporter.hpp"
@@ -50,7 +55,26 @@ public:
     void createTestScene();
 
     void updateVoxelData(std::vector<Voxel>& voxelScene);
-    QImage captureScreenshot(bool includeGizmo = false);
+
+    // ── Off-screen capture ───────────────────────────────────────────────
+    // A real render of the scene at an arbitrary size into a multisampled
+    // FBO, not a rescale of the on-screen texture. The request is made on the
+    // GUI thread and served at the start of the next render() on the render
+    // thread (the only place the GL context is current); the image is handed
+    // back on the receiver's thread through a queued call.
+    enum class CaptureBackground { Theme, White, Transparent };
+    struct CaptureRequest
+    {
+        QSize             size;                      // physical pixels
+        CaptureBackground background = CaptureBackground::Theme;
+        QPointer<QObject> receiver;                  // done() runs on its thread
+        std::function<void(QImage)> done;            // null image on failure
+    };
+    void requestCapture(CaptureRequest request);     // GUI thread
+
+    /// Largest square capture the current context can render (renderbuffer,
+    /// texture and viewport limits), known after the first frame; 0 before.
+    static int maxCaptureDimension() { return s_maxCaptureDim.load(); }
 
     QOpenGLFramebufferObject* createFramebufferObject(const QSize &size) override;
     void updateVBO();
@@ -93,6 +117,18 @@ protected:
     QSize sizeHint() const;
 
     void initializeVBO();
+
+    /// Serve a pending CaptureRequest, if any. Called from render().
+    void serveCaptureRequest();
+    QImage renderOffscreen(QSize size, CaptureBackground background);
+
+    QMutex                        m_captureMutex;
+    std::optional<CaptureRequest> m_captureRequest;
+    static std::atomic<int>       s_maxCaptureDim;
+
+    /// Clear colour of the next paintGL(); the theme colour on screen, white or
+    /// fully transparent during a capture.
+    QColor m_clearColor;
 
     float m_dpr = 1.0f;  // device pixel ratio
 protected:

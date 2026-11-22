@@ -8,6 +8,10 @@
 #include "hdf5projectcontroller.h"
 #include <QQuickItem>
 #include <QQuickItemGrabResult>
+#include <QQuickWindow>
+#include <QPointer>
+#include <QTimer>
+#include <memory>
 #include <QFileDialog>
 #include <QDir>
 #include <QClipboard>
@@ -316,7 +320,8 @@ void drawOrientationGizmo(QPainter& p, const QPointF& origin, qreal scale, OpenG
 }
 
 // ── Step 1 Helper: Obtain and prepare scene image from OGL ─────────
-QImage obtainSceneImage(const QImage& rawImg, bool replaceWhiteBg, QQuickItem* item, qreal scale, QColor& outBgColor)
+QImage obtainSceneImage(const QImage& rawImg, bool replaceWhiteBg, QQuickItem* item, qreal scale, QColor& outBgColor,
+                        bool sceneHasCornerAxes)
 {
     if (rawImg.isNull()) return rawImg;
 
@@ -327,7 +332,7 @@ QImage obtainSceneImage(const QImage& rawImg, bool replaceWhiteBg, QQuickItem* i
     if (!ogl) ogl = OpenGLWidgetQML::getInstance();
 
     // Erase bottom-right corner if corner axes were enabled, otherwise keep pristine
-    if (!ogl || ogl->showCornerAxes()) {
+    if (sceneHasCornerAxes && (!ogl || ogl->showCornerAxes())) {
         const int imgW = img.width();
         const int imgH = img.height();
         const qreal sx = (item && item->width() > 0) ? (qreal)imgW / item->width() : scale;
@@ -561,7 +566,7 @@ void ExportController::overlayColorBar(QImage& img, bool vertical, QQuickItem* i
 // ═══════════════════════════════════════════════════════════════════
 QImage ExportController::processScreenshot(const QImage& rawImg, bool replaceWhiteBg, bool autoCrop,
                                            bool verticalLegend, int targetDpi, QQuickItem* item,
-                                           bool fieldActive)
+                                           bool fieldActive, bool sceneHasCornerAxes)
 {
     qDebug() << "==================================================";
     qDebug() << "[processScreenshot] START: rawImg size =" << rawImg.size()
@@ -586,7 +591,7 @@ QImage ExportController::processScreenshot(const QImage& rawImg, bool replaceWhi
 
     // ── STEP 1: OBTAIN IMAGE FROM OGL ───────────────────────────────
     QColor bgColor;
-    QImage sceneImg = obtainSceneImage(rawImg, replaceWhiteBg, item, scale, bgColor);
+    QImage sceneImg = obtainSceneImage(rawImg, replaceWhiteBg, item, scale, bgColor, sceneHasCornerAxes);
     const bool darkTheme = (bgColor.lightness() < 128);
     qDebug() << "[processScreenshot] Step 1 (Obtain Image from OGL):"
              << "sceneImg size =" << sceneImg.size()
@@ -725,6 +730,88 @@ QImage ExportController::processScreenshot(const QImage& rawImg, bool replaceWhi
 }
 
 // ═══════════════════════════════════════════════════════════════════
+//  Scene capture: off-screen render, grabToImage() as the fallback
+// ═══════════════════════════════════════════════════════════════════
+QSize ExportController::exportPixelSize(QQuickItem* item) const
+{
+    if (!item) return QSize();
+    qreal factor = item->window() ? item->window()->effectiveDevicePixelRatio() : 1.0;
+    if (m_highDpi && m_dpi > 96) factor = m_dpi / 96.0;
+    QSize size = (item->size() * factor).toSize();
+    const int limit = std::max(1024, RenderOpenGL::maxCaptureDimension() > 0
+                                         ? RenderOpenGL::maxCaptureDimension() : 8192);
+    if (size.width() > limit || size.height() > limit)
+        size.scale(limit, limit, Qt::KeepAspectRatio);
+    return size;
+}
+
+void ExportController::captureScene(QQuickItem* item, SceneBackground background, SceneCallback done)
+{
+    OpenGLWidgetQML* ogl = qobject_cast<OpenGLWidgetQML*>(item);
+    // MATVIZ_EXPORT_GRAB=1 forces the old path, for before / after comparisons.
+    static const bool forceGrab = qEnvironmentVariableIntValue("MATVIZ_EXPORT_GRAB") != 0;
+    if (ogl && !forceGrab) {
+        const RenderOpenGL::CaptureBackground bg =
+            background == SceneBackground::White       ? RenderOpenGL::CaptureBackground::White
+          : background == SceneBackground::Transparent ? RenderOpenGL::CaptureBackground::Transparent
+                                                       : RenderOpenGL::CaptureBackground::Theme;
+        QPointer<QQuickItem> guard(item);
+        // The request is served by the next frame, and a window that is not
+        // exposed (minimised, covered on some platforms) renders none. After
+        // a while give up on it and grab instead; whichever answers first wins.
+        auto answered = std::make_shared<bool>(false);
+        const bool queued = ogl->requestCapture(exportPixelSize(item), bg, this,
+            [this, guard, done, answered](QImage img) {
+                if (*answered) return;
+                *answered = true;
+                if (!img.isNull()) { done(img, true); return; }
+                qWarning() << "[export] off-screen capture failed, falling back to grabToImage()";
+                if (guard) grabScene(guard, done);
+                else       done(QImage(), false);
+            });
+        if (queued) {
+            QTimer::singleShot(10000, this, [this, guard, done, answered]() {
+                if (*answered) return;
+                *answered = true;
+                qWarning() << "[export] no frame rendered the capture in 10 s, falling back to grabToImage()";
+                if (guard) grabScene(guard, done);
+                else       done(QImage(), false);
+            });
+            return;
+        }
+    }
+    grabScene(item, done);
+}
+
+void ExportController::grabScene(QQuickItem* item, SceneCallback done)
+{
+    const QSize targetSize = exportPixelSize(item);
+
+    QQuickItem* axisOverlay = item->findChild<QQuickItem*>("axisLabelOverlay");
+    if (axisOverlay) axisOverlay->setVisible(false);
+
+    OpenGLWidgetQML* oglWidget = qobject_cast<OpenGLWidgetQML*>(item);
+    const bool prevAxes = oglWidget ? oglWidget->showCornerAxes() : true;
+    if (oglWidget) oglWidget->setShowCornerAxes(false);
+
+    auto restore = [axisOverlay, oglWidget, prevAxes]() {
+        if (axisOverlay) axisOverlay->setVisible(true);
+        if (oglWidget) oglWidget->setShowCornerAxes(prevAxes);
+    };
+
+    auto grab = (!targetSize.isEmpty()) ? item->grabToImage(targetSize) : item->grabToImage();
+    if (!grab) {
+        restore();
+        emit exportFailed(tr("grabToImage() failed — item has no window"));
+        return;
+    }
+    connect(grab.data(), &QQuickItemGrabResult::ready, this, [grab, restore, done]() {
+        restore();
+        done(grab->image(), false);
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════════
 //  PNG — original scene colors
 // ═══════════════════════════════════════════════════════════════════
 void ExportController::saveAsImage(QQuickItem* item)
@@ -748,54 +835,37 @@ void ExportController::saveAsImage(QQuickItem* item, bool verticalLegend, bool f
     if (!fileName.endsWith(".png", Qt::CaseInsensitive))
         fileName += ".png";
 
-    // High DPI target size calculation
-    QSize targetSize;
-    if (m_highDpi && m_dpi > 96) {
-        const qreal factor = m_dpi / 96.0;
-        targetSize = (item->size() * factor).toSize();
-        if (targetSize.width() > 8192 || targetSize.height() > 8192) {
-            targetSize.scale(8192, 8192, Qt::KeepAspectRatio);
-        }
-    }
+    saveImageTo(item, fileName, verticalLegend, fieldActive);
+}
 
-    QQuickItem* axisOverlay = item ? item->findChild<QQuickItem*>("axisLabelOverlay") : nullptr;
-    if (axisOverlay) axisOverlay->setVisible(false);
-
-    OpenGLWidgetQML* oglWidget = qobject_cast<OpenGLWidgetQML*>(item);
-    if (!oglWidget) oglWidget = OpenGLWidgetQML::getInstance();
-    const bool prevAxes = oglWidget ? oglWidget->showCornerAxes() : true;
-    if (oglWidget) oglWidget->setShowCornerAxes(false);
-
-    auto grab = (!targetSize.isEmpty()) ? item->grabToImage(targetSize) : item->grabToImage();
-    if (!grab) {
-        if (axisOverlay) axisOverlay->setVisible(true);
-        if (oglWidget) oglWidget->setShowCornerAxes(prevAxes);
-        emit exportFailed(tr("grabToImage() failed — item has no window"));
+void ExportController::saveImageTo(QQuickItem* item, const QString& fileName,
+                                   bool verticalLegend, bool fieldActive)
+{
+    if (!item) {
+        emit exportFailed(tr("Scene item is not available"));
         return;
     }
-
-    connect(grab.data(), &QQuickItemGrabResult::ready, this,
-            [this, grab, fileName, verticalLegend, fieldActive, item, axisOverlay, oglWidget, prevAxes]()
-            {
-                if (axisOverlay) axisOverlay->setVisible(true);
-                if (oglWidget) oglWidget->setShowCornerAxes(prevAxes);
-                QImage rawImg = grab->image();
-                if (rawImg.isNull()) {
-                    emit exportFailed(tr("Captured image is empty"));
-                    return;
-                }
-                QImage img = processScreenshot(rawImg, false, m_autoCrop, verticalLegend, m_dpi, item, fieldActive);
-                if (!img.save(fileName)) {
-                    emit exportFailed(tr("Failed to save image to ") + fileName);
-                    return;
-                }
-                qDebug() << "Image saved:" << fileName << img.size() << "DPI:" << m_dpi;
-                emit exportFinished(fileName);
-            });
+    QPointer<QQuickItem> guard(item);
+    captureScene(item, SceneBackground::Theme,
+        [this, guard, fileName, verticalLegend, fieldActive](QImage rawImg, bool offscreen) {
+            if (rawImg.isNull()) {
+                emit exportFailed(tr("Captured image is empty"));
+                return;
+            }
+            QImage img = processScreenshot(rawImg, false, m_autoCrop, verticalLegend, m_dpi,
+                                           guard, fieldActive, /*sceneHasCornerAxes=*/!offscreen);
+            if (!img.save(fileName)) {
+                emit exportFailed(tr("Failed to save image to ") + fileName);
+                return;
+            }
+            qDebug() << "Image saved:" << fileName << img.size() << "DPI:" << m_dpi
+                     << (offscreen ? "(off-screen render)" : "(grabToImage)");
+            emit exportFinished(fileName);
+        });
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  Clipboard — background replaced with white, auto-cropped, 300 DPI
+//  Clipboard — white background, auto-cropped, at the export DPI
 // ═══════════════════════════════════════════════════════════════════
 void ExportController::copyToClipboard(QQuickItem* item)
 {
@@ -808,48 +878,48 @@ void ExportController::copyToClipboard(QQuickItem* item, bool verticalLegend, bo
         emit exportFailed(tr("Scene item is not available"));
         return;
     }
+    QPointer<QQuickItem> guard(item);
+    captureScene(item, SceneBackground::White,
+        [this, guard, verticalLegend, fieldActive](QImage rawImg, bool offscreen) {
+            if (rawImg.isNull()) {
+                emit exportFailed(tr("Captured image is empty"));
+                return;
+            }
+            // The off-screen render is already on white; only the grabbed
+            // on-screen frame needs its backdrop replaced.
+            QImage img = processScreenshot(rawImg, /*replaceWhiteBg=*/!offscreen, m_autoCrop,
+                                           verticalLegend, m_dpi, guard, fieldActive,
+                                           /*sceneHasCornerAxes=*/!offscreen);
+            QGuiApplication::clipboard()->setImage(img);
+            qDebug() << "Screenshot copied to clipboard" << img.size() << "DPI:" << m_dpi
+                     << (offscreen ? "(off-screen render)" : "(grabToImage)");
+            emit exportFinished(QString());
+        });
+}
 
-    // High DPI target size calculation
-    QSize targetSize;
-    if (m_highDpi && m_dpi > 96) {
-        const qreal factor = m_dpi / 96.0;
-        targetSize = (item->size() * factor).toSize();
-        if (targetSize.width() > 8192 || targetSize.height() > 8192) {
-            targetSize.scale(8192, 8192, Qt::KeepAspectRatio);
-        }
-    }
-
-    QQuickItem* axisOverlay = item ? item->findChild<QQuickItem*>("axisLabelOverlay") : nullptr;
-    if (axisOverlay) axisOverlay->setVisible(false);
-
-    OpenGLWidgetQML* oglWidget = qobject_cast<OpenGLWidgetQML*>(item);
-    if (!oglWidget) oglWidget = OpenGLWidgetQML::getInstance();
-    const bool prevAxes = oglWidget ? oglWidget->showCornerAxes() : true;
-    if (oglWidget) oglWidget->setShowCornerAxes(false);
-
-    auto grab = (!targetSize.isEmpty()) ? item->grabToImage(targetSize) : item->grabToImage();
-    if (!grab) {
-        if (axisOverlay) axisOverlay->setVisible(true);
-        if (oglWidget) oglWidget->setShowCornerAxes(prevAxes);
-        emit exportFailed(tr("grabToImage() failed — item has no window"));
-        return;
-    }
-
-    connect(grab.data(), &QQuickItemGrabResult::ready, this,
-            [this, grab, verticalLegend, fieldActive, item, axisOverlay, oglWidget, prevAxes]()
-            {
-                if (axisOverlay) axisOverlay->setVisible(true);
-                if (oglWidget) oglWidget->setShowCornerAxes(prevAxes);
-                QImage rawImg = grab->image();
-                if (rawImg.isNull()) {
-                    emit exportFailed(tr("Captured image is empty"));
-                    return;
-                }
-                QImage img = processScreenshot(rawImg, true, m_autoCrop, verticalLegend, m_dpi, item, fieldActive);
-                QGuiApplication::clipboard()->setImage(img);
-                qDebug() << "Screenshot copied to clipboard" << img.size() << "DPI:" << m_dpi;
-                emit exportFinished(QString());
+void ExportController::debugExport(QQuickItem* item, const QString& prefix, std::function<void()> finished)
+{
+    if (!item) { qWarning() << "[export] MATVIZ_EXPORT: no 3D view"; if (finished) finished(); return; }
+    QPointer<QQuickItem> guard(item);
+    // One request at a time: a second one would replace the first unserved.
+    captureScene(item, SceneBackground::Theme, [=](QImage raw, bool offscreen) {
+        processScreenshot(raw, false, m_autoCrop, m_legendVertical, m_dpi, guard, false, !offscreen)
+            .save(prefix + QStringLiteral("_theme.png"));
+        qDebug() << "[export] theme" << raw.size() << (offscreen ? "off-screen" : "grab");
+        if (!guard) { if (finished) finished(); return; }
+        captureScene(guard, SceneBackground::White, [=](QImage raw, bool offscreen) {
+            processScreenshot(raw, !offscreen, m_autoCrop, m_legendVertical, m_dpi, guard, false, !offscreen)
+                .save(prefix + QStringLiteral("_clipboard.png"));
+            qDebug() << "[export] white" << raw.size() << (offscreen ? "off-screen" : "grab");
+            if (!guard) { if (finished) finished(); return; }
+            captureScene(guard, SceneBackground::Transparent, [=](QImage raw, bool offscreen) {
+                raw.save(prefix + QStringLiteral("_raw_transparent.png"));
+                qDebug() << "[export] transparent" << raw.size() << raw.format()
+                         << (offscreen ? "off-screen" : "grab");
+                if (finished) finished();
             });
+        });
+    });
 }
 
 // ═══════════════════════════════════════════════════════════════════

@@ -48,9 +48,14 @@ public:
      */
     int32_t*** getVoxels();
 
-    Q_INVOKABLE QImage captureScreenshot(bool includeGizmo = false);
-    Q_INVOKABLE QImage captureScreenshotWithWhiteBackground(bool includeGizmo = false);
-    Q_INVOKABLE void captureScreenshotToClipboard(bool includeGizmo = false);
+    /**
+     * Render the scene off-screen at `pixelSize` (a real render, not a rescale
+     * of the on-screen texture) and hand the image to `done` on the receiver's
+     * thread. Returns false when there is no renderer yet; `done` then is not
+     * called. The image is ARGB32_Premultiplied, without the corner triad.
+     */
+    bool requestCapture(QSize pixelSize, RenderOpenGL::CaptureBackground background,
+                        QObject* receiver, std::function<void(QImage)> done);
     Q_INVOKABLE void setShowCornerAxes(bool show);
     bool showCornerAxes() const;
     // header, public:

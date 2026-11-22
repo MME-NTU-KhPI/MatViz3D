@@ -357,6 +357,21 @@ int main(int argc, char *argv[])
             QTimer::singleShot(delay > 0 ? delay : 4500, &app, shoot);
     }
 
+    // MATVIZ_EXPORT=<prefix>: once the scene has settled (MATVIZ_EXPORT_DELAY ms,
+    // default 5000), write what Save / Copy produce for the 3D view plus the raw
+    // transparent capture (ExportController::debugExport) and quit. MATVIZ_EXPORT_DPI
+    // sets the export DPI. The scripted check of the screenshot pipeline.
+    if (qEnvironmentVariableIsSet("MATVIZ_EXPORT")) {
+        const QString prefix = qEnvironmentVariable("MATVIZ_EXPORT");
+        const int dpi = qEnvironmentVariableIntValue("MATVIZ_EXPORT_DPI");
+        if (dpi > 0) exportController.setDpi(dpi);
+        const int delay = qEnvironmentVariableIntValue("MATVIZ_EXPORT_DELAY");
+        QTimer::singleShot(delay > 0 ? delay : 5000, &app, [&exportController, prefix]() {
+            exportController.debugExport(OpenGLWidgetQML::getInstance(), prefix,
+                                         []() { QCoreApplication::quit(); });
+        });
+    }
+
     QTimer::singleShot(0, [&mainWindowWrapper, &parser, &schemaController, &stressAnalysisController]() {
         QString algo = Parameters::instance()->getAlgorithm();
         if (!algo.isEmpty())
