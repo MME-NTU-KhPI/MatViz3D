@@ -4,10 +4,20 @@
 #include <QObject>
 #include <QString>
 #include <QImage>
+#include <QColor>
+#include <QPointer>
+#include <QRectF>
+#include <QVector>
 #include <functional>
+#include <vector>
 #include <algorithm>
 
 class QQuickItem;
+class QPainter;
+
+/// A voxel face for a vector PDF: corners in scene pixels, shaded colour,
+/// outline colour and edge mask (bit e = edge from corner e to e + 1).
+struct PdfFace { QPointF pts[4]; QRgb color; QRgb edgeColor; int edgeMask; };
 
 /**
  * @brief Scene export: PNG, clipboard, SVG, CSV, VRML.
@@ -39,6 +49,12 @@ class ExportController : public QObject
     /// With a width the model is scaled to it and the legend and axis labels
     /// keep their size in points (compact: 7-8 pt text, as journals ask).
     Q_PROPERTY(double widthCm      READ widthCm        WRITE setWidthCm        NOTIFY widthCmChanged)
+    /// PDF: the model as vector polygons (one per visible voxel face, shaded
+    /// like the screen) instead of the rendered image. Legend and axes are
+    /// vectors either way.
+    Q_PROPERTY(bool pdfVectorModel READ pdfVectorModel WRITE setPdfVectorModel NOTIFY pdfVectorModelChanged)
+    /// The same as an index for the popup's segmented row: 0 image, 1 vector.
+    Q_PROPERTY(int  pdfModel       READ pdfModel       WRITE setPdfModel       NOTIFY pdfVectorModelChanged)
     /// Background of Save / Copy: 0 Auto (Save: theme, Copy: white), 1 Theme,
     /// 2 White, 3 Transparent. See Background.
     Q_PROPERTY(int  background     READ background     WRITE setBackground     NOTIFY backgroundChanged)
@@ -98,6 +114,11 @@ public:
     /// The export pipeline (capture, crop, legend, gizmo) written as a PNG
     /// embedded in an SVG whose width and height are in millimetres at the DPI.
     void saveAsSVGTo(QQuickItem* item, const QString& fileName, bool verticalLegend);
+    /// The export pipeline written as a one-page PDF: legend and axis triad
+    /// as vectors (text as text), the model as the image or, with
+    /// `vectorModel`, as polygons.
+    void savePdfTo(QQuickItem* item, const QString& fileName, bool verticalLegend, bool fieldActive,
+                   bool vectorModel);
     /// A PNG of `img` in an SVG of its physical size (mm at `dpi`).
     static bool writeEmbeddedSvg(const QImage& img, int dpi, const QString& fileName);
     /// Any other item (a chart, a texture page): grabbed at the export DPI and
@@ -118,6 +139,11 @@ public:
 
     int resolution() const;
     Q_INVOKABLE void setResolution(int v);
+
+    bool pdfVectorModel() const { return m_pdfVectorModel; }
+    int pdfModel() const { return m_pdfVectorModel ? 1 : 0; }
+    Q_INVOKABLE void setPdfModel(int v) { setPdfVectorModel(v == 1); }
+    Q_INVOKABLE void setPdfVectorModel(bool v) { if (m_pdfVectorModel != v) { m_pdfVectorModel = v; emit pdfVectorModelChanged(); } }
 
     double widthCm() const { return m_widthCm; }
     Q_INVOKABLE void setWidthCm(double v) { v = std::clamp(v, 0.0, 100.0); if (m_widthCm != v) { m_widthCm = v; emit widthCmChanged(); } }
@@ -153,6 +179,43 @@ public:
     static QImage processScreenshot(const QImage& rawImg, const ScreenshotOptions& options,
                                     QQuickItem* item = nullptr);
 
+    /// A screenshot before it is painted: the model image and where it, the
+    /// legend card and the axis triad go. processScreenshot() paints it into
+    /// an image, writePdf() onto a PDF page (legend and triad as vectors).
+    struct Composition
+    {
+        QSize   size;                       ///< the figure, pixels at `dpi`
+        QColor  background;                 ///< alpha 0 when transparent
+        bool    transparent = false;
+        int     dpi = 96;
+        QImage  model;                      ///< cropped (and resampled) scene
+        QPoint  modelPos;
+        /// Scene pixel p lands at (p - cropRect.topLeft()) * resample + modelPos.
+        QSize   sceneSize;
+        QRect   cropRect;
+        qreal   resample = 1.0;
+        qreal   lineScale = 1.0;            ///< figure pixels per logical view pixel
+        bool    hasLegend = false;
+        double  vmin = 0.0, vmax = 0.0;
+        QString legendName;
+        QVector<QColor> legendColors;
+        QRectF  legendRect;
+        bool    verticalLegend = false;
+        bool    translucentLegend = false;
+        QPointF gizmoCenter;
+        qreal   overlayScale = 1.0;         ///< DPI / 96 x the options' overlayScale
+        bool    darkOverlay = true;
+        QPointer<QQuickItem> item;
+    };
+    static Composition layoutScreenshot(const QImage& rawImg, const ScreenshotOptions& options,
+                                        QQuickItem* item = nullptr);
+    /// Legend card and axis triad, as vector drawing on any QPainter.
+    static void paintOverlays(QPainter& p, const Composition& c);
+    /// One page of the figure's physical size (pixels at its DPI); the model
+    /// as the image, or as `faces` (scene pixels, see Composition) when given.
+    static bool writePdf(const Composition& c, const QString& fileName,
+                         const std::vector<struct PdfFace>* faces = nullptr);
+
     Q_INVOKABLE void exportToCSV();
     Q_INVOKABLE void exportToVRML();
     Q_INVOKABLE void exportToHDF5();
@@ -167,6 +230,7 @@ signals:
     void highDpiChanged();
     void dpiChanged();
     void widthCmChanged();
+    void pdfVectorModelChanged();
     void backgroundChanged();
     void overlayStyleChanged();
 
@@ -191,6 +255,7 @@ private:
     bool m_highDpi        = true;
     int  m_dpi            = 300;
     double m_widthCm      = 0.0;
+    bool   m_pdfVectorModel = false;
     int  m_background     = int(Background::Auto);
     int  m_overlayStyle   = int(OverlayStyle::Auto);
 };

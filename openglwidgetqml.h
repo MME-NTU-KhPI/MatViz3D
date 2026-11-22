@@ -64,6 +64,15 @@ public:
      * Synchronous; a null image when no context can be made.
      */
     QImage renderHeadless(QSize pixelSize, RenderOpenGL::CaptureBackground background);
+
+    /**
+     * The visible voxel faces as polygons in the pixels of a capture of
+     * `pixelSize` (the same camera as renderOffscreen()), back faces dropped,
+     * sorted far to near, each shaded with the current shading model the way
+     * the fragment shader does (ambient occlusion averaged over the face) and
+     * carrying its outline edges. For a PDF with a vector model.
+     */
+    std::vector<svgx::ShadedFace> vectorFaces(QSize pixelSize) const;
     Q_INVOKABLE void setShowCornerAxes(bool show);
     bool showCornerAxes() const;
     // header, public:

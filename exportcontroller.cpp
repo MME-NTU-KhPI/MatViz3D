@@ -27,6 +27,9 @@
 #include <QFontMetricsF>
 #include <QMimeData>
 #include <QFont>
+#include <QPdfWriter>
+#include <QPageSize>
+#include <QPageLayout>
 #include <QFontDatabase>
 #include <QPen>
 #include <QBrush>
@@ -531,11 +534,18 @@ QImage cropToUsefulSize(const QImage& src, const QColor& bgColor, qreal scale, Q
     return src.copy(cropRect);
 }
 
-// ── Step 3 Helper: Generate standalone image of colorbar (legend) ───
-QImage generateColorBarImage(OpenGLWidgetQML* ogl, bool verticalLegend, qreal scale,
-                             bool darkTheme, bool fieldActive, qreal maxAllowedW = -1.0,
-                             bool translucent = false)
+// ── Step 3 Helper: what the legend shows ─────────────────────────────
+struct LegendData
 {
+    bool valid = false;
+    double vmin = 0.0, vmax = 0.0;
+    QString name;
+    QVector<QColor> colors;
+};
+
+LegendData gatherLegend(OpenGLWidgetQML* ogl, bool fieldActive)
+{
+    LegendData d;
     // Check if stress/strain field is active across all controllers
     bool hasField = fieldActive;
     if (!hasField && ogl && ogl->hasField()) hasField = true;
@@ -553,8 +563,7 @@ QImage generateColorBarImage(OpenGLWidgetQML* ogl, bool verticalLegend, qreal sc
         LoadStepManager& lsm = LoadStepManager::getInstance();
         if (lsm.hasLoadStepData()) hasField = true;
     }
-
-    if (!hasField) return QImage();
+    if (!hasField) return d;
 
     double vmin = 0.0;
     double vmax = 0.0;
@@ -589,9 +598,7 @@ QImage generateColorBarImage(OpenGLWidgetQML* ogl, bool verticalLegend, qreal sc
     }
 
     QVector<QColor> colors;
-    if (ogl) {
-        colors = ogl->getColorMap(9);
-    }
+    if (ogl) colors = ogl->getColorMap(9);
     if (colors.size() < 9) {
         auto palette = ogl ? ogl->getColorMapPalette() : OpenGLWidgetQML::ColorMapPalette::Rainbow;
         auto rawMap = matviz_cmap::createColorMap(9, palette);
@@ -599,49 +606,20 @@ QImage generateColorBarImage(OpenGLWidgetQML* ogl, bool verticalLegend, qreal sc
         for (int i = 0; i < 9; ++i) colors[i] = QColor(rawMap[i][0], rawMap[i][1], rawMap[i][2]);
     }
 
-    qreal cardW = (!verticalLegend) ? 380.0 * scale : 180.0 * scale;
-    const qreal cardH = (!verticalLegend) ? 68.0 * scale : 175.0 * scale;
-    if (maxAllowedW > 0 && cardW > maxAllowedW) {
-        cardW = maxAllowedW;
-    }
-
-    const int imgW = qMax(1, qCeil(cardW));
-    const int imgH = qMax(1, qCeil(cardH));
-
-    QImage cardImg(imgW, imgH, QImage::Format_ARGB32_Premultiplied);
-    cardImg.fill(Qt::transparent);
-
-    {
-        QPainter p(&cardImg);
-        p.setRenderHint(QPainter::Antialiasing, true);
-        p.setRenderHint(QPainter::TextAntialiasing, true);
-        drawColorBarCard(p, QRectF(0, 0, cardW, cardH), scale, verticalLegend,
-                         compName, vmin, vmax, colors, darkTheme, translucent);
-    }
-
-    return cardImg;
+    d.valid = true;
+    d.vmin = vmin;
+    d.vmax = vmax;
+    d.name = compName;
+    d.colors = colors;
+    return d;
 }
 
-// ── Step 4 Helper: Generate standalone image of orientation gizmo ───
-QImage generateGizmoImage(OpenGLWidgetQML* ogl, qreal scale, bool darkTheme)
+QSizeF legendCardSize(bool vertical, qreal scale, qreal maxAllowedW)
 {
-    const qreal gizmoSize = 110.0 * scale;
-    const int imgW = qMax(1, qCeil(gizmoSize));
-    const int imgH = qMax(1, qCeil(gizmoSize));
-
-    QImage gizmoImg(imgW, imgH, QImage::Format_ARGB32_Premultiplied);
-    gizmoImg.fill(Qt::transparent);
-
-    {
-        QPainter p(&gizmoImg);
-        p.setRenderHint(QPainter::Antialiasing, true);
-        p.setRenderHint(QPainter::TextAntialiasing, true);
-
-        const QPointF origin(imgW / 2.0, imgH / 2.0);
-        drawOrientationGizmo(p, origin, scale, ogl, darkTheme);
-    }
-
-    return gizmoImg;
+    qreal w = vertical ? 180.0 * scale : 380.0 * scale;
+    const qreal h = vertical ? 175.0 * scale : 68.0 * scale;
+    if (maxAllowedW > 0 && w > maxAllowedW) w = maxAllowedW;
+    return QSizeF(w, h);
 }
 
 } // anonymous namespace
@@ -664,77 +642,86 @@ void ExportController::overlayColorBar(QImage& img, bool vertical, QQuickItem* i
     const qreal scale = std::clamp(imgDpi / 96.0, 0.75, 8.0);
     const bool darkTheme = (img.pixelColor(0, 0).lightness() < 128);
 
-    const qreal maxW = imgW - 40.0 * scale;
-    QImage colorbar = generateColorBarImage(ogl, vertical, scale, darkTheme, false, maxW);
-    if (colorbar.isNull()) {
+    const LegendData d = gatherLegend(ogl, false);
+    if (!d.valid) {
         qDebug() << "[overlayColorBar] No active stress/strain field detected";
         return;
     }
-
-    const qreal cardX = 20.0 * scale;
-    const qreal cardY = imgH - colorbar.height() - 20.0 * scale;
-
+    const QSizeF card = legendCardSize(vertical, scale, imgW - 40.0 * scale);
     QPainter p(&img);
     p.setRenderHint(QPainter::Antialiasing, true);
-    p.drawImage(QPointF(cardX, cardY), colorbar);
+    p.setRenderHint(QPainter::TextAntialiasing, true);
+    drawColorBarCard(p, QRectF(QPointF(20.0 * scale, imgH - card.height() - 20.0 * scale), card),
+                     scale, vertical, d.name, d.vmin, d.vmax, d.colors, darkTheme);
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  Process Screenshot: Background, Crop to Useful Content & Colorbar
+//  Screenshot layout: background, crop, legend and gizmo positions
 // ═══════════════════════════════════════════════════════════════════
-QImage ExportController::processScreenshot(const QImage& rawImg, const ScreenshotOptions& o,
-                                           QQuickItem* item)
+ExportController::Composition ExportController::layoutScreenshot(const QImage& rawImg,
+                                                                 const ScreenshotOptions& o,
+                                                                 QQuickItem* item)
 {
-    if (rawImg.isNull()) {
-        qWarning() << "[processScreenshot] rawImg is null, aborting";
-        return rawImg;
-    }
+    Composition c;
+    if (rawImg.isNull()) return c;
 
     // Scale is strictly DPI-proportional: 96 DPI = 1.0, 300 DPI = 3.125
     const qreal scale = (o.dpi > 0) ? std::clamp((qreal)o.dpi / 96.0, 0.75, 8.0)
                                     : std::clamp(rawImg.width() / 1280.0, 0.75, 5.0);
-    const bool transparent = (o.background == Background::Transparent);
+    c.transparent = (o.background == Background::Transparent);
+    c.dpi = o.dpi > 0 ? o.dpi : 96;
+    c.item = item;
 
     OpenGLWidgetQML* ogl = qobject_cast<OpenGLWidgetQML*>(item);
     if (!ogl) ogl = OpenGLWidgetQML::getInstance();
 
     // ── 1. Scene image on the requested background ───────────────────
-    QColor bgColor;
-    QImage sceneImg = obtainSceneImage(rawImg, o, item, scale, bgColor);
+    QImage sceneImg = obtainSceneImage(rawImg, o, item, scale, c.background);
+    c.sceneSize = sceneImg.size();
 
     // ── 2. Crop to the model ─────────────────────────────────────────
     // The crop margin is measured in the capture's own pixels.
-    const qreal captureScale = (o.targetWidthPx > 0 && item && item->width() > 0)
-                                   ? sceneImg.width() / item->width() : scale;
-    QImage croppedModel = o.autoCrop ? cropToUsefulSize(sceneImg, bgColor, captureScale) : sceneImg;
+    const qreal captureScale = (item && item->width() > 0) ? sceneImg.width() / item->width() : scale;
+    c.cropRect = QRect(QPoint(0, 0), sceneImg.size());
+    QImage croppedModel = o.autoCrop
+        ? cropToUsefulSize(sceneImg, c.background, o.targetWidthPx > 0 ? captureScale : scale, &c.cropRect)
+        : sceneImg;
 
     // A figure of a given width: the model is resampled to it (the capture
     // was rendered larger, so this is a downscale), the overlays below keep
     // their size in points.
     const qreal os = scale * std::clamp(o.overlayScale, 0.3, 3.0);   // overlay scale
+    c.overlayScale = os;
     qreal legendMaxW = -1.0;
     if (o.targetWidthPx > 0 && !croppedModel.isNull()) {
-        if (croppedModel.width() != o.targetWidthPx)
+        if (croppedModel.width() != o.targetWidthPx) {
+            c.resample = qreal(o.targetWidthPx) / croppedModel.width();
             croppedModel = croppedModel.scaledToWidth(o.targetWidthPx, Qt::SmoothTransformation);
+        }
         // At most ~60 % of the figure: a 10 cm card under an 8.5 cm figure
         // (its size as on screen) is what a journal column cannot take.
         legendMaxW = std::min(o.targetWidthPx - (16.0 + 85.0 + 16.0 + 20.0) * os,
                               0.6 * o.targetWidthPx);
     }
+    // Figure pixels per logical pixel of the view: what outline and line
+    // widths scale with.
+    c.lineScale = captureScale * c.resample;
 
     // ── 3, 4. Legend and gizmo, in the overlay style asked for ───────
-    QImage colorbarImg = generateColorBarImage(ogl, o.verticalLegend, os, o.darkOverlay,
-                                               o.fieldActive, legendMaxW, transparent);
-    QImage gizmoImg = generateGizmoImage(ogl, os, o.darkOverlay);
+    const LegendData legend = gatherLegend(ogl, o.fieldActive);
+    c.hasLegend = legend.valid;
+    c.vmin = legend.vmin;
+    c.vmax = legend.vmax;
+    c.legendName = legend.name;
+    c.legendColors = legend.colors;
+    c.verticalLegend = o.verticalLegend;
+    c.translucentLegend = c.transparent;
+    c.darkOverlay = o.darkOverlay;
+    const QSizeF card = legendCardSize(o.verticalLegend, os, legendMaxW);
 
     // ── 5. Layout ────────────────────────────────────────────────────
     int finalW = croppedModel.width();
     int finalH = croppedModel.height();
-    QPoint modelPos(0, 0);
-    QPoint colorbarPos(0, 0);
-    QPoint gizmoPos(0, 0);
-
-    const bool hasColorBar = !colorbarImg.isNull();
     const qreal marginL = 16.0 * os;
     const qreal marginR = 16.0 * os;
     const qreal bottomPad = 14.0 * os;
@@ -744,57 +731,139 @@ QImage ExportController::processScreenshot(const QImage& rawImg, const Screensho
         // Extra bottom space only for a colour bar; without one the gizmo
         // sits in the bottom-right corner of the cropped model.
         int extraBottom = 0;
-        if (hasColorBar) {
-            const qreal bottomItemH = std::max((qreal)colorbarImg.height(), 80.0 * os);
+        if (c.hasLegend) {
+            const qreal bottomItemH = std::max(card.height(), 80.0 * os);
             extraBottom = qRound(gapAbove + bottomItemH + bottomPad);
         }
 
         const qreal gizmoBoxW = 85.0 * os;
-        const qreal minReqW = (hasColorBar ? (marginL + colorbarImg.width() + 20.0 * os) : marginL)
+        const qreal minReqW = (c.hasLegend ? (marginL + card.width() + 20.0 * os) : marginL)
                             + gizmoBoxW + marginR;
 
         finalW = std::max(croppedModel.width(), qRound(minReqW));
         finalH = croppedModel.height() + extraBottom;
-        modelPos = QPoint((finalW - croppedModel.width()) / 2, 0);
+        c.modelPos = QPoint((finalW - croppedModel.width()) / 2, 0);
 
-        if (hasColorBar)
-            colorbarPos = QPoint(qRound(marginL), qRound(finalH - bottomPad - colorbarImg.height()));
-
-        const qreal gx = finalW - marginR - 45.0 * os;
-        const qreal gy = finalH - bottomPad - 42.0 * os;
-        gizmoPos = QPoint(qRound(gx - gizmoImg.width() / 2.0),
-                          qRound(gy - gizmoImg.height() / 2.0));
+        if (c.hasLegend)
+            c.legendRect = QRectF(QPointF(qRound(marginL), qRound(finalH - bottomPad - card.height())), card);
+        c.gizmoCenter = QPointF(finalW - marginR - 45.0 * os, finalH - bottomPad - 42.0 * os);
     } else {
-        if (hasColorBar)
-            colorbarPos = QPoint(qRound(20.0 * os),
-                                 qRound(finalH - colorbarImg.height() - 20.0 * os));
-        const qreal gx = finalW - 60.0 * os;
-        const qreal gy = finalH - 55.0 * os;
-        gizmoPos = QPoint(qRound(gx - gizmoImg.width() / 2.0),
-                          qRound(gy - gizmoImg.height() / 2.0));
+        if (c.hasLegend)
+            c.legendRect = QRectF(QPointF(qRound(20.0 * os), qRound(finalH - card.height() - 20.0 * os)), card);
+        c.gizmoCenter = QPointF(finalW - 60.0 * os, finalH - 55.0 * os);
     }
+    c.size = QSize(finalW, finalH);
+    c.model = croppedModel;
+    return c;
+}
 
-    // ── 6. Compose (premultiplied ARGB, source-over) ─────────────────
-    QImage resultImg(finalW, finalH, QImage::Format_ARGB32_Premultiplied);
-    resultImg.fill(bgColor);   // QColor(0,0,0,0) -> fully transparent
+void ExportController::paintOverlays(QPainter& p, const Composition& c)
+{
+    p.save();
+    p.setRenderHint(QPainter::Antialiasing, true);
+    p.setRenderHint(QPainter::TextAntialiasing, true);
+    if (c.hasLegend)
+        drawColorBarCard(p, c.legendRect, c.overlayScale, c.verticalLegend, c.legendName,
+                         c.vmin, c.vmax, c.legendColors, c.darkOverlay, c.translucentLegend);
+    OpenGLWidgetQML* ogl = qobject_cast<OpenGLWidgetQML*>(c.item.data());
+    if (!ogl) ogl = OpenGLWidgetQML::getInstance();
+    drawOrientationGizmo(p, c.gizmoCenter, c.overlayScale, ogl, c.darkOverlay);
+    p.restore();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  PDF: the layout painted on a page of the figure's size
+// ═══════════════════════════════════════════════════════════════════
+bool ExportController::writePdf(const Composition& c, const QString& fileName,
+                                const std::vector<PdfFace>* faces)
+{
+    if (c.size.isEmpty()) return false;
+    QPdfWriter writer(fileName);
+    writer.setCreator(QStringLiteral("MatViz3D"));
+    writer.setTitle(c.hasLegend ? c.legendName : QStringLiteral("MatViz3D figure"));
+    writer.setResolution(c.dpi);
+    const QSizeF mm(c.size.width() * 25.4 / c.dpi, c.size.height() * 25.4 / c.dpi);
+    writer.setPageLayout(QPageLayout(QPageSize(mm, QPageSize::Millimeter, QString(), QPageSize::ExactMatch),
+                                     QPageLayout::Portrait, QMarginsF(0, 0, 0, 0), QPageLayout::Millimeter));
+    QPainter p;
+    if (!p.begin(&writer)) return false;
+    // The page in device units is the figure in pixels up to rounding of
+    // the page size: map one onto the other exactly.
+    p.scale(qreal(writer.width()) / c.size.width(), qreal(writer.height()) / c.size.height());
+
+    if (!c.transparent)
+        p.fillRect(QRectF(QPointF(0, 0), QSizeF(c.size)), c.background);
+
+    const QRectF modelRect(QPointF(c.modelPos), QSizeF(c.model.size()));
+    if (faces) {
+        // Scene pixels -> figure pixels; clipped to the model's place, as the
+        // image would be. Each polygon is also stroked thinly in its own
+        // colour: viewers anti-alias filled polygons, and neighbours would
+        // otherwise show hairline seams.
+        p.save();
+        p.setClipRect(modelRect);
+        p.translate(QPointF(c.modelPos));
+        p.scale(c.resample, c.resample);
+        p.translate(-QPointF(c.cropRect.topLeft()));
+        p.setRenderHint(QPainter::Antialiasing, true);
+        const qreal seam = 0.6 / c.resample;
+        const qreal edgeW = 1.5 * c.lineScale / c.resample;
+        for (const PdfFace& f : *faces) {
+            const QColor col = QColor::fromRgb(f.color);
+            p.setPen(QPen(col, seam, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+            p.setBrush(col);
+            p.drawPolygon(f.pts, 4);
+            if (f.edgeMask) {
+                p.setPen(QPen(QColor::fromRgb(f.edgeColor), edgeW, Qt::SolidLine, Qt::RoundCap));
+                for (int e = 0; e < 4; ++e)
+                    if (f.edgeMask & (1 << e)) p.drawLine(f.pts[e], f.pts[(e + 1) % 4]);
+            }
+        }
+        p.restore();
+    } else {
+        // Lossless: without the hint QPdfWriter stores the model as a JPEG
+        // whenever that is smaller (and it always is for a rendering).
+        // Alpha goes in as a soft mask.
+        p.save();
+        p.setRenderHint(QPainter::LosslessImageRendering, true);
+        p.drawImage(modelRect, c.model);
+        p.restore();
+    }
+    paintOverlays(p, c);
+    return p.end();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Process Screenshot: the layout painted into an image
+// ═══════════════════════════════════════════════════════════════════
+QImage ExportController::processScreenshot(const QImage& rawImg, const ScreenshotOptions& o,
+                                           QQuickItem* item)
+{
+    if (rawImg.isNull()) {
+        qWarning() << "[processScreenshot] rawImg is null, aborting";
+        return rawImg;
+    }
+    const Composition c = layoutScreenshot(rawImg, o, item);
+
+    // Compose (premultiplied ARGB, source-over)
+    QImage resultImg(c.size, QImage::Format_ARGB32_Premultiplied);
+    resultImg.fill(c.background);   // QColor(0,0,0,0) -> fully transparent
     {
         QPainter p(&resultImg);
-        p.setRenderHint(QPainter::Antialiasing, true);
         p.setRenderHint(QPainter::SmoothPixmapTransform, true);
-        p.drawImage(modelPos, croppedModel);
-        if (hasColorBar)        p.drawImage(colorbarPos, colorbarImg);
-        if (!gizmoImg.isNull()) p.drawImage(gizmoPos, gizmoImg);
+        p.drawImage(c.modelPos, c.model);
+        paintOverlays(p, c);
     }
 
     // An opaque export is written without an alpha channel: smaller files,
     // and no viewer can show a stray semi-transparent pixel.
-    if (!transparent)
+    if (!c.transparent)
         resultImg = resultImg.convertToFormat(QImage::Format_RGB32);
 
     setDpiMetadata(resultImg, o.dpi);
     qDebug().noquote() << QStringLiteral("[processScreenshot] %1 x %2 at %3 DPI (%7 cm wide), background %4, %5 overlay, %6")
                               .arg(resultImg.width()).arg(resultImg.height()).arg(o.dpi)
-                              .arg(transparent ? "transparent" : o.background == Background::White ? "white" : "theme")
+                              .arg(c.transparent ? "transparent" : o.background == Background::White ? "white" : "theme")
                               .arg(o.darkOverlay ? "dark" : "light")
                               .arg(o.fromGrab ? "grabbed frame" : "off-screen render")
                               .arg(o.dpi > 0 ? resultImg.width() * 2.54 / o.dpi : 0.0, 0, 'f', 2);
@@ -958,12 +1027,20 @@ void ExportController::saveAsImage(QQuickItem* item, bool verticalLegend, bool f
         return;
     }
 
+    QString selected;
     QString fileName = QFileDialog::getSaveFileName(
         nullptr, tr("Save Image"), "",
-        tr("PNG Images (*.png);;All Files (*.*)"));
+        tr("PNG image (*.png);;PDF document (*.pdf)"), &selected);
     if (fileName.isEmpty())
         return;
 
+    const bool pdf = fileName.endsWith(".pdf", Qt::CaseInsensitive)
+                  || (!fileName.endsWith(".png", Qt::CaseInsensitive) && selected.contains("pdf"));
+    if (pdf) {
+        if (!fileName.endsWith(".pdf", Qt::CaseInsensitive)) fileName += ".pdf";
+        savePdfTo(item, fileName, verticalLegend, fieldActive, m_pdfVectorModel);
+        return;
+    }
     if (!fileName.endsWith(".png", Qt::CaseInsensitive))
         fileName += ".png";
 
@@ -975,6 +1052,10 @@ void ExportController::saveImageTo(QQuickItem* item, const QString& fileName,
 {
     if (!item) {
         emit exportFailed(tr("Scene item is not available"));
+        return;
+    }
+    if (fileName.endsWith(".pdf", Qt::CaseInsensitive)) {
+        savePdfTo(item, fileName, verticalLegend, fieldActive, m_pdfVectorModel);
         return;
     }
     QPointer<QQuickItem> guard(item);
@@ -1062,6 +1143,8 @@ void ExportController::debugExport(QQuickItem* item, const QString& prefix, std:
         { QStringLiteral("transparent_dark"), false, Background::Transparent, int(OverlayStyle::Dark), false },
         { QStringLiteral("raw_transparent"),  false, Background::Transparent, m_overlayStyle, true },
         { QStringLiteral("image"),       false, Background(m_background), m_overlayStyle, false },   // -> .svg
+        { QStringLiteral("pdf"),         false, Background(m_background), m_overlayStyle, false },   // -> .pdf
+        { QStringLiteral("pdf_vector"),  false, Background(m_background), m_overlayStyle, false },   // -> .pdf
     });
     QPointer<QQuickItem> guard(item);
     auto next = std::make_shared<std::function<void()>>();
@@ -1086,6 +1169,19 @@ void ExportController::debugExport(QQuickItem* item, const QString& prefix, std:
             } else {
                 ScreenshotOptions o = opts;
                 o.fromGrab = !offscreen;
+                if (c.name.startsWith(QLatin1String("pdf"))) {
+                    const Composition comp = layoutScreenshot(raw, o, guard);
+                    std::vector<PdfFace> faces;
+                    OpenGLWidgetQML* ogl = qobject_cast<OpenGLWidgetQML*>(guard.data());
+                    const bool vector = c.name == QLatin1String("pdf_vector") && ogl;
+                    if (vector)
+                        for (const svgx::ShadedFace& f : ogl->vectorFaces(comp.sceneSize))
+                            faces.push_back({ { f.pts[0], f.pts[1], f.pts[2], f.pts[3] },
+                                              f.color, f.edgeColor, f.edgeMask });
+                    writePdf(comp, prefix + QLatin1Char('_') + c.name + QStringLiteral(".pdf"),
+                             vector ? &faces : nullptr);
+                    qDebug() << "[export]" << c.name << (vector ? faces.size() : 0) << "polygons";
+                } else {
                 const QImage img = processScreenshot(raw, o, guard);
                 if (c.name == QLatin1String("image"))   // the SVG container of Save as SVG (image)
                     writeEmbeddedSvg(img, o.dpi, prefix + QStringLiteral("_image.svg"));
@@ -1095,6 +1191,7 @@ void ExportController::debugExport(QQuickItem* item, const QString& prefix, std:
                     putImageOnClipboard(img);
                     qDebug() << "[export] clipboard formats:"
                              << QGuiApplication::clipboard()->mimeData()->formats();
+                }
                 }
             }
             qDebug() << "[export]" << c.name << raw.size() << (offscreen ? "off-screen" : "grab");
@@ -1171,6 +1268,45 @@ void ExportController::saveAsSVGTo(QQuickItem* item, const QString& fileName, bo
                 return;
             }
             qDebug() << "SVG saved:" << fileName << img.size() << "DPI:" << o.dpi;
+            emit exportFinished(fileName);
+        });
+}
+
+void ExportController::savePdfTo(QQuickItem* item, const QString& fileName, bool verticalLegend,
+                                 bool fieldActive, bool vectorModel)
+{
+    if (!item) { emit exportFailed(tr("Scene item is not available")); return; }
+    QPointer<QQuickItem> guard(item);
+    const ScreenshotOptions opts = currentOptions(item, false, verticalLegend, fieldActive);
+    captureScene(item, opts.background,
+        [this, guard, fileName, opts, vectorModel](QImage rawImg, bool offscreen) {
+            if (rawImg.isNull()) { emit exportFailed(tr("Captured image is empty")); return; }
+            ScreenshotOptions o = opts;
+            o.fromGrab = !offscreen;
+            const Composition c = layoutScreenshot(rawImg, o, guard);
+            std::vector<PdfFace> faces;
+            OpenGLWidgetQML* ogl = qobject_cast<OpenGLWidgetQML*>(guard.data());
+            const bool vector = vectorModel && ogl;
+            if (vector) {
+                for (const svgx::ShadedFace& f : ogl->vectorFaces(c.sceneSize)) {
+                    PdfFace pf;
+                    for (int k = 0; k < 4; ++k) pf.pts[k] = f.pts[k];
+                    pf.color = f.color;
+                    pf.edgeColor = f.edgeColor;
+                    pf.edgeMask = f.edgeMask;
+                    faces.push_back(pf);
+                }
+            }
+            if (!writePdf(c, fileName, vector ? &faces : nullptr)) {
+                emit exportFailed(tr("Failed to write PDF ") + fileName);
+                return;
+            }
+            qDebug().noquote() << QStringLiteral("PDF saved: %1, %2 x %3 mm at %4 DPI, model %5")
+                                      .arg(fileName)
+                                      .arg(c.size.width() * 25.4 / c.dpi, 0, 'f', 1)
+                                      .arg(c.size.height() * 25.4 / c.dpi, 0, 'f', 1).arg(c.dpi)
+                                      .arg(vector ? QStringLiteral("as %1 polygons").arg(faces.size())
+                                                  : QStringLiteral("as an image"));
             emit exportFinished(fileName);
         });
 }

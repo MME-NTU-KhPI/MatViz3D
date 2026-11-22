@@ -19,6 +19,11 @@ namespace svgx {
 struct Face { std::vector<GlVertex> v; };          // one flat face (3-4 pts, single color)
 struct ProjFace { std::vector<QPointF> pts; float depth; QRgb color; };
 
+/// A voxel face ready for a vector page: projected to the capture's pixels,
+/// shaded like the screen (OpenGLWidgetQML::vectorFaces()), far ones first.
+/// `edgeMask` bit e = outline from corner e to corner e + 1 (0 = none).
+struct ShadedFace { QPointF pts[4]; QRgb color; QRgb edgeColor; int edgeMask; float depth; };
+
 // Project a world point through mvp into pixels. false = behind the camera.
 inline bool project(const QMatrix4x4& mvp, const GlVertex& g,
                     int w, int h, QPointF& out, float& zOut) //voxel faces

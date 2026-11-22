@@ -144,6 +144,119 @@ QImage OpenGLWidgetQML::renderHeadless(QSize pixelSize, RenderOpenGL::CaptureBac
     return img;
 }
 
+std::vector<svgx::ShadedFace> OpenGLWidgetQML::vectorFaces(QSize px) const
+{
+    std::vector<svgx::ShadedFace> out;
+    if (px.isEmpty() || voxelScene.size() < 4) return out;
+
+    // The camera of RenderOpenGL::paintGL() / updateProjection().
+    const float W = float(px.width()), H = float(px.height());
+    const float R = numCubes * 0.866f;
+    float nearV = std::max(0.01f, distance - R * 2.0f);
+    float farV  = distance + R * 2.0f + 1.0f;
+    if (farV <= nearV) farV = nearV + 1.0f;
+    if (farV / nearV > 10000.0f) nearV = farV / 10000.0f;
+    QMatrix4x4 proj;
+    proj.perspective(45.0f, W / H, nearV, farV);
+    QMatrix4x4 view;
+    view.translate(panX, panY, -distance);
+    view.rotate(xRot / 16.0f, 1.0f, 0.0f, 0.0f);
+    view.rotate(yRot / 16.0f, 0.0f, 1.0f, 0.0f);
+    view.rotate(zRot / 16.0f, 0.0f, 0.0f, 1.0f);
+    const QMatrix4x4 mvp = proj * view;
+    const QMatrix3x3 nrm = view.normalMatrix();
+    const float depthNear = std::max(0.0f, distance - R), depthFar = distance + R;
+
+    const bool outlines = plotWireFrame;
+    const QVector3D keyDir  = QVector3D(-0.65f, -0.55f, 0.55f).normalized();
+    const QVector3D fillDir = QVector3D( 0.80f,  0.10f, 0.60f).normalized();
+
+    out.reserve(voxelScene.size() / 8);
+    for (size_t i = 0; i + 3 < voxelScene.size(); i += 4) {
+        svgx::ShadedFace f;
+        bool ok = true;
+        float zsum = 0.0f;
+        QVector3D centre;
+        for (int k = 0; k < 4; ++k) {
+            const GlVertex& g = voxelScene[i + k];
+            const QVector4D clip = mvp * QVector4D(g.x, g.y, g.z, 1.0f);
+            if (clip.w() <= 0.0f) { ok = false; break; }
+            f.pts[k] = QPointF((clip.x() / clip.w() * 0.5f + 0.5f) * W,
+                               (clip.y() / clip.w() * 0.5f + 0.5f) * H);
+            const QVector3D v = (view * QVector4D(g.x, g.y, g.z, 1.0f)).toVector3D();
+            centre += v;
+            zsum += v.z();
+        }
+        if (!ok) continue;
+        // Front faces are counter-clockwise in these coordinates (y grows with
+        // NDC y, as in the read-back capture); a back face has negative area.
+        qreal area = 0.0;
+        for (int k = 0; k < 4; ++k) {
+            const QPointF& a = f.pts[k];
+            const QPointF& b = f.pts[(k + 1) % 4];
+            area += a.x() * b.y() - b.x() * a.y();
+        }
+        if (area <= 0.0) continue;
+        f.depth = zsum / 4.0f;           // view space: more negative = farther
+        centre /= 4.0f;
+
+        // Base colour and AO, averaged over the face.
+        float r = 0, gg = 0, b = 0, ao = 0;
+        for (int k = 0; k < 4; ++k) {
+            const GlVertex& g = voxelScene[i + k];
+            r += g.r; gg += g.g; b += g.b;
+            ao += float(g.ao & 3) / 3.0f;
+        }
+        QVector3D base(r / (4.0f * 255.0f), gg / (4.0f * 255.0f), b / (4.0f * 255.0f));
+        ao /= 4.0f;
+        const GlVertex& g0 = voxelScene[i];
+
+        QVector3D c;
+        if (m_shadingModel == 1) {
+            // glshaders.hpp depthShading(), per face.
+            const float* m = nrm.constData();   // column-major
+            const QVector3D n0(g0.nx / 127.0f, g0.ny / 127.0f, g0.nz / 127.0f);
+            QVector3D n(m[0] * n0.x() + m[3] * n0.y() + m[6] * n0.z(),
+                        m[1] * n0.x() + m[4] * n0.y() + m[7] * n0.z(),
+                        m[2] * n0.x() + m[5] * n0.y() + m[8] * n0.z());
+            n.normalize();
+            const QVector3D v = (-centre).normalized();
+            const float aoS = float(m_aoStrength);
+            const float aoF = 1.0f + (0.45f + 0.55f * ao - 1.0f) * aoS;
+            const float up = 0.5f - 0.5f * n.y();
+            const float amb = 0.28f + (0.44f - 0.28f) * up;
+            const float dk = std::max(QVector3D::dotProduct(n, keyDir), 0.0f);
+            const float df = std::max(QVector3D::dotProduct(n, fillDir), 0.0f);
+            const float direct = 0.66f * dk + 0.28f * df;
+            const float spec = std::pow(std::max(QVector3D::dotProduct(n, (keyDir + v).normalized()), 0.0f), 32.0f) * 0.12f;
+            const float mixAo = 1.0f + (aoF - 1.0f) * 0.6f;
+            c = base * (amb * aoF + direct * mixAo) + QVector3D(spec, spec, spec) * aoF;
+            c = QVector3D(std::max(c.x(), base.x() * 0.28f), std::max(c.y(), base.y() * 0.28f),
+                          std::max(c.z(), base.z() * 0.28f));
+            const float d = -centre.z();
+            const float t = std::clamp((d - depthNear) / std::max(depthFar - depthNear, 1e-3f), 0.0f, 1.0f);
+            const float lum = 0.2126f * c.x() + 0.7152f * c.y() + 0.0722f * c.z();
+            const QVector3D farC = (QVector3D(lum, lum, lum) * 0.4f + c * 0.6f) * 0.62f;
+            c = c + (farC - c) * (float(m_depthCue) * t);
+        } else {
+            const QRgb q = svgx::shadeFace(g0);
+            c = QVector3D(qRed(q), qGreen(q), qBlue(q)) / 255.0f;
+            c = QVector3D(c.x() * base.x() * 255.0f / std::max(1.0f, float(g0.r)),
+                          c.y() * base.y() * 255.0f / std::max(1.0f, float(g0.g)),
+                          c.z() * base.z() * 255.0f / std::max(1.0f, float(g0.b)));
+        }
+        auto to8 = [](float v) { return int(std::lround(std::clamp(v, 0.0f, 1.0f) * 255.0f)); };
+        f.color = qRgb(to8(c.x()), to8(c.y()), to8(c.z()));
+        const float dark = (m_outlineKind == 1) ? 0.55f : 0.30f;
+        f.edgeColor = qRgb(to8(c.x() * dark), to8(c.y() * dark), to8(c.z() * dark));
+        f.edgeMask = !outlines ? 0 : (m_outlineKind == 1 ? 15 : ((g0.ao >> 2) & 15));
+        out.push_back(f);
+    }
+    std::sort(out.begin(), out.end(),
+              [](const svgx::ShadedFace& a, const svgx::ShadedFace& b) { return a.depth < b.depth; });
+    return out;
+}
+
 OpenGLWidgetQML::~OpenGLWidgetQML()
 {
     if (timer)
