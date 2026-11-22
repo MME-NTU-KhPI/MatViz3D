@@ -250,7 +250,7 @@ void StiffnessSurfaceRenderer::render()
     const QVector3D viewPos = view.inverted().column(3).toVector3D();
     m_litProgram->setUniformValue("uViewPos", viewPos);
     m_litProgram->setUniformValue("uDebugMode", 0);
-    m_litProgram->setUniformValue("uWireframe", 0);
+    m_litProgram->setUniformValue("uOutlineMode", 0);
     m_litProgram->setUniformValue("uAlphaScale", 1.0f);   // required: see glshaders.hpp
 
     ef->glBindVertexArray(m_vao);

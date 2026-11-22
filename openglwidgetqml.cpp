@@ -90,6 +90,10 @@ QQuickFramebufferObject::Renderer *OpenGLWidgetQML::createRenderer() const
     m_render->setShowStreamlines(showStreamlines);
     m_render->setVoxelOpacity(voxelOpacity);
     m_render->setShading(m_shadingModel, float(m_aoStrength), float(m_depthCue));
+    m_render->setPlotWireFrame(plotWireFrame);
+    m_render->setOutlines(m_outlineKind, float(m_outlineWidth));
+    m_render->updateOrientationData(orientationVerts, orientationColors);
+    m_render->setShowOrientations(showOrientations);
     if (showGlyphs || showStreamlines) {
         auto* self = const_cast<OpenGLWidgetQML*>(this);
         QTimer::singleShot(0, self, [self]() {
@@ -358,10 +362,33 @@ void OpenGLWidgetQML::setDistanceFactor(int factor)
 
 void OpenGLWidgetQML::setPlotWireFrame(bool status)
 {
+    if (plotWireFrame == status) return;
     this->plotWireFrame = status;
     if (m_render) {
         m_render->setPlotWireFrame(status);
     }
+    update();
+    emit outlinesChanged();
+}
+
+void OpenGLWidgetQML::setOutlineKind(int kind)
+{
+    kind = (kind == 1) ? 1 : 2;
+    if (kind == m_outlineKind) return;
+    m_outlineKind = kind;
+    if (m_render) m_render->setOutlines(m_outlineKind, float(m_outlineWidth));
+    update();
+    emit outlinesChanged();
+}
+
+void OpenGLWidgetQML::setOutlineWidth(qreal w)
+{
+    w = std::clamp(w, 0.25, 8.0);
+    if (qFuzzyCompare(w + 1.0, m_outlineWidth + 1.0)) return;
+    m_outlineWidth = w;
+    if (m_render) m_render->setOutlines(m_outlineKind, float(m_outlineWidth));
+    update();
+    emit outlinesChanged();
 }
 
 void OpenGLWidgetQML::setShowCornerAxes(bool show)
@@ -1246,7 +1273,18 @@ void OpenGLWidgetQML::calculateScene()
                 // one (corner). Level 3 = open, 0 = a concave corner closed on
                 // both sides. "Occupied" matches the face culling: any solid
                 // voxel, or in the exploded view only this grain's own.
+                //
+                // ── Boundary edges ───────────────────────────────────────
+                // Edge q of a face runs from its corner q to corner q + 1.
+                // It is a boundary (outline mode 2) where the surface meets
+                // another grain, or turns a real corner: convex (no voxel
+                // across the edge, and none below that either) or concave
+                // (a wall of this grain's neighbour at least two voxels
+                // high). The one-voxel steps of a voxelized curved surface
+                // are not boundaries: a line at every step of a gyroid's
+                // staircase drowned the shape in noise.
                 GLubyte faceAO[6][4];
+                GLubyte faceEdges[6] = { 0, 0, 0, 0, 0, 0 };
                 {
                     static const int faceAxis[6] = { 0, 1, 0, 1, 2, 2 };   // -X +Y +X -Y +Z -Z
                     static const int faceSign[6] = { -1, 1, 1, -1, 1, -1 };
@@ -1278,12 +1316,41 @@ void OpenGLWidgetQML::calculateScene()
                             const int s2 = occ(s2p[0], s2p[1], s2p[2]);
                             const int cc = occ(cp[0], cp[1], cp[2]);
                             const int level = (s1 && s2) ? 0 : 3 - (s1 + s2 + cc);
-                            faceAO[f][q] = GLubyte(level * 85);
+                            faceAO[f][q] = GLubyte(level);
+                        }
+                        for (int q = 0; q < 4; ++q) {
+                            const int na = kCubeFaces[f][q], nb = kCubeFaces[f][(q + 1) % 4];
+                            const int ca[3] = { na >= 4, na == 2 || na == 3 || na == 6 || na == 7,
+                                                na == 1 || na == 2 || na == 5 || na == 6 };
+                            const int cb[3] = { nb >= 4, nb == 2 || nb == 3 || nb == 6 || nb == 7,
+                                                nb == 1 || nb == 2 || nb == 5 || nb == 6 };
+                            // The in-plane axis both corners share is the one
+                            // the edge sits on; step across it.
+                            const int bo = (ca[b1] == cb[b1]) ? b1 : b2;
+                            int np[3] = { p0[0], p0[1], p0[2] };
+                            np[bo] += ca[bo] ? 1 : -1;
+                            const bool inside = np[0] >= 0 && np[1] >= 0 && np[2] >= 0 &&
+                                                np[0] < n && np[1] < n && np[2] < n;
+                            const int32_t w = inside ? voxels[np[0]][np[1]][np[2]] : 0;
+                            const int sa = faceSign[f];
+                            auto occAt = [&](int k) {   // occupied, k layers out along the normal
+                                int t[3] = { np[0], np[1], np[2] };
+                                t[a] += k * sa;
+                                return occ(t[0], t[1], t[2]) != 0;
+                            };
+                            bool boundary;
+                            if (w == vx)            // the face continues, or a concave corner:
+                                boundary = occAt(1) && occAt(2);    // a wall at least 2 voxels high
+                            else if (w != 0 && !isExploded)
+                                boundary = true;    // another grain: a grain boundary
+                            else                    // a convex corner, unless a 1-voxel step
+                                boundary = !occAt(-1);
+                            if (boundary) faceEdges[f] |= GLubyte(1u << q);
                         }
                     }
                 }
 
-                drawCube(cubeSize, v, neighbors, node_colors, node_disp, faceAO);
+                drawCube(cubeSize, v, neighbors, node_colors, node_disp, faceAO, faceEdges);
             }
         }
     }
@@ -1330,7 +1397,8 @@ void OpenGLWidgetQML::setVoxels(int32_t*** voxels, short int numCubes)
 void OpenGLWidgetQML::drawCube(short cubeSize, RenderOpenGL::Voxel vox, bool* neighbors,
                                 std::vector<std::array<GLubyte, 4>> &node_colors,
                                 const std::array<std::array<float, 3>, 8> &node_disp,
-                                const GLubyte (&faceAO)[6][4])
+                                const GLubyte (&faceAO)[6][4],
+                                const GLubyte (&faceEdges)[6])
 {
 
 /*    static const GLfloat n[6][3] =
@@ -1393,7 +1461,11 @@ void OpenGLWidgetQML::drawCube(short cubeSize, RenderOpenGL::Voxel vox, bool* ne
         {
             const int j = (jj + start) % 4;
             auto fij = faces[i][j];
-            v1.ao = faceAO[i][j];
+            // Edge jj of the drawn quad is edge j of the face.
+            int mask = 0;
+            for (int e = 0; e < 4; ++e)
+                if (faceEdges[i] & (1u << ((e + start) % 4))) mask |= 1 << e;
+            v1.ao = glVoxelPack(faceAO[i][j], mask, jj);
             v1.x = v[fij][0] + node_disp[fij][0];
             v1.y = v[fij][1] + node_disp[fij][1];
             v1.z = v[fij][2] + node_disp[fij][2];

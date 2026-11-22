@@ -106,6 +106,12 @@ public:
     /// key and fill light, hemispherical ambient, AO, depth cueing).
     void setShading(int model, float aoStrength, float depthCue);
 
+    /// Outlines drawn by the face shader while the outline toggle
+    /// (setPlotWireFrame) is on: kind 1 = every voxel edge, 2 = grain and pore
+    /// boundaries only; width in logical pixels (times the DPR on screen,
+    /// times DPI / 96 in an export).
+    void setOutlines(int kind, float widthPx);
+
     void requestSvgExport(const QString& path);  // GUI thread -> served next frame
 
 protected:
@@ -127,6 +133,15 @@ protected:
     QImage renderOffscreen(QSize size, CaptureBackground background);
 
     bool                          m_capturing = false;   // inside renderOffscreen()'s paintGL()
+    float                         m_captureScale = 1.0f; // export pixels per logical view pixel
+    /// Device pixels per logical pixel of the current frame: the DPR on
+    /// screen, the export scale during a capture.
+    float lineScale() const;
+    /// Segments (pairs of points in `verts`, colours per point in `colors`)
+    /// as screen-space quads `widthPx` logical pixels wide; one colour for all
+    /// when `singleColor` is given.
+    void drawThickLines(const std::vector<float>& verts, const std::vector<float>& colors,
+                        const QMatrix4x4& mvp, float widthPx, const float* singleColor);
     QMutex                        m_captureMutex;
     std::optional<CaptureRequest> m_captureRequest;
     static std::atomic<int>       s_maxCaptureDim;
@@ -142,6 +157,7 @@ protected:
     GLuint vaoId = 0;
     QOpenGLShaderProgram* shaderProgram = nullptr;
     QOpenGLShaderProgram* axisShaderProgram = nullptr;
+    QOpenGLShaderProgram* lineShaderProgram = nullptr;
 
     int xRot;
     int yRot;
@@ -167,7 +183,9 @@ protected:
 
     std::vector<Voxel> voxelScene;
 
-    bool plotWireFrame = false;
+    bool  plotWireFrame = false;     // outline toggle (the toolbar's former wireframe button)
+    int   outlineKind  = 2;          // 1 voxel edges, 2 grain / pore boundaries
+    float outlineWidth = 1.5f;       // logical pixels
     bool showNormals = false;
     bool enableFaceCulling = true;
     bool enableDepthTest = true;

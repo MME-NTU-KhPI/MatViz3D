@@ -194,6 +194,9 @@ QImage RenderOpenGL::renderOffscreen(QSize size, CaptureBackground background)
     const bool       savedAxes = m_showCornerAxes;
     const QColor     savedClear = m_clearColor;
 
+    // Lines and outlines keep their on-screen proportions: a logical pixel
+    // of the view becomes size / view-size pixels of the export.
+    m_captureScale = savedW > 0 ? float(size.width()) / float(savedW) : 1.0f;
     width = size.width();
     height = size.height();
     m_dpr = 1.0f;
@@ -269,6 +272,8 @@ RenderOpenGL::~RenderOpenGL()
             axisShaderProgram->release();
             delete axisShaderProgram;
         }
+        delete lineShaderProgram;
+        lineShaderProgram = nullptr;
         if (ef && vaoId) {
             qDebug() << "RenderOpenGL::~RenderOpenGL() - deleting VAO:" << vaoId;
             ef->glDeleteVertexArrays(1, &vaoId);
@@ -464,6 +469,25 @@ void RenderOpenGL::initializeGL()
         }
     }
     qDebug() << "RenderOpenGL::initializeGL() - axis shader program created";
+
+    lineShaderProgram = new QOpenGLShaderProgram();
+    if (!lineShaderProgram->addShaderFromSourceCode(QOpenGLShader::Vertex, matviz_gl::kLineVertexShader) ||
+        !lineShaderProgram->addShaderFromSourceCode(QOpenGLShader::Fragment, matviz_gl::kLineFragmentShader)) {
+        qDebug() << "Line shader compilation failed:" << lineShaderProgram->log();
+        delete lineShaderProgram;
+        lineShaderProgram = nullptr;
+    } else {
+        lineShaderProgram->bindAttributeLocation("aStart", 0);
+        lineShaderProgram->bindAttributeLocation("aEnd", 1);
+        lineShaderProgram->bindAttributeLocation("aT", 2);
+        lineShaderProgram->bindAttributeLocation("aSide", 3);
+        lineShaderProgram->bindAttributeLocation("aColor", 4);
+        if (!lineShaderProgram->link()) {
+            qDebug() << "Line shader linking failed:" << lineShaderProgram->log();
+            delete lineShaderProgram;
+            lineShaderProgram = nullptr;
+        }
+    }
 
     qDebug() << "RenderOpenGL::initializeGL() - generating VAO and VBOs";
     ef->glGenVertexArrays(1, &vaoId);
@@ -672,8 +696,10 @@ void RenderOpenGL::drawCornerAxes()
     ef->glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
     ef->glEnableVertexAttribArray(1);
 
-    f->glLineWidth(1.0f);
-    ef->glDrawArrays(GL_LINES, 0, vertexCount);
+    // Thick-line quads: a 1 px GL line stays 1 device pixel in a 300 DPI export.
+    Q_UNUSED(vertexCount);
+    drawThickLines(verts, colors, mvp, 1.25f, nullptr);
+    ef->glBindVertexArray(vao);
 
     // ── 5. Cleanup ─────────────────────────────────────────────────────────
     ef->glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -809,9 +835,10 @@ void RenderOpenGL::drawAxisWithMVP(const QMatrix4x4& mvp)
     ef->glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
     ef->glEnableVertexAttribArray(1);
 
-    f->glLineWidth(1.0f);
-    ef->glDrawArrays(GL_LINES, 0,
-                     static_cast<GLsizei>(lineVerts.size() / 3));
+    drawThickLines(lineVerts, lineColors, mvp, 1.5f, nullptr);
+    ef->glBindVertexArray(vao);
+    axisShaderProgram->bind();          // drawThickLines bound its own program
+    axisShaderProgram->setUniformValue("uMVP", mvp);
 
     // — Cones —
     ef->glBindBuffer(GL_ARRAY_BUFFER, vbo[2]);
@@ -1106,7 +1133,9 @@ void RenderOpenGL::paintGL()
                                                  distance + sceneRadius));
         shaderProgram->setUniformValue("uMinLight", 0.28f);
     }
-    shaderProgram->setUniformValue("uWireframe", plotWireFrame ? 1 : 0);
+    // Outlines are drawn by the lit shader on the faces themselves.
+    shaderProgram->setUniformValue("uOutlineMode", plotWireFrame ? outlineKind : 0);
+    shaderProgram->setUniformValue("uOutlineWidth", outlineWidth * lineScale());
 
     // Fade the voxel block back so tensor overlays inside it are visible. With
     // the block translucent its depth writes are also suppressed, so the
@@ -1139,34 +1168,14 @@ void RenderOpenGL::paintGL()
         f->glDisable(GL_DEPTH_TEST);
     }
 
-    if (plotWireFrame) {
-        // First pass: solid fill with normal colors
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-        shaderProgram->setUniformValue("uWireframe", 0);
-        for (size_t i = 0; i < voxelScene.size(); i += 4) {
-            ef->glDrawArrays(GL_TRIANGLE_FAN, i, 4);
-        }
-
-        // Second pass: wireframe overlay as quad outlines (no diagonal)
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-        float lineWidth = qBound(0.15f, 15.0f / static_cast<float>(numCubes), 1.0f);
-        f->glLineWidth(lineWidth);
-        shaderProgram->setUniformValue("uWireframe", 1);
-        f->glEnable(GL_DEPTH_TEST);       // keep depth test ON so hidden faces are culled
-        glDepthRange(0.0, 0.9999);        // shift lines slightly toward camera to beat Z-fight
-        for (size_t i = 0; i < voxelScene.size(); i += 4) {
-            ef->glDrawArrays(GL_LINE_LOOP, i, 4);
-        }
-        glDepthRange(0.0, 1.0);           // restore default depth range
-        shaderProgram->setUniformValue("uWireframe", 0);
-    }
-
-    if (!voxelScene.empty() && !plotWireFrame) {
+    if (!voxelScene.empty()) {
         for (size_t i = 0; i < voxelScene.size(); i += 4) {
             // Draw quad as triangle fan (v0, v1, v2, v3)
             ef->glDrawArrays(GL_TRIANGLE_FAN, i, 4);
         }
     }
+    // Overlay meshes carry no face coordinates: no outlines on them.
+    shaderProgram->setUniformValue("uOutlineMode", 0);
 
     // ── Tensor overlays ──────────────────────────────────────────────
     // Drawn inside the shaderProgram bind so they inherit every lighting
@@ -1180,7 +1189,6 @@ void RenderOpenGL::paintGL()
         // tube has no consistent facing where its cross-section is degenerate.
         const GLboolean hadCull = f->glIsEnabled(GL_CULL_FACE);
         f->glDisable(GL_CULL_FACE);
-        if (plotWireFrame) glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
         if (showGlyphs)      drawIndexedMesh(glyphMesh);
         if (showStreamlines) drawIndexedMesh(streamMesh);
@@ -1257,6 +1265,72 @@ void RenderOpenGL::setPan(float panX, float panY)
 void RenderOpenGL::setPlotWireFrame(bool status)
 {
     plotWireFrame = status;
+}
+
+void RenderOpenGL::setOutlines(int kind, float widthPx)
+{
+    outlineKind  = (kind == 1) ? 1 : 2;
+    outlineWidth = std::clamp(widthPx, 0.25f, 8.0f);
+}
+
+float RenderOpenGL::lineScale() const
+{
+    return m_capturing ? m_captureScale : m_dpr;
+}
+
+void RenderOpenGL::drawThickLines(const std::vector<float>& verts, const std::vector<float>& colors,
+                                  const QMatrix4x4& mvp, float widthPx, const float* singleColor)
+{
+    if (!lineShaderProgram || verts.size() < 6) return;
+    QOpenGLExtraFunctions* ef = QOpenGLContext::currentContext()->extraFunctions();
+
+    // Six vertices per segment: start, end, t, side, colour (11 floats).
+    const size_t segments = verts.size() / 6;
+    std::vector<float> buf;
+    buf.reserve(segments * 6 * 11);
+    static const float corners[6][2] = { {0, -1}, {1, -1}, {1, 1}, {0, -1}, {1, 1}, {0, 1} };
+    for (size_t sgi = 0; sgi < segments; ++sgi) {
+        const float* a = &verts[sgi * 6];
+        const float* b = a + 3;
+        for (const auto& c : corners) {
+            const float* col = (colors.size() >= verts.size())
+                                   ? &colors[sgi * 6 + (c[0] > 0.5f ? 3 : 0)] : nullptr;
+            buf.insert(buf.end(), { a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1],
+                                    col ? col[0] : 1.0f, col ? col[1] : 1.0f, col ? col[2] : 1.0f });
+        }
+    }
+
+    GLuint vao = 0, vbo = 0;
+    ef->glGenVertexArrays(1, &vao);
+    ef->glBindVertexArray(vao);
+    ef->glGenBuffers(1, &vbo);
+    ef->glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    ef->glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(buf.size() * sizeof(float)), buf.data(), GL_STREAM_DRAW);
+    const GLsizei stride = 11 * sizeof(float);
+    auto attr = [&](GLuint loc, int n, int offset) {
+        ef->glVertexAttribPointer(loc, n, GL_FLOAT, GL_FALSE, stride,
+                                  reinterpret_cast<const void*>(size_t(offset) * sizeof(float)));
+        ef->glEnableVertexAttribArray(loc);
+    };
+    attr(0, 3, 0); attr(1, 3, 3); attr(2, 1, 6); attr(3, 1, 7); attr(4, 3, 8);
+
+    lineShaderProgram->bind();
+    lineShaderProgram->setUniformValue("uMVP", mvp);
+    // The viewport in force (the corner triad draws into a small one).
+    GLint vp[4] = { 0, 0, 1, 1 };
+    QOpenGLContext::currentContext()->functions()->glGetIntegerv(GL_VIEWPORT, vp);
+    lineShaderProgram->setUniformValue("uViewport", QVector2D(float(std::max(1, vp[2])), float(std::max(1, vp[3]))));
+    lineShaderProgram->setUniformValue("uWidth", widthPx * lineScale());
+    lineShaderProgram->setUniformValue("uUseColor", singleColor ? 0 : 1);
+    if (singleColor)
+        lineShaderProgram->setUniformValue("uColor", QVector3D(singleColor[0], singleColor[1], singleColor[2]));
+    ef->glDrawArrays(GL_TRIANGLES, 0, GLsizei(segments * 6));
+    lineShaderProgram->release();
+
+    ef->glBindBuffer(GL_ARRAY_BUFFER, 0);
+    ef->glBindVertexArray(0);
+    ef->glDeleteBuffers(1, &vbo);
+    ef->glDeleteVertexArrays(1, &vao);
 }
 
 void RenderOpenGL::toggleDebugMode()
@@ -1494,55 +1568,15 @@ void RenderOpenGL::drawOrientationGlyphs()
     const GLsizei vertexCount =
         static_cast<GLsizei>(orientationVerts.size() / 3);
 
-    // ── Pass 1: dark outline (thick, black, full opacity) ─────────────────
-    // Drawing each line slightly thicker in a near-black colour first
-    // creates a thin contrasting halo around the coloured line drawn on
-    // top in Pass 2.  This makes lines readable against any grain colour.
+    // ── Pass 1 + 2: the axes as thick lines, a dark halo under each ───────
+    // Screen-space quads (drawThickLines), so the widths hold in the core
+    // profile and follow the export DPI; the halo keeps a line readable on
+    // any grain colour.
     {
-        // Temporarily replace every colour with near-black.
-        // We reuse the same VAO but upload a solid-colour override buffer.
-        std::vector<float> blackColors(orientationColors.size(), 0.08f);
-        // Keep alpha at 1 — every third component starting at index 2
-        // is blue in RGB, not alpha, so no special handling needed.
-
-        GLuint tmpVBO = 0;
-        ef->glGenBuffers(1, &tmpVBO);
-
-        ef->glBindVertexArray(orientationVAO);
-        ef->glBindBuffer(GL_ARRAY_BUFFER, tmpVBO);
-        ef->glBufferData(GL_ARRAY_BUFFER,
-                         blackColors.size() * sizeof(float),
-                         blackColors.data(), GL_STREAM_DRAW);
-        ef->glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
-        ef->glEnableVertexAttribArray(1);
-        ef->glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-        axisShaderProgram->bind();
-        axisShaderProgram->setUniformValue("uMVP", mvp);
-        f->glLineWidth(5.0f);   // outline is thicker than the coloured line
-        ef->glDrawArrays(GL_LINES, 0, vertexCount);
-        axisShaderProgram->release();
-
-        // Restore the real colour buffer
-        ef->glBindBuffer(GL_ARRAY_BUFFER, orientationVBOs[1]);
-        ef->glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
-        ef->glEnableVertexAttribArray(1);
-        ef->glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-        ef->glBindVertexArray(0);
-        ef->glDeleteBuffers(1, &tmpVBO);
+        static const float kHalo[3] = { 0.08f, 0.08f, 0.08f };
+        drawThickLines(orientationVerts, orientationColors, mvp, 5.0f, kHalo);
+        drawThickLines(orientationVerts, orientationColors, mvp, 2.5f, nullptr);
     }
-
-    // ── Pass 2: coloured line (thinner, drawn on top of outline) ─────────
-    axisShaderProgram->bind();
-    axisShaderProgram->setUniformValue("uMVP", mvp);
-    f->glLineWidth(2.5f);
-
-    ef->glBindVertexArray(orientationVAO);
-    ef->glDrawArrays(GL_LINES, 0, vertexCount);
-    ef->glBindVertexArray(0);
-
-    axisShaderProgram->release();
 
     // ── Pass 3: cone arrowheads at the positive tip of every segment ──────
     // orientationVerts layout: for every triad, 6 consecutive pairs of

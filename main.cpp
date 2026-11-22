@@ -395,6 +395,18 @@ int main(int argc, char *argv[])
         // MATVIZ_PALETTE=<0..6>: field colormap (matviz_cmap::Palette ordinal).
         if (qEnvironmentVariableIsSet("MATVIZ_PALETTE"))
             ogl->setColorMapPalette(qEnvironmentVariableIntValue("MATVIZ_PALETTE"));
+        // MATVIZ_OUTLINES=0|1|2 (off / voxel edges / grain and pore
+        // boundaries), MATVIZ_OUTLINE_WIDTH=<logical px>.
+        if (qEnvironmentVariableIsSet("MATVIZ_OUTLINES")) {
+            const int kind = qEnvironmentVariableIntValue("MATVIZ_OUTLINES");
+            if (kind > 0) ogl->setOutlineKind(kind);
+            ogl->setPlotWireFrame(kind > 0);
+        }
+        if (qEnvironmentVariableIsSet("MATVIZ_OUTLINE_WIDTH"))
+            ogl->setOutlineWidth(qEnvironmentVariable("MATVIZ_OUTLINE_WIDTH").toDouble());
+        // MATVIZ_ORIENTATIONS=1: the grains' crystal axes (thick lines).
+        if (qEnvironmentVariableIntValue("MATVIZ_ORIENTATIONS") == 1)
+            ogl->setShowOrientations(true);
 
         if (parser.isSet("autostart"))           // or however you track this flag
             mainWindowWrapper.onStartButton();

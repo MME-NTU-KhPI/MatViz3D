@@ -18,10 +18,15 @@
 //  costs at most ~0.45 degrees of angular error -- invisible under this
 //  shading model, and it keeps one vertex format for every mesh in the app.
 //
-//  `ao` is the per-vertex ambient-occlusion level of a voxel face (255 = open,
-//  0 = in a fully occluded corner), filled by the voxel mesh builder. It sits
+//  `ao` packs three things about a voxel face vertex, filled by the voxel mesh
+//  builder (glVoxelPack()): bits 0-1 the ambient-occlusion level (3 = open,
+//  0 = in a fully occluded corner), bits 2-5 which of the face's four edges
+//  are grain / pore boundaries (the outline mode "boundaries"), bits 6-7
+//  which corner of the face the vertex is (0..3 round the face; the shader
+//  turns it into the face coordinates the outlines are measured in). It sits
 //  in what used to be the struct's padding byte, so sizeof stays 20; every
-//  other mesh leaves it at 255 ("not occluded").
+//  other mesh leaves it at 3 ("not occluded", no edges, corner 0) and is
+//  drawn with outlines off.
 // ============================================================================
 #pragma once
 
@@ -32,8 +37,15 @@ struct GlVertex
     GLfloat x, y, z;        ///< position, world space
     GLubyte r, g, b, a;     ///< colour, normalized to [0,1] by the attrib pointer
     GLbyte  nx, ny, nz;     ///< normal, normalized to [-1,1] by the attrib pointer
-    GLubyte ao = 255;       ///< ambient occlusion, normalized to [0,1]; 255 = none
+    GLubyte ao = 3;         ///< AO level | boundary edges << 2 | corner << 6
 };
+
+/// The `ao` byte of a voxel face vertex: AO level 0..3, boundary edge mask
+/// 0..15 (bit e = the edge from corner e to corner e + 1), corner 0..3.
+inline GLubyte glVoxelPack(int aoLevel, int edgeMask, int corner)
+{
+    return static_cast<GLubyte>((aoLevel & 3) | ((edgeMask & 15) << 2) | ((corner & 3) << 6));
+}
 static_assert(sizeof(GlVertex) == 20, "GlVertex is uploaded as-is; keep it 20 bytes");
 
 /// Pack a unit-length normal into the GLbyte triple this layout expects.

@@ -154,6 +154,20 @@ public:
     void setAoStrength(qreal v);
     void setDepthCue(qreal v);
 
+    // ── Outlines ────────────────────────────────────────────────────────
+    /// Drawn by the face shader (no GL lines): `outlines` on / off (the
+    /// toolbar toggle, setPlotWireFrame), `outlineKind` 1 = every voxel edge,
+    /// 2 = grain and pore boundaries only, `outlineWidth` in logical pixels
+    /// (an export scales it with the DPI).
+    Q_PROPERTY(bool  outlines     READ outlines     WRITE setPlotWireFrame NOTIFY outlinesChanged)
+    Q_PROPERTY(int   outlineKind  READ outlineKind  WRITE setOutlineKind   NOTIFY outlinesChanged)
+    Q_PROPERTY(qreal outlineWidth READ outlineWidth WRITE setOutlineWidth  NOTIFY outlinesChanged)
+    bool  outlines()     const { return plotWireFrame; }
+    int   outlineKind()  const { return m_outlineKind; }
+    qreal outlineWidth() const { return m_outlineWidth; }
+    void setOutlineKind(int kind);
+    void setOutlineWidth(qreal w);
+
     /** 0 = stress, 1 = strain. */
     Q_INVOKABLE void setTensorSource(int source);
     Q_INVOKABLE void setTensorDeviatoric(bool on);
@@ -206,7 +220,8 @@ protected:
     void drawCube(short cubeSize, RenderOpenGL::Voxel vox, bool* neighbors,
                   std::vector<std::array<GLubyte, 4>> &node_colors,
                   const std::array<std::array<float, 3>, 8> &node_disp,
-                  const GLubyte (&faceAO)[6][4]);
+                  const GLubyte (&faceAO)[6][4],
+                  const GLubyte (&faceEdges)[6]);
     QSize minimumSizeHint() const;
     QSize sizeHint() const;
     void mousePressEvent(QMouseEvent *event) override;
@@ -336,6 +351,7 @@ signals:
     void axisLabelsChanged();
     void showCornerAxesChanged();
     void shadingChanged();
+    void outlinesChanged();
 
 private:
     QTimer* timer;
@@ -385,6 +401,8 @@ protected:
     int   m_shadingModel = 1;
     qreal m_aoStrength   = 0.85;
     qreal m_depthCue     = 0.35;
+    int   m_outlineKind  = 2;
+    qreal m_outlineWidth = 1.5;
     void pushShading();
 
     void handleResize();

@@ -21,7 +21,10 @@
 //  layout(location=) qualifier at this GLSL version):
 //      aPosition -> 0, aColor -> 1, aNormal -> 2, aAO -> 3   (see glvertex.hpp)
 //  aAO is bound by the voxel view only; a renderer that leaves it unbound must
-//  keep uShadingModel at 0, which never reads it.
+//  keep uShadingModel and uOutlineMode at 0, which never read it.
+//  aAO packs one byte (see glvertex.hpp): bits 0-1 the ambient-occlusion
+//  level 0..3, bits 2-5 which edges of the voxel face are grain / pore
+//  boundaries, bits 6-7 which corner of the face this vertex is.
 //  The axis program binds aPosition -> 0, aColor -> 1.
 // ============================================================================
 #pragma once
@@ -49,13 +52,19 @@ inline constexpr const char* kLitVertexShader = R"(
         out float AO;
         out vec3 ViewPos;       // camera space, for the camera-fixed lights
         out vec3 ViewNormal;
+        out vec2 QuadUV;        // position on the voxel face, 0..1 on both axes
+        flat out int EdgeMask;  // edges of the face that are boundaries
 
         void main()
         {
             FragPos = vec3(uModel * vec4(aPosition, 1.0));
             Normal = normalize(mat3(uModel) * aNormal);
             Color = aColor;
-            AO = aAO;
+            int bits = int(aAO * 255.0 + 0.5);
+            AO = float(bits & 3) / 3.0;
+            EdgeMask = (bits >> 2) & 15;
+            int corner = (bits >> 6) & 3;   // corners 0..3 run round the face
+            QuadUV = vec2((corner == 1 || corner == 2) ? 1.0 : 0.0, corner >= 2 ? 1.0 : 0.0);
             ViewPos = vec3(uView * uModel * vec4(aPosition, 1.0));
             ViewNormal = mat3(uView) * mat3(uModel) * aNormal;   // rotation only, no scale
             gl_Position = uMVP * vec4(aPosition, 1.0);
@@ -71,12 +80,22 @@ inline constexpr const char* kLitFragmentShader = R"(
         in float AO;
         in vec3 ViewPos;
         in vec3 ViewNormal;
+        in vec2 QuadUV;
+        flat in int EdgeMask;
 
         uniform vec3 uLightDirections[6];
         uniform float uLightWeights[6];
         uniform vec3 uViewPos;
         uniform int uDebugMode;
-        uniform int uWireframe;
+
+        // Outlines of the voxel faces, drawn in this shader instead of a
+        // second pass of GL lines (whose width the core profile caps at 1
+        // and which ignored the export DPI): 0 = off, 1 = every voxel edge,
+        // 2 = grain and pore boundaries only (EdgeMask). Width in device
+        // pixels: the on-screen width times the device pixel ratio, or
+        // times DPI / 96 in an export.
+        uniform int   uOutlineMode;
+        uniform float uOutlineWidth;
 
         // Multiplies the vertex alpha. Lets the voxel block be faded back so
         // overlay geometry drawn inside it (tensor glyphs, streamline tubes)
@@ -139,8 +158,44 @@ inline constexpr const char* kLitFragmentShader = R"(
             return clamp(c, 0.0, 1.0);
         }
 
+        // 0..1: how much of this fragment an outline covers.
+        float outlineCoverage()
+        {
+            // Derivatives first, in uniform control flow.
+            vec2 fw = max(fwidth(QuadUV), vec2(1e-6));
+            if (uOutlineMode == 0) return 0.0;
+            int mask = (uOutlineMode == 1) ? 15 : EdgeMask;
+            if (mask == 0) return 0.0;
+            vec2 lo = QuadUV / fw;            // pixels to the u = 0 / v = 0 edges
+            vec2 hi = (1.0 - QuadUV) / fw;    // pixels to the u = 1 / v = 1 edges
+            float d = 1e9;
+            if ((mask & 1) != 0) d = min(d, lo.y);   // edge corner 0 -> 1
+            if ((mask & 2) != 0) d = min(d, hi.x);   // edge corner 1 -> 2
+            if ((mask & 4) != 0) d = min(d, hi.y);   // edge corner 2 -> 3
+            if ((mask & 8) != 0) d = min(d, lo.x);   // edge corner 3 -> 0
+            // Each face draws half the width: two faces meeting at an edge
+            // make one line of the full width.
+            float w = uOutlineWidth;
+            float fade = 1.0;
+            if (uOutlineMode == 1) {
+                // Voxel edges never take more than a fifth of a voxel, and
+                // fade out below ~3 pixels per voxel, where the grid would
+                // only be noise.
+                float px = 1.0 / max(fw.x, fw.y);
+                w = min(w, 0.2 * px);
+                fade = clamp((px - 3.0) / 3.0, 0.0, 1.0);
+            }
+            float halfW = 0.5 * w;
+            // A line under a pixel wide is drawn one pixel wide and fainter.
+            float cov = (1.0 - smoothstep(max(halfW, 0.5) - 0.5, max(halfW, 0.5) + 0.5, d))
+                        * min(1.0, w);
+            return cov * fade;
+        }
+
         void main()
         {
+            float outline = outlineCoverage();
+
             // --- Geometry ---
             vec3 norm    = normalize(Normal);
             // if (!gl_FrontFacing) norm = -norm;
@@ -198,14 +253,16 @@ inline constexpr const char* kLitFragmentShader = R"(
                 // If scene disappears here, the issue is in geometry not lighting.
                 FragColor = vec4(1.0, 1.0, 1.0, Color.a);
 
-            } else if (uWireframe == 1) {
-                // Flat gray for wireframe lines, ignore lighting and voxel color
-                FragColor = vec4(0.6, 0.6, 0.6, 1.0);
-                } else {
-                    // Normal lighting mode (uDebugMode == 0)
-                    if (uShadingModel == 1) result = depthShading();
-                    FragColor = vec4(result, Color.a * uAlphaScale);
-                }
+            } else {
+                // Normal lighting mode (uDebugMode == 0)
+                if (uShadingModel == 1) result = depthShading();
+                // An outline is the face's own shaded colour, darker: it
+                // keeps the hue (and the field value) and reads on a dark
+                // and on a light background alike.
+                float dark = (uOutlineMode == 1) ? 0.55 : 0.30;
+                result = mix(result, result * dark, outline);
+                FragColor = vec4(result, Color.a * uAlphaScale);
+            }
         }
  )";
 
@@ -229,6 +286,60 @@ inline constexpr const char* kAxisVertexShader = R"(
     )";
 
 inline constexpr const char* kAxisFragmentShader = R"(
+        #version 150
+        out vec4 FragColor;
+        in vec3 Color;
+        void main()
+        {
+            FragColor = vec4(Color, 1.0);
+        }
+    )";
+
+// ---------------------------------------------------------------------------
+//  Thick-line program: a segment drawn as a screen-space quad of a given
+//  width in device pixels (GL line widths above 1 are not available in the
+//  core profile and do not follow the export DPI). Each segment is six
+//  vertices; every vertex carries both endpoints, which end it is at (aT)
+//  and which side of the line (aSide, -1 / +1). Bound locations:
+//      aStart -> 0, aEnd -> 1, aT -> 2, aSide -> 3, aColor -> 4.
+// ---------------------------------------------------------------------------
+inline constexpr const char* kLineVertexShader = R"(
+        #version 150
+        in vec3  aStart;
+        in vec3  aEnd;
+        in float aT;
+        in float aSide;
+        in vec3  aColor;
+
+        uniform mat4  uMVP;
+        uniform vec2  uViewport;    // device pixels
+        uniform float uWidth;       // device pixels
+        uniform int   uUseColor;    // 0 = uColor for every line (the dark halo)
+        uniform vec3  uColor;
+
+        out vec3 Color;
+
+        void main()
+        {
+            vec4 a = uMVP * vec4(aStart, 1.0);
+            vec4 b = uMVP * vec4(aEnd, 1.0);
+            vec2 sa = a.xy / max(a.w, 1e-6) * uViewport * 0.5;
+            vec2 sb = b.xy / max(b.w, 1e-6) * uViewport * 0.5;
+            vec2 dir = sb - sa;
+            float len = length(dir);
+            dir = (len > 1e-4) ? dir / len : vec2(1.0, 0.0);
+            vec2 nrm = vec2(-dir.y, dir.x);
+            vec4 p = mix(a, b, aT);
+            // Half a width to each side, plus half a width past each end so
+            // the halo also covers the line's caps.
+            vec2 offPx = nrm * aSide * 0.5 * uWidth + dir * (aT * 2.0 - 1.0) * 0.5 * uWidth;
+            p.xy += offPx / (uViewport * 0.5) * p.w;
+            gl_Position = p;
+            Color = (uUseColor != 0) ? aColor : uColor;
+        }
+    )";
+
+inline constexpr const char* kLineFragmentShader = R"(
         #version 150
         out vec4 FragColor;
         in vec3 Color;

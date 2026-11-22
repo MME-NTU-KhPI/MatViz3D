@@ -1531,7 +1531,7 @@ Window {
                             Layout.preferredWidth: 26
                             Layout.preferredHeight: 26
 
-                            property bool isActive: false
+                            readonly property bool isActive: glWidget.outlines
 
                             source: isActive ? "qrc:/img/toolBar/wireframe_on.svg" : "qrc:/img/toolBar/wireframe_off.svg"
                             fillMode: Image.PreserveAspectFit
@@ -1541,11 +1541,8 @@ Window {
                                 cursorShape: Qt.PointingHandCursor
                                 hoverEnabled: true
                                 ToolTip.visible: containsMouse
-                                ToolTip.text: qsTr("Toggle wireframe")
-                                onClicked: {
-                                    wireframeToggle.isActive = !wireframeToggle.isActive;
-                                    glWidget.setPlotWireFrame(wireframeToggle.isActive);
-                                }
+                                ToolTip.text: qsTr("Toggle outlines (kind and width: Shading and depth)")
+                                onClicked: glWidget.outlines = !glWidget.outlines
                             }
                         }
 
@@ -1778,6 +1775,76 @@ Window {
                                     from: 0; to: 1; stepSize: 0.05
                                     value: glWidget.depthCue
                                     onMoved: glWidget.depthCue = value
+                                }
+
+                                Text {
+                                    topPadding: 6
+                                    text: qsTr("Outlines")
+                                    color: "#d9d9d9"
+                                    font.pixelSize: 13
+                                    font.family: montserrat.name
+                                }
+
+                                Row {
+                                    spacing: 2
+                                    Repeater {
+                                        model: [
+                                            { kind: 0, label: qsTr("Off"),        tip: qsTr("No outlines") },
+                                            { kind: 2, label: qsTr("Boundaries"), tip: qsTr("Grain and pore boundaries and the edges of the solid") },
+                                            { kind: 1, label: qsTr("Voxels"),     tip: qsTr("Every voxel edge (fades out where voxels get too small to show it)") }
+                                        ]
+                                        delegate: Rectangle {
+                                            id: outlineSegment
+                                            required property var modelData
+                                            readonly property bool selected: modelData.kind === 0 ? !glWidget.outlines
+                                                                                                   : (glWidget.outlines && glWidget.outlineKind === modelData.kind)
+                                            width: 63
+                                            height: 22
+                                            radius: 4
+                                            color: selected ? "#00897b" : (outlineSegmentArea.containsMouse ? "#383838" : "#2A2A2A")
+                                            border.color: selected ? "#00897b" : "#555555"
+                                            border.width: 1
+
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: outlineSegment.modelData.label
+                                                font.family: montserrat.name
+                                                font.pixelSize: 10
+                                                color: outlineSegment.selected || outlineSegmentArea.containsMouse ? "#ffffff" : "#d0d0d0"
+                                            }
+
+                                            MouseArea {
+                                                id: outlineSegmentArea
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                ToolTip.visible: containsMouse
+                                                ToolTip.delay: 500
+                                                ToolTip.text: outlineSegment.modelData.tip
+                                                onClicked: {
+                                                    if (outlineSegment.modelData.kind > 0)
+                                                        glWidget.outlineKind = outlineSegment.modelData.kind
+                                                    glWidget.outlines = outlineSegment.modelData.kind > 0
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Text {
+                                    text: qsTr("Line width: %1 px").arg(outlineWidthSlider.value.toFixed(2))
+                                    color: glWidget.outlines ? "#d9d9d9" : "#707070"
+                                    font.pixelSize: 11
+                                    font.family: montserrat.name
+                                }
+                                Slider {
+                                    id: outlineWidthSlider
+                                    width: 192
+                                    height: 18
+                                    enabled: glWidget.outlines
+                                    from: 0.5; to: 4; stepSize: 0.25
+                                    value: glWidget.outlineWidth
+                                    onMoved: glWidget.outlineWidth = value
                                 }
                             }
                         }
