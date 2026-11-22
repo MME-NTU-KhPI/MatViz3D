@@ -102,6 +102,10 @@ public:
     /// inside it stays visible. 1.0 == opaque, the previous behaviour.
     void setVoxelOpacity(float opacity);
 
+    /// 0 = classic (six object-fixed lights), 1 = depth shading (camera-fixed
+    /// key and fill light, hemispherical ambient, AO, depth cueing).
+    void setShading(int model, float aoStrength, float depthCue);
+
     void requestSvgExport(const QString& path);  // GUI thread -> served next frame
 
 protected:
@@ -201,6 +205,9 @@ protected:
     bool  showGlyphs      = false;
     bool  showStreamlines = false;
     float voxelOpacity    = 1.0f;
+    int   shadingModel    = 1;
+    float aoStrength      = 0.85f;
+    float depthCue        = 0.35f;
 
     GLuint orientationVAO  = 0;
     GLuint orientationVBOs[2] = {0, 0};  // [0]=positions, [1]=colors

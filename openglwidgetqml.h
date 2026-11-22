@@ -140,6 +140,20 @@ public:
     Q_INVOKABLE void setShowGlyphs(bool show);
     Q_INVOKABLE void setVoxelOpacity(qreal opacity);
 
+    // ── Shading ─────────────────────────────────────────────────────────
+    /// 0 = classic (six object-fixed lights, the look before 2026-11),
+    /// 1 = depth (camera-fixed key / fill light, hemispherical ambient,
+    /// per-vertex ambient occlusion, depth cueing).
+    Q_PROPERTY(int   shadingModel READ shadingModel WRITE setShadingModel NOTIFY shadingChanged)
+    Q_PROPERTY(qreal aoStrength   READ aoStrength   WRITE setAoStrength   NOTIFY shadingChanged)
+    Q_PROPERTY(qreal depthCue     READ depthCue     WRITE setDepthCue     NOTIFY shadingChanged)
+    int   shadingModel() const { return m_shadingModel; }
+    qreal aoStrength()   const { return m_aoStrength; }
+    qreal depthCue()     const { return m_depthCue; }
+    void setShadingModel(int model);
+    void setAoStrength(qreal v);
+    void setDepthCue(qreal v);
+
     /** 0 = stress, 1 = strain. */
     Q_INVOKABLE void setTensorSource(int source);
     Q_INVOKABLE void setTensorDeviatoric(bool on);
@@ -191,7 +205,8 @@ protected:
     void initLights();
     void drawCube(short cubeSize, RenderOpenGL::Voxel vox, bool* neighbors,
                   std::vector<std::array<GLubyte, 4>> &node_colors,
-                  const std::array<std::array<float, 3>, 8> &node_disp);
+                  const std::array<std::array<float, 3>, 8> &node_disp,
+                  const GLubyte (&faceAO)[6][4]);
     QSize minimumSizeHint() const;
     QSize sizeHint() const;
     void mousePressEvent(QMouseEvent *event) override;
@@ -320,6 +335,7 @@ signals:
     void tensorStateChanged();
     void axisLabelsChanged();
     void showCornerAxesChanged();
+    void shadingChanged();
 
 private:
     QTimer* timer;
@@ -365,6 +381,11 @@ protected:
 
     bool plotWireFrame = false;
     bool m_showCornerAxes = true;
+
+    int   m_shadingModel = 1;
+    qreal m_aoStrength   = 0.85;
+    qreal m_depthCue     = 0.35;
+    void pushShading();
 
     void handleResize();
 

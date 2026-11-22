@@ -8,6 +8,7 @@
 #include <QThread>
 
 #include <QOpenGLExtraFunctions>
+#include <QVector2D>
 
 #include <algorithm>
 #include <memory>
@@ -432,6 +433,7 @@ void RenderOpenGL::initializeGL()
     shaderProgram->bindAttributeLocation("aPosition", 0);
     shaderProgram->bindAttributeLocation("aColor", 1);
     shaderProgram->bindAttributeLocation("aNormal", 2);
+    shaderProgram->bindAttributeLocation("aAO", 3);
     if (!shaderProgram->link()) {
         qDebug() << "Shader program linking failed:" << shaderProgram->log();
         delete shaderProgram;
@@ -876,6 +878,9 @@ void RenderOpenGL::setVoxelAttribPointers()
 
     ef->glVertexAttribPointer(2, 3, GL_BYTE, GL_TRUE, sizeof(Voxel), (void*)offsetof(Voxel, nx));
     ef->glEnableVertexAttribArray(2);
+
+    ef->glVertexAttribPointer(3, 1, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Voxel), (void*)offsetof(Voxel, ao));
+    ef->glEnableVertexAttribArray(3);
 }
 
 // ---------------------------------------------------------------------------
@@ -966,6 +971,14 @@ void RenderOpenGL::setShowStreamlines(bool show)
 void RenderOpenGL::setVoxelOpacity(float opacity)
 {
     voxelOpacity = std::clamp(opacity, 0.0f, 1.0f);
+}
+
+void RenderOpenGL::setShading(int model, float ao, float cue)
+{
+    shadingModel = (model == 1) ? 1 : 0;
+    aoStrength   = std::clamp(ao, 0.0f, 1.0f);
+    depthCue     = std::clamp(cue, 0.0f, 1.0f);
+    update();
 }
 
 void RenderOpenGL::updateVBO()
@@ -1076,6 +1089,20 @@ void RenderOpenGL::paintGL()
 
    // QVector3D viewPos(0.0f, 0.0f, -distance);
     shaderProgram->setUniformValue("uDebugMode", debugMode);
+
+    // Depth shading (glshaders.hpp). The depth range spans the scene's
+    // bounding sphere as seen from the camera, so the cue does not depend on
+    // the zoom: the nearest corner is untouched, the farthest at full cue.
+    {
+        const float sceneRadius = numCubes * 0.866f;
+        shaderProgram->setUniformValue("uShadingModel", shadingModel);
+        shaderProgram->setUniformValue("uAOStrength", aoStrength);
+        shaderProgram->setUniformValue("uDepthCue", depthCue);
+        shaderProgram->setUniformValue("uDepthRange",
+                                       QVector2D(std::max(0.0f, distance - sceneRadius),
+                                                 distance + sceneRadius));
+        shaderProgram->setUniformValue("uMinLight", 0.28f);
+    }
     shaderProgram->setUniformValue("uWireframe", plotWireFrame ? 1 : 0);
 
     // Fade the voxel block back so tensor overlays inside it are visible. With

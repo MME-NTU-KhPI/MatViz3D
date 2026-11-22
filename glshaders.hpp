@@ -19,7 +19,9 @@
 //
 //  The lit program's attribute locations must be bound explicitly (there is no
 //  layout(location=) qualifier at this GLSL version):
-//      aPosition -> 0, aColor -> 1, aNormal -> 2      (see glvertex.hpp)
+//      aPosition -> 0, aColor -> 1, aNormal -> 2, aAO -> 3   (see glvertex.hpp)
+//  aAO is bound by the voxel view only; a renderer that leaves it unbound must
+//  keep uShadingModel at 0, which never reads it.
 //  The axis program binds aPosition -> 0, aColor -> 1.
 // ============================================================================
 #pragma once
@@ -34,6 +36,7 @@ inline constexpr const char* kLitVertexShader = R"(
         in vec3 aPosition;
         in vec4 aColor;
         in vec3 aNormal;
+        in float aAO;
 
         uniform mat4 uMVP;
         uniform mat4 uModel;
@@ -43,12 +46,18 @@ inline constexpr const char* kLitVertexShader = R"(
         out vec3 FragPos;
         out vec3 Normal;
         out vec4 Color;
+        out float AO;
+        out vec3 ViewPos;       // camera space, for the camera-fixed lights
+        out vec3 ViewNormal;
 
         void main()
         {
             FragPos = vec3(uModel * vec4(aPosition, 1.0));
             Normal = normalize(mat3(uModel) * aNormal);
             Color = aColor;
+            AO = aAO;
+            ViewPos = vec3(uView * uModel * vec4(aPosition, 1.0));
+            ViewNormal = mat3(uView) * mat3(uModel) * aNormal;   // rotation only, no scale
             gl_Position = uMVP * vec4(aPosition, 1.0);
         }
     )";
@@ -59,6 +68,9 @@ inline constexpr const char* kLitFragmentShader = R"(
         in vec3 FragPos;
         in vec3 Normal;
         in vec4 Color;
+        in float AO;
+        in vec3 ViewPos;
+        in vec3 ViewNormal;
 
         uniform vec3 uLightDirections[6];
         uniform float uLightWeights[6];
@@ -74,6 +86,59 @@ inline constexpr const char* kLitFragmentShader = R"(
         // that binds this program must set it. There are two: RenderOpenGL and
         // StiffnessSurfaceRenderer.
         uniform float uAlphaScale;
+
+        // 0 = the original six object-fixed lights (also what every renderer
+        //     that does not set it gets: uniforms default to 0);
+        // 1 = depth shading: camera-fixed key + fill light, hemispherical
+        //     ambient, per-vertex ambient occlusion, depth cueing.
+        uniform int   uShadingModel;
+        uniform float uAOStrength;   // 0 = off, 1 = full
+        uniform float uDepthCue;     // 0 = off, 1 = far side at the strongest
+        uniform vec2  uDepthRange;   // camera distance of the scene's near / far side
+        uniform float uMinLight;     // brightness floor, as a fraction of the base colour
+
+        vec3 depthShading()
+        {
+            vec3 n = normalize(ViewNormal);
+            vec3 v = normalize(-ViewPos);
+
+            // AO level 0..1 -> 0.45..1, blended in by the strength.
+            float ao = mix(1.0, 0.45 + 0.55 * AO, uAOStrength);
+
+            // Qt Quick shows this FBO with GL's bottom row on top, so camera
+            // -Y is "up" on screen: the sky light comes from -Y.
+            float up = 0.5 - 0.5 * n.y;
+            vec3 ambient = mix(vec3(0.28), vec3(0.44), up);
+
+            // Key light from the upper left in front, a weaker fill from the
+            // right: the three faces of a cube in view come out clearly apart.
+            // In the default dimetric view: top 0.97, left 0.76, right 0.60
+            // of the base colour; a face toward the camera 0.89.
+            vec3 keyDir  = normalize(vec3(-0.65, -0.55, 0.55));
+            vec3 fillDir = normalize(vec3( 0.80,  0.10, 0.60));
+            float dk = max(dot(n, keyDir),  0.0);
+            float df = max(dot(n, fillDir), 0.0);
+            vec3 direct = vec3(0.66 * dk + 0.28 * df);
+            float spec = pow(max(dot(n, normalize(keyDir + v)), 0.0), 32.0) * 0.12;
+
+            // AO darkens the ambient fully and the direct light partly: a pore
+            // wall still catches some light, but clearly less than an outer face.
+            vec3 c = Color.rgb * (ambient * ao + direct * mix(1.0, ao, 0.6)) + vec3(spec * ao);
+
+            // Floor: a saturated colour on a face turned away must not sink
+            // into a dark background.
+            c = max(c, Color.rgb * uMinLight);
+
+            // Depth cueing: the far side greyer and darker.
+            float d = -ViewPos.z;
+            float t = clamp((d - uDepthRange.x) / max(uDepthRange.y - uDepthRange.x, 1e-3), 0.0, 1.0);
+            float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
+            vec3 farColor = mix(vec3(lum), c, 0.6) * 0.62;
+            c = mix(c, farColor, uDepthCue * t);
+
+            return clamp(c, 0.0, 1.0);
+        }
+
         void main()
         {
             // --- Geometry ---
@@ -138,6 +203,7 @@ inline constexpr const char* kLitFragmentShader = R"(
                 FragColor = vec4(0.6, 0.6, 0.6, 1.0);
                 } else {
                     // Normal lighting mode (uDebugMode == 0)
+                    if (uShadingModel == 1) result = depthShading();
                     FragColor = vec4(result, Color.a * uAlphaScale);
                 }
         }

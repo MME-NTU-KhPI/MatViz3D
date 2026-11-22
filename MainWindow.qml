@@ -1649,6 +1649,139 @@ Window {
                             }
                         }
                     }
+
+                    Item {
+                        id: shadingToggle
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.preferredWidth: 26
+                        Layout.preferredHeight: 26
+
+                        Image {
+                            anchors.fill: parent
+                            source: "qrc:/img/toolBar/shading.svg"
+                            fillMode: Image.PreserveAspectFit
+                        }
+
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: 6
+                            color: "transparent"
+                            border.width: 1
+                            border.color: shadingPopup.visible ? "#00897b" : "transparent"
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            hoverEnabled: true
+                            ToolTip.visible: containsMouse
+                            ToolTip.text: qsTr("Shading and depth")
+                            onClicked: shadingPopup.visible ? shadingPopup.close() : shadingPopup.open()
+                        }
+
+                        Popup {
+                            id: shadingPopup
+                            x: (shadingToggle.width - width) / 2
+                            y: shadingToggle.height + 10
+                            width: 220
+                            padding: 14
+                            modal: false
+                            focus: false
+                            closePolicy: Popup.CloseOnPressOutside | Popup.CloseOnEscape
+
+                            background: Rectangle {
+                                color: "#E6282828"
+                                radius: 13
+                                border.color: "#5A5A5A"
+                                border.width: 1
+                            }
+
+                            contentItem: Column {
+                                spacing: 6
+
+                                Text {
+                                    text: qsTr("Shading")
+                                    color: "#d9d9d9"
+                                    font.pixelSize: 13
+                                    font.family: montserrat.name
+                                }
+
+                                Row {
+                                    spacing: 2
+                                    Repeater {
+                                        model: [
+                                            { label: qsTr("Classic"), tip: qsTr("Six lights fixed to the model (the previous look)") },
+                                            { label: qsTr("Depth"),   tip: qsTr("Lights fixed to the camera, ambient occlusion and depth cueing") }
+                                        ]
+                                        delegate: Rectangle {
+                                            id: shadingSegment
+                                            required property int index
+                                            required property var modelData
+                                            readonly property bool selected: glWidget.shadingModel === index
+                                            width: 95
+                                            height: 22
+                                            radius: 4
+                                            color: selected ? "#00897b" : (shadingSegmentArea.containsMouse ? "#383838" : "#2A2A2A")
+                                            border.color: selected ? "#00897b" : "#555555"
+                                            border.width: 1
+
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: shadingSegment.modelData.label
+                                                font.family: montserrat.name
+                                                font.pixelSize: 10
+                                                color: shadingSegment.selected || shadingSegmentArea.containsMouse ? "#ffffff" : "#d0d0d0"
+                                            }
+
+                                            MouseArea {
+                                                id: shadingSegmentArea
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                ToolTip.visible: containsMouse
+                                                ToolTip.delay: 500
+                                                ToolTip.text: shadingSegment.modelData.tip
+                                                onClicked: glWidget.shadingModel = shadingSegment.index
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Text {
+                                    topPadding: 4
+                                    text: qsTr("Ambient occlusion: %1 %").arg(Math.round(aoSlider.value * 100))
+                                    color: glWidget.shadingModel === 1 ? "#d9d9d9" : "#707070"
+                                    font.pixelSize: 11
+                                    font.family: montserrat.name
+                                }
+                                Slider {
+                                    id: aoSlider
+                                    width: 192
+                                    height: 18
+                                    enabled: glWidget.shadingModel === 1
+                                    from: 0; to: 1; stepSize: 0.05
+                                    value: glWidget.aoStrength
+                                    onMoved: glWidget.aoStrength = value
+                                }
+
+                                Text {
+                                    text: qsTr("Depth cueing: %1 %").arg(Math.round(depthCueSlider.value * 100))
+                                    color: glWidget.shadingModel === 1 ? "#d9d9d9" : "#707070"
+                                    font.pixelSize: 11
+                                    font.family: montserrat.name
+                                }
+                                Slider {
+                                    id: depthCueSlider
+                                    width: 192
+                                    height: 18
+                                    enabled: glWidget.shadingModel === 1
+                                    from: 0; to: 1; stepSize: 0.05
+                                    value: glWidget.depthCue
+                                    onMoved: glWidget.depthCue = value
+                                }
+                            }
+                        }
+                    }
                 }
             }
 

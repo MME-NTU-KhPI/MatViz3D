@@ -384,6 +384,15 @@ int main(int argc, char *argv[])
         ogl->setNumColors(p->getPoints());   // sync grain colors
         ogl->setNumCubes(p->getSize());      // sync cube size
 
+        // MATVIZ_SHADING=0|1, MATVIZ_AO=<0..1>, MATVIZ_DEPTHCUE=<0..1>: the
+        // shading of the 3D view, for scripted before / after shots.
+        if (qEnvironmentVariableIsSet("MATVIZ_SHADING"))
+            ogl->setShadingModel(qEnvironmentVariableIntValue("MATVIZ_SHADING"));
+        if (qEnvironmentVariableIsSet("MATVIZ_AO"))
+            ogl->setAoStrength(qEnvironmentVariable("MATVIZ_AO").toDouble());
+        if (qEnvironmentVariableIsSet("MATVIZ_DEPTHCUE"))
+            ogl->setDepthCue(qEnvironmentVariable("MATVIZ_DEPTHCUE").toDouble());
+
         if (parser.isSet("autostart"))           // or however you track this flag
             mainWindowWrapper.onStartButton();
 

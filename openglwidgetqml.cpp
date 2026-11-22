@@ -20,6 +20,19 @@
 static constexpr bool kGizmoYFlip = true;
 
 RenderOpenGL* OpenGLWidgetQML::m_render = nullptr;
+
+// Corner nodes of each cube face, in the order the face is drawn (CCW seen
+// from outside). Node l sits at (l >= 4, l in {2,3,6,7}, l in {1,2,5,6}).
+// Faces: -X, +Y, +X, -Y, +Z, -Z (the order of drawCube's normals).
+static const int kCubeFaces[6][4] =
+    {
+        {0, 1, 2, 3},
+        {3, 2, 6, 7},
+        {7, 6, 5, 4},
+        {4, 5, 1, 0},
+        {5, 6, 2, 1},
+        {7, 4, 0, 3}
+    };
 OpenGLWidgetQML* OpenGLWidgetQML::instance = nullptr;
 
 OpenGLWidgetQML::OpenGLWidgetQML(QQuickItem *parent) : QQuickFramebufferObject(parent) {
@@ -76,6 +89,7 @@ QQuickFramebufferObject::Renderer *OpenGLWidgetQML::createRenderer() const
     m_render->setShowGlyphs(showGlyphs);
     m_render->setShowStreamlines(showStreamlines);
     m_render->setVoxelOpacity(voxelOpacity);
+    m_render->setShading(m_shadingModel, float(m_aoStrength), float(m_depthCue));
     if (showGlyphs || showStreamlines) {
         auto* self = const_cast<OpenGLWidgetQML*>(this);
         QTimer::singleShot(0, self, [self]() {
@@ -365,6 +379,37 @@ void OpenGLWidgetQML::setShowCornerAxes(bool show)
 bool OpenGLWidgetQML::showCornerAxes() const
 {
     return m_showCornerAxes;
+}
+
+void OpenGLWidgetQML::pushShading()
+{
+    if (m_render) m_render->setShading(m_shadingModel, float(m_aoStrength), float(m_depthCue));
+    update();
+    emit shadingChanged();
+}
+
+void OpenGLWidgetQML::setShadingModel(int model)
+{
+    model = (model == 1) ? 1 : 0;
+    if (model == m_shadingModel) return;
+    m_shadingModel = model;
+    pushShading();
+}
+
+void OpenGLWidgetQML::setAoStrength(qreal v)
+{
+    v = std::clamp(v, 0.0, 1.0);
+    if (qFuzzyCompare(v + 1.0, m_aoStrength + 1.0)) return;
+    m_aoStrength = v;
+    pushShading();
+}
+
+void OpenGLWidgetQML::setDepthCue(qreal v)
+{
+    v = std::clamp(v, 0.0, 1.0);
+    if (qFuzzyCompare(v + 1.0, m_depthCue + 1.0)) return;
+    m_depthCue = v;
+    pushShading();
 }
 
 bool OpenGLWidgetQML::requestCapture(QSize pixelSize, RenderOpenGL::CaptureBackground background,
@@ -1248,7 +1293,51 @@ void OpenGLWidgetQML::calculateScene()
                     std::fill(node_colors.begin(), node_colors.end(), colors[index]);
                 }
 
-                drawCube(cubeSize, v, neighbors, node_colors, node_disp);
+                // ── Per-vertex ambient occlusion ─────────────────────────
+                // For each corner of a visible face, look at the three voxels
+                // around that corner in the layer just outside the face: the
+                // two along the face's edges (side1, side2) and the diagonal
+                // one (corner). Level 3 = open, 0 = a concave corner closed on
+                // both sides. "Occupied" matches the face culling: any solid
+                // voxel, or in the exploded view only this grain's own.
+                GLubyte faceAO[6][4];
+                {
+                    static const int faceAxis[6] = { 0, 1, 0, 1, 2, 2 };   // -X +Y +X -Y +Z -Z
+                    static const int faceSign[6] = { -1, 1, 1, -1, 1, -1 };
+                    const int n = numCubes;
+                    auto occ = [&](int x, int y, int z) -> int {
+                        if (x < 0 || y < 0 || z < 0 || x >= n || y >= n || z >= n) return 0;
+                        const int32_t w = voxels[x][y][z];
+                        return isExploded ? (w == vx) : (w != 0);
+                    };
+                    const int p0[3] = { k, i, j };   // voxels[x][y][z]
+                    for (int f = 0; f < 6; ++f) {
+                        if (neighbors[f]) continue;
+                        const int a  = faceAxis[f];
+                        const int b1 = (a + 1) % 3, b2 = (a + 2) % 3;
+                        for (int q = 0; q < 4; ++q) {
+                            const int node = kCubeFaces[f][q];
+                            const int c[3] = { node >= 4 ? 1 : 0,
+                                               (node == 2 || node == 3 || node == 6 || node == 7) ? 1 : 0,
+                                               (node == 1 || node == 2 || node == 5 || node == 6) ? 1 : 0 };
+                            int base[3] = { p0[0], p0[1], p0[2] };
+                            base[a] += faceSign[f];
+                            int s1p[3] = { base[0], base[1], base[2] };
+                            int s2p[3] = { base[0], base[1], base[2] };
+                            s1p[b1] += c[b1] ? 1 : -1;
+                            s2p[b2] += c[b2] ? 1 : -1;
+                            int cp[3] = { s1p[0], s1p[1], s1p[2] };
+                            cp[b2] += c[b2] ? 1 : -1;
+                            const int s1 = occ(s1p[0], s1p[1], s1p[2]);
+                            const int s2 = occ(s2p[0], s2p[1], s2p[2]);
+                            const int cc = occ(cp[0], cp[1], cp[2]);
+                            const int level = (s1 && s2) ? 0 : 3 - (s1 + s2 + cc);
+                            faceAO[f][q] = GLubyte(level * 85);
+                        }
+                    }
+                }
+
+                drawCube(cubeSize, v, neighbors, node_colors, node_disp, faceAO);
             }
         }
     }
@@ -1294,7 +1383,8 @@ void OpenGLWidgetQML::setVoxels(int32_t*** voxels, short int numCubes)
 
 void OpenGLWidgetQML::drawCube(short cubeSize, RenderOpenGL::Voxel vox, bool* neighbors,
                                 std::vector<std::array<GLubyte, 4>> &node_colors,
-                                const std::array<std::array<float, 3>, 8> &node_disp)
+                                const std::array<std::array<float, 3>, 8> &node_disp,
+                                const GLubyte (&faceAO)[6][4])
 {
 
 /*    static const GLfloat n[6][3] =
@@ -1316,15 +1406,7 @@ void OpenGLWidgetQML::drawCube(short cubeSize, RenderOpenGL::Voxel vox, bool* ne
         {   0,    0, -127}   // -Z
     };
 
-    static const GLint faces[6][4] =
-        {
-            {0, 1, 2, 3},
-            {3, 2, 6, 7},
-            {7, 6, 5, 4},
-            {4, 5, 1, 0},
-            {5, 6, 2, 1},
-            {7, 4, 0, 3}
-        };
+    const auto& faces = kCubeFaces;
     float v[8][3];
 
     float offset = 0.0; // offset to help z-buffer distinc same quads
@@ -1354,9 +1436,18 @@ void OpenGLWidgetQML::drawCube(short cubeSize, RenderOpenGL::Voxel vox, bool* ne
             v1.a = vox.a;
         }
 
-        for (int j = 0; j < 4; j++) // for each node
+        // The quad is drawn as a fan from its first vertex, i.e. split along
+        // the 0-2 diagonal. With AO that split shows: an occluded corner
+        // smears along whichever diagonal it lies on. Split along the brighter
+        // pair instead (rotate the start to vertex 1), so a dark corner stays
+        // in its own triangle. The winding is unchanged.
+        const int start = (int(faceAO[i][1]) + faceAO[i][3] > int(faceAO[i][0]) + faceAO[i][2]) ? 1 : 0;
+
+        for (int jj = 0; jj < 4; jj++) // for each node
         {
+            const int j = (jj + start) % 4;
             auto fij = faces[i][j];
+            v1.ao = faceAO[i][j];
             v1.x = v[fij][0] + node_disp[fij][0];
             v1.y = v[fij][1] + node_disp[fij][1];
             v1.z = v[fij][2] + node_disp[fij][2];
