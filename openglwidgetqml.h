@@ -274,6 +274,7 @@ protected:
     // Flat geometry for orientation glyphs: positions (x0,y0,z0, x1,y1,z1) × N lines
     std::vector<float> orientationVerts;   // 6 floats per line vertex pair
     std::vector<float> orientationColors;  // 3 floats per vertex
+    std::vector<float> orientationNormals; // 5 floats per triad: patch normal (3), area, grain id
 
     bool   showOrientations     = false;
     float  orientationGlyphScale = 1.5f;   // in voxel units

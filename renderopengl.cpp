@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <unordered_map>
 
 #ifndef GL_MAX_SAMPLES
 #define GL_MAX_SAMPLES 0x8D57
@@ -1448,10 +1449,12 @@ void RenderOpenGL::initOrientationVBO()
 }
 
 void RenderOpenGL::updateOrientationData(const std::vector<float>& verts,
-                                         const std::vector<float>& colors)
+                                         const std::vector<float>& colors,
+                                         const std::vector<float>& normals)
 {
-    orientationVerts  = verts;
-    orientationColors = colors;
+    orientationVerts   = verts;
+    orientationColors  = colors;
+    orientationNormals = normals;
     orientationVBOdirty = true;
 }
 
@@ -1531,25 +1534,6 @@ void RenderOpenGL::drawOrientationGlyphs()
     QOpenGLExtraFunctions *ef = QOpenGLContext::currentContext()->extraFunctions();
     if (!f || !ef) return;
 
-    // ── Lazily upload to GPU ──────────────────────────────────────────────
-    if (orientationVBOdirty && orientationVAO != 0) {
-        ef->glBindVertexArray(orientationVAO);
-
-        ef->glBindBuffer(GL_ARRAY_BUFFER, orientationVBOs[0]);
-        ef->glBufferData(GL_ARRAY_BUFFER,
-                         orientationVerts.size() * sizeof(float),
-                         orientationVerts.data(), GL_DYNAMIC_DRAW);
-
-        ef->glBindBuffer(GL_ARRAY_BUFFER, orientationVBOs[1]);
-        ef->glBufferData(GL_ARRAY_BUFFER,
-                         orientationColors.size() * sizeof(float),
-                         orientationColors.data(), GL_DYNAMIC_DRAW);
-
-        ef->glBindBuffer(GL_ARRAY_BUFFER, 0);
-        ef->glBindVertexArray(0);
-        orientationVBOdirty = false;
-    }
-
     // ── Build MVP (same as paintGL) ───────────────────────────────────────
     QMatrix4x4 view;
     view.setToIdentity();
@@ -1557,146 +1541,117 @@ void RenderOpenGL::drawOrientationGlyphs()
     view.rotate(xRot / 16.0f, 1.0f, 0.0f, 0.0f);
     view.rotate(yRot / 16.0f, 0.0f, 1.0f, 0.0f);
     view.rotate(zRot / 16.0f, 0.0f, 0.0f, 1.0f);
-    QMatrix4x4 mvp = m_projection * view;
+    const QMatrix4x4 mvp = m_projection * view;
 
-    // Disable depth test — lines inside grain volume must still be visible.
+    // ── The triads of grains that face the camera ─────────────────────────
+    // Every triad sits on its grain's visible surface patch; it is drawn only
+    // while that patch is turned toward the camera (view-space normal +z).
+    // Drawn for every grain from its centre, with the depth test off, the
+    // triads of hidden and interior grains piled up through the whole cube.
+    const size_t triads = orientationVerts.size() / 18;   // 3 axes x 2 points x 3 floats
+    std::vector<float> verts, cols;
+    verts.reserve(orientationVerts.size());
+    cols.reserve(orientationColors.size());
+    // Per grain the patch with the largest projected area (area x cos of
+    // its normal to the view direction) among those turned toward the camera.
+    const bool perGrain = orientationNormals.size() >= 5 * triads;
+    std::unordered_map<int, std::pair<float, size_t>> best;   // grain -> (score, triad)
+    if (perGrain) {
+        for (size_t t = 0; t < triads; ++t) {
+            const float* m = &orientationNormals[5 * t];
+            const QVector3D n(m[0], m[1], m[2]);
+            if (n.lengthSquared() < 1e-6f) continue;
+            const float facing = view.mapVector(n.normalized()).z();
+            if (facing <= 0.25f) continue;
+            const float score = m[3] * facing;
+            auto it = best.find(int(m[4]));
+            if (it == best.end() || score > it->second.first) best[int(m[4])] = { score, t };
+        }
+    }
+    for (size_t t = 0; t < triads; ++t) {
+        if (perGrain) {
+            auto it = best.find(int(orientationNormals[5 * t + 4]));
+            if (it == best.end() || it->second.second != t) continue;
+        }
+        verts.insert(verts.end(), orientationVerts.begin() + 18 * t, orientationVerts.begin() + 18 * (t + 1));
+        if (orientationColors.size() >= 18 * (t + 1))
+            cols.insert(cols.end(), orientationColors.begin() + 18 * t, orientationColors.begin() + 18 * (t + 1));
+    }
+    if (verts.empty()) return;
+
+    // On top of the surface they are anchored to.
     f->glDisable(GL_DEPTH_TEST);
     f->glEnable(GL_BLEND);
     ef->glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA,
                             GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
-    const GLsizei vertexCount =
-        static_cast<GLsizei>(orientationVerts.size() / 3);
-
-    // ── Pass 1 + 2: the axes as thick lines, a dark halo under each ───────
-    // Screen-space quads (drawThickLines), so the widths hold in the core
-    // profile and follow the export DPI; the halo keeps a line readable on
-    // any grain colour.
+    // ── The axes as thick lines over a thin dark halo ─────────────────────
     {
         static const float kHalo[3] = { 0.08f, 0.08f, 0.08f };
-        drawThickLines(orientationVerts, orientationColors, mvp, 5.0f, kHalo);
-        drawThickLines(orientationVerts, orientationColors, mvp, 2.5f, nullptr);
+        drawThickLines(verts, cols, mvp, 3.6f, kHalo);
+        drawThickLines(verts, cols, mvp, 2.0f, nullptr);
     }
 
-    // ── Pass 3: cone arrowheads at the positive tip of every segment ──────
-    // orientationVerts layout: for every triad, 6 consecutive pairs of
-    // vertices (neg tip, pos tip) × 3 axes.
-    // We draw a small cone only at the positive tip (odd-indexed vertices).
-    if (axisShaderProgram) {
-        // Recompute axis colours in the same order as buildOrientationGlyphs.
-        static const float axisRGBf[3][3] = {
-            {230/255.0f,  50/255.0f,  50/255.0f},  // X red
-            { 50/255.0f, 200/255.0f,  50/255.0f},  // Y green
-            { 60/255.0f, 130/255.0f, 255/255.0f},  // Z blue
-        };
-
-        const int   SEGS        = 10;
-        const float CONE_HEIGHT = 0.35f;   // in voxel units
-        const float CONE_RADIUS = 0.12f;
-
-        std::vector<float> coneVerts;
-        std::vector<float> coneColors;
-        coneVerts.reserve(512);
-        coneColors.reserve(512);
-
-        // Each triad has 3 axes × 2 verts = 6 verts in orientationVerts.
-        // Stride between triads = 6 vertices × 3 floats = 18 floats.
-        const int triads = vertexCount / 6;   // 2 verts per line × 3 axes
-
-        for (int t = 0; t < triads; ++t) {
-            for (int axis = 0; axis < 3; ++axis) {
-                // Negative tip: vertex index (t*6 + axis*2 + 0)
-                // Positive tip: vertex index (t*6 + axis*2 + 1)
-                const int posIdx = (t * 6 + axis * 2 + 1) * 3;
-                const int negIdx = (t * 6 + axis * 2 + 0) * 3;
-
-                if (posIdx + 2 >= static_cast<int>(orientationVerts.size()))
-                    continue;
-
-                const QVector3D tip(orientationVerts[posIdx],
-                                    orientationVerts[posIdx + 1],
-                                    orientationVerts[posIdx + 2]);
-
-                const QVector3D base(orientationVerts[negIdx],
-                                     orientationVerts[negIdx + 1],
-                                     orientationVerts[negIdx + 2]);
-
-                // Unit direction from base to tip
-                QVector3D dir = (tip - base).normalized();
-
-                // Cone base centre is slightly behind the tip
-                QVector3D coneBase = tip - CONE_HEIGHT * dir;
-
-                // Build two vectors perpendicular to dir for the base circle.
-                // Choose an arbitrary up vector that is not parallel to dir.
-                QVector3D up = (std::abs(dir.y()) < 0.9f)
-                                   ? QVector3D(0, 1, 0)
-                                   : QVector3D(1, 0, 0);
-                QVector3D right = QVector3D::crossProduct(dir, up).normalized();
-                up = QVector3D::crossProduct(right, dir).normalized();
-
-                const float r = axisRGBf[axis][0];
-                const float g = axisRGBf[axis][1];
-                const float b = axisRGBf[axis][2];
-
-                // Fan of triangles: tip → p[i] → p[i+1]
-                for (int s = 0; s < SEGS; ++s) {
-                    const float a0 = 2.0f * M_PI * s       / SEGS;
-                    const float a1 = 2.0f * M_PI * (s + 1) / SEGS;
-
-                    QVector3D p0 = coneBase
-                                   + CONE_RADIUS * (cosf(a0) * right
-                                                    + sinf(a0) * up);
-                    QVector3D p1 = coneBase
-                                   + CONE_RADIUS * (cosf(a1) * right
-                                                    + sinf(a1) * up);
-
-                    auto push3 = [&](QVector3D v) {
-                        coneVerts.push_back(v.x());
-                        coneVerts.push_back(v.y());
-                        coneVerts.push_back(v.z());
-                        coneColors.push_back(r);
-                        coneColors.push_back(g);
-                        coneColors.push_back(b);
-                    };
-
-                    push3(tip);  push3(p0);  push3(p1);        // side
-                    push3(coneBase); push3(p1); push3(p0);     // base cap
-                }
+    // ── Arrowheads: a cone at the positive tip, sized by the axis length ──
+    static const float axisRGBf[3][3] = {
+        {230/255.0f,  50/255.0f,  50/255.0f},  // X red
+        { 50/255.0f, 200/255.0f,  50/255.0f},  // Y green
+        { 60/255.0f, 130/255.0f, 255/255.0f},  // Z blue
+    };
+    const int SEGS = 10;
+    std::vector<float> coneVerts, coneColors;
+    coneVerts.reserve(verts.size() * 20);
+    coneColors.reserve(verts.size() * 20);
+    const size_t shown = verts.size() / 18;
+    for (size_t t = 0; t < shown; ++t) {
+        for (int axis = 0; axis < 3; ++axis) {
+            const size_t baseIdx = (t * 6 + axis * 2) * 3;       // grain anchor
+            const size_t tipIdx  = baseIdx + 3;                   // positive tip
+            const QVector3D tip(verts[tipIdx], verts[tipIdx + 1], verts[tipIdx + 2]);
+            const QVector3D root(verts[baseIdx], verts[baseIdx + 1], verts[baseIdx + 2]);
+            const float len = (tip - root).length();
+            if (len < 1e-4f) continue;
+            const QVector3D dir = (tip - root) / len;
+            const float coneH = 0.24f * len, coneR = 0.09f * len;
+            const QVector3D coneBase = tip - coneH * dir;
+            QVector3D up = (std::abs(dir.y()) < 0.9f) ? QVector3D(0, 1, 0) : QVector3D(1, 0, 0);
+            const QVector3D right = QVector3D::crossProduct(dir, up).normalized();
+            up = QVector3D::crossProduct(right, dir).normalized();
+            auto push3 = [&](const QVector3D& v) {
+                coneVerts.insert(coneVerts.end(), { v.x(), v.y(), v.z() });
+                coneColors.insert(coneColors.end(), { axisRGBf[axis][0], axisRGBf[axis][1], axisRGBf[axis][2] });
+            };
+            for (int sgi = 0; sgi < SEGS; ++sgi) {
+                const float a0 = 2.0f * float(M_PI) * sgi / SEGS;
+                const float a1 = 2.0f * float(M_PI) * (sgi + 1) / SEGS;
+                const QVector3D p0 = coneBase + coneR * (std::cos(a0) * right + std::sin(a0) * up);
+                const QVector3D p1 = coneBase + coneR * (std::cos(a1) * right + std::sin(a1) * up);
+                push3(tip); push3(p0); push3(p1);
+                push3(coneBase); push3(p1); push3(p0);
             }
         }
-
-        if (!coneVerts.empty()) {
-            GLuint vao = 0, vbo[2] = {0, 0};
-            ef->glGenVertexArrays(1, &vao);
-            ef->glBindVertexArray(vao);
-            ef->glGenBuffers(2, vbo);
-
-            ef->glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
-            ef->glBufferData(GL_ARRAY_BUFFER,
-                             coneVerts.size() * sizeof(float),
-                             coneVerts.data(), GL_STREAM_DRAW);
-            ef->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
-            ef->glEnableVertexAttribArray(0);
-
-            ef->glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
-            ef->glBufferData(GL_ARRAY_BUFFER,
-                             coneColors.size() * sizeof(float),
-                             coneColors.data(), GL_STREAM_DRAW);
-            ef->glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
-            ef->glEnableVertexAttribArray(1);
-
-            axisShaderProgram->bind();
-            axisShaderProgram->setUniformValue("uMVP", mvp);
-            ef->glDrawArrays(GL_TRIANGLES, 0,
-                             static_cast<GLsizei>(coneVerts.size() / 3));
-            axisShaderProgram->release();
-
-            ef->glBindBuffer(GL_ARRAY_BUFFER, 0);
-            ef->glBindVertexArray(0);
-            ef->glDeleteBuffers(2, vbo);
-            ef->glDeleteVertexArrays(1, &vao);
-        }
+    }
+    if (!coneVerts.empty()) {
+        GLuint vao = 0, vbo[2] = {0, 0};
+        ef->glGenVertexArrays(1, &vao);
+        ef->glBindVertexArray(vao);
+        ef->glGenBuffers(2, vbo);
+        ef->glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
+        ef->glBufferData(GL_ARRAY_BUFFER, coneVerts.size() * sizeof(float), coneVerts.data(), GL_STREAM_DRAW);
+        ef->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+        ef->glEnableVertexAttribArray(0);
+        ef->glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
+        ef->glBufferData(GL_ARRAY_BUFFER, coneColors.size() * sizeof(float), coneColors.data(), GL_STREAM_DRAW);
+        ef->glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+        ef->glEnableVertexAttribArray(1);
+        axisShaderProgram->bind();
+        axisShaderProgram->setUniformValue("uMVP", mvp);
+        ef->glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(coneVerts.size() / 3));
+        axisShaderProgram->release();
+        ef->glBindBuffer(GL_ARRAY_BUFFER, 0);
+        ef->glBindVertexArray(0);
+        ef->glDeleteBuffers(2, vbo);
+        ef->glDeleteVertexArrays(1, &vao);
     }
 
     // Restore state

@@ -110,6 +110,9 @@ public:
     /// <prefix>_raw_transparent.png (the bare capture on a transparent
     /// background), then call `finished`.
     void debugExport(QQuickItem* item, const QString& prefix, std::function<void()> finished);
+    /// Save dialog for a PDF: one page of the figure's size, legend and axes
+    /// as vectors, the model as an image or as polygons (pdfVectorModel).
+    Q_INVOKABLE void saveAsPdf(QQuickItem* item, bool verticalLegend, bool fieldActive = false);
     Q_INVOKABLE void saveAsSVG(QQuickItem* item);
     Q_INVOKABLE void saveAsVectorSVG(QQuickItem* item);  // true-vector, not raster
     /// The export pipeline (capture, crop, legend, gizmo) written as a PNG

@@ -204,6 +204,14 @@ Window {
                             }
                             Action
                             {
+                                // One page of the figure's size; legend and axes as vectors, the model
+                                // as an image or as polygons (screenshot settings: PDF model).
+                                text: qsTr("Save as PDF");
+                                icon.source: "qrc:/img/fileMenu/save_pdf.svg"
+                                onTriggered: exportController.saveAsPdf(glWidget, _itemFieldView.legendVertical, _itemFieldView.visible)
+                            }
+                            Action
+                            {
                                 text: qsTr("Save as SVG");
                                 icon.source: "qrc:/img/fileMenu/save_svg.svg"
                                 onTriggered: exportController.saveAsVectorSVG(glWidget)

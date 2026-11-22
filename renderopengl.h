@@ -88,8 +88,13 @@ public:
 
     void setDevicePixelRatio(float dpr);
 
+    /// `normals`: 5 floats per triad, the outward normal of the surface patch
+    /// it sits on, the patch's area and the grain id. Per grain the renderer
+    /// draws the triad of the largest patch turned toward the camera. Empty =
+    /// every triad drawn.
     void updateOrientationData(const std::vector<float>& verts,
-                               const std::vector<float>& colors);
+                               const std::vector<float>& colors,
+                               const std::vector<float>& normals = {});
     void setShowOrientations(bool show);
 
     // ── Tensor overlays ──────────────────────────────────────────────────
@@ -237,6 +242,7 @@ protected:
 
     std::vector<float> orientationVerts;
     std::vector<float> orientationColors;
+    std::vector<float> orientationNormals;   // 5 floats per triad: normal, area, grain
     bool   showOrientations          = false;
     bool   orientationVBOdirty       = false;
     bool   m_showCornerAxes          = true;

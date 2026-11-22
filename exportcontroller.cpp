@@ -1083,6 +1083,21 @@ void ExportController::saveAsImage(QQuickItem* item, bool verticalLegend, bool f
     saveImageTo(item, fileName, verticalLegend, fieldActive);
 }
 
+void ExportController::saveAsPdf(QQuickItem* item, bool verticalLegend, bool fieldActive)
+{
+    if (!item) {
+        emit exportFailed(tr("Scene item is not available"));
+        return;
+    }
+    QString fileName = QFileDialog::getSaveFileName(nullptr, tr("Save as PDF"), "",
+                                                    tr("PDF document (*.pdf)"));
+    if (fileName.isEmpty())
+        return;
+    if (!fileName.endsWith(".pdf", Qt::CaseInsensitive))
+        fileName += ".pdf";
+    savePdfTo(item, fileName, verticalLegend, fieldActive, m_pdfVectorModel);
+}
+
 void ExportController::saveImageTo(QQuickItem* item, const QString& fileName,
                                    bool verticalLegend, bool fieldActive)
 {
