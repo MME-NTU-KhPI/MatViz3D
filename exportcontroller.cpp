@@ -28,6 +28,7 @@
 #include <QMimeData>
 #include <QFont>
 #include <QPdfWriter>
+#include <QPaintEngine>
 #include <QPageSize>
 #include <QPageLayout>
 #include <QFontDatabase>
@@ -160,6 +161,30 @@ QFont overlayFont(qreal pt, qreal scale, QFont::Weight weight)
     return f;
 }
 
+/// Text of the legend. On a PDF page it goes in as glyph outlines: Qt embeds
+/// one instance of a variable font (Inter) per document, so as text every
+/// label came out at the weight of whichever was drawn first.
+void drawLabel(QPainter& p, const QRectF& r, int flags, const QString& text)
+{
+    QPaintEngine* e = p.paintEngine();
+    if (!e || e->type() != QPaintEngine::Pdf) {
+        p.drawText(r, flags, text);
+        return;
+    }
+    const QFont f = p.font();
+    const QFontMetricsF fm(f);
+    const qreal w = fm.horizontalAdvance(text);
+    qreal x = r.left();
+    if (flags & Qt::AlignHCenter)      x = r.center().x() - w / 2.0;
+    else if (flags & Qt::AlignRight)   x = r.right() - w;
+    qreal y = r.top() + fm.ascent();
+    if (flags & Qt::AlignVCenter)      y = r.center().y() + (fm.ascent() - fm.descent()) / 2.0;
+    else if (flags & Qt::AlignBottom)  y = r.bottom() - fm.descent();
+    QPainterPath path;
+    path.addText(QPointF(x, y), f, text);
+    p.fillPath(path, p.pen().color());
+}
+
 /// Tick values of a legend. When the range needs scientific notation, one
 /// common power of ten goes into the title ("x10^6") and the ticks show
 /// short mantissas: five labels of "1.234e+06" each crowded the bar.
@@ -227,7 +252,7 @@ void drawColorBarCard(QPainter& p, const QRectF& cardRect, qreal scale, bool ver
         p.setFont(titleFont);
         p.setPen(darkTheme ? QColor(230, 230, 230) : QColor(25, 25, 25));
         QRectF titleRect(cardRect.x() + padX, cardRect.y() + padY, contentW, titleH);
-        p.drawText(titleRect, Qt::AlignLeft | Qt::AlignVCenter, title);
+        drawLabel(p, titleRect, Qt::AlignLeft | Qt::AlignVCenter, title);
 
         // Color Bar
         const qreal barX = cardRect.x() + padX;
@@ -302,7 +327,7 @@ void drawColorBarCard(QPainter& p, const QRectF& cardRect, qreal scale, bool ver
             if (!show[t]) continue;
             p.setFont((t == 0 || t == 4) ? valBoldFont : valFont);
             qreal l, r; span(t, l, r);
-            p.drawText(QRectF(l - 1.0, labelY, (r - l) + 2.0, valuesH),
+            drawLabel(p, QRectF(l - 1.0, labelY, (r - l) + 2.0, valuesH),
                        Qt::AlignHCenter | Qt::AlignVCenter, texts[t]);
         }
     } else {
@@ -326,7 +351,7 @@ void drawColorBarCard(QPainter& p, const QRectF& cardRect, qreal scale, bool ver
         p.setFont(titleFont);
         p.setPen(darkTheme ? QColor(230, 230, 230) : QColor(25, 25, 25));
         QRectF titleRect(cardRect.x() + padX, cardRect.y() + padY, contentW, titleH);
-        p.drawText(titleRect, Qt::AlignLeft | Qt::AlignVCenter, title);
+        drawLabel(p, titleRect, Qt::AlignLeft | Qt::AlignVCenter, title);
 
         const qreal swatchW = 22.0 * scale;
         const qreal swatchH = 12.0 * scale;
@@ -356,7 +381,7 @@ void drawColorBarCard(QPainter& p, const QRectF& cardRect, qreal scale, bool ver
             if (lvl == 8) str += QStringLiteral(" (Max)");
             else if (lvl == 0) str += QStringLiteral(" (Min)");
 
-            p.drawText(QRectF(textX, ry, textW, rowH), Qt::AlignLeft | Qt::AlignVCenter, str);
+            drawLabel(p, QRectF(textX, ry, textW, rowH), Qt::AlignLeft | Qt::AlignVCenter, str);
         }
     }
 }
@@ -810,6 +835,17 @@ bool ExportController::writePdf(const Composition& c, const QString& fileName,
         const qreal edgeW = 1.5 * c.lineScale / c.resample;
         for (const PdfFace& f : *faces) {
             const QColor col = QColor::fromRgb(f.color);
+            if (f.kind == 1) {
+                p.setPen(QPen(col, f.width * c.lineScale / c.resample, Qt::SolidLine, Qt::FlatCap));
+                p.drawLine(f.pts[0], f.pts[1]);
+                continue;
+            }
+            if (f.kind == 2) {
+                p.setPen(Qt::NoPen);
+                p.setBrush(col);
+                p.drawPolygon(f.pts, 3);
+                continue;
+            }
             p.setPen(QPen(col, seam, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
             p.setBrush(col);
             p.drawPolygon(f.pts, 4);
@@ -1177,7 +1213,7 @@ void ExportController::debugExport(QQuickItem* item, const QString& prefix, std:
                     if (vector)
                         for (const svgx::ShadedFace& f : ogl->vectorFaces(comp.sceneSize))
                             faces.push_back({ { f.pts[0], f.pts[1], f.pts[2], f.pts[3] },
-                                              f.color, f.edgeColor, f.edgeMask });
+                                              f.color, f.edgeColor, f.edgeMask, f.kind, f.width });
                     writePdf(comp, prefix + QLatin1Char('_') + c.name + QStringLiteral(".pdf"),
                              vector ? &faces : nullptr);
                     qDebug() << "[export]" << c.name << (vector ? faces.size() : 0) << "polygons";
@@ -1294,6 +1330,8 @@ void ExportController::savePdfTo(QQuickItem* item, const QString& fileName, bool
                     pf.color = f.color;
                     pf.edgeColor = f.edgeColor;
                     pf.edgeMask = f.edgeMask;
+                    pf.kind = f.kind;
+                    pf.width = f.width;
                     faces.push_back(pf);
                 }
             }

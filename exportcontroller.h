@@ -17,7 +17,8 @@ class QPainter;
 
 /// A voxel face for a vector PDF: corners in scene pixels, shaded colour,
 /// outline colour and edge mask (bit e = edge from corner e to e + 1).
-struct PdfFace { QPointF pts[4]; QRgb color; QRgb edgeColor; int edgeMask; };
+/// kind 0 face, 1 line pts[0] -> pts[1] of `width` logical pixels, 2 triangle.
+struct PdfFace { QPointF pts[4]; QRgb color; QRgb edgeColor; int edgeMask; int kind = 0; float width = 0.0f; };
 
 /**
  * @brief Scene export: PNG, clipboard, SVG, CSV, VRML.

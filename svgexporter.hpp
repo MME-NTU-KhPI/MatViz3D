@@ -22,7 +22,10 @@ struct ProjFace { std::vector<QPointF> pts; float depth; QRgb color; };
 /// A voxel face ready for a vector page: projected to the capture's pixels,
 /// shaded like the screen (OpenGLWidgetQML::vectorFaces()), far ones first.
 /// `edgeMask` bit e = outline from corner e to corner e + 1 (0 = none).
-struct ShadedFace { QPointF pts[4]; QRgb color; QRgb edgeColor; int edgeMask; float depth; };
+/// `kind` 0 = a voxel face (4 points), 1 = a line pts[0] -> pts[1] of
+/// `width` logical pixels (scene axis shaft), 2 = a filled triangle (arrowhead).
+struct ShadedFace { QPointF pts[4]; QRgb color; QRgb edgeColor; int edgeMask; float depth;
+                    int kind = 0; float width = 0.0f; };
 
 // Project a world point through mvp into pixels. false = behind the camera.
 inline bool project(const QMatrix4x4& mvp, const GlVertex& g,

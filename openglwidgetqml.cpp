@@ -252,6 +252,82 @@ std::vector<svgx::ShadedFace> OpenGLWidgetQML::vectorFaces(QSize px) const
         f.edgeMask = !outlines ? 0 : (m_outlineKind == 1 ? 15 : ((g0.ao >> 2) & 15));
         out.push_back(f);
     }
+
+    // The scene axes of RenderOpenGL::drawAxisWithMVP(): shafts from the
+    // corner (-n/2, -n/2, -n/2) to 1.15 n minus the cone, arrowheads as
+    // triangles. Cut into short pieces, each sorted by its own depth among
+    // the faces, so the cube hides an axis where the GL depth test would.
+    {
+        auto toPx = [&](const QVector3D& w, QPointF& pt, float& z) {
+            const QVector4D clip = mvp * QVector4D(w, 1.0f);
+            if (clip.w() <= 0.0f) return false;
+            pt = QPointF((clip.x() / clip.w() * 0.5f + 0.5f) * W, (clip.y() / clip.w() * 0.5f + 0.5f) * H);
+            z = (view * QVector4D(w, 1.0f)).z();
+            return true;
+        };
+        const float half = numCubes / 2.0f;
+        const float tip = 1.15f * numCubes;
+        const float coneH = numCubes * 0.08f, coneR = numCubes * 0.03f;
+        const QVector3D origin(-half, -half, -half);
+        const QRgb cols[3] = { qRgb(255, 0, 0), qRgb(0, 255, 0), qRgb(0, 128, 255) };
+        // Pieces lie on cube edges for part of their length. There the faces
+        // that share the edge win, as they do in the GL depth test (a pull
+        // toward the camera drew the axes over the cube, the red one dashed):
+        // a push of 0.6 voxel puts each piece behind the face centres next to it.
+        const float bias = -0.6f;
+        for (int a = 0; a < 3; ++a) {
+            QVector3D dir(0, 0, 0);
+            dir[a] = 1.0f;
+            const QVector3D shaftEnd = origin + dir * (tip - coneH + half);
+            const int pieces = 48;
+            for (int k = 0; k < pieces; ++k) {
+                const QVector3D p0 = origin + (shaftEnd - origin) * (float(k) / pieces);
+                const QVector3D p1 = origin + (shaftEnd - origin) * (float(k + 1) / pieces);
+                svgx::ShadedFace l;
+                float z0, z1;
+                if (!toPx(p0, l.pts[0], z0) || !toPx(p1, l.pts[1], z1)) continue;
+                l.kind = 1;
+                l.width = 1.5f;
+                l.color = cols[a];
+                l.edgeColor = cols[a];
+                l.edgeMask = 0;
+                l.depth = 0.5f * (z0 + z1) + bias;
+                out.push_back(l);
+            }
+            // Arrowhead: the cone's outline as seen, a triangle from the base
+            // circle's widest projected chord to the tip.
+            const QVector3D tipW = origin + dir * (tip + half);
+            const QVector3D baseW = shaftEnd;
+            svgx::ShadedFace t;
+            float zt, zb;
+            QPointF tipP, baseP;
+            if (!toPx(tipW, tipP, zt) || !toPx(baseW, baseP, zb)) continue;
+            QPointF axis2 = tipP - baseP;
+            const qreal len = std::hypot(axis2.x(), axis2.y());
+            if (len < 1e-6) continue;
+            const QPointF perp(-axis2.y() / len, axis2.x() / len);
+            // Projected radius: the larger of the two circle directions.
+            qreal rPx = 0.0;
+            for (int b = 0; b < 3; ++b) {
+                if (b == a) continue;
+                QVector3D e(0, 0, 0);
+                e[b] = coneR;
+                QPointF q; float zq;
+                if (toPx(baseW + e, q, zq)) rPx = std::max(rPx, std::hypot(q.x() - baseP.x(), q.y() - baseP.y()));
+            }
+            t.kind = 2;
+            t.pts[0] = tipP;
+            t.pts[1] = baseP + perp * rPx;
+            t.pts[2] = baseP - perp * rPx;
+            t.pts[3] = tipP;
+            t.color = cols[a];
+            t.edgeColor = cols[a];
+            t.edgeMask = 0;
+            t.depth = 0.5f * (zt + zb) + bias;
+            out.push_back(t);
+        }
+    }
+
     std::sort(out.begin(), out.end(),
               [](const svgx::ShadedFace& a, const svgx::ShadedFace& b) { return a.depth < b.depth; });
     return out;
