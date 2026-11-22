@@ -126,6 +126,7 @@ protected:
     void serveCaptureRequest();
     QImage renderOffscreen(QSize size, CaptureBackground background);
 
+    bool                          m_capturing = false;   // inside renderOffscreen()'s paintGL()
     QMutex                        m_captureMutex;
     std::optional<CaptureRequest> m_captureRequest;
     static std::atomic<int>       s_maxCaptureDim;

@@ -207,7 +207,9 @@ QImage RenderOpenGL::renderOffscreen(QSize size, CaptureBackground background)
 
     ms->bind();
     f->glViewport(0, 0, width, height);
+    m_capturing = true;
     paintGL();
+    m_capturing = false;
     QOpenGLFramebufferObject::blitFramebuffer(&resolved, ms.get(),
                                               GL_COLOR_BUFFER_BIT, GL_NEAREST);
     // Not flipped: Qt Quick shows this FBO's texture with GL's bottom row at
@@ -1031,7 +1033,8 @@ void RenderOpenGL::paintGL()
 
     QMatrix4x4 mvp = m_projection * view * model;
 
-    if (m_svgExportRequested) {
+    // Not during an off-screen capture: the SVG must use the window's size.
+    if (m_svgExportRequested && !m_capturing) {
         // Reuse the exact on-screen MVP -> SVG matches the viewport 1:1.
         svgx::writeVoxelSVG(m_svgExportPath,
                             svgx::facesFromQuadBuffer(voxelScene),

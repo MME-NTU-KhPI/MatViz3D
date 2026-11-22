@@ -727,7 +727,13 @@ void ExportController::captureScene(QQuickItem* item, Background background, Sce
 
 void ExportController::grabScene(QQuickItem* item, SceneCallback done)
 {
-    const QSize targetSize = exportPixelSize(item);
+    // grabToImage() multiplies the size it is given by the window's device
+    // pixel ratio, so ask for the pixel size divided by it: on a 2x screen the
+    // fallback otherwise returned twice the pixels its DPI tag accounts for.
+    QSize targetSize = exportPixelSize(item);
+    const qreal dpr = item->window() ? item->window()->effectiveDevicePixelRatio() : 1.0;
+    if (dpr > 0 && !targetSize.isEmpty())
+        targetSize = (QSizeF(targetSize) / dpr).toSize();
 
     QQuickItem* axisOverlay = item->findChild<QQuickItem*>("axisLabelOverlay");
     if (axisOverlay) axisOverlay->setVisible(false);
