@@ -1179,6 +1179,78 @@ Window {
 
                                     onToggled: exportController.highDpi = checked
                                 }
+
+                                // Background and overlay style: two small segmented rows.
+                                // Auto keeps the old defaults (Save on the theme, Copy on white;
+                                // labels dark on the theme, light otherwise).
+                                Repeater {
+                                    model: [
+                                        { title: qsTr("Background"), prop: "background",
+                                          items: [qsTr("Auto"), qsTr("Theme"), qsTr("White"), qsTr("None")],
+                                          tips: [qsTr("Save: theme colour, Copy: white"), qsTr("The 3D view's background colour"),
+                                                 qsTr("White background"), qsTr("Transparent background (PNG with alpha)")] },
+                                        { title: qsTr("Legend and axes"), prop: "overlayStyle",
+                                          items: [qsTr("Auto"), qsTr("Light"), qsTr("Dark")],
+                                          tips: [qsTr("Dark on the theme background, light on white or transparent"),
+                                                 qsTr("Light card, dark text: for a white page"),
+                                                 qsTr("Dark card, light text: for a dark slide")] }
+                                    ]
+
+                                    delegate: Column {
+                                        id: optionGroup
+                                        required property var modelData
+                                        spacing: 3
+                                        topPadding: 4
+                                        leftPadding: 4
+
+                                        Text {
+                                            text: optionGroup.modelData.title
+                                            font.family: montserrat.name
+                                            font.pixelSize: 11
+                                            color: "#d0d0d0"
+                                        }
+
+                                        Row {
+                                            spacing: 2
+                                            Repeater {
+                                                model: optionGroup.modelData.items
+                                                delegate: Rectangle {
+                                                    id: segment
+                                                    required property int index
+                                                    required property string modelData
+                                                    readonly property bool selected:
+                                                        exportController[optionGroup.modelData.prop] === index
+                                                    width: (186 - 2 * (optionGroup.modelData.items.length - 1))
+                                                           / optionGroup.modelData.items.length
+                                                    height: 22
+                                                    radius: 4
+                                                    color: selected ? "#00897b" : (segmentArea.containsMouse ? "#383838" : "#2A2A2A")
+                                                    border.color: selected ? "#00897b" : "#555555"
+                                                    border.width: 1
+
+                                                    Text {
+                                                        anchors.centerIn: parent
+                                                        text: segment.modelData
+                                                        font.family: montserrat.name
+                                                        font.pixelSize: 10
+                                                        color: segment.selected || segmentArea.containsMouse ? "#ffffff" : "#d0d0d0"
+                                                    }
+
+                                                    MouseArea {
+                                                        id: segmentArea
+                                                        anchors.fill: parent
+                                                        hoverEnabled: true
+                                                        cursorShape: Qt.PointingHandCursor
+                                                        ToolTip.visible: containsMouse
+                                                        ToolTip.delay: 500
+                                                        ToolTip.text: optionGroup.modelData.tips[segment.index]
+                                                        onClicked: exportController[optionGroup.modelData.prop] = segment.index
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

@@ -23,6 +23,9 @@
 #include <QTextStream>
 #include <QDebug>
 #include <QPainter>
+#include <QPainterPath>
+#include <QFontMetricsF>
+#include <QMimeData>
 #include <QFont>
 #include <QPen>
 #include <QBrush>
@@ -33,30 +36,32 @@
 namespace {
 
 /**
- * Replacing the background with white. The background color is taken from the corner pixel;
- * comparison with a tolerance—otherwise, anti-aliased pixels would be missed.
+ * Replace the backdrop of a grabbed on-screen frame with `target` (white, or
+ * fully transparent). Only the grabToImage() fallback needs this: the
+ * off-screen render is cleared to the requested background directly. The
+ * backdrop colour is read from the top-left pixel and matched with a
+ * tolerance, so anti-aliased edge pixels, which are a mix of model and
+ * backdrop, keep their mix -- the reason the off-screen path is preferred.
  */
-QImage makeWhiteBackground(const QImage& src)
+QImage replaceBackground(const QImage& src, const QColor& target)
 {
     if (src.isNull())
         return src;
 
-    QImage img = src.convertToFormat(QImage::Format_RGB32);
-    const QColor bg = img.pixelColor(0, 0);      // background = top-left corner
+    QImage img = src.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    const QRgb bg = img.pixel(0, 0);              // backdrop = top-left corner
+    const QRgb repl = qPremultiply(target.rgba());
 
     const int tol = 6;                            // tolerance in units 0..255
-    const int br = bg.red(), bgr = bg.green(), bb = bg.blue();
-
     for (int y = 0; y < img.height(); ++y) {
         QRgb* line = reinterpret_cast<QRgb*>(img.scanLine(y));
         for (int x = 0; x < img.width(); ++x) {
             const QRgb p = line[x];
-            if (std::abs(qRed(p)   - br)  <= tol &&
-                std::abs(qGreen(p) - bgr) <= tol &&
-                std::abs(qBlue(p)  - bb)  <= tol)
-            {
-                line[x] = qRgb(255, 255, 255);
-            }
+            if (std::abs(qRed(p)   - qRed(bg))   <= tol &&
+                std::abs(qGreen(p) - qGreen(bg)) <= tol &&
+                std::abs(qBlue(p)  - qBlue(bg))  <= tol &&
+                std::abs(qAlpha(p) - qAlpha(bg)) <= tol)
+                line[x] = repl;
         }
     }
     return img;
@@ -86,8 +91,12 @@ void setDpiMetadata(QImage& img, int dpi)
 
 void drawColorBarCard(QPainter& p, const QRectF& cardRect, qreal scale, bool vertical,
                       const QString& compName, double vmin, double vmax,
-                      const QVector<QColor>& colors, bool darkTheme)
+                      const QVector<QColor>& colors, bool darkTheme, bool translucent = false)
 {
+    // On a transparent export the card keeps a backing, so its text reads on
+    // whatever the figure is placed on, but lets the page show through a bit.
+    const QColor cardFill = darkTheme ? QColor(35, 35, 35, translucent ? 205 : 240)
+                                      : QColor(255, 255, 255, translucent ? 215 : 245);
     auto formatVal = [](double v) -> QString {
         if (std::isnan(v)) return QStringLiteral("0");
         if (std::abs(v) >= 10000.0 || (std::abs(v) < 0.001 && v != 0.0)) {
@@ -109,8 +118,7 @@ void drawColorBarCard(QPainter& p, const QRectF& cardRect, qreal scale, bool ver
         // Card background
         p.setPen(darkTheme ? QPen(QColor(80, 80, 80, 220), 1.0 * scale)
                            : QPen(QColor(180, 180, 180, 220), 1.0 * scale));
-        p.setBrush(darkTheme ? QColor(35, 35, 35, 240)
-                             : QColor(255, 255, 255, 245));
+        p.setBrush(cardFill);
         p.drawRoundedRect(cardRect, 8.0 * scale, 8.0 * scale);
 
         // Title
@@ -195,8 +203,7 @@ void drawColorBarCard(QPainter& p, const QRectF& cardRect, qreal scale, bool ver
         // Card background
         p.setPen(darkTheme ? QPen(QColor(80, 80, 80, 220), 1.0 * scale)
                            : QPen(QColor(180, 180, 180, 220), 1.0 * scale));
-        p.setBrush(darkTheme ? QColor(35, 35, 35, 240)
-                             : QColor(255, 255, 255, 245));
+        p.setBrush(cardFill);
         p.drawRoundedRect(cardRect, 8.0 * scale, 8.0 * scale);
 
         // Title
@@ -239,7 +246,7 @@ void drawColorBarCard(QPainter& p, const QRectF& cardRect, qreal scale, bool ver
     }
 }
 
-void drawOrientationGizmo(QPainter& p, const QPointF& origin, qreal scale, OpenGLWidgetQML* ogl, bool /*darkTheme*/)
+void drawOrientationGizmo(QPainter& p, const QPointF& origin, qreal scale, OpenGLWidgetQML* ogl, bool darkTheme)
 {
     QPointF o(0, 0);
     QPointF ptX(1, 0), ptY(0, 1), ptZ(0, 0);
@@ -261,96 +268,102 @@ void drawOrientationGizmo(QPainter& p, const QPointF& origin, qreal scale, OpenG
         return QPointF(v.x() / len, v.y() / len);
     };
 
-    QPointF vX = norm(ptX - o);
-    QPointF vY = norm(ptY - o);
-    QPointF vZ = norm(ptZ - o);
+    const QPointF dirs[3] = { norm(ptX - o), norm(ptY - o), norm(ptZ - o) };
+    const QColor  cols[3] = { QColor(235, 45, 45), QColor(40, 185, 40), QColor(40, 120, 245) };
+    const QString names[3] = { QStringLiteral("X"), QStringLiteral("Y"), QStringLiteral("Z") };
+
+    // A thin halo in the overlay's background colour under every stroke and
+    // letter: on a transparent export the triad may land on any colour, and
+    // the halo keeps it legible there without a card behind it.
+    const QColor halo = darkTheme ? QColor(28, 28, 28, 230) : QColor(255, 255, 255, 235);
+    const qreal  haloW = 2.4 * scale;
 
     const qreal axisLen = 30.0 * scale;
-    const QPointF endX = origin + vX * axisLen;
-    const QPointF endY = origin + vY * axisLen;
-    const QPointF endZ = origin + vZ * axisLen;
+    const qreal penW    = qMax(1.5, 2.2 * scale);
+    const qreal tickW   = qMax(1.2, 1.8 * scale);
+    const qreal aLen    = 7.0 * scale;
+    const qreal aWidth  = 4.0 * scale;
 
-    const QColor colX(235, 45, 45);
-    const QColor colY(40, 185, 40);
-    const QColor colZ(40, 120, 245);
-
-    const qreal penW = qMax(1.5, 2.2 * scale);
-
-    // Draw shafts
-    p.setPen(QPen(colX, penW, Qt::SolidLine, Qt::RoundCap));
-    p.drawLine(origin, endX);
-
-    p.setPen(QPen(colY, penW, Qt::SolidLine, Qt::RoundCap));
-    p.drawLine(origin, endY);
-
-    p.setPen(QPen(colZ, penW, Qt::SolidLine, Qt::RoundCap));
-    p.drawLine(origin, endZ);
-
-    // Arrow ticks at tips
-    auto drawArrow = [&](const QPointF& tip, const QPointF& dir, const QColor& col) {
-        QPointF perp(-dir.y(), dir.x());
-        qreal aLen = 7.0 * scale;
-        qreal aWidth = 4.0 * scale;
-        QPointF back = tip - dir * aLen;
-        p.setPen(QPen(col, qMax(1.2, 1.8 * scale), Qt::SolidLine, Qt::RoundCap));
-        p.drawLine(tip, back + perp * aWidth);
-        p.drawLine(tip, back - perp * aWidth);
-    };
-
-    drawArrow(endX, vX, colX);
-    drawArrow(endY, vY, colY);
-    drawArrow(endZ, vZ, colZ);
-
-    // Labels X, Y, Z
     QFont labelFont("Segoe UI", qMax(8, qRound(10.5 * scale)), QFont::Bold);
-    p.setFont(labelFont);
+    const QFontMetricsF fm(labelFont);
     const qreal textOffset = 13.0 * scale;
-    const qreal boxSize = 24.0 * scale;
 
-    auto drawLabel = [&](const QPointF& end, const QPointF& dir, const QColor& col, const QString& text) {
-        QPointF pos = end + dir * textOffset;
-        p.setPen(col);
-        p.drawText(QRectF(pos.x() - boxSize / 2.0, pos.y() - boxSize / 2.0, boxSize, boxSize),
-                   Qt::AlignCenter, text);
-    };
+    for (int pass = 0; pass < 2; ++pass) {
+        const bool haloPass = (pass == 0);
+        for (int i = 0; i < 3; ++i) {
+            const QPointF end = origin + dirs[i] * axisLen;
+            const QColor  c   = haloPass ? halo : cols[i];
+            const qreal   extra = haloPass ? haloW : 0.0;
 
-    drawLabel(endX, vX, colX, QStringLiteral("X"));
-    drawLabel(endY, vY, colY, QStringLiteral("Y"));
-    drawLabel(endZ, vZ, colZ, QStringLiteral("Z"));
+            p.setPen(QPen(c, penW + extra, Qt::SolidLine, Qt::RoundCap));
+            p.drawLine(origin, end);
+
+            const QPointF perp(-dirs[i].y(), dirs[i].x());
+            const QPointF back = end - dirs[i] * aLen;
+            p.setPen(QPen(c, tickW + extra, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+            p.drawLine(end, back + perp * aWidth);
+            p.drawLine(end, back - perp * aWidth);
+
+            // Label centred on a point beyond the tip, drawn as a path so it
+            // can carry the halo as a stroke.
+            const QPointF centre = end + dirs[i] * textOffset;
+            const QRectF  tb = fm.tightBoundingRect(names[i]);
+            QPainterPath path;
+            path.addText(centre - tb.center(), labelFont, names[i]);
+            if (haloPass) {
+                p.strokePath(path, QPen(halo, haloW, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+            } else {
+                p.fillPath(path, cols[i]);
+            }
+        }
+    }
 }
 
 // ── Step 1 Helper: Obtain and prepare scene image from OGL ─────────
-QImage obtainSceneImage(const QImage& rawImg, bool replaceWhiteBg, QQuickItem* item, qreal scale, QColor& outBgColor,
-                        bool sceneHasCornerAxes)
+// Works in ARGB32_Premultiplied from here on, so a transparent background
+// keeps its alpha through crop and composition.
+QImage obtainSceneImage(const QImage& rawImg, const ExportController::ScreenshotOptions& o,
+                        QQuickItem* item, qreal scale, QColor& outBgColor)
 {
+    using B = ExportController::Background;
     if (rawImg.isNull()) return rawImg;
 
-    QImage img = replaceWhiteBg ? makeWhiteBackground(rawImg) : rawImg.convertToFormat(QImage::Format_RGB32);
-    outBgColor = replaceWhiteBg ? QColor(255, 255, 255) : img.pixelColor(0, 0);
+    QImage img = rawImg.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+
+    if (!o.fromGrab) {
+        // Off-screen render: already on the requested background, no triad.
+        outBgColor = o.background == B::White       ? QColor(255, 255, 255)
+                   : o.background == B::Transparent ? QColor(0, 0, 0, 0)
+                                                    : img.pixelColor(0, 0);
+        return img;
+    }
+
+    // grabToImage() fallback: the on-screen frame with its backdrop and the
+    // corner triad, both replaced by colour matching.
+    if (o.background == B::White) {
+        img = replaceBackground(img, QColor(255, 255, 255));
+        outBgColor = QColor(255, 255, 255);
+    } else if (o.background == B::Transparent) {
+        img = replaceBackground(img, QColor(0, 0, 0, 0));
+        outBgColor = QColor(0, 0, 0, 0);
+    } else {
+        outBgColor = img.pixelColor(0, 0);
+    }
 
     OpenGLWidgetQML* ogl = qobject_cast<OpenGLWidgetQML*>(item);
     if (!ogl) ogl = OpenGLWidgetQML::getInstance();
-
-    // Erase bottom-right corner if corner axes were enabled, otherwise keep pristine
-    if (sceneHasCornerAxes && (!ogl || ogl->showCornerAxes())) {
+    if (!ogl || ogl->showCornerAxes()) {
         const int imgW = img.width();
         const int imgH = img.height();
         const qreal sx = (item && item->width() > 0) ? (qreal)imgW / item->width() : scale;
         const qreal sy = (item && item->height() > 0) ? (qreal)imgH / item->height() : scale;
         const int exclW = qRound(160.0 * sx);
         const int exclH = qRound(160.0 * sy);
-        const QRect cornerExclRect(std::max(0, imgW - exclW), std::max(0, imgH - exclH), exclW, exclH);
-
-        {
-            QPainter pClear(&img);
-            pClear.fillRect(cornerExclRect, outBgColor);
-        }
+        QPainter pClear(&img);
+        pClear.setCompositionMode(QPainter::CompositionMode_Source);
+        pClear.fillRect(QRect(std::max(0, imgW - exclW), std::max(0, imgH - exclH), exclW, exclH),
+                        outBgColor);
     }
-
-    qDebug() << "[obtainSceneImage] Raw size:" << rawImg.size()
-             << "-> Processed size:" << img.size()
-             << "bgColor:" << outBgColor.name();
-
     return img;
 }
 
@@ -363,7 +376,11 @@ QImage cropToUsefulSize(const QImage& src, const QColor& bgColor, qreal scale, Q
     const int imgH = src.height();
     const int br = bgColor.red(), bg_g = bgColor.green(), bb = bgColor.blue();
     const int tol = 8;
+    // A transparent background is found by coverage: any pixel the model
+    // touches at all has alpha > 0. An opaque one by colour, with a tolerance.
+    const bool byAlpha = (bgColor.alpha() == 0);
     auto isBg = [&](QRgb p) {
+        if (byAlpha) return qAlpha(p) == 0;
         return std::abs(qRed(p)   - br)   <= tol &&
                std::abs(qGreen(p) - bg_g) <= tol &&
                std::abs(qBlue(p)  - bb)   <= tol;
@@ -399,15 +416,13 @@ QImage cropToUsefulSize(const QImage& src, const QColor& bgColor, qreal scale, Q
         *outCropRect = cropRect;
     }
 
-    qDebug() << "[cropToUsefulSize] Non-bg bounds:" << QRect(minX, minY, maxX - minX + 1, maxY - minY + 1)
-             << "cropRect (with padding):" << cropRect << "crop size:" << QSize(cropW, cropH);
-
     return src.copy(cropRect);
 }
 
 // ── Step 3 Helper: Generate standalone image of colorbar (legend) ───
 QImage generateColorBarImage(OpenGLWidgetQML* ogl, bool verticalLegend, qreal scale,
-                             bool darkTheme, bool fieldActive, qreal maxAllowedW = -1.0)
+                             bool darkTheme, bool fieldActive, qreal maxAllowedW = -1.0,
+                             bool translucent = false)
 {
     // Check if stress/strain field is active across all controllers
     bool hasField = fieldActive;
@@ -427,10 +442,7 @@ QImage generateColorBarImage(OpenGLWidgetQML* ogl, bool verticalLegend, qreal sc
         if (lsm.hasLoadStepData()) hasField = true;
     }
 
-    if (!hasField) {
-        qDebug() << "[generateColorBarImage] No active field detected, returning empty image";
-        return QImage();
-    }
+    if (!hasField) return QImage();
 
     double vmin = 0.0;
     double vmax = 0.0;
@@ -492,12 +504,8 @@ QImage generateColorBarImage(OpenGLWidgetQML* ogl, bool verticalLegend, qreal sc
         p.setRenderHint(QPainter::Antialiasing, true);
         p.setRenderHint(QPainter::TextAntialiasing, true);
         drawColorBarCard(p, QRectF(0, 0, cardW, cardH), scale, verticalLegend,
-                         compName, vmin, vmax, colors, darkTheme);
+                         compName, vmin, vmax, colors, darkTheme, translucent);
     }
-
-    qDebug() << "[generateColorBarImage] Rendered colorbar image:" << cardImg.size()
-             << "vertical:" << verticalLegend << "component:" << compName
-             << "range: [" << vmin << "," << vmax << "]";
 
     return cardImg;
 }
@@ -520,8 +528,6 @@ QImage generateGizmoImage(OpenGLWidgetQML* ogl, qreal scale, bool darkTheme)
         const QPointF origin(imgW / 2.0, imgH / 2.0);
         drawOrientationGizmo(p, origin, scale, ogl, darkTheme);
     }
-
-    qDebug() << "[generateGizmoImage] Rendered gizmo image:" << gizmoImg.size() << "scale:" << scale;
 
     return gizmoImg;
 }
@@ -564,71 +570,35 @@ void ExportController::overlayColorBar(QImage& img, bool vertical, QQuickItem* i
 // ═══════════════════════════════════════════════════════════════════
 //  Process Screenshot: Background, Crop to Useful Content & Colorbar
 // ═══════════════════════════════════════════════════════════════════
-QImage ExportController::processScreenshot(const QImage& rawImg, bool replaceWhiteBg, bool autoCrop,
-                                           bool verticalLegend, int targetDpi, QQuickItem* item,
-                                           bool fieldActive, bool sceneHasCornerAxes)
+QImage ExportController::processScreenshot(const QImage& rawImg, const ScreenshotOptions& o,
+                                           QQuickItem* item)
 {
-    qDebug() << "==================================================";
-    qDebug() << "[processScreenshot] START: rawImg size =" << rawImg.size()
-             << "replaceWhiteBg =" << replaceWhiteBg
-             << "autoCrop =" << autoCrop
-             << "verticalLegend =" << verticalLegend
-             << "targetDpi =" << targetDpi
-             << "fieldActive =" << fieldActive;
-
     if (rawImg.isNull()) {
         qWarning() << "[processScreenshot] rawImg is null, aborting";
         return rawImg;
     }
 
     // Scale is strictly DPI-proportional: 96 DPI = 1.0, 300 DPI = 3.125
-    const qreal scale = (targetDpi > 0) ? std::clamp((qreal)targetDpi / 96.0, 0.75, 8.0)
-                                        : std::clamp(rawImg.width() / 1280.0, 0.75, 5.0);
-    qDebug() << "[processScreenshot] Calculated scale factor:" << scale;
+    const qreal scale = (o.dpi > 0) ? std::clamp((qreal)o.dpi / 96.0, 0.75, 8.0)
+                                    : std::clamp(rawImg.width() / 1280.0, 0.75, 5.0);
+    const bool transparent = (o.background == Background::Transparent);
 
     OpenGLWidgetQML* ogl = qobject_cast<OpenGLWidgetQML*>(item);
     if (!ogl) ogl = OpenGLWidgetQML::getInstance();
 
-    // ── STEP 1: OBTAIN IMAGE FROM OGL ───────────────────────────────
+    // ── 1. Scene image on the requested background ───────────────────
     QColor bgColor;
-    QImage sceneImg = obtainSceneImage(rawImg, replaceWhiteBg, item, scale, bgColor, sceneHasCornerAxes);
-    const bool darkTheme = (bgColor.lightness() < 128);
-    qDebug() << "[processScreenshot] Step 1 (Obtain Image from OGL):"
-             << "sceneImg size =" << sceneImg.size()
-             << "bgColor =" << bgColor.name()
-             << "darkTheme =" << darkTheme;
+    QImage sceneImg = obtainSceneImage(rawImg, o, item, scale, bgColor);
 
-    // ── STEP 2: CROP IT TO USEFUL SIZE ──────────────────────────────
-    QRect cropRect(0, 0, sceneImg.width(), sceneImg.height());
-    QImage croppedModel;
-    if (autoCrop) {
-        croppedModel = cropToUsefulSize(sceneImg, bgColor, scale, &cropRect);
-        qDebug() << "[processScreenshot] Step 2 (Crop to Useful Size):"
-                 << "autoCrop = true, cropRect =" << cropRect
-                 << "croppedModel size =" << croppedModel.size();
-    } else {
-        croppedModel = sceneImg;
-        qDebug() << "[processScreenshot] Step 2 (Crop to Useful Size):"
-                 << "autoCrop = false, retaining full size =" << croppedModel.size();
-    }
+    // ── 2. Crop to the model ─────────────────────────────────────────
+    QImage croppedModel = o.autoCrop ? cropToUsefulSize(sceneImg, bgColor, scale) : sceneImg;
 
-    // ── STEP 3: GENERATE IMAGE OF COLORBAR (LEGEND) ─────────────────
-    QImage colorbarImg = generateColorBarImage(ogl, verticalLegend, scale, darkTheme, fieldActive);
-    if (!colorbarImg.isNull()) {
-        qDebug() << "[processScreenshot] Step 3 (Generate ColorBar):"
-                 << "colorbar image generated, size =" << colorbarImg.size()
-                 << "vertical =" << verticalLegend;
-    } else {
-        qDebug() << "[processScreenshot] Step 3 (Generate ColorBar):"
-                 << "no active stress/strain field, colorbar omitted";
-    }
+    // ── 3, 4. Legend and gizmo, in the overlay style asked for ───────
+    QImage colorbarImg = generateColorBarImage(ogl, o.verticalLegend, scale, o.darkOverlay,
+                                               o.fieldActive, -1.0, transparent);
+    QImage gizmoImg = generateGizmoImage(ogl, scale, o.darkOverlay);
 
-    // ── STEP 4: GENERATE IMAGE OF GIZMO ─────────────────────────────
-    QImage gizmoImg = generateGizmoImage(ogl, scale, darkTheme);
-    qDebug() << "[processScreenshot] Step 4 (Generate Gizmo):"
-             << "gizmo image generated, size =" << gizmoImg.size();
-
-    // ── STEP 5: ADD EMPTY SPACE FOR COLORBAR & GIZMO ────────────────
+    // ── 5. Layout ────────────────────────────────────────────────────
     int finalW = croppedModel.width();
     int finalH = croppedModel.height();
     QPoint modelPos(0, 0);
@@ -641,10 +611,9 @@ QImage ExportController::processScreenshot(const QImage& rawImg, bool replaceWhi
     const qreal bottomPad = 14.0 * scale;
     const qreal gapAbove = 14.0 * scale;
 
-    if (autoCrop) {
-        // Extra bottom space is ONLY needed when a colorbar card is present.
-        // When there is no colorbar, the gizmo overlays in the bottom-right corner of the
-        // cropped model canvas without allocating an empty bottom strip.
+    if (o.autoCrop) {
+        // Extra bottom space only for a colour bar; without one the gizmo
+        // sits in the bottom-right corner of the cropped model.
         int extraBottom = 0;
         if (hasColorBar) {
             const qreal bottomItemH = std::max((qreal)colorbarImg.height(), 80.0 * scale);
@@ -657,75 +626,48 @@ QImage ExportController::processScreenshot(const QImage& rawImg, bool replaceWhi
 
         finalW = std::max(croppedModel.width(), qRound(minReqW));
         finalH = croppedModel.height() + extraBottom;
-
-        // Center model horizontally if canvas was widened to accommodate bottom controls
         modelPos = QPoint((finalW - croppedModel.width()) / 2, 0);
 
-        if (hasColorBar) {
+        if (hasColorBar)
             colorbarPos = QPoint(qRound(marginL), qRound(finalH - bottomPad - colorbarImg.height()));
-        }
 
         const qreal gx = finalW - marginR - 45.0 * scale;
         const qreal gy = finalH - bottomPad - 42.0 * scale;
         gizmoPos = QPoint(qRound(gx - gizmoImg.width() / 2.0),
                           qRound(gy - gizmoImg.height() / 2.0));
-
-        qDebug() << "[processScreenshot] Step 5 (Add Empty Space & Layout): autoCrop = true,"
-                 << "hasColorBar =" << hasColorBar
-                 << "extraBottom =" << extraBottom
-                 << "final canvas size =" << QSize(finalW, finalH)
-                 << "modelPos =" << modelPos
-                 << "colorbarPos =" << colorbarPos
-                 << "gizmoPos =" << gizmoPos;
     } else {
-        finalW = sceneImg.width();
-        finalH = sceneImg.height();
-        modelPos = QPoint(0, 0);
-
-        if (!colorbarImg.isNull()) {
+        if (hasColorBar)
             colorbarPos = QPoint(qRound(20.0 * scale),
                                  qRound(finalH - colorbarImg.height() - 20.0 * scale));
-        }
-
         const qreal gx = finalW - 60.0 * scale;
         const qreal gy = finalH - 55.0 * scale;
         gizmoPos = QPoint(qRound(gx - gizmoImg.width() / 2.0),
                           qRound(gy - gizmoImg.height() / 2.0));
-
-        qDebug() << "[processScreenshot] Step 5 (Add Empty Space & Layout): autoCrop = false (overlay mode),"
-                 << "canvas size =" << QSize(finalW, finalH)
-                 << "colorbarPos =" << colorbarPos
-                 << "gizmoPos =" << gizmoPos;
     }
 
-    // ── STEP 6: JOIN ALL IMAGES TOGETHER ────────────────────────────
-    QImage resultImg(finalW, finalH, sceneImg.format());
-    resultImg.fill(bgColor);
-
+    // ── 6. Compose (premultiplied ARGB, source-over) ─────────────────
+    QImage resultImg(finalW, finalH, QImage::Format_ARGB32_Premultiplied);
+    resultImg.fill(bgColor);   // QColor(0,0,0,0) -> fully transparent
     {
         QPainter p(&resultImg);
         p.setRenderHint(QPainter::Antialiasing, true);
         p.setRenderHint(QPainter::SmoothPixmapTransform, true);
-
-        // 1. Draw cropped model image
         p.drawImage(modelPos, croppedModel);
-
-        // 2. Draw colorbar image (if present)
-        if (!colorbarImg.isNull()) {
-            p.drawImage(colorbarPos, colorbarImg);
-        }
-
-        // 3. Draw gizmo image (if present)
-        if (!gizmoImg.isNull()) {
-            p.drawImage(gizmoPos, gizmoImg);
-        }
+        if (hasColorBar)        p.drawImage(colorbarPos, colorbarImg);
+        if (!gizmoImg.isNull()) p.drawImage(gizmoPos, gizmoImg);
     }
 
-    setDpiMetadata(resultImg, targetDpi);
-    qDebug() << "[processScreenshot] Step 6 (Join Images): Composite completed successfully, final size ="
-             << resultImg.size() << "DPI =" << targetDpi;
-    qDebug() << "==================================================";
+    // An opaque export is written without an alpha channel: smaller files,
+    // and no viewer can show a stray semi-transparent pixel.
+    if (!transparent)
+        resultImg = resultImg.convertToFormat(QImage::Format_RGB32);
 
+    setDpiMetadata(resultImg, o.dpi);
+    qDebug().noquote() << QStringLiteral("[processScreenshot] %1 x %2 at %3 DPI, background %4, %5 overlay, %6")
+                              .arg(resultImg.width()).arg(resultImg.height()).arg(o.dpi)
+                              .arg(transparent ? "transparent" : o.background == Background::White ? "white" : "theme")
+                              .arg(o.darkOverlay ? "dark" : "light")
+                              .arg(o.fromGrab ? "grabbed frame" : "off-screen render");
     return resultImg;
 }
 
@@ -745,15 +687,15 @@ QSize ExportController::exportPixelSize(QQuickItem* item) const
     return size;
 }
 
-void ExportController::captureScene(QQuickItem* item, SceneBackground background, SceneCallback done)
+void ExportController::captureScene(QQuickItem* item, Background background, SceneCallback done)
 {
     OpenGLWidgetQML* ogl = qobject_cast<OpenGLWidgetQML*>(item);
     // MATVIZ_EXPORT_GRAB=1 forces the old path, for before / after comparisons.
     static const bool forceGrab = qEnvironmentVariableIntValue("MATVIZ_EXPORT_GRAB") != 0;
     if (ogl && !forceGrab) {
         const RenderOpenGL::CaptureBackground bg =
-            background == SceneBackground::White       ? RenderOpenGL::CaptureBackground::White
-          : background == SceneBackground::Transparent ? RenderOpenGL::CaptureBackground::Transparent
+            background == Background::White       ? RenderOpenGL::CaptureBackground::White
+          : background == Background::Transparent ? RenderOpenGL::CaptureBackground::Transparent
                                                        : RenderOpenGL::CaptureBackground::Theme;
         QPointer<QQuickItem> guard(item);
         // The request is served by the next frame, and a window that is not
@@ -812,7 +754,35 @@ void ExportController::grabScene(QQuickItem* item, SceneCallback done)
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  PNG — original scene colors
+//  Options from the current settings
+// ═══════════════════════════════════════════════════════════════════
+ExportController::ScreenshotOptions ExportController::currentOptions(bool forClipboard, bool verticalLegend,
+                                                                     bool fieldActive) const
+{
+    ScreenshotOptions o;
+    Background bg = Background(m_background);
+    if (bg == Background::Auto)   // the historical defaults
+        bg = forClipboard ? Background::White : Background::Theme;
+    o.background = bg;
+
+    switch (OverlayStyle(m_overlayStyle)) {
+    case OverlayStyle::Light: o.darkOverlay = false; break;
+    case OverlayStyle::Dark:  o.darkOverlay = true;  break;
+    case OverlayStyle::Auto:
+        // Dark on the dark theme backdrop; light on white, and on transparent,
+        // because a figure is far more often placed on a white page.
+        o.darkOverlay = (bg == Background::Theme);
+        break;
+    }
+    o.autoCrop       = m_autoCrop;
+    o.verticalLegend = verticalLegend;
+    o.dpi            = m_dpi;
+    o.fieldActive    = fieldActive;
+    return o;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  PNG
 // ═══════════════════════════════════════════════════════════════════
 void ExportController::saveAsImage(QQuickItem* item)
 {
@@ -846,27 +816,48 @@ void ExportController::saveImageTo(QQuickItem* item, const QString& fileName,
         return;
     }
     QPointer<QQuickItem> guard(item);
-    captureScene(item, SceneBackground::Theme,
-        [this, guard, fileName, verticalLegend, fieldActive](QImage rawImg, bool offscreen) {
+    const ScreenshotOptions opts = currentOptions(false, verticalLegend, fieldActive);
+    captureScene(item, opts.background,
+        [this, guard, fileName, opts](QImage rawImg, bool offscreen) {
             if (rawImg.isNull()) {
                 emit exportFailed(tr("Captured image is empty"));
                 return;
             }
-            QImage img = processScreenshot(rawImg, false, m_autoCrop, verticalLegend, m_dpi,
-                                           guard, fieldActive, /*sceneHasCornerAxes=*/!offscreen);
+            ScreenshotOptions o = opts;
+            o.fromGrab = !offscreen;
+            QImage img = processScreenshot(rawImg, o, guard);
             if (!img.save(fileName)) {
                 emit exportFailed(tr("Failed to save image to ") + fileName);
                 return;
             }
-            qDebug() << "Image saved:" << fileName << img.size() << "DPI:" << m_dpi
-                     << (offscreen ? "(off-screen render)" : "(grabToImage)");
+            qDebug() << "Image saved:" << fileName << img.size() << "DPI:" << m_dpi;
             emit exportFinished(fileName);
         });
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  Clipboard — white background, auto-cropped, at the export DPI
+//  Clipboard
 // ═══════════════════════════════════════════════════════════════════
+void ExportController::putImageOnClipboard(const QImage& img)
+{
+    auto* mime = new QMimeData;
+    // PNG keeps the alpha channel; the plain image is what applications that
+    // only take the platform bitmap (CF_DIB, image/bmp) read.
+    QByteArray png;
+    QBuffer buffer(&png);
+    buffer.open(QIODevice::WriteOnly);
+    img.save(&buffer, "PNG");
+    buffer.close();
+    mime->setData(QStringLiteral("image/png"), png);   // X11 / Wayland, macOS (public.png)
+#ifdef Q_OS_WIN
+    // Windows applications (Office, browsers, Inkscape) read the registered
+    // clipboard format named "PNG"; Qt would otherwise register "image/png".
+    mime->setData(QStringLiteral("application/x-qt-windows-mime;value=\"PNG\""), png);
+#endif
+    mime->setImageData(img);
+    QGuiApplication::clipboard()->setMimeData(mime);   // takes ownership
+}
+
 void ExportController::copyToClipboard(QQuickItem* item)
 {
     copyToClipboard(item, m_legendVertical, false);
@@ -879,20 +870,18 @@ void ExportController::copyToClipboard(QQuickItem* item, bool verticalLegend, bo
         return;
     }
     QPointer<QQuickItem> guard(item);
-    captureScene(item, SceneBackground::White,
-        [this, guard, verticalLegend, fieldActive](QImage rawImg, bool offscreen) {
+    const ScreenshotOptions opts = currentOptions(true, verticalLegend, fieldActive);
+    captureScene(item, opts.background,
+        [this, guard, opts](QImage rawImg, bool offscreen) {
             if (rawImg.isNull()) {
                 emit exportFailed(tr("Captured image is empty"));
                 return;
             }
-            // The off-screen render is already on white; only the grabbed
-            // on-screen frame needs its backdrop replaced.
-            QImage img = processScreenshot(rawImg, /*replaceWhiteBg=*/!offscreen, m_autoCrop,
-                                           verticalLegend, m_dpi, guard, fieldActive,
-                                           /*sceneHasCornerAxes=*/!offscreen);
-            QGuiApplication::clipboard()->setImage(img);
-            qDebug() << "Screenshot copied to clipboard" << img.size() << "DPI:" << m_dpi
-                     << (offscreen ? "(off-screen render)" : "(grabToImage)");
+            ScreenshotOptions o = opts;
+            o.fromGrab = !offscreen;
+            const QImage img = processScreenshot(rawImg, o, guard);
+            putImageOnClipboard(img);
+            qDebug() << "Screenshot copied to clipboard" << img.size() << "DPI:" << m_dpi;
             emit exportFinished(QString());
         });
 }
@@ -900,26 +889,53 @@ void ExportController::copyToClipboard(QQuickItem* item, bool verticalLegend, bo
 void ExportController::debugExport(QQuickItem* item, const QString& prefix, std::function<void()> finished)
 {
     if (!item) { qWarning() << "[export] MATVIZ_EXPORT: no 3D view"; if (finished) finished(); return; }
-    QPointer<QQuickItem> guard(item);
-    // One request at a time: a second one would replace the first unserved.
-    captureScene(item, SceneBackground::Theme, [=](QImage raw, bool offscreen) {
-        processScreenshot(raw, false, m_autoCrop, m_legendVertical, m_dpi, guard, false, !offscreen)
-            .save(prefix + QStringLiteral("_theme.png"));
-        qDebug() << "[export] theme" << raw.size() << (offscreen ? "off-screen" : "grab");
-        if (!guard) { if (finished) finished(); return; }
-        captureScene(guard, SceneBackground::White, [=](QImage raw, bool offscreen) {
-            processScreenshot(raw, !offscreen, m_autoCrop, m_legendVertical, m_dpi, guard, false, !offscreen)
-                .save(prefix + QStringLiteral("_clipboard.png"));
-            qDebug() << "[export] white" << raw.size() << (offscreen ? "off-screen" : "grab");
-            if (!guard) { if (finished) finished(); return; }
-            captureScene(guard, SceneBackground::Transparent, [=](QImage raw, bool offscreen) {
-                raw.save(prefix + QStringLiteral("_raw_transparent.png"));
-                qDebug() << "[export] transparent" << raw.size() << raw.format()
-                         << (offscreen ? "off-screen" : "grab");
-                if (finished) finished();
-            });
-        });
+
+    // One capture at a time (a second request would replace the first), so
+    // the cases run as a chain.
+    struct Case { QString name; bool clipboard; Background bg; int overlay; bool raw; };
+    auto cases = std::make_shared<QList<Case>>(QList<Case>{
+        { QStringLiteral("save"),        false, Background(m_background), m_overlayStyle, false },
+        { QStringLiteral("copy"),        true,  Background(m_background), m_overlayStyle, false },
+        { QStringLiteral("transparent"), false, Background::Transparent,  m_overlayStyle, false },
+        { QStringLiteral("transparent_dark"), false, Background::Transparent, int(OverlayStyle::Dark), false },
+        { QStringLiteral("raw_transparent"),  false, Background::Transparent, m_overlayStyle, true },
     });
+    QPointer<QQuickItem> guard(item);
+    auto next = std::make_shared<std::function<void()>>();
+    *next = [this, cases, guard, prefix, finished, next]() {
+        if (cases->isEmpty() || !guard) {
+            if (finished) finished();
+            *next = nullptr;   // break the cycle
+            return;
+        }
+        const Case c = cases->takeFirst();
+        const int savedBg = m_background, savedOverlay = m_overlayStyle;
+        m_background = int(c.bg);
+        m_overlayStyle = c.overlay;
+        ScreenshotOptions opts = currentOptions(c.clipboard, m_legendVertical, false);
+        m_background = savedBg;
+        m_overlayStyle = savedOverlay;
+
+        captureScene(guard, opts.background, [this, c, opts, guard, prefix, next](QImage raw, bool offscreen) {
+            const QString file = prefix + QLatin1Char('_') + c.name + QStringLiteral(".png");
+            if (c.raw) {
+                raw.save(file);
+            } else {
+                ScreenshotOptions o = opts;
+                o.fromGrab = !offscreen;
+                const QImage img = processScreenshot(raw, o, guard);
+                img.save(file);
+                if (c.clipboard) {
+                    putImageOnClipboard(img);
+                    qDebug() << "[export] clipboard formats:"
+                             << QGuiApplication::clipboard()->mimeData()->formats();
+                }
+            }
+            qDebug() << "[export]" << c.name << raw.size() << (offscreen ? "off-screen" : "grab");
+            if (*next) (*next)();
+        });
+    };
+    (*next)();
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -950,7 +966,8 @@ void ExportController::saveAsSVG(QQuickItem* item)
     connect(grab.data(), &QQuickItemGrabResult::ready, this,
             [this, grab, fileName]()
             {
-                QImage img = makeWhiteBackground(grab->image());
+                QImage img = replaceBackground(grab->image(), Qt::white)
+                                 .convertToFormat(QImage::Format_RGB32);
                 if (img.isNull()) {
                     emit exportFailed(tr("Captured image is empty"));
                     return;

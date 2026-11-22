@@ -5,6 +5,7 @@
 #include <QString>
 #include <QImage>
 #include <functional>
+#include <algorithm>
 
 class QQuickItem;
 
@@ -31,8 +32,34 @@ class ExportController : public QObject
     Q_PROPERTY(bool autoCrop       READ autoCrop       WRITE setAutoCrop       NOTIFY autoCropChanged)
     Q_PROPERTY(bool highDpi        READ highDpi        WRITE setHighDpi        NOTIFY highDpiChanged)
     Q_PROPERTY(int  dpi            READ dpi            WRITE setDpi            NOTIFY dpiChanged)
+    /// Background of Save / Copy: 0 Auto (Save: theme, Copy: white), 1 Theme,
+    /// 2 White, 3 Transparent. See Background.
+    Q_PROPERTY(int  background     READ background     WRITE setBackground     NOTIFY backgroundChanged)
+    /// Legend card and axis labels: 0 Auto (dark on the theme background,
+    /// light on white or transparent), 1 Light, 2 Dark. See OverlayStyle.
+    Q_PROPERTY(int  overlayStyle   READ overlayStyle   WRITE setOverlayStyle   NOTIFY overlayStyleChanged)
 
 public:
+    enum class Background   { Auto = 0, Theme = 1, White = 2, Transparent = 3 };
+    enum class OverlayStyle { Auto = 0, Light = 1, Dark = 2 };
+
+    /// What processScreenshot() makes of a raw scene image. `background` is a
+    /// resolved one (never Auto), `darkOverlay` the resolved overlay style.
+    struct ScreenshotOptions
+    {
+        Background background     = Background::Theme;
+        bool       darkOverlay    = true;
+        bool       autoCrop       = true;
+        bool       verticalLegend = false;
+        int        dpi            = 300;
+        bool       fieldActive    = false;
+        /// The raw image is the on-screen frame from grabToImage(): it still
+        /// has the corner triad and the theme backdrop, which are replaced by
+        /// colour matching. False for the off-screen render, which is already
+        /// on the requested background, triad-free.
+        bool       fromGrab       = false;
+    };
+
     explicit ExportController(QObject* parent = nullptr);
 
     Q_INVOKABLE void saveAsImage(QQuickItem* item);
@@ -62,6 +89,17 @@ public:
     Q_INVOKABLE void setDpi(int v) { if (m_dpi != v) { m_dpi = v; emit dpiChanged(); } }
     int dpi() const { return m_dpi; }
 
+    Q_INVOKABLE void setBackground(int v) { v = std::clamp(v, 0, 3); if (m_background != v) { m_background = v; emit backgroundChanged(); } }
+    int background() const { return m_background; }
+
+    Q_INVOKABLE void setOverlayStyle(int v) { v = std::clamp(v, 0, 2); if (m_overlayStyle != v) { m_overlayStyle = v; emit overlayStyleChanged(); } }
+    int overlayStyle() const { return m_overlayStyle; }
+
+    /// Put an image on the clipboard as PNG (with its alpha) and as a plain
+    /// image: some applications on Linux only read image/png, others only the
+    /// platform bitmap, which carries no alpha.
+    static void putImageOnClipboard(const QImage& img);
+
 
     static bool writeVoxelsCSV(const QString& path, int32_t*** voxels,
                                int numCubes, QString* error = nullptr);
@@ -77,9 +115,10 @@ public:
     static bool writeGeometryHDF5(const QString& path, int32_t*** voxels, int size, QString* error = nullptr);
 
     static void overlayColorBar(QImage& img, bool vertical = false, QQuickItem* item = nullptr);
-    static QImage processScreenshot(const QImage& rawImg, bool replaceWhiteBg, bool autoCrop,
-                                    bool verticalLegend, int targetDpi = 300, QQuickItem* item = nullptr,
-                                    bool fieldActive = false, bool sceneHasCornerAxes = true);
+    /// Crop, lay out legend and gizmo, compose. Returns ARGB32_Premultiplied
+    /// for a transparent background and RGB32 otherwise, with the DPI set.
+    static QImage processScreenshot(const QImage& rawImg, const ScreenshotOptions& options,
+                                    QQuickItem* item = nullptr);
 
     Q_INVOKABLE void exportToCSV();
     Q_INVOKABLE void exportToVRML();
@@ -94,14 +133,18 @@ signals:
     void autoCropChanged();
     void highDpiChanged();
     void dpiChanged();
+    void backgroundChanged();
+    void overlayStyleChanged();
 
 private:
-    enum class SceneBackground { Theme, White, Transparent };
     /// Raw scene image at the export resolution. `offscreen` says whether it
     /// came from the off-screen render (no corner triad in it, background as
     /// asked) or from grabToImage() (on-screen look, rescaled).
     using SceneCallback = std::function<void(QImage img, bool offscreen)>;
-    void captureScene(QQuickItem* item, SceneBackground background, SceneCallback done);
+    /// `background` must be resolved (not Auto).
+    void captureScene(QQuickItem* item, Background background, SceneCallback done);
+    /// The options of the current settings; `forClipboard` picks Auto's meaning.
+    ScreenshotOptions currentOptions(bool forClipboard, bool verticalLegend, bool fieldActive) const;
     void grabScene(QQuickItem* item, SceneCallback done);
     QSize exportPixelSize(QQuickItem* item) const;
 
@@ -110,6 +153,8 @@ private:
     bool m_autoCrop       = true;
     bool m_highDpi        = true;
     int  m_dpi            = 300;
+    int  m_background     = int(Background::Auto);
+    int  m_overlayStyle   = int(OverlayStyle::Auto);
 };
 
 #endif // EXPORTCONTROLLER_H
