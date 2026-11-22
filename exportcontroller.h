@@ -269,6 +269,9 @@ private:
     void grabScene(QQuickItem* item, SceneCallback done);
     QSize exportPixelSize(QQuickItem* item) const;
 
+    /// matviz3d-ddMMyyyy-HHmmss.<ext>, in the folder of the last screenshot saved.
+    static QString defaultScreenshotPath(const QString& ext);
+    static void rememberScreenshotDir(const QString& fileName);
     bool fetchVoxels(int32_t***& voxelsOut, int& numCubesOut);
     bool m_legendVertical = false;
     bool m_autoCrop       = true;

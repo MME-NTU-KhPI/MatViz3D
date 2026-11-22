@@ -14,6 +14,8 @@
 #include <memory>
 #include <QFileDialog>
 #include <QDir>
+#include <QDateTime>
+#include <QFileInfo>
 #include <QClipboard>
 #include <QGuiApplication>
 #include <QImage>
@@ -1065,10 +1067,11 @@ void ExportController::saveAsImage(QQuickItem* item, bool verticalLegend, bool f
 
     QString selected;
     QString fileName = QFileDialog::getSaveFileName(
-        nullptr, tr("Save Image"), "",
+        nullptr, tr("Save Image"), defaultScreenshotPath(QStringLiteral("png")),
         tr("PNG image (*.png);;PDF document (*.pdf)"), &selected);
     if (fileName.isEmpty())
         return;
+    rememberScreenshotDir(fileName);
 
     const bool pdf = fileName.endsWith(".pdf", Qt::CaseInsensitive)
                   || (!fileName.endsWith(".png", Qt::CaseInsensitive) && selected.contains("pdf"));
@@ -1083,16 +1086,42 @@ void ExportController::saveAsImage(QQuickItem* item, bool verticalLegend, bool f
     saveImageTo(item, fileName, verticalLegend, fieldActive);
 }
 
+namespace {
+/// Folder of the last screenshot saved in this session (empty: the dialog's own default).
+QString& lastScreenshotDir()
+{
+    static QString dir;
+    return dir;
+}
+}
+
+/// Suggested path of a screenshot: matviz3d-ddMMyyyy-HHmmss.<ext> in the
+/// folder used last.
+QString ExportController::defaultScreenshotPath(const QString& ext)
+{
+    const QString name = QStringLiteral("matviz3d-%1.%2")
+                             .arg(QDateTime::currentDateTime().toString(QStringLiteral("ddMMyyyy-HHmmss")), ext);
+    const QString& dir = lastScreenshotDir();
+    return dir.isEmpty() ? name : QDir(dir).filePath(name);
+}
+
+void ExportController::rememberScreenshotDir(const QString& fileName)
+{
+    lastScreenshotDir() = QFileInfo(fileName).absolutePath();
+}
+
 void ExportController::saveAsPdf(QQuickItem* item, bool verticalLegend, bool fieldActive)
 {
     if (!item) {
         emit exportFailed(tr("Scene item is not available"));
         return;
     }
-    QString fileName = QFileDialog::getSaveFileName(nullptr, tr("Save as PDF"), "",
+    QString fileName = QFileDialog::getSaveFileName(nullptr, tr("Save as PDF"),
+                                                    defaultScreenshotPath(QStringLiteral("pdf")),
                                                     tr("PDF document (*.pdf)"));
     if (fileName.isEmpty())
         return;
+    rememberScreenshotDir(fileName);
     if (!fileName.endsWith(".pdf", Qt::CaseInsensitive))
         fileName += ".pdf";
     savePdfTo(item, fileName, verticalLegend, fieldActive, m_pdfVectorModel);
@@ -1263,10 +1292,11 @@ void ExportController::saveAsSVG(QQuickItem* item)
     }
 
     QString fileName = QFileDialog::getSaveFileName(
-        nullptr, tr("Save as SVG (image)"), "",
+        nullptr, tr("Save as SVG (image)"), defaultScreenshotPath(QStringLiteral("svg")),
         tr("SVG Files (*.svg)"));
     if (fileName.isEmpty())
         return;
+    rememberScreenshotDir(fileName);
 
     if (!fileName.endsWith(".svg", Qt::CaseInsensitive))
         fileName += ".svg";
@@ -1440,8 +1470,9 @@ void ExportController::saveAsVectorSVG(QQuickItem* /*item*/)
     if (!ogl) { emit exportFailed(tr("Renderer is not available")); return; }
 
     QString fileName = QFileDialog::getSaveFileName(
-        nullptr, tr("Save as vector SVG"), "", tr("SVG Files (*.svg)"));
+        nullptr, tr("Save as vector SVG"), defaultScreenshotPath(QStringLiteral("svg")), tr("SVG Files (*.svg)"));
     if (fileName.isEmpty()) return;
+    rememberScreenshotDir(fileName);
     if (!fileName.endsWith(".svg", Qt::CaseInsensitive)) fileName += ".svg";
 
     ogl->requestSvgExport(fileName);  // queued; written on the render thread next frame
