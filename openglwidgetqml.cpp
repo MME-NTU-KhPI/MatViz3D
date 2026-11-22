@@ -573,7 +573,7 @@ QVector<QColor> OpenGLWidgetQML::getColorMap(int numLevels)
 
 void OpenGLWidgetQML::setColorMapPalette(int palette)
 {
-    palette = std::min(int(ColorMapPalette::Grayscale), std::max(0, palette));
+    palette = std::min(matviz_cmap::kPaletteCount - 1, std::max(0, palette));
     if (int(colorMapPalette) == palette) return;
     colorMapPalette = static_cast<ColorMapPalette>(palette);
     emit colorMapPaletteChanged();
@@ -1030,67 +1030,13 @@ void OpenGLWidgetQML::setStreamlineTubeRadius(qreal radius)
 
 std::vector<std::array<GLubyte, 4>> OpenGLWidgetQML::generateDistinctColors()
 {
+    // Opaque OKLCH colours, golden-ratio hues (matviz_cmap::grainColor): a
+    // grain keeps its colour whatever the grain count.
     std::vector<std::array<GLubyte, 4>> colors;
-    if (numColors <= 0) {
-        return std::vector<std::array<GLubyte, 4>>();
-    }
-    float hueIncrement = 360.0f / numColors;
-
-
-    for (int i = 0; i < numColors; ++i) {
-        float hue = i * hueIncrement;
-        float saturation = 1.0f;
-        float value = 1.0f;
-        // Opaque: a voxel face has nothing behind it but the background, so
-        // 0.85 only mixed the backdrop into every grain and made a model
-        // exported on a transparent background see-through.
-        float alpha = 1.0f;
-
-        float chroma = saturation * value;
-        float huePrime = hue / 60.0f;
-        float x = chroma * (1.0f - std::abs(std::fmod(huePrime, 2.0f) - 1.0f));
-        float r, g, b;
-
-        if (huePrime >= 0 && huePrime < 1)
-        {
-            r = chroma;
-            g = x;
-            b = 0;
-        } else if (huePrime >= 1 && huePrime < 2)
-        {
-            r = x;
-            g = chroma;
-            b = 0;
-        } else if (huePrime >= 2 && huePrime < 3)
-        {
-            r = 0;
-            g = chroma;
-            b = x;
-        } else if (huePrime >= 3 && huePrime < 4)
-        {
-            r = 0;
-            g = x;
-            b = chroma;
-        } else if (huePrime >= 4 && huePrime < 5)
-        {
-            r = x;
-            g = 0;
-            b = chroma;
-        } else
-        {
-            r = chroma;
-            g = 0;
-            b = x;
-        }
-
-        float m = value - chroma;
-        r += m;
-        g += m;
-        b += m;
-
-        colors.push_back({GLubyte(r*255), GLubyte(g*255), GLubyte(b*255), GLubyte(alpha*255)});
-    }
-
+    if (numColors <= 0) return colors;
+    colors.reserve(size_t(numColors));
+    for (int i = 0; i < numColors; ++i)
+        colors.push_back(matviz_cmap::grainColor(i));
     return colors;
 }
 

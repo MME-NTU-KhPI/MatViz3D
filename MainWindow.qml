@@ -2183,13 +2183,19 @@ Window {
                             onTriggered: glWidget.colorMapPalette = 0
                         }
                         MenuItem {
-                            text: qsTr("Cool-Warm (blue-white-red)")
+                            text: qsTr("Turbo")
+                            checkable: true
+                            checked: glWidget.colorMapPalette === 5
+                            onTriggered: glWidget.colorMapPalette = 5
+                        }
+                        MenuItem {
+                            text: qsTr("Cool-Warm (blue-grey-red)")
                             checkable: true
                             checked: glWidget.colorMapPalette === 1
                             onTriggered: glWidget.colorMapPalette = 1
                         }
                         MenuItem {
-                            text: qsTr("Red-Blue (red-white-blue)")
+                            text: qsTr("Red-Blue (red-grey-blue)")
                             checkable: true
                             checked: glWidget.colorMapPalette === 2
                             onTriggered: glWidget.colorMapPalette = 2
@@ -2199,6 +2205,12 @@ Window {
                             checkable: true
                             checked: glWidget.colorMapPalette === 3
                             onTriggered: glWidget.colorMapPalette = 3
+                        }
+                        MenuItem {
+                            text: qsTr("Cividis")
+                            checkable: true
+                            checked: glWidget.colorMapPalette === 6
+                            onTriggered: glWidget.colorMapPalette = 6
                         }
                         MenuItem {
                             text: qsTr("Grayscale")

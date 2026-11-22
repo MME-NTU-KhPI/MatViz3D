@@ -472,8 +472,9 @@ Rectangle {
                 id: paletteCombo
                 Layout.preferredWidth: 120
                 font.pixelSize: 12
+                // Index = matviz_cmap::Palette ordinal (colormap.hpp).
                 model: [ qsTr("Rainbow"), qsTr("Cool-Warm"), qsTr("Red-Blue"),
-                         qsTr("Viridis"), qsTr("Grayscale") ]
+                         qsTr("Viridis"), qsTr("Grayscale"), qsTr("Turbo"), qsTr("Cividis") ]
                 currentIndex: 3
                 onActivated: surface.palette = currentIndex
             }

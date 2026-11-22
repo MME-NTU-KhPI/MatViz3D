@@ -392,6 +392,9 @@ int main(int argc, char *argv[])
             ogl->setAoStrength(qEnvironmentVariable("MATVIZ_AO").toDouble());
         if (qEnvironmentVariableIsSet("MATVIZ_DEPTHCUE"))
             ogl->setDepthCue(qEnvironmentVariable("MATVIZ_DEPTHCUE").toDouble());
+        // MATVIZ_PALETTE=<0..6>: field colormap (matviz_cmap::Palette ordinal).
+        if (qEnvironmentVariableIsSet("MATVIZ_PALETTE"))
+            ogl->setColorMapPalette(qEnvironmentVariableIntValue("MATVIZ_PALETTE"));
 
         if (parser.isSet("autostart"))           // or however you track this flag
             mainWindowWrapper.onStartButton();
