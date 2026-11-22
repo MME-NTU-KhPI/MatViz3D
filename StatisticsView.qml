@@ -65,10 +65,8 @@ Window {
         defaultSuffix: "png"
         onAccepted: {
             var path = ctrl.toLocalFile(selectedFile)
-            chartArea.grabToImage(function(result) {
-                if (!result.saveToFile(path))
-                    console.warn("StatisticsView: failed to save PNG to", path)
-            }, Qt.size(chartArea.width * 2, chartArea.height * 2))
+            // At the export DPI (screenshot settings), with the DPI in the file.
+            exportController.saveItemImage(chartArea, path)
         }
     }
 

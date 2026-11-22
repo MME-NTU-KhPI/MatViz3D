@@ -27,6 +27,7 @@
 #include <QFontMetricsF>
 #include <QMimeData>
 #include <QFont>
+#include <QFontDatabase>
 #include <QPen>
 #include <QBrush>
 #include <cmath>
@@ -75,6 +76,61 @@ ExportController::ExportController(QObject* parent)
 {
 }
 
+namespace {
+QString& fontFamilySlot()
+{
+    static QString family;
+    return family;
+}
+} // namespace
+
+void ExportController::registerFonts()
+{
+    const int id = QFontDatabase::addApplicationFont(QStringLiteral(":/fonts/Inter-VariableFont_opsz,wght.ttf"));
+    const QStringList fams = (id >= 0) ? QFontDatabase::applicationFontFamilies(id) : QStringList();
+    if (!fams.isEmpty()) fontFamilySlot() = fams.first();
+    else qWarning() << "[export] Inter could not be registered; labels use the default sans";
+}
+
+QString ExportController::exportFontFamily()
+{
+    const QString& f = fontFamilySlot();
+    if (!f.isEmpty()) return f;
+#ifdef Q_OS_WIN
+    return QStringLiteral("Segoe UI");
+#else
+    return QFontDatabase::systemFont(QFontDatabase::GeneralFont).family();
+#endif
+}
+
+int ExportController::resolution() const
+{
+    if (!m_highDpi) return 0;
+    if (m_dpi <= 150) return 1;
+    if (m_dpi >= 600) return 3;
+    return 2;
+}
+
+void ExportController::setResolution(int v)
+{
+    v = std::clamp(v, 0, 3);
+    static const int kDpi[4] = { 96, 150, 300, 600 };
+    const bool hi = v > 0;
+    const int dpi = hi ? kDpi[v] : m_dpi;
+    if (hi == m_highDpi && dpi == m_dpi) return;
+    m_highDpi = hi;
+    m_dpi = dpi;
+    emit highDpiChanged();
+    emit dpiChanged();
+}
+
+int ExportController::effectiveDpi(QQuickItem* item) const
+{
+    if (m_highDpi && m_dpi > 0) return m_dpi;
+    const qreal dpr = (item && item->window()) ? item->window()->effectiveDevicePixelRatio() : 1.0;
+    return qRound(96.0 * dpr);
+}
+
 // ═══════════════════════════════════════════════════════════════════
 //  DPI & Colorbar Drawing Helpers
 // ═══════════════════════════════════════════════════════════════════
@@ -89,6 +145,52 @@ void setDpiMetadata(QImage& img, int dpi)
     }
 }
 
+/// A label font of `pt` points at the export scale (scale = DPI / 96, times
+/// the overlay scale): pixel size pt * DPI / 72, so the text has that size in
+/// points wherever the image is placed at its DPI.
+QFont overlayFont(qreal pt, qreal scale, QFont::Weight weight)
+{
+    QFont f(ExportController::exportFontFamily());
+    f.setPixelSize(std::max(6, qRound(pt * scale * 96.0 / 72.0)));
+    f.setWeight(weight);
+    f.setHintingPreference(QFont::PreferNoHinting);   // the same shapes at every size
+    return f;
+}
+
+/// Tick values of a legend. When the range needs scientific notation, one
+/// common power of ten goes into the title ("x10^6") and the ticks show
+/// short mantissas: five labels of "1.234e+06" each crowded the bar.
+struct LegendNumbers
+{
+    int exponent = 0;          // 0 = plain numbers
+    QString titleSuffix;
+    QString format(double v) const
+    {
+        if (std::isnan(v)) return QStringLiteral("0");
+        const double m = exponent ? v / std::pow(10.0, exponent) : v;
+        QString t = QString::number(m, 'g', exponent ? 3 : 4);
+        if (t == QLatin1String("-0")) t = QStringLiteral("0");
+        return t;
+    }
+};
+
+LegendNumbers legendNumbers(double vmin, double vmax)
+{
+    LegendNumbers n;
+    const double big = std::max(std::abs(vmin), std::abs(vmax));
+    if (big > 0.0 && (big >= 1.0e4 || big < 1.0e-3)) {
+        n.exponent = int(std::floor(std::log10(big)));
+        static const char* sup[10] = { "\u2070", "\u00B9", "\u00B2", "\u00B3", "\u2074",
+                                       "\u2075", "\u2076", "\u2077", "\u2078", "\u2079" };
+        QString e;
+        for (QChar c : QString::number(std::abs(n.exponent)))
+            e += QString::fromUtf8(sup[c.digitValue()]);
+        if (n.exponent < 0) e.prepend(QChar(0x207B));
+        n.titleSuffix = QStringLiteral("  (\u00D710") + e + QLatin1Char(')');
+    }
+    return n;
+}
+
 void drawColorBarCard(QPainter& p, const QRectF& cardRect, qreal scale, bool vertical,
                       const QString& compName, double vmin, double vmax,
                       const QVector<QColor>& colors, bool darkTheme, bool translucent = false)
@@ -97,13 +199,9 @@ void drawColorBarCard(QPainter& p, const QRectF& cardRect, qreal scale, bool ver
     // whatever the figure is placed on, but lets the page show through a bit.
     const QColor cardFill = darkTheme ? QColor(35, 35, 35, translucent ? 205 : 240)
                                       : QColor(255, 255, 255, translucent ? 215 : 245);
-    auto formatVal = [](double v) -> QString {
-        if (std::isnan(v)) return QStringLiteral("0");
-        if (std::abs(v) >= 10000.0 || (std::abs(v) < 0.001 && v != 0.0)) {
-            return QString::number(v, 'e', 3);
-        }
-        return QString::number(v, 'g', 5);
-    };
+    const LegendNumbers numbers = legendNumbers(vmin, vmax);
+    auto formatVal = [&numbers](double v) -> QString { return numbers.format(v); };
+    const QString title = compName + numbers.titleSuffix;
 
     if (!vertical) {
         // ── Horizontal Color Bar Card ──────────────────────────────────────
@@ -122,11 +220,11 @@ void drawColorBarCard(QPainter& p, const QRectF& cardRect, qreal scale, bool ver
         p.drawRoundedRect(cardRect, 8.0 * scale, 8.0 * scale);
 
         // Title
-        QFont titleFont("Segoe UI", qMax(8, qRound(10.5 * scale)), QFont::DemiBold);
+        QFont titleFont = overlayFont(10.5, scale, QFont::DemiBold);
         p.setFont(titleFont);
         p.setPen(darkTheme ? QColor(230, 230, 230) : QColor(25, 25, 25));
         QRectF titleRect(cardRect.x() + padX, cardRect.y() + padY, contentW, titleH);
-        p.drawText(titleRect, Qt::AlignLeft | Qt::AlignVCenter, compName);
+        p.drawText(titleRect, Qt::AlignLeft | Qt::AlignVCenter, title);
 
         // Color Bar
         const qreal barX = cardRect.x() + padX;
@@ -151,44 +249,58 @@ void drawColorBarCard(QPainter& p, const QRectF& cardRect, qreal scale, bool ver
         const qreal tickY2 = tickY1 + tickLen;
         const qreal labelY = tickY2 + 1.0 * scale;
 
-        QFont valFont("Segoe UI", qMax(7, qRound(9.0 * scale)), QFont::Normal);
-        QFont valBoldFont("Segoe UI", qMax(7, qRound(9.0 * scale)), QFont::DemiBold);
+        QFont valFont = overlayFont(9.0, scale, QFont::Normal);
+        QFont valBoldFont = overlayFont(9.0, scale, QFont::DemiBold);
         p.setPen(QPen(darkTheme ? QColor(160, 160, 160) : QColor(90, 90, 90), 1.0 * scale));
 
         const qreal tickFractions[5] = { 0.0, 0.25, 0.50, 0.75, 1.0 };
         const int levelIndices[5] = { 0, 2, 4, 6, 8 };
 
+        // Which ticks get a label: all five, or fewer when neighbouring labels
+        // would touch (a narrow figure, long numbers). Ends always.
+        QString texts[5];
+        qreal widths[5];
         for (int t = 0; t < 5; ++t) {
+            texts[t] = formatVal(vmin + (vmax - vmin) * (levelIndices[t] / 8.0));
+            widths[t] = QFontMetricsF((t == 0 || t == 4) ? valBoldFont : valFont).horizontalAdvance(texts[t]);
+        }
+        // Left edge and right edge of each label as drawn (ends aligned to the bar's ends).
+        auto span = [&](int t, qreal& l, qreal& r) {
+            const qreal cx = barX + tickFractions[t] * contentW;
+            if (t == 0)      { l = cx;             r = cx + widths[t]; }
+            else if (t == 4) { l = cx - widths[t]; r = cx; }
+            else             { l = cx - widths[t] / 2.0; r = cx + widths[t] / 2.0; }
+        };
+        const qreal minGap = 6.0 * scale;
+        auto fits = [&](std::initializer_list<int> ts) {
+            qreal prevR = -1e9;
+            for (int t : ts) {
+                qreal l, r; span(t, l, r);
+                if (l < prevR + minGap) return false;
+                prevR = r;
+            }
+            return true;
+        };
+        bool show[5] = { true, true, true, true, true };
+        if (!fits({0, 1, 2, 3, 4})) {
+            show[1] = show[3] = false;
+            if (!fits({0, 2, 4})) show[2] = false;
+        }
+
+        for (int t = 0; t < 5; ++t) {
+            if (!show[t]) continue;
             const qreal tx = barX + tickFractions[t] * contentW;
             p.drawLine(QPointF(tx, tickY1), QPointF(tx, tickY2));
         }
 
         // Labels
         p.setPen(darkTheme ? QColor(220, 220, 220) : QColor(30, 30, 30));
-        const qreal labelW = 85.0 * scale;
-
         for (int t = 0; t < 5; ++t) {
-            const int lvl = levelIndices[t];
-            const double val = vmin + (vmax - vmin) * (lvl / 8.0);
-            const QString str = formatVal(val);
-
-            if (t == 0 || t == 4) p.setFont(valBoldFont);
-            else p.setFont(valFont);
-
-            QRectF textRect;
-            int alignFlags = Qt::AlignVCenter;
-            if (t == 0) {
-                textRect = QRectF(barX, labelY, labelW, valuesH);
-                alignFlags |= Qt::AlignLeft;
-            } else if (t == 4) {
-                textRect = QRectF(barX + contentW - labelW, labelY, labelW, valuesH);
-                alignFlags |= Qt::AlignRight;
-            } else {
-                const qreal cx = barX + tickFractions[t] * contentW;
-                textRect = QRectF(cx - labelW / 2.0, labelY, labelW, valuesH);
-                alignFlags |= Qt::AlignHCenter;
-            }
-            p.drawText(textRect, alignFlags, str);
+            if (!show[t]) continue;
+            p.setFont((t == 0 || t == 4) ? valBoldFont : valFont);
+            qreal l, r; span(t, l, r);
+            p.drawText(QRectF(l - 1.0, labelY, (r - l) + 2.0, valuesH),
+                       Qt::AlignHCenter | Qt::AlignVCenter, texts[t]);
         }
     } else {
         // ── Vertical Color Bar Card ────────────────────────────────────────
@@ -207,11 +319,11 @@ void drawColorBarCard(QPainter& p, const QRectF& cardRect, qreal scale, bool ver
         p.drawRoundedRect(cardRect, 8.0 * scale, 8.0 * scale);
 
         // Title
-        QFont titleFont("Segoe UI", qMax(8, qRound(10.5 * scale)), QFont::DemiBold);
+        QFont titleFont = overlayFont(10.5, scale, QFont::DemiBold);
         p.setFont(titleFont);
         p.setPen(darkTheme ? QColor(230, 230, 230) : QColor(25, 25, 25));
         QRectF titleRect(cardRect.x() + padX, cardRect.y() + padY, contentW, titleH);
-        p.drawText(titleRect, Qt::AlignLeft | Qt::AlignVCenter, compName);
+        p.drawText(titleRect, Qt::AlignLeft | Qt::AlignVCenter, title);
 
         const qreal swatchW = 22.0 * scale;
         const qreal swatchH = 12.0 * scale;
@@ -219,8 +331,8 @@ void drawColorBarCard(QPainter& p, const QRectF& cardRect, qreal scale, bool ver
         const qreal textX = swatchX + swatchW + 8.0 * scale;
         const qreal textW = contentW - swatchW - 8.0 * scale;
 
-        QFont valFont("Segoe UI", qMax(7, qRound(9.0 * scale)), QFont::Normal);
-        QFont valBoldFont("Segoe UI", qMax(7, qRound(9.0 * scale)), QFont::DemiBold);
+        QFont valFont = overlayFont(9.0, scale, QFont::Normal);
+        QFont valBoldFont = overlayFont(9.0, scale, QFont::DemiBold);
 
         for (int i = 0; i < 9; ++i) {
             const int lvl = 8 - i; // top is level 8 (Max), bottom is level 0 (Min)
@@ -284,7 +396,7 @@ void drawOrientationGizmo(QPainter& p, const QPointF& origin, qreal scale, OpenG
     const qreal aLen    = 7.0 * scale;
     const qreal aWidth  = 4.0 * scale;
 
-    QFont labelFont("Segoe UI", qMax(8, qRound(10.5 * scale)), QFont::Bold);
+    QFont labelFont = overlayFont(10.5, scale, QFont::Bold);
     const QFontMetricsF fm(labelFont);
     const qreal textOffset = 13.0 * scale;
 
@@ -591,12 +703,29 @@ QImage ExportController::processScreenshot(const QImage& rawImg, const Screensho
     QImage sceneImg = obtainSceneImage(rawImg, o, item, scale, bgColor);
 
     // ── 2. Crop to the model ─────────────────────────────────────────
-    QImage croppedModel = o.autoCrop ? cropToUsefulSize(sceneImg, bgColor, scale) : sceneImg;
+    // The crop margin is measured in the capture's own pixels.
+    const qreal captureScale = (o.targetWidthPx > 0 && item && item->width() > 0)
+                                   ? sceneImg.width() / item->width() : scale;
+    QImage croppedModel = o.autoCrop ? cropToUsefulSize(sceneImg, bgColor, captureScale) : sceneImg;
+
+    // A figure of a given width: the model is resampled to it (the capture
+    // was rendered larger, so this is a downscale), the overlays below keep
+    // their size in points.
+    const qreal os = scale * std::clamp(o.overlayScale, 0.3, 3.0);   // overlay scale
+    qreal legendMaxW = -1.0;
+    if (o.targetWidthPx > 0 && !croppedModel.isNull()) {
+        if (croppedModel.width() != o.targetWidthPx)
+            croppedModel = croppedModel.scaledToWidth(o.targetWidthPx, Qt::SmoothTransformation);
+        // At most ~60 % of the figure: a 10 cm card under an 8.5 cm figure
+        // (its size as on screen) is what a journal column cannot take.
+        legendMaxW = std::min(o.targetWidthPx - (16.0 + 85.0 + 16.0 + 20.0) * os,
+                              0.6 * o.targetWidthPx);
+    }
 
     // ── 3, 4. Legend and gizmo, in the overlay style asked for ───────
-    QImage colorbarImg = generateColorBarImage(ogl, o.verticalLegend, scale, o.darkOverlay,
-                                               o.fieldActive, -1.0, transparent);
-    QImage gizmoImg = generateGizmoImage(ogl, scale, o.darkOverlay);
+    QImage colorbarImg = generateColorBarImage(ogl, o.verticalLegend, os, o.darkOverlay,
+                                               o.fieldActive, legendMaxW, transparent);
+    QImage gizmoImg = generateGizmoImage(ogl, os, o.darkOverlay);
 
     // ── 5. Layout ────────────────────────────────────────────────────
     int finalW = croppedModel.width();
@@ -606,22 +735,22 @@ QImage ExportController::processScreenshot(const QImage& rawImg, const Screensho
     QPoint gizmoPos(0, 0);
 
     const bool hasColorBar = !colorbarImg.isNull();
-    const qreal marginL = 16.0 * scale;
-    const qreal marginR = 16.0 * scale;
-    const qreal bottomPad = 14.0 * scale;
-    const qreal gapAbove = 14.0 * scale;
+    const qreal marginL = 16.0 * os;
+    const qreal marginR = 16.0 * os;
+    const qreal bottomPad = 14.0 * os;
+    const qreal gapAbove = 14.0 * os;
 
     if (o.autoCrop) {
         // Extra bottom space only for a colour bar; without one the gizmo
         // sits in the bottom-right corner of the cropped model.
         int extraBottom = 0;
         if (hasColorBar) {
-            const qreal bottomItemH = std::max((qreal)colorbarImg.height(), 80.0 * scale);
+            const qreal bottomItemH = std::max((qreal)colorbarImg.height(), 80.0 * os);
             extraBottom = qRound(gapAbove + bottomItemH + bottomPad);
         }
 
-        const qreal gizmoBoxW = 85.0 * scale;
-        const qreal minReqW = (hasColorBar ? (marginL + colorbarImg.width() + 20.0 * scale) : marginL)
+        const qreal gizmoBoxW = 85.0 * os;
+        const qreal minReqW = (hasColorBar ? (marginL + colorbarImg.width() + 20.0 * os) : marginL)
                             + gizmoBoxW + marginR;
 
         finalW = std::max(croppedModel.width(), qRound(minReqW));
@@ -631,16 +760,16 @@ QImage ExportController::processScreenshot(const QImage& rawImg, const Screensho
         if (hasColorBar)
             colorbarPos = QPoint(qRound(marginL), qRound(finalH - bottomPad - colorbarImg.height()));
 
-        const qreal gx = finalW - marginR - 45.0 * scale;
-        const qreal gy = finalH - bottomPad - 42.0 * scale;
+        const qreal gx = finalW - marginR - 45.0 * os;
+        const qreal gy = finalH - bottomPad - 42.0 * os;
         gizmoPos = QPoint(qRound(gx - gizmoImg.width() / 2.0),
                           qRound(gy - gizmoImg.height() / 2.0));
     } else {
         if (hasColorBar)
-            colorbarPos = QPoint(qRound(20.0 * scale),
-                                 qRound(finalH - colorbarImg.height() - 20.0 * scale));
-        const qreal gx = finalW - 60.0 * scale;
-        const qreal gy = finalH - 55.0 * scale;
+            colorbarPos = QPoint(qRound(20.0 * os),
+                                 qRound(finalH - colorbarImg.height() - 20.0 * os));
+        const qreal gx = finalW - 60.0 * os;
+        const qreal gy = finalH - 55.0 * os;
         gizmoPos = QPoint(qRound(gx - gizmoImg.width() / 2.0),
                           qRound(gy - gizmoImg.height() / 2.0));
     }
@@ -663,11 +792,12 @@ QImage ExportController::processScreenshot(const QImage& rawImg, const Screensho
         resultImg = resultImg.convertToFormat(QImage::Format_RGB32);
 
     setDpiMetadata(resultImg, o.dpi);
-    qDebug().noquote() << QStringLiteral("[processScreenshot] %1 x %2 at %3 DPI, background %4, %5 overlay, %6")
+    qDebug().noquote() << QStringLiteral("[processScreenshot] %1 x %2 at %3 DPI (%7 cm wide), background %4, %5 overlay, %6")
                               .arg(resultImg.width()).arg(resultImg.height()).arg(o.dpi)
                               .arg(transparent ? "transparent" : o.background == Background::White ? "white" : "theme")
                               .arg(o.darkOverlay ? "dark" : "light")
-                              .arg(o.fromGrab ? "grabbed frame" : "off-screen render");
+                              .arg(o.fromGrab ? "grabbed frame" : "off-screen render")
+                              .arg(o.dpi > 0 ? resultImg.width() * 2.54 / o.dpi : 0.0, 0, 'f', 2);
     return resultImg;
 }
 
@@ -679,6 +809,12 @@ QSize ExportController::exportPixelSize(QQuickItem* item) const
     if (!item) return QSize();
     qreal factor = item->window() ? item->window()->effectiveDevicePixelRatio() : 1.0;
     if (m_highDpi && m_dpi > 96) factor = m_dpi / 96.0;
+    if (m_widthCm > 0.0 && item->width() > 0) {
+        // Render 1.5x the figure's width: the crop then still leaves more
+        // pixels than the figure needs, and the model is downscaled to it.
+        const qreal targetPx = m_widthCm / 2.54 * effectiveDpi(item);
+        factor = 1.5 * targetPx / item->width();
+    }
     QSize size = (item->size() * factor).toSize();
     const int limit = std::max(1024, RenderOpenGL::maxCaptureDimension() > 0
                                          ? RenderOpenGL::maxCaptureDimension() : 8192);
@@ -698,11 +834,18 @@ void ExportController::captureScene(QQuickItem* item, Background background, Sce
           : background == Background::Transparent ? RenderOpenGL::CaptureBackground::Transparent
                                                        : RenderOpenGL::CaptureBackground::Theme;
         QPointer<QQuickItem> guard(item);
+        const QSize px = exportPixelSize(item);
+        // A window that is not exposed renders no frame: render headless.
+        if (!item->window() || !item->window()->isExposed()) {
+            QImage img = ogl->renderHeadless(px, bg);
+            if (!img.isNull()) { done(img, true); return; }
+        }
         // The request is served by the next frame, and a window that is not
-        // exposed (minimised, covered on some platforms) renders none. After
-        // a while give up on it and grab instead; whichever answers first wins.
+        // exposed (minimised, covered on some platforms, display off) renders
+        // none. After a while give up on it and render headless, or grab;
+        // whichever answers first wins.
         auto answered = std::make_shared<bool>(false);
-        const bool queued = ogl->requestCapture(exportPixelSize(item), bg, this,
+        const bool queued = ogl->requestCapture(px, bg, this,
             [this, guard, done, answered](QImage img) {
                 if (*answered) return;
                 *answered = true;
@@ -712,9 +855,16 @@ void ExportController::captureScene(QQuickItem* item, Background background, Sce
                 else       done(QImage(), false);
             });
         if (queued) {
-            QTimer::singleShot(10000, this, [this, guard, done, answered]() {
+            QTimer::singleShot(10000, this, [this, guard, done, answered, px, bg]() {
                 if (*answered) return;
                 *answered = true;
+                OpenGLWidgetQML* w = qobject_cast<OpenGLWidgetQML*>(guard.data());
+                QImage img = w ? w->renderHeadless(px, bg) : QImage();
+                if (!img.isNull()) {
+                    qWarning() << "[export] no frame rendered the capture in 10 s, rendered it headless";
+                    done(img, true);
+                    return;
+                }
                 qWarning() << "[export] no frame rendered the capture in 10 s, falling back to grabToImage()";
                 if (guard) grabScene(guard, done);
                 else       done(QImage(), false);
@@ -762,8 +912,8 @@ void ExportController::grabScene(QQuickItem* item, SceneCallback done)
 // ═══════════════════════════════════════════════════════════════════
 //  Options from the current settings
 // ═══════════════════════════════════════════════════════════════════
-ExportController::ScreenshotOptions ExportController::currentOptions(bool forClipboard, bool verticalLegend,
-                                                                     bool fieldActive) const
+ExportController::ScreenshotOptions ExportController::currentOptions(QQuickItem* item, bool forClipboard,
+                                                                     bool verticalLegend, bool fieldActive) const
 {
     ScreenshotOptions o;
     Background bg = Background(m_background);
@@ -782,8 +932,14 @@ ExportController::ScreenshotOptions ExportController::currentOptions(bool forCli
     }
     o.autoCrop       = m_autoCrop;
     o.verticalLegend = verticalLegend;
-    o.dpi            = m_dpi;
+    // The DPI the image really has: with High DPI off it is the screen's
+    // (the overlays were drawn at 300 DPI on a 96 DPI frame before).
+    o.dpi            = effectiveDpi(item);
     o.fieldActive    = fieldActive;
+    if (m_widthCm > 0.0) {
+        o.targetWidthPx = qRound(m_widthCm / 2.54 * o.dpi);
+        o.overlayScale  = 0.8;   // values 7.2 pt, title 8.4 pt
+    }
     return o;
 }
 
@@ -822,7 +978,7 @@ void ExportController::saveImageTo(QQuickItem* item, const QString& fileName,
         return;
     }
     QPointer<QQuickItem> guard(item);
-    const ScreenshotOptions opts = currentOptions(false, verticalLegend, fieldActive);
+    const ScreenshotOptions opts = currentOptions(item, false, verticalLegend, fieldActive);
     captureScene(item, opts.background,
         [this, guard, fileName, opts](QImage rawImg, bool offscreen) {
             if (rawImg.isNull()) {
@@ -836,7 +992,7 @@ void ExportController::saveImageTo(QQuickItem* item, const QString& fileName,
                 emit exportFailed(tr("Failed to save image to ") + fileName);
                 return;
             }
-            qDebug() << "Image saved:" << fileName << img.size() << "DPI:" << m_dpi;
+            qDebug() << "Image saved:" << fileName << img.size() << "DPI:" << o.dpi;
             emit exportFinished(fileName);
         });
 }
@@ -876,7 +1032,7 @@ void ExportController::copyToClipboard(QQuickItem* item, bool verticalLegend, bo
         return;
     }
     QPointer<QQuickItem> guard(item);
-    const ScreenshotOptions opts = currentOptions(true, verticalLegend, fieldActive);
+    const ScreenshotOptions opts = currentOptions(item, true, verticalLegend, fieldActive);
     captureScene(item, opts.background,
         [this, guard, opts](QImage rawImg, bool offscreen) {
             if (rawImg.isNull()) {
@@ -887,7 +1043,7 @@ void ExportController::copyToClipboard(QQuickItem* item, bool verticalLegend, bo
             o.fromGrab = !offscreen;
             const QImage img = processScreenshot(rawImg, o, guard);
             putImageOnClipboard(img);
-            qDebug() << "Screenshot copied to clipboard" << img.size() << "DPI:" << m_dpi;
+            qDebug() << "Screenshot copied to clipboard" << img.size() << "DPI:" << o.dpi;
             emit exportFinished(QString());
         });
 }
@@ -905,6 +1061,7 @@ void ExportController::debugExport(QQuickItem* item, const QString& prefix, std:
         { QStringLiteral("transparent"), false, Background::Transparent,  m_overlayStyle, false },
         { QStringLiteral("transparent_dark"), false, Background::Transparent, int(OverlayStyle::Dark), false },
         { QStringLiteral("raw_transparent"),  false, Background::Transparent, m_overlayStyle, true },
+        { QStringLiteral("image"),       false, Background(m_background), m_overlayStyle, false },   // -> .svg
     });
     QPointer<QQuickItem> guard(item);
     auto next = std::make_shared<std::function<void()>>();
@@ -918,7 +1075,7 @@ void ExportController::debugExport(QQuickItem* item, const QString& prefix, std:
         const int savedBg = m_background, savedOverlay = m_overlayStyle;
         m_background = int(c.bg);
         m_overlayStyle = c.overlay;
-        ScreenshotOptions opts = currentOptions(c.clipboard, m_legendVertical, false);
+        ScreenshotOptions opts = currentOptions(guard, c.clipboard, m_legendVertical, false);
         m_background = savedBg;
         m_overlayStyle = savedOverlay;
 
@@ -930,7 +1087,10 @@ void ExportController::debugExport(QQuickItem* item, const QString& prefix, std:
                 ScreenshotOptions o = opts;
                 o.fromGrab = !offscreen;
                 const QImage img = processScreenshot(raw, o, guard);
-                img.save(file);
+                if (c.name == QLatin1String("image"))   // the SVG container of Save as SVG (image)
+                    writeEmbeddedSvg(img, o.dpi, prefix + QStringLiteral("_image.svg"));
+                else
+                    img.save(file);
                 if (c.clipboard) {
                     putImageOnClipboard(img);
                     qDebug() << "[export] clipboard formats:"
@@ -955,63 +1115,82 @@ void ExportController::saveAsSVG(QQuickItem* item)
     }
 
     QString fileName = QFileDialog::getSaveFileName(
-        nullptr, tr("Save as SVG"), "",
+        nullptr, tr("Save as SVG (image)"), "",
         tr("SVG Files (*.svg)"));
     if (fileName.isEmpty())
         return;
 
     if (!fileName.endsWith(".svg", Qt::CaseInsensitive))
         fileName += ".svg";
+    saveAsSVGTo(item, fileName, m_legendVertical);
+}
 
-    auto grab = item->grabToImage();
-    if (!grab) {
-        emit exportFailed(tr("grabToImage() failed — item has no window"));
-        return;
-    }
+bool ExportController::writeEmbeddedSvg(const QImage& img, int dpiIn, const QString& fileName)
+{
+    QByteArray png;
+    QBuffer buffer(&png);
+    buffer.open(QIODevice::WriteOnly);
+    img.save(&buffer, "PNG");
+    buffer.close();
 
-    connect(grab.data(), &QQuickItemGrabResult::ready, this,
-            [this, grab, fileName]()
-            {
-                QImage img = replaceBackground(grab->image(), Qt::white)
-                                 .convertToFormat(QImage::Format_RGB32);
-                if (img.isNull()) {
-                    emit exportFailed(tr("Captured image is empty"));
-                    return;
-                }
-                overlayColorBar(img, m_legendVertical);
+    const int w = img.width(), h = img.height();
+    const double dpi = dpiIn > 0 ? dpiIn : 96.0;
+    const QString svg =
+        QString("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                "<svg xmlns=\"http://www.w3.org/2000/svg\" "
+                "xmlns:xlink=\"http://www.w3.org/1999/xlink\" "
+                "width=\"%1mm\" height=\"%2mm\" viewBox=\"0 0 %3 %4\">\n"
+                "  <image width=\"%3\" height=\"%4\" "
+                "xlink:href=\"data:image/png;base64,%5\"/>\n"
+                "</svg>\n")
+            .arg(w * 25.4 / dpi, 0, 'f', 2).arg(h * 25.4 / dpi, 0, 'f', 2)
+            .arg(w).arg(h).arg(QString::fromLatin1(png.toBase64()));
 
-                // PNG -> bytes -> base64
-                QByteArray png;
-                QBuffer buffer(&png);
-                buffer.open(QIODevice::WriteOnly);
-                img.save(&buffer, "PNG");
-                buffer.close();
-                const QString b64 = QString::fromLatin1(png.toBase64());
+    QFile f(fileName);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Text)) return false;
+    QTextStream(&f) << svg;
+    return true;
+}
 
-                const int w = img.width();
-                const int h = img.height();
+void ExportController::saveAsSVGTo(QQuickItem* item, const QString& fileName, bool verticalLegend)
+{
+    if (!item) { emit exportFailed(tr("Scene item is not available")); return; }
+    // The same capture, crop, legend and gizmo as Save; only the container
+    // differs. Width and height in mm, so the figure keeps its physical size.
+    QPointer<QQuickItem> guard(item);
+    const ScreenshotOptions opts = currentOptions(item, false, verticalLegend, false);
+    captureScene(item, opts.background,
+        [this, guard, fileName, opts](QImage rawImg, bool offscreen) {
+            if (rawImg.isNull()) { emit exportFailed(tr("Captured image is empty")); return; }
+            ScreenshotOptions o = opts;
+            o.fromGrab = !offscreen;
+            const QImage img = processScreenshot(rawImg, o, guard);
 
-                const QString svg =
-                    QString("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                            "<svg xmlns=\"http://www.w3.org/2000/svg\" "
-                            "xmlns:xlink=\"http://www.w3.org/1999/xlink\" "
-                            "width=\"%1\" height=\"%2\" viewBox=\"0 0 %1 %2\">\n"
-                            "  <image width=\"%1\" height=\"%2\" "
-                            "xlink:href=\"data:image/png;base64,%3\"/>\n"
-                            "</svg>\n")
-                        .arg(w).arg(h).arg(b64);
+            if (!writeEmbeddedSvg(img, o.dpi, fileName)) {
+                emit exportFailed(tr("Cannot open file for writing: ") + fileName);
+                return;
+            }
+            qDebug() << "SVG saved:" << fileName << img.size() << "DPI:" << o.dpi;
+            emit exportFinished(fileName);
+        });
+}
 
-                QFile f(fileName);
-                if (!f.open(QIODevice::WriteOnly | QIODevice::Text)) {
-                    emit exportFailed(tr("Cannot open file for writing: ") + fileName);
-                    return;
-                }
-                QTextStream(&f) << svg;
-                f.close();
-
-                qDebug() << "SVG saved:" << fileName << img.size();
-                emit exportFinished(fileName);
-            });
+void ExportController::saveItemImage(QQuickItem* item, const QString& fileName)
+{
+    if (!item || !item->window()) { emit exportFailed(tr("Item is not available")); return; }
+    const int dpi = effectiveDpi(item);
+    // grabToImage() multiplies the size it is given by the device pixel ratio.
+    const qreal dpr = item->window()->effectiveDevicePixelRatio();
+    const QSize target = (item->size() * (dpi / 96.0) / std::max<qreal>(dpr, 0.5)).toSize();
+    auto grab = target.isEmpty() ? item->grabToImage() : item->grabToImage(target);
+    if (!grab) { emit exportFailed(tr("grabToImage() failed — item has no window")); return; }
+    connect(grab.data(), &QQuickItemGrabResult::ready, this, [this, grab, fileName, dpi]() {
+        QImage img = grab->image();
+        setDpiMetadata(img, dpi);
+        if (!img.save(fileName)) { emit exportFailed(tr("Failed to save image to ") + fileName); return; }
+        qDebug() << "Image saved:" << fileName << img.size() << "DPI:" << dpi;
+        emit exportFinished(fileName);
+    });
 }
 
 void ExportController::saveAsVectorSVG(QQuickItem* /*item*/)

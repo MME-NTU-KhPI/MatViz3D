@@ -72,6 +72,10 @@ public:
     };
     void requestCapture(CaptureRequest request);     // GUI thread
 
+    /// Render the scene now, in whatever context is current (a headless
+    /// capture: OpenGLWidgetQML::renderHeadless()).
+    QImage renderImage(QSize size, CaptureBackground background) { return renderOffscreen(size, background); }
+
     /// Largest square capture the current context can render (renderbuffer,
     /// texture and viewport limits), known after the first frame; 0 before.
     static int maxCaptureDimension() { return s_maxCaptureDim.load(); }

@@ -206,8 +206,14 @@ Window {
                             {
                                 text: qsTr("Save as SVG");
                                 icon.source: "qrc:/img/fileMenu/save_svg.svg"
-                                //onTriggered: exportController.saveAsSVG(glWidget)
                                 onTriggered: exportController.saveAsVectorSVG(glWidget)
+                            }
+                            Action
+                            {
+                                // The screenshot (legend, axes, DPI, width) in an SVG of its size in mm.
+                                text: qsTr("Save as SVG (image)");
+                                icon.source: "qrc:/img/fileMenu/save_svg.svg"
+                                onTriggered: exportController.saveAsSVG(glWidget)
                             }
                             Action
                             {
@@ -1139,52 +1145,15 @@ Window {
                                     onToggled: exportController.autoCrop = checked
                                 }
 
-                                CheckBox {
-                                    id: highDpiCheck
-                                    text: qsTr("High DPI (300 DPI)")
-                                    checked: exportController.highDpi
-                                    font.family: montserrat.name
-                                    font.pixelSize: 11
-                                    spacing: 8
-                                    padding: 4
-                                    hoverEnabled: true
-
-                                    indicator: Rectangle {
-                                        implicitWidth: 15
-                                        implicitHeight: 15
-                                        x: highDpiCheck.leftPadding
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        radius: 3
-                                        color: highDpiCheck.checked ? "#00897b" : (highDpiCheck.hovered ? "#383838" : "#2A2A2A")
-                                        border.color: highDpiCheck.checked ? "#00897b" : (highDpiCheck.hovered ? "#808080" : "#555555")
-                                        border.width: 1.5
-
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: "✓"
-                                            font.pixelSize: 10
-                                            font.bold: true
-                                            color: "#ffffff"
-                                            visible: highDpiCheck.checked
-                                        }
-                                    }
-
-                                    contentItem: Text {
-                                        text: highDpiCheck.text
-                                        font: highDpiCheck.font
-                                        color: highDpiCheck.hovered ? "#ffffff" : "#d0d0d0"
-                                        verticalAlignment: Text.AlignVCenter
-                                        leftPadding: highDpiCheck.indicator.width + highDpiCheck.spacing
-                                    }
-
-                                    onToggled: exportController.highDpi = checked
-                                }
-
                                 // Background and overlay style: two small segmented rows.
                                 // Auto keeps the old defaults (Save on the theme, Copy on white;
                                 // labels dark on the theme, light otherwise).
                                 Repeater {
                                     model: [
+                                        { title: qsTr("Resolution"), prop: "resolution",
+                                          items: [qsTr("Screen"), "150", "300", "600"],
+                                          tips: [qsTr("The screen's own pixels"), qsTr("150 DPI"),
+                                                 qsTr("300 DPI: print"), qsTr("600 DPI: line art, large prints")] },
                                         { title: qsTr("Background"), prop: "background",
                                           items: [qsTr("Auto"), qsTr("Theme"), qsTr("White"), qsTr("None")],
                                           tips: [qsTr("Save: theme colour, Copy: white"), qsTr("The 3D view's background colour"),
@@ -1247,6 +1216,94 @@ Window {
                                                         onClicked: exportController[optionGroup.modelData.prop] = segment.index
                                                     }
                                                 }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Physical width: the model is scaled to it and the legend
+                                // and axis labels keep their size in points.
+                                Column {
+                                    spacing: 3
+                                    topPadding: 4
+                                    leftPadding: 4
+
+                                    Text {
+                                        text: exportController.widthCm > 0
+                                              ? qsTr("Width: %1 cm at %2 DPI").arg(exportController.widthCm)
+                                                    .arg(exportController.resolution > 0 ? exportController.dpi : 96)
+                                              : qsTr("Width: as the view")
+                                        font.family: montserrat.name
+                                        font.pixelSize: 11
+                                        color: "#d0d0d0"
+                                    }
+
+                                    Row {
+                                        spacing: 2
+                                        Repeater {
+                                            model: [
+                                                { label: qsTr("View"),  cm: 0,    tip: qsTr("The size of the 3D view") },
+                                                { label: "8.5 cm",      cm: 8.5,  tip: qsTr("One journal column") },
+                                                { label: "17 cm",       cm: 17,   tip: qsTr("Full page width") }
+                                            ]
+                                            delegate: Rectangle {
+                                                id: widthSegment
+                                                required property var modelData
+                                                readonly property bool selected: exportController.widthCm === modelData.cm
+                                                width: 46
+                                                height: 22
+                                                radius: 4
+                                                color: selected ? "#00897b" : (widthSegmentArea.containsMouse ? "#383838" : "#2A2A2A")
+                                                border.color: selected ? "#00897b" : "#555555"
+                                                border.width: 1
+
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: widthSegment.modelData.label
+                                                    font.family: montserrat.name
+                                                    font.pixelSize: 10
+                                                    color: widthSegment.selected || widthSegmentArea.containsMouse ? "#ffffff" : "#d0d0d0"
+                                                }
+
+                                                MouseArea {
+                                                    id: widthSegmentArea
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    ToolTip.visible: containsMouse
+                                                    ToolTip.delay: 500
+                                                    ToolTip.text: widthSegment.modelData.tip
+                                                    onClicked: exportController.widthCm = widthSegment.modelData.cm
+                                                }
+                                            }
+                                        }
+
+                                        TextField {
+                                            id: widthField
+                                            width: 42
+                                            height: 22
+                                            padding: 2
+                                            horizontalAlignment: TextInput.AlignHCenter
+                                            font.family: montserrat.name
+                                            font.pixelSize: 10
+                                            color: "#ffffff"
+                                            placeholderText: qsTr("cm")
+                                            placeholderTextColor: "#808080"
+                                            validator: DoubleValidator { bottom: 0; top: 100; decimals: 1; notation: DoubleValidator.StandardNotation }
+                                            text: (exportController.widthCm > 0 && exportController.widthCm !== 8.5
+                                                   && exportController.widthCm !== 17) ? String(exportController.widthCm) : ""
+                                            background: Rectangle {
+                                                radius: 4
+                                                color: "#2A2A2A"
+                                                border.color: widthField.activeFocus ? "#00897b" : "#555555"
+                                                border.width: 1
+                                            }
+                                            ToolTip.visible: hovered
+                                            ToolTip.delay: 500
+                                            ToolTip.text: qsTr("Any width in cm (Enter)")
+                                            onEditingFinished: {
+                                                var v = parseFloat(text.replace(",", "."))
+                                                if (!isNaN(v)) exportController.widthCm = v
                                             }
                                         }
                                     }

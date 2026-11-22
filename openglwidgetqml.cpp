@@ -8,6 +8,9 @@
 #include <QGuiApplication>
 #include <QClipboard>
 #include <QTimer>
+#include <QOffscreenSurface>
+#include <QOpenGLContext>
+#include <memory>
 #include <QtConcurrent>
 #include <QImage>
 #include <QThread>
@@ -71,13 +74,7 @@ QQuickFramebufferObject::Renderer *OpenGLWidgetQML::createRenderer() const
         delete m_render;
     }
     m_render = new RenderOpenGL();
-    m_render->resizeGL(this->width(), this->height());
-    m_render->setDevicePixelRatio(window() ? window()->devicePixelRatio() : 1.0f);
-    m_render->setRotations(xRot, yRot, zRot);
-    m_render->setPan(panX, panY);
-    m_render->setDistZoomFactor(distance, zoomFactor);
-    m_render->setNumCubes(numCubes);
-    m_render->setShowCornerAxes(m_showCornerAxes);
+    configureRenderer(m_render);
 
     // A fresh renderer starts with default overlay state and an empty glyph
     // buffer, so anything the user had switched on has to be restored -- the
@@ -86,14 +83,6 @@ QQuickFramebufferObject::Renderer *OpenGLWidgetQML::createRenderer() const
     // control change. Flags are pushed directly; the geometry needs a rebuild,
     // which cannot happen from a const method, so it is deferred to the event
     // loop.
-    m_render->setShowGlyphs(showGlyphs);
-    m_render->setShowStreamlines(showStreamlines);
-    m_render->setVoxelOpacity(voxelOpacity);
-    m_render->setShading(m_shadingModel, float(m_aoStrength), float(m_depthCue));
-    m_render->setPlotWireFrame(plotWireFrame);
-    m_render->setOutlines(m_outlineKind, float(m_outlineWidth));
-    m_render->updateOrientationData(orientationVerts, orientationColors);
-    m_render->setShowOrientations(showOrientations);
     if (showGlyphs || showStreamlines) {
         auto* self = const_cast<OpenGLWidgetQML*>(this);
         QTimer::singleShot(0, self, [self]() {
@@ -103,6 +92,56 @@ QQuickFramebufferObject::Renderer *OpenGLWidgetQML::createRenderer() const
     }
 
     return m_render;
+}
+
+void OpenGLWidgetQML::configureRenderer(RenderOpenGL* r) const
+{
+    r->resizeGL(this->width(), this->height());
+    r->setDevicePixelRatio(window() ? window()->devicePixelRatio() : 1.0f);
+    r->setRotations(xRot, yRot, zRot);
+    r->setPan(panX, panY);
+    r->setDistZoomFactor(distance, zoomFactor);
+    r->setNumCubes(numCubes);
+    r->setShowCornerAxes(m_showCornerAxes);
+    r->setShowGlyphs(showGlyphs);
+    r->setShowStreamlines(showStreamlines);
+    r->setVoxelOpacity(voxelOpacity);
+    r->setShading(m_shadingModel, float(m_aoStrength), float(m_depthCue));
+    r->setPlotWireFrame(plotWireFrame);
+    r->setOutlines(m_outlineKind, float(m_outlineWidth));
+    r->updateOrientationData(orientationVerts, orientationColors);
+    r->setShowOrientations(showOrientations);
+}
+
+QImage OpenGLWidgetQML::renderHeadless(QSize pixelSize, RenderOpenGL::CaptureBackground background)
+{
+    if (pixelSize.isEmpty()) return QImage();
+    // One context for the life of the program: creating a GL context costs
+    // tens of milliseconds and some drivers leak a little each time.
+    static QOpenGLContext*    ctx = nullptr;
+    static QOffscreenSurface* surface = nullptr;
+    if (!ctx) {
+        auto* c = new QOpenGLContext;
+        c->setFormat(QSurfaceFormat::defaultFormat());
+        if (!c->create()) { qWarning() << "[capture] headless: cannot create a GL context"; delete c; return QImage(); }
+        surface = new QOffscreenSurface;
+        surface->setFormat(c->format());
+        surface->create();
+        ctx = c;
+    }
+    if (!ctx->makeCurrent(surface)) { qWarning() << "[capture] headless: makeCurrent failed"; return QImage(); }
+    QImage img;
+    {
+        // A renderer of its own, set up like the window's. Tensor glyph and
+        // streamline meshes are not copied (they live in the window's renderer).
+        std::unique_ptr<RenderOpenGL> r(new RenderOpenGL());
+        configureRenderer(r.get());
+        r->updateVoxelData(voxelScene);
+        img = r->renderImage(pixelSize, background);
+    }
+    ctx->doneCurrent();
+    qDebug().noquote() << QStringLiteral("[capture] headless render %1 x %2").arg(img.width()).arg(img.height());
+    return img;
 }
 
 OpenGLWidgetQML::~OpenGLWidgetQML()

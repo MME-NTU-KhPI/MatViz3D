@@ -238,6 +238,7 @@ int main(int argc, char *argv[])
     PropertySelectorController propertySelectorController(&datasetBrowserController);
     NeuralGeneratorController neuralGeneratorController;
     StatisticsController statisticsController;
+    ExportController::registerFonts();   // Inter for every exported label
     ExportController exportController;
     StressAnalysisController stressAnalysisController;
     TextureController textureController;
@@ -365,6 +366,9 @@ int main(int argc, char *argv[])
         const QString prefix = qEnvironmentVariable("MATVIZ_EXPORT");
         const int dpi = qEnvironmentVariableIntValue("MATVIZ_EXPORT_DPI");
         if (dpi > 0) exportController.setDpi(dpi);
+        // MATVIZ_EXPORT_WIDTH_CM=<cm>: a figure of that width at the DPI.
+        if (qEnvironmentVariableIsSet("MATVIZ_EXPORT_WIDTH_CM"))
+            exportController.setWidthCm(qEnvironmentVariable("MATVIZ_EXPORT_WIDTH_CM").toDouble());
         const int delay = qEnvironmentVariableIntValue("MATVIZ_EXPORT_DELAY");
         QTimer::singleShot(delay > 0 ? delay : 5000, &app, [&exportController, prefix]() {
             exportController.debugExport(OpenGLWidgetQML::getInstance(), prefix,

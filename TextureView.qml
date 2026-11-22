@@ -186,13 +186,10 @@ Window {
             nameFilters: [qsTr("PNG image (*.png)")]
             defaultSuffix: "png"
             onAccepted: {
-                // Grab at 2x so the raster is usable in a document.
                 var item = root.currentPage()
                 var path = ctrl.toLocalFile(selectedFile)
-                item.grabToImage(function(result) {
-                    if (!result.saveToFile(path))
-                        console.warn("TextureView: failed to save PNG to", path)
-                }, Qt.size(item.width * 2, item.height * 2))
+                // At the export DPI (screenshot settings), with the DPI in the file.
+                exportController.saveItemImage(item, path)
             }
         }
 

@@ -56,6 +56,14 @@ public:
      */
     bool requestCapture(QSize pixelSize, RenderOpenGL::CaptureBackground background,
                         QObject* receiver, std::function<void(QImage)> done);
+
+    /**
+     * Render the scene on the GUI thread in a context of its own (an
+     * offscreen surface), with a renderer set up like the window's: for a
+     * window that renders no frames (hidden, display off) and for --nogui.
+     * Synchronous; a null image when no context can be made.
+     */
+    QImage renderHeadless(QSize pixelSize, RenderOpenGL::CaptureBackground background);
     Q_INVOKABLE void setShowCornerAxes(bool show);
     bool showCornerAxes() const;
     // header, public:
@@ -404,6 +412,8 @@ protected:
     int   m_outlineKind  = 2;
     qreal m_outlineWidth = 1.5;
     void pushShading();
+    /// View and overlay state the window's renderer and a headless one share.
+    void configureRenderer(RenderOpenGL* r) const;
 
     void handleResize();
 

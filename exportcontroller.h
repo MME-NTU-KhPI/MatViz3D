@@ -32,6 +32,13 @@ class ExportController : public QObject
     Q_PROPERTY(bool autoCrop       READ autoCrop       WRITE setAutoCrop       NOTIFY autoCropChanged)
     Q_PROPERTY(bool highDpi        READ highDpi        WRITE setHighDpi        NOTIFY highDpiChanged)
     Q_PROPERTY(int  dpi            READ dpi            WRITE setDpi            NOTIFY dpiChanged)
+    /// Resolution preset of the screenshot popup: 0 the screen's own pixels,
+    /// 1 150 DPI, 2 300 DPI, 3 600 DPI (sets highDpi and dpi).
+    Q_PROPERTY(int  resolution     READ resolution     WRITE setResolution     NOTIFY dpiChanged)
+    /// Width of the exported figure in cm at the DPI (0 = the view's size).
+    /// With a width the model is scaled to it and the legend and axis labels
+    /// keep their size in points (compact: 7-8 pt text, as journals ask).
+    Q_PROPERTY(double widthCm      READ widthCm        WRITE setWidthCm        NOTIFY widthCmChanged)
     /// Background of Save / Copy: 0 Auto (Save: theme, Copy: white), 1 Theme,
     /// 2 White, 3 Transparent. See Background.
     Q_PROPERTY(int  background     READ background     WRITE setBackground     NOTIFY backgroundChanged)
@@ -58,7 +65,19 @@ public:
         /// colour matching. False for the off-screen render, which is already
         /// on the requested background, triad-free.
         bool       fromGrab       = false;
+        /// Width of the whole figure in pixels (0 = what the crop gives):
+        /// the model is resampled to it, the overlays are not.
+        int        targetWidthPx  = 0;
+        /// Size of the legend, gizmo and their text relative to the defaults
+        /// (title 10.5 pt, values 9 pt); 0.8 in a figure of a given width.
+        qreal      overlayScale   = 1.0;
     };
+
+    /// Font family of every exported label: Inter, registered from the
+    /// resources by registerFonts() (main.cpp), so a figure looks the same on
+    /// every platform; "Segoe UI" / the default sans before that.
+    static QString exportFontFamily();
+    static void registerFonts();
 
     explicit ExportController(QObject* parent = nullptr);
 
@@ -76,6 +95,14 @@ public:
     void debugExport(QQuickItem* item, const QString& prefix, std::function<void()> finished);
     Q_INVOKABLE void saveAsSVG(QQuickItem* item);
     Q_INVOKABLE void saveAsVectorSVG(QQuickItem* item);  // true-vector, not raster
+    /// The export pipeline (capture, crop, legend, gizmo) written as a PNG
+    /// embedded in an SVG whose width and height are in millimetres at the DPI.
+    void saveAsSVGTo(QQuickItem* item, const QString& fileName, bool verticalLegend);
+    /// A PNG of `img` in an SVG of its physical size (mm at `dpi`).
+    static bool writeEmbeddedSvg(const QImage& img, int dpi, const QString& fileName);
+    /// Any other item (a chart, a texture page): grabbed at the export DPI and
+    /// saved with the DPI in the file. For the windows that used a fixed 2x.
+    Q_INVOKABLE void saveItemImage(QQuickItem* item, const QString& fileName);
 
     Q_INVOKABLE void setLegendVertical(bool v) { if (m_legendVertical != v) { m_legendVertical = v; emit legendVerticalChanged(); } }
     bool legendVertical() const { return m_legendVertical; }
@@ -88,6 +115,12 @@ public:
 
     Q_INVOKABLE void setDpi(int v) { if (m_dpi != v) { m_dpi = v; emit dpiChanged(); } }
     int dpi() const { return m_dpi; }
+
+    int resolution() const;
+    Q_INVOKABLE void setResolution(int v);
+
+    double widthCm() const { return m_widthCm; }
+    Q_INVOKABLE void setWidthCm(double v) { v = std::clamp(v, 0.0, 100.0); if (m_widthCm != v) { m_widthCm = v; emit widthCmChanged(); } }
 
     Q_INVOKABLE void setBackground(int v) { v = std::clamp(v, 0, 3); if (m_background != v) { m_background = v; emit backgroundChanged(); } }
     int background() const { return m_background; }
@@ -133,6 +166,7 @@ signals:
     void autoCropChanged();
     void highDpiChanged();
     void dpiChanged();
+    void widthCmChanged();
     void backgroundChanged();
     void overlayStyleChanged();
 
@@ -144,7 +178,10 @@ private:
     /// `background` must be resolved (not Auto).
     void captureScene(QQuickItem* item, Background background, SceneCallback done);
     /// The options of the current settings; `forClipboard` picks Auto's meaning.
-    ScreenshotOptions currentOptions(bool forClipboard, bool verticalLegend, bool fieldActive) const;
+    ScreenshotOptions currentOptions(QQuickItem* item, bool forClipboard, bool verticalLegend,
+                                     bool fieldActive) const;
+    /// The DPI an export is made at: `dpi` with High DPI on, else the screen's.
+    int effectiveDpi(QQuickItem* item) const;
     void grabScene(QQuickItem* item, SceneCallback done);
     QSize exportPixelSize(QQuickItem* item) const;
 
@@ -153,6 +190,7 @@ private:
     bool m_autoCrop       = true;
     bool m_highDpi        = true;
     int  m_dpi            = 300;
+    double m_widthCm      = 0.0;
     int  m_background     = int(Background::Auto);
     int  m_overlayStyle   = int(OverlayStyle::Auto);
 };
