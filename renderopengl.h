@@ -121,6 +121,10 @@ public:
     /// times DPI / 96 in an export).
     void setOutlines(int kind, float widthPx);
 
+    /// The twelve edges of the cell (the voxel cube's bounding box) as thin
+    /// grey lines: where a porous cell ends shows even where it has no solid.
+    void setShowCellFrame(bool show) { showCellFrame = show; }
+
     void requestSvgExport(const QString& path);  // GUI thread -> served next frame
 
 protected:
@@ -195,6 +199,8 @@ protected:
     bool  plotWireFrame = false;     // outline toggle (the toolbar's former wireframe button)
     int   outlineKind  = 2;          // 1 voxel edges, 2 grain / pore boundaries
     float outlineWidth = 1.5f;       // logical pixels
+    bool  showCellFrame = false;
+    void  drawCellFrame(const QMatrix4x4& mvp);
     bool showNormals = false;
     bool enableFaceCulling = true;
     bool enableDepthTest = true;

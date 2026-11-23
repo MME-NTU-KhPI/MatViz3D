@@ -109,6 +109,7 @@ void OpenGLWidgetQML::configureRenderer(RenderOpenGL* r) const
     r->setShading(m_shadingModel, float(m_aoStrength), float(m_depthCue));
     r->setPlotWireFrame(plotWireFrame);
     r->setOutlines(m_outlineKind, float(m_outlineWidth));
+    r->setShowCellFrame(m_cellFrame);
     r->updateOrientationData(orientationVerts, orientationColors, orientationNormals);
     r->setShowOrientations(showOrientations);
 }
@@ -325,6 +326,35 @@ std::vector<svgx::ShadedFace> OpenGLWidgetQML::vectorFaces(QSize px) const
             t.edgeMask = 0;
             t.depth = 0.5f * (zt + zb) + bias;
             out.push_back(t);
+        }
+    }
+
+    // The cell frame (RenderOpenGL::drawCellFrame()): its edges cut into
+    // pieces sorted among the faces, pulled 0.6 voxel toward the camera so
+    // they win against the faces they lie on, as the polygon offset does.
+    if (m_cellFrame) {
+        const float lo = -float(numCubes / 2), hi = lo + float(numCubes);
+        const QVector3D c[8] = { {lo,lo,lo}, {hi,lo,lo}, {hi,hi,lo}, {lo,hi,lo},
+                                 {lo,lo,hi}, {hi,lo,hi}, {hi,hi,hi}, {lo,hi,hi} };
+        static const int e[12][2] = { {0,1},{1,2},{2,3},{3,0}, {4,5},{5,6},{6,7},{7,4},
+                                      {0,4},{1,5},{2,6},{3,7} };
+        const int pieces = std::max(8, int(numCubes));
+        for (const auto& ed : e) {
+            for (int k = 0; k < pieces; ++k) {
+                const QVector3D a = c[ed[0]] + (c[ed[1]] - c[ed[0]]) * (float(k) / pieces);
+                const QVector3D b = c[ed[0]] + (c[ed[1]] - c[ed[0]]) * (float(k + 1) / pieces);
+                const QVector4D ca = mvp * QVector4D(a, 1.0f), cb = mvp * QVector4D(b, 1.0f);
+                if (ca.w() <= 0.0f || cb.w() <= 0.0f) continue;
+                svgx::ShadedFace l;
+                l.kind = 1;
+                l.width = 1.0f;
+                l.pts[0] = QPointF((ca.x() / ca.w() * 0.5f + 0.5f) * W, (ca.y() / ca.w() * 0.5f + 0.5f) * H);
+                l.pts[1] = QPointF((cb.x() / cb.w() * 0.5f + 0.5f) * W, (cb.y() / cb.w() * 0.5f + 0.5f) * H);
+                l.color = l.edgeColor = qRgb(158, 163, 173);
+                l.edgeMask = 0;
+                l.depth = 0.5f * ((view * QVector4D(a, 1.0f)).z() + (view * QVector4D(b, 1.0f)).z()) + 0.6f;
+                out.push_back(l);
+            }
         }
     }
 
@@ -605,6 +635,15 @@ void OpenGLWidgetQML::setOutlineKind(int kind)
     if (kind == m_outlineKind) return;
     m_outlineKind = kind;
     if (m_render) m_render->setOutlines(m_outlineKind, float(m_outlineWidth));
+    update();
+    emit outlinesChanged();
+}
+
+void OpenGLWidgetQML::setCellFrame(bool on)
+{
+    if (on == m_cellFrame) return;
+    m_cellFrame = on;
+    if (m_render) m_render->setShowCellFrame(on);
     update();
     emit outlinesChanged();
 }

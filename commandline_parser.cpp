@@ -134,7 +134,8 @@ QString Commandline_Parser::buildApplicationDescription()
             "                           thickness / horizontal bracing (default 0.5 each)\n";
     desc += "  --screenshot <file>:     with --nogui --autostart: a picture of the structure, rendered without a window (.png | .pdf);\n"
             "                           --dpi (300), --background theme | white | transparent (white), --width_cm (0 = view size),\n"
-            "                           --view_size WxH (1200x900), --outlines off | boundaries | voxels, --pdf_vector\n";
+            "                           --view_size WxH (1200x900), --outlines off | boundaries | voxels, --pdf_vector,\n"
+            "                           --cell_frame (the cell's edges as thin grey lines)\n";
     desc += "  --browse <path>:         GUI: open the Dataset Browser on a dataset folder (manifest.csv + cells/), its manifest or a cell file\n";
     desc += "  --select <targets>:      GUI: open the Selector tab and search the dataset of --browse, e.g. E=150,nu=0.3,mat_e=2.0 (moduli in MPa)\n";
     desc += "  --neural <seed>:         GUI: open the Neural tab and generate the cell of this seed (0 = a new seed): the diffusion network\n"
@@ -217,6 +218,8 @@ void Commandline_Parser::setupParser(QCommandLineParser &parser)
         "[Output] Outlines in --screenshot: off | boundaries | voxels (default: off).", "kind"));
     parser.addOption(QCommandLineOption("pdf_vector",
         "[Output] --screenshot to .pdf: the model as vector polygons instead of an image."));
+    parser.addOption(QCommandLineOption("cell_frame",
+        "[Output] --screenshot: draw the twelve edges of the cell as thin grey lines."));
 
     // ── Structure Geometry & Nucleation ───────────────────────────────────
     parser.addOption(QCommandLineOption("size",
@@ -629,6 +632,7 @@ void Commandline_Parser::printJsonHelp()
     addOpt("outlines", "Output", "string", "kind", "off", "Outlines in --screenshot",
            QStringList() << "off" << "boundaries" << "voxels");
     addOpt("pdf_vector", "Output", "bool", "", "false", "--screenshot to .pdf: the model as vector polygons");
+    addOpt("cell_frame", "Output", "bool", "", "false", "--screenshot: the twelve edges of the cell as thin grey lines");
 
     // Grid Geometry & Nucleation
     addOpt("size", "Grid", "int", "n", "", "Voxel grid dimension N for N x N x N cell (integer > 0)");

@@ -185,6 +185,11 @@ public:
     void setOutlineKind(int kind);
     void setOutlineWidth(qreal w);
 
+    /// Thin grey lines along the twelve edges of the cell.
+    Q_PROPERTY(bool cellFrame READ cellFrame WRITE setCellFrame NOTIFY outlinesChanged)
+    bool cellFrame() const { return m_cellFrame; }
+    void setCellFrame(bool on);
+
     /** 0 = stress, 1 = strain. */
     Q_INVOKABLE void setTensorSource(int source);
     Q_INVOKABLE void setTensorDeviatoric(bool on);
@@ -421,6 +426,7 @@ protected:
     qreal m_depthCue     = 0.35;
     int   m_outlineKind  = 2;
     qreal m_outlineWidth = 1.5;
+    bool  m_cellFrame    = false;
     void pushShading();
     /// View and overlay state the window's renderer and a headless one share.
     void configureRenderer(RenderOpenGL* r) const;

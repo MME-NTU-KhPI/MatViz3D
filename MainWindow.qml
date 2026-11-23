@@ -1915,6 +1915,56 @@ Window {
                                     value: glWidget.outlineWidth
                                     onMoved: glWidget.outlineWidth = value
                                 }
+
+                                Row {
+                                    topPadding: 6
+                                    spacing: 2
+                                    Text {
+                                        width: 90
+                                        height: 22
+                                        verticalAlignment: Text.AlignVCenter
+                                        text: qsTr("Cell frame")
+                                        color: "#d9d9d9"
+                                        font.pixelSize: 13
+                                        font.family: montserrat.name
+                                    }
+                                    Repeater {
+                                        model: [
+                                            { on: false, label: qsTr("Off") },
+                                            { on: true,  label: qsTr("On") }
+                                        ]
+                                        delegate: Rectangle {
+                                            id: frameSegment
+                                            required property var modelData
+                                            readonly property bool selected: glWidget.cellFrame === modelData.on
+                                            width: 50
+                                            height: 22
+                                            radius: 4
+                                            color: selected ? "#00897b" : (frameSegmentArea.containsMouse ? "#383838" : "#2A2A2A")
+                                            border.color: selected ? "#00897b" : "#555555"
+                                            border.width: 1
+
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: frameSegment.modelData.label
+                                                font.family: montserrat.name
+                                                font.pixelSize: 10
+                                                color: frameSegment.selected || frameSegmentArea.containsMouse ? "#ffffff" : "#d0d0d0"
+                                            }
+
+                                            MouseArea {
+                                                id: frameSegmentArea
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                ToolTip.visible: containsMouse
+                                                ToolTip.delay: 500
+                                                ToolTip.text: qsTr("Thin grey lines along the twelve edges of the cell")
+                                                onClicked: glWidget.cellFrame = frameSegment.modelData.on
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

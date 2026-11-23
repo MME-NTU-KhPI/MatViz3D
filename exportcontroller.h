@@ -174,6 +174,7 @@ public:
         QSize   viewSize = QSize(1200, 900);
         int     outlines = 0;          ///< 0 off, 1 voxel edges, 2 boundaries
         bool    pdfVector = false;
+        bool    cellFrame = false;     ///< the twelve edges of the cell
     };
     /// Render the current structure (Parameters::voxels) without a window
     /// and write it through the same pipeline as Save. False with `error`

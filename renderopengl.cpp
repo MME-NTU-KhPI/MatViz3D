@@ -1198,6 +1198,7 @@ void RenderOpenGL::paintGL()
         ef->glBindVertexArray(vaoId);   // restore what the rest of paintGL expects
     }
 
+    drawCellFrame(mvp);
     drawOrientationGlyphs();
 
     f->glDisable(GL_BLEND);
@@ -1266,6 +1267,38 @@ void RenderOpenGL::setPan(float panX, float panY)
 void RenderOpenGL::setPlotWireFrame(bool status)
 {
     plotWireFrame = status;
+}
+
+void RenderOpenGL::drawCellFrame(const QMatrix4x4& mvp)
+{
+    if (!showCellFrame || numCubes <= 0) return;
+    QOpenGLFunctions* f = QOpenGLContext::currentContext()->functions();
+
+    // The cube calculateScene() fills: voxel k spans [-(n/2 - k), +1].
+    const float lo = -float(numCubes / 2);
+    const float hi = lo + float(numCubes);
+    const float c[8][3] = { {lo,lo,lo}, {hi,lo,lo}, {hi,hi,lo}, {lo,hi,lo},
+                            {lo,lo,hi}, {hi,lo,hi}, {hi,hi,hi}, {lo,hi,hi} };
+    static const int e[12][2] = { {0,1},{1,2},{2,3},{3,0}, {4,5},{5,6},{6,7},{7,4},
+                                  {0,4},{1,5},{2,6},{3,7} };
+    std::vector<float> verts;
+    verts.reserve(12 * 6);
+    for (const auto& ed : e)
+        for (int k : ed)
+            verts.insert(verts.end(), { c[k][0], c[k][1], c[k][2] });
+
+    // Depth-tested, so the solid hides the back edges as it would a wire; a
+    // pull toward the camera (polygon offset: the lines are quads) wins the
+    // tie with the faces the front edges lie on.
+    f->glEnable(GL_DEPTH_TEST);
+    f->glDepthMask(GL_FALSE);
+    f->glEnable(GL_POLYGON_OFFSET_FILL);
+    f->glPolygonOffset(-2.0f, -4.0f);
+    // Mid grey: reads on the dark theme backdrop and on white paper alike.
+    static const float kGrey[3] = { 0.62f, 0.64f, 0.68f };
+    drawThickLines(verts, {}, mvp, 1.0f, kGrey);
+    f->glDisable(GL_POLYGON_OFFSET_FILL);
+    f->glDepthMask(GL_TRUE);
 }
 
 void RenderOpenGL::setOutlines(int kind, float widthPx)

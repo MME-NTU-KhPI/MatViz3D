@@ -1409,6 +1409,7 @@ bool ExportController::headlessScreenshot(const HeadlessShot& shot, QString* err
         view.setOutlineKind(shot.outlines);
         view.setPlotWireFrame(true);
     }
+    view.setCellFrame(shot.cellFrame);
     view.setVoxels(Parameters::voxels, static_cast<short>(n));
 
     ExportController ec;

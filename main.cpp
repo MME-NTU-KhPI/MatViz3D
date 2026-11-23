@@ -194,6 +194,7 @@ int main(int argc, char *argv[])
                 shot.viewSize = QSize(w, h);
             }
             shot.pdfVector = parser.isSet("pdf_vector");
+            shot.cellFrame = parser.isSet("cell_frame");
             QString err;
             if (!ExportController::headlessScreenshot(shot, &err)) {
                 qCritical().noquote() << "Screenshot failed:" << err;
@@ -442,6 +443,9 @@ int main(int argc, char *argv[])
         }
         if (qEnvironmentVariableIsSet("MATVIZ_OUTLINE_WIDTH"))
             ogl->setOutlineWidth(qEnvironmentVariable("MATVIZ_OUTLINE_WIDTH").toDouble());
+        // MATVIZ_CELL_FRAME=1: the twelve edges of the cell.
+        if (qEnvironmentVariableIntValue("MATVIZ_CELL_FRAME") == 1)
+            ogl->setCellFrame(true);
         // MATVIZ_ORIENTATIONS=1: the grains' crystal axes (thick lines).
         if (qEnvironmentVariableIntValue("MATVIZ_ORIENTATIONS") == 1)
             ogl->setShowOrientations(true);
