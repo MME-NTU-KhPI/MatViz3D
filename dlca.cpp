@@ -6,54 +6,11 @@
 #include <algorithm>
 #include <cstdlib>
 #include <fstream>
+#include <numeric>
 #include <random>
 #include <QDebug>
 
 using namespace std;
-
-struct HashGrid {
-    int cellSize;
-    std::unordered_map<int64_t, std::vector<size_t>> grid; // Map from hashed cell index to aggregate indices
-
-    HashGrid(int cellSize) : cellSize(cellSize) {}
-
-    // Compute hash for a 3D cell
-    int64_t hash(int x, int y, int z) const {
-        return (static_cast<int64_t>(x) << 40) | (static_cast<int64_t>(y) << 20) | static_cast<int64_t>(z);
-    }
-
-    // Add aggregate to the grid
-    void insert(const DLCA_Aggregate &aggregate, size_t index) {
-        for (const auto &coord : aggregate.aggr) {
-            int cellX = coord.x;
-            int cellY = coord.y;
-            int cellZ = coord.z;
-            int64_t h = hash(cellX, cellY, cellZ);
-            grid[h].push_back(index);
-        }
-    }
-
-    // Query neighboring cells for potential collisions
-    std::vector<size_t> query(int x, int y, int z) const {
-        std::vector<size_t> neighbors;
-        for (int dx = -1; dx <= 1; ++dx) {
-            for (int dy = -1; dy <= 1; ++dy) {
-                for (int dz = -1; dz <= 1; ++dz) {
-                    int64_t h = hash(x + dx, y + dy, z + dz);
-                    if (grid.count(h)) {
-                        neighbors.insert(neighbors.end(), grid.at(h).begin(), grid.at(h).end());
-                    }
-                }
-            }
-        }
-        return neighbors;
-    }
-
-    // Clear the grid for the next update
-    void clear() {
-        grid.clear();
-    }
-};
 
 DLCA_Aggregate::DLCA_Aggregate(int32_t*** voxels, int cubeSize)
 {
@@ -167,6 +124,16 @@ void DLCA_Aggregate::map_to_voxels()
         DLCA::Coordinate c = aggr[i];
         voxels[c.x][c.y][c.z] = this->id;
     }
+}
+
+void DLCA_Aggregate::absorb(DLCA_Aggregate &other)
+{
+    // Only the absorbed voxels change owner, so the cost is the size of `other`
+    if (voxels)
+        for (const auto &c : other.aggr)
+            voxels[c.x][c.y][c.z] = this->id;
+    aggr.insert(aggr.end(), other.aggr.begin(), other.aggr.end());
+    other.aggr.clear();
 }
 
 void DLCA::random_walk()
@@ -323,6 +290,9 @@ static inline int32_t min_image_dist(int32_t a, int32_t b, int32_t size) {
     return std::min(d, size - d);
 }
 
+// Pairwise reference test of a face contact between two aggregates, O(|a1| * |a2|).
+// Generation finds contacts through the voxel grid instead (merge_touching_aggregates);
+// this predicate is kept as the definition the grid search is checked against.
 bool DLCA::check_collision(size_t _i, size_t _j)
 {
     auto &a1 = this->aggregates[_i];
@@ -352,45 +322,82 @@ void DLCA::join_aggregates(size_t _i, size_t _j)
     auto& a1 = this->aggregates[_i];
     auto& a2 = this->aggregates[_j];
 
+    // The smaller aggregate joins the larger one; on a tie the second one survives
     if (a1.aggr.size() > a2.aggr.size())
-    {
-        a1.aggr.insert(a1.aggr.end(), a2.aggr.begin(), a2.aggr.end());
-        a2.aggr.clear();
-    }
+        a1.absorb(a2);
     else
-    {
-        a2.aggr.insert(a2.aggr.end(), a1.aggr.begin(), a1.aggr.end());
-        a1.aggr.clear();
+        a2.absorb(a1);
+}
+
+// Union-find root lookup with path halving
+static size_t dsu_find(std::vector<size_t> &parent, size_t x)
+{
+    while (parent[x] != x) {
+        parent[x] = parent[parent[x]];
+        x = parent[x];
     }
+    return x;
+}
+
+void DLCA::merge_touching_aggregates()
+{
+    const size_t K = aggregates.size();
+
+    // Aggregate id -> position in `aggregates`
+    std::vector<size_t> slot(static_cast<size_t>(numColors) + 1, 0);
+    for (size_t k = 0; k < K; ++k)
+        slot[static_cast<size_t>(aggregates[k].id)] = k;
+
+    std::vector<size_t> parent(K);
+    std::iota(parent.begin(), parent.end(), size_t(0));
+
+    // Face contact = a +x, +y or +z neighbour owned by another aggregate. Every
+    // face-adjacent voxel pair is seen exactly once from its lower side, periodic
+    // images included, which is the contact rule of check_collision.
+    const int L = cubeSize;
+    for (size_t k = 0; k < K; ++k) {
+        const int32_t own = aggregates[k].id;
+        for (const Coordinate &c : aggregates[k].aggr) {
+            const int32_t nb[3] = { voxels[(c.x + 1) % L][c.y][c.z],
+                                    voxels[c.x][(c.y + 1) % L][c.z],
+                                    voxels[c.x][c.y][(c.z + 1) % L] };
+            for (int32_t other : nb) {
+                if (other == 0 || other == own)
+                    continue;
+                const size_t a = dsu_find(parent, k);
+                const size_t b = dsu_find(parent, slot[static_cast<size_t>(other)]);
+                if (a != b)
+                    parent[a] = b;
+            }
+        }
+    }
+
+    // Each connected group of touching aggregates becomes one aggregate: the
+    // largest member of the group absorbs the others
+    std::vector<size_t> target(K, K);
+    for (size_t k = 0; k < K; ++k) {
+        const size_t r = dsu_find(parent, k);
+        if (target[r] == K || aggregates[k].aggr.size() > aggregates[target[r]].aggr.size())
+            target[r] = k;
+    }
+    for (size_t k = 0; k < K; ++k) {
+        const size_t t = target[dsu_find(parent, k)];
+        if (t != k)
+            aggregates[t].absorb(aggregates[k]);
+    }
+
+    aggregates.erase(std::remove_if(aggregates.begin(), aggregates.end(),
+                                    [](const DLCA_Aggregate &a) { return a.aggr.empty(); }),
+                     aggregates.end());
 }
 
 void DLCA::Next_Iteration()
 {
-    this->random_walk();
+    // 1. Every aggregate makes one lattice step; the grid is updated move by move
+    random_walk();
 
-    for (size_t i = 0; i < this->aggregates.size(); i++)
-        for (size_t j = i + 1; j < this->aggregates.size(); j++)
-        {
-            if (check_collision(i, j))
-            {
-                join_aggregates(i, j);
-            }
-        }
-    this->aggregates.erase(std::remove_if(this->aggregates.begin(), this->aggregates.end(),
-                                          [](const DLCA_Aggregate& a)
-                                          { return a.aggr.empty(); }), this->aggregates.end());
-
-    // Clear and repopulate the voxel array
-    #pragma omp parallel for collapse(3)
-    for (int i = 0; i < cubeSize; ++i)
-        for (int j = 0; j < cubeSize; ++j)
-            for (int k = 0; k < cubeSize; ++k)
-                voxels[i][j][k] = 0;
-
-    for (size_t i = 0; i < this->aggregates.size(); i++)
-    {
-        this->aggregates[i].map_to_voxels();
-    }
+    // 2. All aggregates in face contact after the step stick together irreversibly
+    merge_touching_aggregates();
 
     IterationNumber++;
     const size_t currentClusters = aggregates.size();
@@ -447,3 +454,6 @@ MATVIZ_REGISTER_ALGORITHM(AlgorithmPlugin{
         return std::make_shared<DLCA>(static_cast<short int>(p.getSize()), p.getPoints());
     }
 });
+
+
+

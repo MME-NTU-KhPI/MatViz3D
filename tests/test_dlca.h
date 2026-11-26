@@ -22,8 +22,14 @@ private slots:
     void testParticlesKeepDistinctVoxels_data();
     void testParticlesKeepDistinctVoxels();
 
+    void testNoTouchingAggregatesAfterStep_data();
+    void testNoTouchingAggregatesAfterStep();
+
     void testRankAttributeInGeometry();
     void testNoRankAttributeWhenNotComputed();
 };
 
 #endif // TEST_DLCA_H
+
+
+

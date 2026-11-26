@@ -20,6 +20,7 @@ public:
     std::vector <Parent_Algorithm::Coordinate> aggr;
     void move_aggregate(int dx, int dy, int dz);
     void map_to_voxels();
+    void absorb(DLCA_Aggregate &other);   ///< take over all voxels of `other`, relabelling them in the grid
     CoordinateDouble calculate_exact_center_of_mass() const;
     Parent_Algorithm::Coordinate calculate_center_of_mass() const;
     void shift_to_cube_center(int cubeSize);
@@ -44,8 +45,12 @@ public:
     bool check_collision(size_t i, size_t j);
     void join_aggregates(size_t _i, size_t _j);
 private:
+    void merge_touching_aggregates();      ///< join every group of face-touching aggregates, O(N) per step
     void reportPercolation();
     size_t m_prevClusters = 0;
 };
 
 #endif // DLCA_H
+
+
+

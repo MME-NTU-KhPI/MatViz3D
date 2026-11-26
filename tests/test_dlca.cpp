@@ -288,6 +288,50 @@ void TestDlca::testParticlesKeepDistinctVoxels()
     release(algo);
 }
 
+void TestDlca::testNoTouchingAggregatesAfterStep_data()
+{
+    QTest::addColumn<int>("concentration");
+    QTest::addColumn<unsigned int>("seed");
+
+    for (int concentration : { 10, 30 })
+        for (unsigned int seed : { 1u, 2u, 3u })
+            QTest::addRow("c%d seed %u", concentration, seed) << concentration << seed;
+}
+
+// After every step no two aggregates may share a face: the grid-based merge must
+// find every contact that the pairwise definition check_collision reports.
+void TestDlca::testNoTouchingAggregatesAfterStep()
+{
+    QFETCH(int, concentration);
+    QFETCH(unsigned int, seed);
+
+    const int size = 16;
+    const int particles = size * size * size * concentration / 100;
+
+    auto algo = initializeDlca(size, particles, seed);
+    QVERIFY(algo);
+    auto* dlca = dynamic_cast<DLCA*>(algo.get());
+    QVERIFY(dlca);
+
+    for (int step = 0; step < 5 && !dlca->getDone(); ++step) {
+        dlca->Next_Iteration();
+
+        size_t total = 0;
+        int32_t*** voxels = algo->getVoxels();
+        for (const DLCA_Aggregate& a : dlca->aggregates) {
+            total += a.aggr.size();
+            for (const Coord& c : a.aggr)
+                QCOMPARE(voxels[c.x][c.y][c.z], a.id);       // grid labels match the owner
+        }
+        QCOMPARE(total, size_t(particles));                  // no voxel lost or duplicated
+
+        for (size_t i = 0; i < dlca->aggregates.size(); ++i)
+            for (size_t j = i + 1; j < dlca->aggregates.size(); ++j)
+                QVERIFY2(!dlca->check_collision(i, j), "touching aggregates were not merged");
+    }
+    release(algo);
+}
+
 void TestDlca::testRankAttributeInGeometry()
 {
     QTemporaryDir dir;
@@ -305,3 +349,6 @@ void TestDlca::testNoRankAttributeWhenNotComputed()
     Parameters::percolation_rank6 = -1;
     QCOMPARE(savedRankAttribute(dir.filePath("rank.hdf5")), -1);
 }
+
+
+
